@@ -127,15 +127,23 @@ struct CompanionPendingJoinHost: View {
             .onChange(of: coordinator.pendingAcceptMessage, initial: true) { _, message in
                 guard !isWorking,
                       let message, coordinator.pendingJoinSession == nil else { return }
+                if presentationState.isDismissedByUser {
+                    _ = coordinator.consumePendingAcceptMessage()
+                    _ = coordinator.consumePendingAcceptResult()
+                    return
+                }
                 onJoinSuccess(message)
                 _ = coordinator.consumePendingAcceptMessage()
                 _ = coordinator.consumePendingAcceptResult()
             }
             .onChange(of: coordinator.lastErrorMessage) { _, message in
-                if let message, coordinator.pendingJoinSession == nil {
-                    errorMessage = message
+                guard let message, coordinator.pendingJoinSession == nil else { return }
+                if presentationState.isDismissedByUser {
                     _ = coordinator.consumeLastErrorMessage()
+                    return
                 }
+                errorMessage = message
+                _ = coordinator.consumeLastErrorMessage()
             }
             .confirmationDialog(
                 BSLocalization.text("设为当前现场？"),
@@ -320,6 +328,7 @@ private struct CompanionJoinConfirmationView: View {
     }
 
     private var selectedImportStrategy: CompanionAcceptedImportStrategy {
+        guard case .multiple = localMatch else { return .automatic }
         switch duplicateChoice {
         case .merge(let showID): return .mergeInto(showID)
         case .keepSeparate: return .keepSeparate
@@ -378,6 +387,11 @@ private struct CompanionJoinConfirmationView: View {
         }
         .onChange(of: session?.sessionLocator.recordName) { _, _ in
             duplicateChoice = nil
+        }
+        .onChange(of: localShows.map(\.id)) { _, _ in
+            if case .multiple = localMatch {
+                duplicateChoice = nil
+            }
         }
         .preferredColorScheme(.dark)
     }
