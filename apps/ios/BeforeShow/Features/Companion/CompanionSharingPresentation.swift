@@ -8,26 +8,26 @@ enum CompanionSharingPresentation {
     ) -> String {
         let owner = ownerDisplayName ?? BSLocalization.text("朋友")
         guard let importResult else {
-            return BSLocalization.format("已接受%@的邀请", owner)
+            return BSLocalization.format("已与%@成为同行", owner)
         }
         if !importResult.inserted {
             return BSLocalization.format("已接受%@的邀请", owner)
         }
         if importResult.wasHistorical {
-            return BSLocalization.format("已记录你和%@一起去过", owner)
+            return BSLocalization.format("已记录你和%@的共同足迹", owner)
         }
         if importResult.becameCurrent {
-            return BSLocalization.format("已接受%@的邀请，并设为当前现场", owner)
+            return BSLocalization.format("已与%@成为同行，并设为当前现场", owner)
         }
-        return BSLocalization.format("已接受%@的邀请，已加入「我的现场」", owner)
+        return BSLocalization.format("已与%@成为同行，已加入「我的现场」", owner)
     }
 
     static var alreadyJoinedMessage: String {
-        BSLocalization.text("你已经接受过这份邀请")
+        BSLocalization.text("你已经是这场的同行")
     }
 
     static var companionLeftMessage: String {
-        BSLocalization.text("这场已经没有同行了")
+        BSLocalization.text("这场的同行关系已结束")
     }
 
     static var membershipSyncWarning: String {
