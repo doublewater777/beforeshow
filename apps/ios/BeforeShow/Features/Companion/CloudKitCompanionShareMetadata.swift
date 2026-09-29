@@ -52,3 +52,137 @@ extension CloudKitCompanionSharingService {
         }
     }
 }
+
+enum CompanionCloudAcceptRecoveryPolicy {
+    static func canRecover(
+        after errorCode: CKError.Code?,
+        sharedDatabaseConfirmsAcceptedParticipant: Bool
+    ) -> Bool {
+        guard errorCode == .alreadyShared || errorCode == .serverRejectedRequest else {
+            return false
+        }
+        return sharedDatabaseConfirmsAcceptedParticipant
+    }
+}
+
+struct CompanionAcceptedShareContext {
+    let shareLocator: CompanionRecordLocator
+    let record: CKRecord
+    let participantDisplayNames: [String]
+    let ownerDisplayName: String?
+}
+
+extension CloudKitCompanionSharingService {
+    func metadataIncludingRootRecord(
+        _ metadata: CKShare.Metadata
+    ) async throws -> CKShare.Metadata {
+        if metadata.rootRecord != nil {
+            return metadata
+        }
+        guard let shareURL = metadata.share.url else {
+            throw CompanionSharingError.invalidPayload
+        }
+
+        return try await Self.fetchMetadataWithRootRecord(for: shareURL, in: container)
+    }
+
+    func acceptedShareContext(
+        metadata: CKShare.Metadata
+    ) async throws -> CompanionAcceptedShareContext {
+        try await ensureAccountAvailable()
+
+        let acceptedMetadata = try await metadataIncludingRootRecord(metadata)
+        let shareLocator = CompanionRecordLocator(recordID: acceptedMetadata.share.recordID)
+        let isOwner = acceptedMetadata.share.currentUserParticipant?.role == .owner
+        let acceptedShare: CKShare
+        if isOwner {
+            acceptedShare = acceptedMetadata.share
+        } else {
+            do {
+                acceptedShare = try await container.accept(acceptedMetadata)
+            } catch {
+                let errorCode = (error as? CKError)?.code
+                guard errorCode == .alreadyShared || errorCode == .serverRejectedRequest else {
+                    throw Self.mapError(error, fallback: .acceptFailed)
+                }
+
+                // A failed accept call is recoverable only when the shared database
+                // independently proves that this user is already an accepted participant.
+                let existing = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare
+                let confirmsAcceptedParticipant =
+                    existing?.currentUserParticipant?.acceptanceStatus == .accepted
+                guard CompanionCloudAcceptRecoveryPolicy.canRecover(
+                    after: errorCode,
+                    sharedDatabaseConfirmsAcceptedParticipant: confirmsAcceptedParticipant
+                ),
+                let existing else {
+                    throw Self.mapError(error, fallback: .acceptFailed)
+                }
+                acceptedShare = existing
+            }
+        }
+
+        guard let rootID = acceptedMetadata.hierarchicalRootRecordID else {
+            throw CompanionSharingError.invalidPayload
+        }
+
+        let record: CKRecord
+        if isOwner {
+            do {
+                record = try await privateDB.record(for: rootID)
+            } catch {
+                if let preloaded = acceptedMetadata.rootRecord {
+                    record = preloaded
+                } else {
+                    throw Self.mapError(error, fallback: .acceptFailed)
+                }
+            }
+        } else {
+            do {
+                // For participants, the root record must be readable from the shared
+                // database. Falling back to metadata/private DB would manufacture
+                // "accepted" state without proof of share membership.
+                record = try await sharedDB.record(for: rootID)
+            } catch {
+                throw Self.mapError(error, fallback: .statusSyncPending)
+            }
+        }
+
+        func leaveShareOrThrowCleanupPending() async throws {
+            do {
+                _ = try await modifyRecords(
+                    in: sharedDB,
+                    saving: [],
+                    deleting: [shareLocator.recordID]
+                )
+            } catch {
+                let mapped = Self.mapError(error)
+                if mapped != .sessionNotFound {
+                    throw CompanionSharingError.statusSyncPending
+                }
+            }
+        }
+
+        if let statusRaw = record[CompanionSessionRecord.status] as? String,
+           statusRaw == CompanionCloudStatus.canceled.rawValue {
+            try await leaveShareOrThrowCleanupPending()
+            throw CompanionSharingError.permissionDenied
+        }
+
+        do {
+            _ = try Self.snapshot(from: record, shareLocator: shareLocator)
+        } catch {
+            try await leaveShareOrThrowCleanupPending()
+            throw CompanionSharingError.invalidPayload
+        }
+
+        return CompanionAcceptedShareContext(
+            shareLocator: shareLocator,
+            record: record,
+            participantDisplayNames: Self.participantNames(from: acceptedShare),
+            ownerDisplayName: Self.displayName(for: acceptedMetadata.ownerIdentity)
+        )
+    }
+
+
+}
