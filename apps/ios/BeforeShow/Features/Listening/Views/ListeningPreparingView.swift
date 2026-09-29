@@ -27,7 +27,7 @@ struct ListeningPreparingView: View {
                             title: BSLocalization.text("BeforeShow 热门合辑"),
                             count: BSLocalization.format("%d 张唱片", 0),
                             isLoading: true,
-                            showsCount: false
+                            showsCount: true
                         ) {
                             ListeningShelfSkeleton()
                         }

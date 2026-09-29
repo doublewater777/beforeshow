@@ -16,7 +16,8 @@ struct ListeningCabinetView<Placeholder: View>: View {
 
     private var isLoading: Bool {
         room.libraryDiscs.isEmpty && (room.isAuthorizing || !room.accessResolved
-            || room.presentation == .loadingCatalog)
+            || room.presentation == .loading || room.presentation == .loadingCatalog
+            || room.isCatalogEnriching)
     }
 
     private var shelfDiscs: [ListeningDisc] { room.display.shelfDiscs }
@@ -35,7 +36,7 @@ struct ListeningCabinetView<Placeholder: View>: View {
             title: room.browseArtists.isEmpty ? shelfTitle : nil,
             count: BSLocalization.format("%d 张唱片", room.libraryDiscs.count),
             isLoading: isLoading,
-            showsCount: !room.libraryDiscs.isEmpty,
+            showsCount: !room.libraryDiscs.isEmpty || isLoading,
             showsAllDiscs: room.display.showsAllDiscs,
             showsCurrentDisc: currentDisc != nil,
             showAll: showAll,

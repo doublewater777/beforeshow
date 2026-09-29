@@ -66,13 +66,14 @@ struct ListeningArtistSelector: View {
                 .padding(.top, BSSpacing.sm)
             }
             .onChange(of: selection) { _, scope in
-                switch scope {
-                case .all: proxy.scrollTo("all", anchor: .leading)
-                case let .artist(id): proxy.scrollTo(id, anchor: .center)
+                withAnimation(BSListeningTokens.selectionAnimation) {
+                    switch scope {
+                    case .all: proxy.scrollTo("all", anchor: .leading)
+                    case let .artist(id): proxy.scrollTo(id, anchor: .center)
+                    }
                 }
             }
         }
-        .animation(BSListeningTokens.selectionAnimation, value: selection)
         .accessibilityIdentifier("listening.artistSelector")
     }
 

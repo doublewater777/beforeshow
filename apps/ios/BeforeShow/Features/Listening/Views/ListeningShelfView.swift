@@ -24,40 +24,27 @@ struct ListeningShelfView<Content: View>: View {
         headerHeight + BSSpacing.xs + contentHeight
     }
 
-    private var hasVisibleHeaderContent: Bool {
-        title != nil || showsCount || showsCurrentDisc || isLoading
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if hasVisibleHeaderContent {
-                HStack(spacing: BSSpacing.sm) {
-                    if isLoading && !showsCount && title == nil {
-                        RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                            .fill(BSColor.Stage.surfaceRaised)
-                            .frame(width: 68, height: 11)
-                            .listeningShimmer()
-                    } else {
-                        titleLabel
-                        if showsCount {
-                            countLabel
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    if showsCurrentDisc {
-                        Button(action: showCurrentDisc) {
-                            Image(systemName: "opticaldisc")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(BSColor.Stage.accent)
-                                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                        }
-                        .buttonStyle(BSListeningPressStyle())
-                        .accessibilityLabel(BSLocalization.text("已在播放机中"))
-                        .accessibilityIdentifier("listening.currentDisc")
-                    }
+            HStack(spacing: BSSpacing.sm) {
+                titleLabel
+                if showsCount {
+                    countLabel
                 }
-                .frame(height: headerHeight)
+                Spacer(minLength: 0)
+                if showsCurrentDisc {
+                    Button(action: showCurrentDisc) {
+                        Image(systemName: "opticaldisc")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.accent)
+                            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                    }
+                    .buttonStyle(BSListeningPressStyle())
+                    .accessibilityLabel(BSLocalization.text("已在播放机中"))
+                    .accessibilityIdentifier("listening.currentDisc")
+                }
             }
+            .frame(height: headerHeight)
 
             content
                 .frame(maxWidth: .infinity)
@@ -99,6 +86,7 @@ struct ListeningShelfView<Content: View>: View {
                 .foregroundStyle(BSColor.Stage.muted)
                 .redacted(reason: isLoading ? .placeholder : [])
                 .accessibilityHidden(isLoading)
+                .accessibilityIdentifier("listening.discCount")
         }
     }
 }

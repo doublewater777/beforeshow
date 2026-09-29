@@ -29,6 +29,7 @@ struct ListeningArtistChip<Artwork: View>: View {
                 lineWidth: BSListeningTokens.hairline
             )
         }
+        .animation(BSListeningTokens.selectionAnimation, value: isSelected)
         .contentShape(Capsule())
     }
 }
