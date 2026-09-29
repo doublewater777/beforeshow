@@ -178,9 +178,8 @@ struct BSSwipeRevealActionRow<Content: View>: View {
     private let content: Content
 
     @State private var dragTranslation: CGFloat = 0
-
-    private let actionWidth: CGFloat = 92
-    private let actionHeight: CGFloat = 80
+    @State private var horizontalDrag: Bool?
+    private let actionWidth: CGFloat = 88
 
     init(
         isRevealed: Bool,
@@ -200,12 +199,14 @@ struct BSSwipeRevealActionRow<Content: View>: View {
         self.content = content()
     }
 
-    private var restingOffset: CGFloat {
-        isRevealed ? -actionWidth : 0
-    }
+    private var restingOffset: CGFloat { isRevealed ? -actionWidth : 0 }
 
     private var rowOffset: CGFloat {
         min(0, max(-actionWidth, restingOffset + dragTranslation))
+    }
+
+    private var revealProgress: CGFloat {
+        min(1, max(0, -rowOffset / actionWidth))
     }
 
     var body: some View {
@@ -214,40 +215,62 @@ struct BSSwipeRevealActionRow<Content: View>: View {
                 onReveal(false)
                 onAction()
             } label: {
-                VStack(spacing: 5) {
+                VStack(spacing: 4) {
                     Image(systemName: actionIcon)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                     Text(actionTitle)
-                        .font(.system(size: 11.5, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                 }
                 .foregroundColor(tint)
-                .frame(width: actionWidth, height: actionHeight)
-                .background(tint.opacity(0.13))
+                .frame(width: 72, height: 54)
+                .background(Color.white.opacity(0.055))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(tint.opacity(0.18), lineWidth: 1)
+                )
             }
             .buttonStyle(.plain)
+            .padding(.trailing, 8)
+            .opacity(revealProgress)
+            .allowsHitTesting(isRevealed && dragTranslation == 0)
             .accessibilityHidden(true)
 
             content
+                .frame(maxWidth: .infinity)
                 .offset(x: rowOffset)
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 10)
+                    DragGesture(minimumDistance: 4)
                         .onChanged { value in
-                            guard abs(value.translation.width) > abs(value.translation.height) else {
-                                return
+                            if horizontalDrag == nil {
+                                let horizontal = abs(value.translation.width)
+                                let vertical = abs(value.translation.height)
+                                guard max(horizontal, vertical) >= 4 else { return }
+                                horizontalDrag = horizontal >= vertical
                             }
+                            guard horizontalDrag == true else { return }
                             dragTranslation = value.translation.width
                         }
                         .onEnded { value in
-                            defer { dragTranslation = 0 }
-                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                            defer { horizontalDrag = nil }
+                            guard horizontalDrag == true else {
+                                dragTranslation = 0
                                 return
                             }
-                            let projectedOffset = restingOffset + value.predictedEndTranslation.width
-                            onReveal(projectedOffset < -(actionWidth * 0.45))
+                            let projected = restingOffset + value.predictedEndTranslation.width
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.90)) {
+                                onReveal(projected < -(actionWidth * 0.45))
+                                dragTranslation = 0
+                            }
                         }
                 )
         }
+        .background(BSColor.Stage.surface.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.09), lineWidth: 1)
+        )
         .accessibilityAction(named: actionTitle) {
             onAction()
         }

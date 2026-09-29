@@ -45,9 +45,7 @@ struct CurrentShowFollowUpSummary: View {
                     actionIcon: "pin.fill",
                     tint: BSColor.Stage.accent,
                     onReveal: { isRevealed in
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                            revealedShowID = isRevealed ? show.id : nil
-                        }
+                        revealedShowID = isRevealed ? show.id : nil
                     },
                     onAction: {
                         revealedShowID = nil
@@ -118,12 +116,6 @@ struct CurrentShowFollowUpSummary: View {
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .background(BSColor.Stage.surface.opacity(0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
-        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(show.name)，\(summaryMeta(for: show))，\(distanceText(to: show))")
     }
