@@ -462,7 +462,7 @@ struct ShowDetailView: View {
         switch show.companionStatus {
         case .none: return BSLocalization.text("邀请朋友")
         case .pending: return BSLocalization.text("等待朋友加入")
-        case .confirmed: return companionPresentation.companionName.map { BSLocalization.format("与%@同行", $0) } ?? BSLocalization.text("已有同行")
+        case .confirmed: return companionPresentation.companionName.map { BSLocalization.format("与%@同行", $0) } ?? BSLocalization.text("已确认同行")
         case .canceled: return BSLocalization.text("重新邀请")
         }
     }
