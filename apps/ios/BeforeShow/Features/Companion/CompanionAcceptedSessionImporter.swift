@@ -8,12 +8,19 @@ struct CompanionAcceptedImportResult: Equatable {
     let wasHistorical: Bool
 }
 
+enum CompanionAcceptedImportStrategy: Equatable {
+    case automatic
+    case mergeInto(UUID)
+    case keepSeparate
+}
+
 @MainActor
 enum CompanionAcceptedSessionImporter {
     @discardableResult
     static func apply(
         _ session: CompanionSessionSnapshot,
         in modelContext: ModelContext,
+        strategy: CompanionAcceptedImportStrategy = .automatic,
         now: Date = Date()
     ) throws -> CompanionAcceptedImportResult {
         let descriptor = FetchDescriptor<Show>()
@@ -43,6 +50,20 @@ enum CompanionAcceptedSessionImporter {
         }
 
         let candidate = try CompanionAcceptedShowMapping.makeShow(from: session.show)
+
+        if case .mergeInto(let targetID) = strategy {
+            guard let target = shows.first(where: { $0.id == targetID }),
+                  target.companionCloudRecordName == nil,
+                  ShowDuplicateMatcher.isDuplicate(candidate, target) else {
+                throw CompanionSharingError.conflict
+            }
+            CompanionAcceptedShowMapping.mergeMissingData(from: session.show, into: target)
+            target.applyCompanionSession(session, isOwner: false)
+            let becameCurrent = selectAsCurrentIfNeeded(target, among: shows, in: modelContext, now: now)
+            try modelContext.save()
+            return result(for: target, inserted: false, becameCurrent: becameCurrent, now: now)
+        }
+
         let duplicateCandidates = shows.filter { existing in
             // One local Show owns at most one companion group. Never overwrite linkage
             // from an unrelated session just because the show metadata looks similar.
@@ -50,7 +71,9 @@ enum CompanionAcceptedSessionImporter {
             return ShowDuplicateMatcher.isDuplicate(candidate, existing)
         }
 
-        if duplicateCandidates.count == 1, let match = duplicateCandidates.first {
+        if strategy == .automatic,
+           duplicateCandidates.count == 1,
+           let match = duplicateCandidates.first {
             CompanionAcceptedShowMapping.mergeMissingData(from: session.show, into: match)
             match.applyCompanionSession(session, isOwner: false)
             let becameCurrent = selectAsCurrentIfNeeded(match, among: shows, in: modelContext, now: now)
@@ -58,8 +81,14 @@ enum CompanionAcceptedSessionImporter {
             return result(for: match, inserted: false, becameCurrent: becameCurrent, now: now)
         }
 
-        // Ambiguous local matches are intentionally not overwritten. Persist the accepted
-        // copy first, then RootView asks which existing Show (if any) should survive.
+        // Automatic recovery preserves the old ambiguity flow. An explicit keep-separate
+        // choice records that decision so RootView does not ask the user a second time.
+        if strategy == .keepSeparate, !duplicateCandidates.isEmpty {
+            CompanionDuplicateResolutionStore.ignore(
+                sessionRecordName: session.sessionLocator.recordName
+            )
+        }
+
         candidate.applyCompanionSession(session, isOwner: false)
         modelContext.insert(candidate)
         shows.append(candidate)
