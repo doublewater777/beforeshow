@@ -50,9 +50,33 @@ export function parseMaoyanPerformance(data) {
     artist: "",
     coverImageURL: stringValue(data?.posterUrl),
     artistAvatarURLs: [],
-    priceRange: stringValue(data?.lowestPrice).replace(/^¥\s*/, ""),
+    priceRange: stringValue(data?.priceRange || data?.lowestPrice).replace(/^¥\s*/, ""),
     source: "maoyan"
   };
+}
+
+export function parseMaoyanDetailHtml(html) {
+  const nextData = extractNextData(html);
+  const detail = nextData?.props?.pageProps?.detail;
+  if (!detail || !detail.name) return null;
+  return parseMaoyanPerformance(detail);
+}
+
+function extractNextData(html) {
+  if (typeof html !== "string") return null;
+  const scriptTagMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (scriptTagMatch?.[1]) {
+    try {
+      return JSON.parse(scriptTagMatch[1].trim());
+    } catch {}
+  }
+  const assignmentMatch = html.match(/__NEXT_DATA__\s*=\s*(\{[\s\S]+?\})\s*(?:;\s*)?(?:\n|module\s*=|<\/script>)/);
+  if (assignmentMatch?.[1]) {
+    try {
+      return JSON.parse(assignmentMatch[1].trim());
+    } catch {}
+  }
+  return null;
 }
 
 function parseShowTimeRange(value) {

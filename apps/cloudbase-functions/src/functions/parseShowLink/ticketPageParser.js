@@ -2,6 +2,7 @@ import {
   fetchPublicEventPage,
   parsePublicEventPage
 } from "./publicEventParser.js";
+import { parseMaoyanDetailHtml } from "./maoyanParser.js";
 
 const CITY_NAMES = [
   "北京", "上海", "天津", "重庆", "深圳", "广州", "杭州", "成都", "南京", "武汉",
@@ -32,6 +33,13 @@ export async function fetchAndParseTicketPage({
   fetch = globalThis.fetch
 } = {}) {
   const html = await fetchPublicEventPage({ url, fetch });
+
+  if (source === "maoyan") {
+    const maoyanDraft = parseMaoyanDetailHtml(html);
+    if (maoyanDraft && maoyanDraft.name && maoyanDraft.date) {
+      return maoyanDraft;
+    }
+  }
 
   try {
     const draft = parsePublicEventPage(html, { source });
