@@ -22,7 +22,7 @@ enum CompanionInvitePreparingPresentation {
     static func actionTitle(hasExistingShare: Bool) -> String {
         hasExistingShare
             ? BSLocalization.text("再次邀请")
-            : BSLocalization.text("分享邀请")
+            : BSLocalization.text("邀请朋友")
     }
 }
 
