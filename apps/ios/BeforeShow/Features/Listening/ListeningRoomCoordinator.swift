@@ -1158,8 +1158,20 @@ private let listeningCatalogFetchConcurrency = 4
             preparedCompilationDiscs = []
             return disc.tracks
         }
-        preparedCompilationDiscs = compilationDiscs
-        return preparedCompilationDiscs.flatMap(\.tracks)
+
+        let currentSongIDs = Set(disc.tracks.map(\.id))
+        let availableVolumes = compilationDiscs
+        let canUseContinuousQueue = !availableVolumes.isEmpty
+            && availableVolumes.contains { volume in
+                volume.tracks.contains { currentSongIDs.contains($0.id) }
+            }
+        guard canUseContinuousQueue else {
+            preparedCompilationDiscs = [disc]
+            return disc.tracks
+        }
+
+        preparedCompilationDiscs = availableVolumes
+        return availableVolumes.flatMap(\.tracks)
     }
 
     private var activeCompilationDiscs: [ListeningDisc] {
