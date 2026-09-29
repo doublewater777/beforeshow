@@ -395,7 +395,13 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior"))
     }
 
-    func testRootDestinationsHideTheNativeSystemTabBar() throws {
+    func testRootAndDestinationsHideTheNativeSystemTabBar() throws {
+        let rootView = try listeningSource("RootView.swift")
+        XCTAssertTrue(
+            rootView.contains(".toolbar(.hidden, for: .tabBar)\n        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))"),
+            "Root TabView must hide the labeled system bar before detached Bottom Chrome is installed so cold start cannot flash two tab bars"
+        )
+
         for path in [
             "Features/CurrentShow/CurrentShowSession.swift",
             "Features/Listening/ListeningFeatureRootView.swift",
@@ -403,7 +409,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         ] {
             XCTAssertTrue(
                 try listeningSource(path).contains(".toolbar(.hidden, for: .tabBar)"),
-                "\(path) must hide the labeled system bar behind detached icon-only root controls"
+                "\(path) must keep its defensive system-tab-bar hide behind detached icon-only root controls"
             )
         }
     }
