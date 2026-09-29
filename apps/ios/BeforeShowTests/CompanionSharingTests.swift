@@ -44,7 +44,7 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertFalse(presentation.showsAvatars)
     }
 
-    func testQuickActionLocalizationKeysExistInThreeLanguages() throws {
+    func testCompanionPresentationLocalizationKeysExistInThreeLanguages() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -58,6 +58,26 @@ final class CompanionSharingTests: XCTestCase {
             "等待朋友加入",
             "朋友接受邀请后，会出现在这里。",
             "再次邀请",
+            "修改我的称呼",
+            "输入称呼",
+            "修改朋友备注",
+            "输入备注",
+            "这个备注只会显示在你的设备上。",
+            "你们一起去过这场现场。",
+            "你们会一起去这场现场。",
+            "正在更新邀请，请稍后再试",
+            "这场的邀请还在处理中，请稍后再试",
+            "暂时无法打开分享菜单，请稍后再试",
+            "已有同行",
+            "接受邀请",
+            "这场已经在你的足迹里。确认后，会记录你和%@一起去过，不会重复添加。",
+            "这场已经在「我的现场」里。接受后，你和%@会显示为同行，不会重复添加。",
+            "你有多场相似记录。接受后，可以选择对应的那一场。",
+            "接受后，这场会设为你的当前现场。",
+            "接受后，这场会加入「我的现场」，你和%@会显示为同行。",
+            "需要登录 iCloud 才能邀请朋友",
+            "暂时无法创建邀请，请确认 iCloud 云盘已打开",
+            "iCloud 空间不足，暂时无法创建邀请",
         ]
 
         for locale in ["zh-Hans", "zh-Hant", "en"] {
