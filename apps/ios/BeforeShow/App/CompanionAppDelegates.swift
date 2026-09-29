@@ -34,7 +34,10 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         deliverAcceptedShare(cloudKitShareMetadata)
     }
 
-    func deliverAcceptedShare(_ metadata: CKShare.Metadata) {
+    func deliverAcceptedShare(
+        _ metadata: CKShare.Metadata,
+        startsNewPresentation: Bool = true
+    ) {
         guard let coordinator = companionCoordinator else {
             // Persist before dependencies are available; a process termination must not
             // discard the invitation callback.
@@ -42,7 +45,10 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
             return
         }
         Task { @MainActor in
-            coordinator.enqueueAcceptedShare(metadata)
+            coordinator.enqueueAcceptedShare(
+                metadata,
+                startsNewPresentation: startsNewPresentation
+            )
             if let container = modelContainer {
                 let context = ModelContext(container)
                 await coordinator.flushPendingAcceptedShares(in: context)
@@ -57,7 +63,7 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
             do {
                 try await CloudKitCompanionSharingService().ensureAccountAvailable()
                 let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: shareURL)
-                deliverAcceptedShare(metadata)
+                deliverAcceptedShare(metadata, startsNewPresentation: false)
             } catch {
                 CompanionDebugLog.write("deliverCompanionInviteURL failed: \(error)")
                 companionCoordinator?.handleIncomingInviteFailure(error)
