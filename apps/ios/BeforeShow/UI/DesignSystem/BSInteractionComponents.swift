@@ -215,6 +215,10 @@ struct BSSwipeRevealActionRow<Content: View>: View {
         clampedOffset(restingOffset + dragTranslation)
     }
 
+    private var revealProgress: CGFloat {
+        min(1, max(0, -rowOffset / actionWidth))
+    }
+
     private func clampedOffset(_ offset: CGFloat) -> CGFloat {
         min(0, max(-actionWidth, offset))
     }
@@ -236,9 +240,12 @@ struct BSSwipeRevealActionRow<Content: View>: View {
                 .background(tint.opacity(0.13))
             }
             .buttonStyle(.plain)
+            .opacity(revealProgress)
+            .allowsHitTesting(isRevealed && dragTranslation == 0)
             .accessibilityHidden(true)
 
             content
+                .frame(maxWidth: .infinity)
                 .offset(x: rowOffset)
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 4)
