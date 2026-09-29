@@ -137,13 +137,16 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
+    func enqueueAcceptedShare(
+        _ metadata: CKShare.Metadata,
+        startsNewPresentation: Bool = true
+    ) {
         enableCloudSync()
         let key = CompanionAcceptedShareInbox.metadataKey(metadata)
         guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
         }
-        beginInvitePresentationIfNeeded()
+        beginInvitePresentationIfNeeded(forceNewPresentation: startsNewPresentation)
         pendingShareMetadata.append(metadata)
         CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
     }
