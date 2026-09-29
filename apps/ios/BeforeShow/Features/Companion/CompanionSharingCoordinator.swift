@@ -16,7 +16,7 @@ final class CompanionSharingCoordinator {
     private(set) var pendingJoinSession: CompanionSessionSnapshot?
     private(set) var isLoadingInvitation = false
     private(set) var invitePresentationGeneration = 0
-    private var canceledInvitePresentationGeneration: Int?
+    private var canceledPresentationGeneration: Int?
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
@@ -25,8 +25,6 @@ final class CompanionSharingCoordinator {
     private var isFlushingAcceptedShares = false
     private let userDefaults: UserDefaults
     private let usesKeychainCloudSyncMarker: Bool
-
-    static let cloudSyncEnabledKey = CompanionCloudSyncMarker.userDefaultsKey
 
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
@@ -147,7 +145,7 @@ final class CompanionSharingCoordinator {
         guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
         }
-        beginInvitePresentationIfNeeded(forceNewPresentation: startsNewPresentation)
+        beginInvitePresentationIfNeeded(forceNew: startsNewPresentation)
         pendingShareMetadata.append(metadata)
         CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
     }
@@ -279,14 +277,6 @@ final class CompanionSharingCoordinator {
     }
 
     var hasPendingAcceptedShares: Bool { !pendingShareMetadata.isEmpty }
-
-    static func persistAcceptedShare(
-        _ metadata: CKShare.Metadata,
-        userDefaults: UserDefaults = .standard
-    ) {
-        CompanionAcceptedShareInbox.append(metadata, to: userDefaults)
-        CompanionCloudSyncMarker.enable(in: userDefaults, usesKeychain: true)
-    }
 
     func cancelCompanion(for show: Show, in modelContext: ModelContext) async throws {
         let isOwner = show.companionIsOwner ?? true
@@ -483,23 +473,21 @@ final class CompanionSharingCoordinator {
         pendingAcceptResult = nil
         lastErrorMessage = nil
         lastErrorKind = nil
-        beginInvitePresentationIfNeeded(forceNewPresentation: true)
+        beginInvitePresentationIfNeeded(forceNew: true)
         return invitePresentationGeneration
     }
 
-    private func beginInvitePresentationIfNeeded(forceNewPresentation: Bool = false) {
-        if forceNewPresentation || (!isLoadingInvitation && pendingJoinSession == nil) {
+    private func beginInvitePresentationIfNeeded(forceNew: Bool = false) {
+        if forceNew || (!isLoadingInvitation && pendingJoinSession == nil) {
             invitePresentationGeneration &+= 1
-            canceledInvitePresentationGeneration = nil
+            canceledPresentationGeneration = nil
         }
-        if pendingJoinSession == nil {
-            isLoadingInvitation = true
-        }
+        if pendingJoinSession == nil { isLoadingInvitation = true }
     }
 
     func cancelLoadingInvitationPresentation() {
         guard pendingJoinSession == nil else { return }
-        canceledInvitePresentationGeneration = invitePresentationGeneration
+        canceledPresentationGeneration = invitePresentationGeneration
         isLoadingInvitation = false
         if let metadata = pendingShareMetadata.first {
             removePendingShare(key: CompanionAcceptedShareInbox.metadataKey(metadata))
@@ -510,7 +498,7 @@ final class CompanionSharingCoordinator {
 
     func isInvitePresentationActive(_ generation: Int) -> Bool {
         generation == invitePresentationGeneration
-            && canceledInvitePresentationGeneration != generation
+            && canceledPresentationGeneration != generation
     }
 
     private func recordError(_ error: Error, fallback: CompanionSharingError? = nil) {
@@ -599,7 +587,5 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    static func userMessage(for error: Error) -> String {
-        CompanionSharingPresentation.userMessage(for: error)
-    }
+
 }
