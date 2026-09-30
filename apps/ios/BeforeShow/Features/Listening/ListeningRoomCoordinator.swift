@@ -744,8 +744,8 @@ private let listeningCatalogFetchConcurrency = 4
         })
         var discIDs = Set<String>()
         discs = (compilationDiscs + browseArtists.flatMap(\.albums)).filter { discIDs.insert($0.id).inserted }
-        let connectedIDs = Set(browseArtists.compactMap(\.appleMusicArtistID))
-        browser.reconcile(validArtistIDs: connectedIDs)
+        let validArtistIDs = Set(browseArtists.map(\.id))
+        browser.reconcile(validArtistIDs: validArtistIDs)
         try refreshEvidence()
         recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>()).first { $0.showID == show.id }
     }
@@ -797,8 +797,8 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     func selectScope(_ scope: ListeningBrowseState.Scope) {
-        let connectedIDs = Set(browseArtists.compactMap(\.appleMusicArtistID))
-        browser.select(scope, validArtistIDs: connectedIDs)
+        let validArtistIDs = Set(browseArtists.map(\.id))
+        browser.select(scope, validArtistIDs: validArtistIDs)
         if case let .artist(artistID) = browser.scope {
             loadFeaturedPlaylistsIfNeeded(for: artistID)
         }

@@ -9,11 +9,7 @@ private struct ListeningArtistSelectorItem: View {
 
     var body: some View {
         Button {
-            if artist.isConnected {
-                onSelect(frame)
-            } else {
-                onConnect()
-            }
+            onSelect(frame)
         } label: {
             ListeningArtistChip(title: artist.name, isSelected: isSelected, isConnected: artist.isConnected) {
                 ListeningArtistArtwork(url: artist.artworkURL, name: artist.name, size: BSListeningTokens.avatar)
@@ -38,7 +34,7 @@ private struct ListeningArtistSelectorItem: View {
             }
         }
         .accessibilityLabel(artist.isConnected ? artist.name : "\(artist.name), \(BSLocalization.text("未连接 Apple Music"))")
-        .accessibilityHint(artist.isConnected ? "" : BSLocalization.text("轻点连接"))
+        .accessibilityHint(artist.isConnected ? "" : BSLocalization.text("轻点查看"))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -60,10 +56,17 @@ struct ListeningArtistSelector: View {
                     select(.all)
                     revealIfNeeded(allFrame)
                 }
+                if !artists.isEmpty {
+                    Rectangle()
+                        .fill(BSColor.Stage.border)
+                        .frame(width: 1, height: 18)
+                        .padding(.horizontal, 2)
+                        .accessibilityHidden(true)
+                }
                 ForEach(artists) { artist in
                     ListeningArtistSelectorItem(
                         artist: artist,
-                        isSelected: artist.isConnected && selection == .artist(artist.id),
+                        isSelected: selection == .artist(artist.id),
                         onSelect: { frame in
                             select(.artist(artist.id))
                             revealIfNeeded(frame)
@@ -72,7 +75,7 @@ struct ListeningArtistSelector: View {
                     )
                 }
             }
-            .padding(.horizontal, BSSpacing.sm)
+            .padding(.horizontal, BSSpacing.roomy)
         }
         .scrollPosition($scrollPosition)
         .frame(height: BSLayout.minTouchTarget)
@@ -103,12 +106,12 @@ struct ListeningArtistSelector: View {
 
     private func revealIfNeeded(_ frame: CGRect) {
         guard viewportWidth > 0, frame.width > 0 else { return }
-        let inset = BSSpacing.sm
+        let inset = BSSpacing.roomy
         let delta: CGFloat
-        if frame.minX < 0 {
+        if frame.minX < inset {
             delta = frame.minX - inset
-        } else if frame.maxX > viewportWidth {
-            delta = frame.maxX - viewportWidth + inset
+        } else if frame.maxX > viewportWidth - inset {
+            delta = frame.maxX - (viewportWidth - inset)
         } else {
             return
         }

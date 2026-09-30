@@ -93,7 +93,6 @@ struct CurrentShowFeatureRootView: View {
             isPlaybackActive: isPlaybackActive,
             isFeaturePresentationActive: isNotificationPresentationActive
         )
-        .toolbar(.hidden, for: .tabBar)
         .task {
             consumeNotificationRouteIfNeeded()
         }

@@ -48,7 +48,7 @@ struct ListeningShelfView<Content: View>: View {
 
             content
                 .frame(maxWidth: .infinity)
-                .frame(height: contentHeight, alignment: .bottom)
+                .frame(height: contentHeight, alignment: .top)
         }
         .frame(height: fixedHeight, alignment: .top)
     }

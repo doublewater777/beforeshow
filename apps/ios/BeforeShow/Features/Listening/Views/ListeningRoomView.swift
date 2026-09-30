@@ -185,6 +185,7 @@ struct ListeningRoomView: View {
                                     matchingArtistName = name
                                 }
                             )
+                            .padding(.horizontal, -BSSpacing.roomy)
                             .opacity(room.isPlaying ? BSListeningTokens.selectionRestingOpacity : 1)
                             .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: room.isPlaying)
                         }
@@ -277,6 +278,16 @@ struct ListeningRoomView: View {
                 actionTitle: room.display.recoveryAction?.title
             ) {
                 if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
+            }
+        } else if let browsingArtist = room.browsingArtist, !browsingArtist.isConnected {
+            ListeningCatalogStatusView(
+                title: BSLocalization.text("尚未匹配 Apple Music 艺人"),
+                subtitle: ListeningCopy.text("选择对应的 Apple Music 艺人"),
+                icon: "link.badge.plus",
+                actionTitle: BSLocalization.text("连接艺人")
+            ) {
+                matchingSlotIndex = browsingArtist.slotIndex
+                matchingArtistName = browsingArtist.name
             }
         } else if room.isCatalogEnriching && room.libraryDiscs.isEmpty {
             // Keep the cabinet geometry stable while the selected artist's full

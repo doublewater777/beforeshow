@@ -22,6 +22,16 @@ enum ListeningRoomPlaybackMode: Equatable {
         case .unavailable: ListeningCopy.text("暂不可播放")
         }
     }
+
+    var iconName: String {
+        switch self {
+        case .connecting: "hourglass"
+        case .fullPlayback: "apple.logo"
+        case .preview: "waveform"
+        case .metadataOnly: "list.bullet.rectangle"
+        case .unavailable: "exclamationmark.triangle"
+        }
+    }
 }
 
 enum ListeningRecoveryAction: Equatable {
@@ -363,11 +373,9 @@ enum ListeningDisplayProjector {
                 )
             case .accountLimited:
                 return ListeningHeaderNotice(
-                    message: ListeningCopy.text(
-                        hasPreview
-                            ? "当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。"
-                            : "当前 Apple Music 账户不支持完整播放，这些歌曲也没有可用试听片段。"
-                    ),
+                    message: hasPreview
+                        ? BSLocalization.text("未开通 Apple Music 会员，提供 30 秒官方试听")
+                        : ListeningCopy.text("当前 Apple Music 账户不支持完整播放，这些歌曲也没有可用试听片段。"),
                     recoveryAction: nil
                 )
             case .accessCheckFailed:

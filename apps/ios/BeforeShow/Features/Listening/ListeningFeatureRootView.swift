@@ -141,7 +141,6 @@ struct ListeningFeatureRootView: View {
 
     var body: some View {
         room
-            .toolbar(.hidden, for: .tabBar)
     }
 
     @ViewBuilder

@@ -68,6 +68,7 @@ struct ListeningRoomHeader: View {
         .sheet(isPresented: $showsExplanation) {
             if let notice {
                 ListeningPlaybackExplanationSheet(
+                    mode: mode,
                     notice: notice,
                     onRecovery: onRecovery
                 )
@@ -109,7 +110,7 @@ struct ListeningRoomHeader: View {
                         .tint(BSColor.Stage.accent)
                         .controlSize(.mini)
                 } else {
-                    Image(systemName: modeIcon(mode))
+                    Image(systemName: mode.iconName)
                         .font(.system(size: 11, weight: .semibold))
                 }
             }
@@ -126,37 +127,61 @@ struct ListeningRoomHeader: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("listening.playbackMode")
     }
-
-    private func modeIcon(_ mode: ListeningRoomPlaybackMode) -> String {
-        switch mode {
-        case .connecting: "hourglass"
-        case .fullPlayback: "apple.logo"
-        case .preview: "waveform"
-        case .metadataOnly: "list.bullet.rectangle"
-        case .unavailable: "exclamationmark.triangle"
-        }
-    }
 }
 
 private struct ListeningPlaybackExplanationSheet: View {
+    let mode: ListeningRoomPlaybackMode
     let notice: ListeningHeaderNotice
     let onRecovery: (ListeningRecoveryAction) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
-        BSDrawerSheet(detent: .height(180), fitsContent: true) {
-            Text(notice.message)
-                .font(BSListeningTokens.body)
-                .foregroundStyle(BSColor.Stage.foreground)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
+        BSDrawerSheet(detent: .height(310), fitsContent: true) {
+            VStack(spacing: BSSpacing.lg) {
+                BSStageSheetHeader(
+                    icon: mode.iconName,
+                    title: mode.title,
+                    subtitle: notice.message,
+                    tint: BSColor.Stage.accent
+                )
 
-            if let action = notice.recoveryAction {
-                Button(action.title) {
-                    dismiss()
-                    onRecovery(action)
+                VStack(spacing: BSSpacing.sm) {
+                    if let action = notice.recoveryAction {
+                        Button(action.title) {
+                            dismiss()
+                            onRecovery(action)
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+
+                        Button(BSLocalization.text("知道了")) {
+                            dismiss()
+                        }
+                        .buttonStyle(BSSecondaryButtonStyle())
+                    } else if mode == .preview {
+                        Button(BSLocalization.text("在 Apple Music 中打开")) {
+                            dismiss()
+                            if let url = URL(string: "music://") {
+                                openURL(url) { accepted in
+                                    if !accepted, let webURL = URL(string: "https://music.apple.com") {
+                                        openURL(webURL)
+                                    }
+                                }
+                            }
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+
+                        Button(BSLocalization.text("知道了")) {
+                            dismiss()
+                        }
+                        .buttonStyle(BSSecondaryButtonStyle())
+                    } else {
+                        Button(BSLocalization.text("知道了")) {
+                            dismiss()
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+                    }
                 }
-                .buttonStyle(BSPrimaryButtonStyle())
             }
         }
     }

@@ -25,10 +25,23 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 catalogPlaybackAccess: canPlayCatalogContent ? .available : .accountLimited
             )
         } catch {
+            #if targetEnvironment(simulator)
             return ListeningMusicAccess(
                 authorizationStatus: authorizationStatus,
-                catalogPlaybackAccess: .accessCheckFailed
+                catalogPlaybackAccess: .accountLimited
             )
+            #else
+            if let urlError = error as? URLError, urlError.code == .notConnectedToInternet || urlError.code == .timedOut {
+                return ListeningMusicAccess(
+                    authorizationStatus: authorizationStatus,
+                    catalogPlaybackAccess: .accessCheckFailed
+                )
+            }
+            return ListeningMusicAccess(
+                authorizationStatus: authorizationStatus,
+                catalogPlaybackAccess: .accountLimited
+            )
+            #endif
         }
     }
 
