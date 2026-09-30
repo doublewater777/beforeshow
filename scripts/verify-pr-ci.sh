@@ -140,25 +140,31 @@ if ! run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1; then
   run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1 || true
 fi
 
-SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available) || {
+SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available --json) || {
   if ! recover_core_simulator_service; then
     echo "Unable to list available simulators." >&2
     exit 2
   fi
-  SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available)
+  SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available --json)
 }
-SIM_UDID=$(
-  printf '%s\n' "$SIM_LIST" | awk -F '[()]' -v name="$SIM_NAME" '
-    {
-      candidate=$1
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", candidate)
-      if (candidate == name) {
-        print $2
-        exit
-      }
-    }
-  '
-)
+# Hosted images contain several iPhone 17 devices. Choose the newest iOS
+# runtime so an older device cannot fall below the app's deployment target.
+SIM_UDID=$(printf '%s\n' "$SIM_LIST" | python3 -c '
+import json
+import re
+import sys
+
+candidates = []
+for runtime, devices in json.load(sys.stdin)["devices"].items():
+    match = re.search(r"\.iOS-(\d+(?:-\d+)*)$", runtime)
+    if not match:
+        continue
+    version = tuple(int(part) for part in match.group(1).split("-"))
+    for device in devices:
+        if device["name"] == sys.argv[1] and device.get("isAvailable", False):
+            candidates.append((version, device["udid"]))
+print(max(candidates)[1] if candidates else "")
+' "$SIM_NAME")
 
 if [ -z "$SIM_UDID" ]; then
   echo "Warmed simulator '$SIM_NAME' was not found; refusing to create a cold CI device." >&2
@@ -462,22 +468,6 @@ PREAMBLE
     | sed 's/xcrun simctl shutdown \"$UDID\"/ci_run_with_timeout 30 xcrun simctl shutdown \"$UDID\"/g' \
     | sed 's/LAUNCH_OUT=$(xcrun simctl launch \"$UDID\" \"$BID\")/LAUNCH_OUT=$(ci_run_with_timeout 60 xcrun simctl launch \"$UDID\" \"$BID\")/g'
 } > "$TEMP_VERIFY"
-
-# `head -1` closes the pipe before Xcode 26.6 finishes writing `xcodebuild
-# -version`, which can raise NSFileHandleOperationException/Broken pipe. Make the
-# generated report command consume the whole stream with awk instead.
-python3 - "$TEMP_VERIFY" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text()
-old = "xcodebuild -version | head -1 | awk '{print $2}'"
-new = "xcodebuild -version | awk 'NR == 1 {print $2}'"
-if old not in text:
-    raise SystemExit("Expected xcodebuild version pipeline was not found")
-path.write_text(text.replace(old, new))
-PY
 
 chmod +x "$TEMP_VERIFY"
 

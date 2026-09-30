@@ -40,7 +40,7 @@ final class ListeningLoadingTests: XCTestCase {
         await refresh.value
     }
 
-    func testLargeFestivalPublishesRuntimeCompilationBeforeFullCatalogAndPersistsOneCompleteBatch() async throws {
+    func testLargeFestivalInitialLoadUsesRuntimeTopSongsWithoutEagerFullCatalog() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
         let start = Date().addingTimeInterval(20_000)
@@ -67,24 +67,312 @@ final class ListeningLoadingTests: XCTestCase {
 
         try await wait {
             catalog.runtimeFetchCount == 17
-                && catalog.fullFetchCount > 0
                 && !room.compilationDiscs.isEmpty
         }
 
+        XCTAssertEqual(catalog.fullFetchCount, 0, "entering 听 must not eagerly fetch every artist's full catalog")
         XCTAssertEqual(catalog.featuredPlaylistFetchCount, 0)
-        XCTAssertFalse(room.compilationDiscs.isEmpty, "BeforeShow compilation should be usable before full enrichment finishes")
-        let preCoreRead = ModelContext(container)
-        XCTAssertEqual(try preCoreRead.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 0)
-        XCTAssertEqual(try preCoreRead.fetchCount(FetchDescriptor<CatalogSong>()), 0, "runtime top songs must remain memory-only")
+        XCTAssertLessThanOrEqual(room.compilationDiscs.count, 3)
 
-        catalog.releaseFullCatalog()
+        let compilationTracks = room.compilationDiscs.flatMap(\.tracks)
+        XCTAssertTrue((40...60).contains(compilationTracks.count), "large-festival compilation should stay within the bounded continuous-listening target")
+        XCTAssertEqual(Set(compilationTracks.map(\.id)).count, compilationTracks.count)
+
+        let countsByArtist = Dictionary(grouping: compilationTracks, by: \.artistName).mapValues(\.count)
+        XCTAssertEqual(countsByArtist.count, 17, "coverage-first allocation should represent every artist")
+        XCTAssertGreaterThanOrEqual(countsByArtist.values.min() ?? 0, 2)
+        XCTAssertLessThanOrEqual((countsByArtist.values.max() ?? 0) - (countsByArtist.values.min() ?? 0), 1)
+
         await load.value
 
         let finalRead = ModelContext(container)
-        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 17)
-        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogSong>()), 1_700)
-        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogAlbum>()), 255)
-        XCTAssertEqual(catalog.featuredPlaylistFetchCount, 0, "initial load must not request browse-only playlists")
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 0)
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogSong>()), 0, "runtime top songs must remain memory-only")
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogAlbum>()), 0)
+    }
+
+    func testForceRefreshUpdatesCompilationFromRuntimeTopSongsWithoutReplacingCompleteSnapshot() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Cached Festival", date: start, startTime: start)
+        show.artists = (0..<2).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+
+        for artistIndex in 0..<2 {
+            let oldID = "old-\(artistIndex)"
+            context.insert(CatalogSong(
+                appleMusicSongID: oldID,
+                title: "Old \(artistIndex)",
+                artistName: "artist-\(artistIndex)",
+                duration: 180
+            ))
+            context.insert(ArtistCatalogSnapshot(
+                artistID: "artist-\(artistIndex)",
+                artistName: "artist-\(artistIndex)",
+                orderedSongIDs: [oldID],
+                topSongIDs: [oldID],
+                albumIDs: [],
+                fetchedAt: Date()
+            ))
+        }
+        try context.save()
+
+        let catalog = GatedLargeFestivalCatalog()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.releaseFullCatalog()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show, force: true)
+
+        XCTAssertEqual(catalog.runtimeFetchCount, 2)
+        XCTAssertEqual(catalog.fullFetchCount, 0)
+        XCTAssertEqual(
+            Set(room.compilationDiscs.flatMap(\.tracks).map(\.id)),
+            Set((0..<2).flatMap { artistIndex in
+                (0..<10).map { "artist-\(artistIndex)-song-\($0)" }
+            })
+        )
+
+        await room.reloadCatalog(force: true)
+        XCTAssertEqual(catalog.runtimeFetchCount, 4, "repeated force refresh must bypass the in-memory runtime cache")
+        XCTAssertEqual(catalog.fullFetchCount, 0)
+
+        let read = ModelContext(container)
+        let snapshots = try read.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+        XCTAssertEqual(snapshots.count, 2)
+        XCTAssertEqual(
+            Set(snapshots.flatMap(\.topSongIDs)),
+            Set(["old-0", "old-1"]),
+            "runtime topSongs must not rewrite the complete-catalog snapshot"
+        )
+        XCTAssertEqual(
+            try read.fetchCount(FetchDescriptor<CatalogSong>()),
+            2,
+            "runtime topSongs must remain memory-only"
+        )
+    }
+
+    func testSelectingArtistLoadsOnlyThatArtistsDetailedCatalog() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Lazy Browse Festival", date: start, startTime: start)
+        show.artists = (0..<17).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+        try context.save()
+
+        let catalog = GatedLargeFestivalCatalog()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.releaseFullCatalog()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        XCTAssertEqual(catalog.fullFetchCount, 0)
+
+        room.selectScope(.artist("artist-6"))
+        try await wait { catalog.fullFetchCount == 1 }
+
+        XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-6"])
+        let whileBlocked = ModelContext(container)
+        XCTAssertEqual(try whileBlocked.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 0)
+
+        catalog.releaseFullCatalog()
+        try await wait {
+            room.browsingArtist?.id == "artist-6"
+                && room.browsingArtist?.albums.count == 15
+                && catalog.featuredPlaylistFetchCount == 1
+        }
+
+        let finalRead = ModelContext(container)
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 1)
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogSong>()), 100)
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogAlbum>()), 15)
+        XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-6"])
+        XCTAssertEqual(catalog.featuredPlaylistFetchCount, 1)
+
+        room.returnToWholeShow()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(catalog.fullFetchCount, 1, "returning to the compilation scope must not fetch other artists")
+    }
+
+    func testSelectingArtistDuringRuntimeRefreshLoadsThatArtistAfterRefresh() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Scope Race Festival", date: start, startTime: start)
+        show.artists = (0..<2).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+
+        for artistIndex in 0..<2 {
+            let songID = "cached-\(artistIndex)"
+            context.insert(CatalogSong(
+                appleMusicSongID: songID,
+                title: "Cached \(artistIndex)",
+                artistName: "artist-\(artistIndex)",
+                duration: 180
+            ))
+            context.insert(ArtistCatalogSnapshot(
+                artistID: "artist-\(artistIndex)",
+                artistName: "artist-\(artistIndex)",
+                orderedSongIDs: [songID],
+                topSongIDs: [songID],
+                albumIDs: [],
+                fetchedAt: Date()
+            ))
+        }
+        try context.save()
+
+        let catalog = GatedLargeFestivalCatalog(gateRuntime: true)
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.releaseRuntimeCatalog()
+            catalog.releaseFullCatalog()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        XCTAssertEqual(catalog.runtimeFetchCount, 0)
+
+        let refresh = Task { await room.reloadCatalog(force: true) }
+        try await wait { catalog.runtimeFetchCount == 2 }
+
+        room.selectScope(.artist("artist-1"))
+        XCTAssertEqual(catalog.fullFetchCount, 0, "selected artist should wait for the in-flight runtime refresh instead of starting a competing catalog generation")
+
+        catalog.releaseRuntimeCatalog()
+        try await wait { catalog.fullFetchCount == 1 }
+
+        XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-1"])
+
+        catalog.releaseFullCatalog()
+        await refresh.value
+        try await wait {
+            room.browsingArtist?.id == "artist-1"
+                && room.browsingArtist?.albums.count == 15
+        }
+    }
+
+    func testCompilationPlaybackUsesOneQueueAcrossVisibleVolumes() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Continuous Festival", date: start, startTime: start)
+        show.artists = (0..<17).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+        try context.save()
+
+        let catalog = GatedLargeFestivalCatalog()
+        let playback = CompilationQueuePlaybackService()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in playback }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        XCTAssertEqual(room.compilationDiscs.count, 3)
+        let first = try XCTUnwrap(room.compilationDiscs.first)
+        let second = try XCTUnwrap(room.compilationDiscs.dropFirst().first)
+        let firstLastSongID = try XCTUnwrap(first.tracks.last?.id)
+        let secondFirstSongID = try XCTUnwrap(second.tracks.first?.id)
+
+        room.restoreDisc(first, songID: firstLastSongID)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        XCTAssertEqual(
+            playback.preparedSongIDs,
+            room.compilationDiscs.flatMap(\.tracks).map(\.id),
+            "visible compilation volumes should be one transport queue"
+        )
+        XCTAssertEqual(playback.startingSongID, firstLastSongID)
+        XCTAssertEqual(playback.prepareCount, 1)
+
+        playback.advanceToNextForTesting()
+        try await wait { room.track?.id == secondFirstSongID }
+
+        XCTAssertEqual(room.mechanism.disc?.id, second.id, "virtual disc identity should follow the active queue volume")
+        XCTAssertEqual(room.track?.id, secondFirstSongID)
+        XCTAssertEqual(playback.prepareCount, 1, "cross-volume continuation must not rebuild the queue")
+
+        room.skip(-1)
+        try await ListenTestData.settle(room) {
+            room.track?.id == firstLastSongID && room.mechanism.disc?.id == first.id
+        }
+        XCTAssertEqual(playback.prepareCount, 1, "previous across a volume boundary should stay in the prepared queue")
+    }
+
+    func testRestoredCompilationKeepsSelectedSongWhenRefreshedVolumesOmitIt() async throws {
+        let (container, show) = try ListenTestData.make()
+        let playback = CompilationQueuePlaybackService()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in playback }
+        )
+        defer { room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
+        let current = try XCTUnwrap(room.compilationDiscs.first)
+        let sharedTrack = try XCTUnwrap(current.tracks.first)
+        let retiredTrack = ListeningDiscTrack(CatalogSong(
+            appleMusicSongID: "retired-top-song", title: "Retired", artistName: "Artist", duration: 180
+        ))
+        let restored = ListeningDisc(
+            id: current.id, title: current.title, artworkURL: nil,
+            tracks: [sharedTrack, retiredTrack], origin: current.origin
+        )
+        room.restoreDisc(restored, songID: retiredTrack.id)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(playback.preparedSongIDs, restored.tracks.map(\.id))
+        XCTAssertEqual(room.track?.id, retiredTrack.id)
+
+        room.stop()
+        room.skip(1)
+        XCTAssertEqual(room.mechanism.disc?.tracks.map(\.id), restored.tracks.map(\.id))
+        XCTAssertEqual(room.track?.id, retiredTrack.id, "stopped Next must retain the loaded version")
+        room.skip(-1)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(playback.preparedSongIDs, restored.tracks.map(\.id), "a shared selected song must not replace the loaded record with refreshed contents")
+        XCTAssertEqual(room.track?.id, sharedTrack.id)
     }
 
     func testPlayerPositionAcrossColdLaunchAuthorizationAndCatalogArrival() async throws {
@@ -312,17 +600,100 @@ private struct EmptyArtistSearch: ArtistSearchServicing {
     func searchArtists(query: String) async throws -> [RecognizedArtist] { [] }
 }
 
+@MainActor
+private final class CompilationQueuePlaybackService: ListeningPlaybackServicing {
+    private var items: [ListeningPlaybackItem] = []
+    private var index = 0
+    private var source: ListeningPlaybackSource = .fullCatalog
+    private var playing = false
+
+    private let transport = AsyncStream<ListeningPlaybackSample>.makeStream()
+
+    func transportEvents() -> AsyncStream<ListeningPlaybackSample> { transport.stream }
+
+    private(set) var preparedSongIDs: [String] = []
+    private(set) var startingSongID: String?
+    private(set) var prepareCount = 0
+
+    func prepare(
+        items: [ListeningPlaybackItem],
+        source: ListeningPlaybackSource,
+        startingAtSongID: String?
+    ) async throws {
+        guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
+        self.items = items
+        self.source = source
+        preparedSongIDs = items.map(\.songID)
+        self.startingSongID = startingAtSongID
+        prepareCount += 1
+        index = startingAtSongID.flatMap { id in
+            items.firstIndex(where: { $0.songID == id })
+        } ?? 0
+        playing = false
+    }
+
+    func play() async throws { playing = true }
+    func pause() { playing = false }
+
+    func skipToNext() async throws {
+        guard index + 1 < items.count else { throw ListeningPlaybackError.queueBoundary }
+        index += 1
+    }
+
+    func skipToPrevious() async throws {
+        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
+        index -= 1
+    }
+
+    func advanceToNextForTesting() {
+        if index + 1 < items.count { index += 1 }
+        if let sample = snapshot(observedAt: Date()) {
+            transport.continuation.yield(sample)
+        }
+    }
+
+    func seek(to time: TimeInterval) {}
+
+    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
+        guard items.indices.contains(index) else { return nil }
+        let item = items[index]
+        return ListeningPlaybackSample(
+            songID: item.songID,
+            source: source,
+            currentTime: 0,
+            duration: item.duration ?? 180,
+            isPlaying: playing,
+            observedAt: observedAt
+        )
+    }
+
+    func stop() {
+        playing = false
+        items = []
+        index = 0
+    }
+}
+
 private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {
     private let lock = NSLock()
+    private let gateRuntime: Bool
+    private var runtimeCatalogReleased = false
+    private var runtimeCatalogWaiters: [CheckedContinuation<Void, Never>] = []
     private var fullCatalogReleased = false
     private var fullCatalogWaiters: [CheckedContinuation<Void, Never>] = []
     private var storedRuntimeFetchCount = 0
     private var storedFullFetchCount = 0
+    private var storedFullFetchArtistIDs: [String] = []
     private var storedFeaturedPlaylistFetchCount = 0
 
     var runtimeFetchCount: Int { lock.withLock { storedRuntimeFetchCount } }
     var fullFetchCount: Int { lock.withLock { storedFullFetchCount } }
+    var fullFetchArtistIDs: [String] { lock.withLock { storedFullFetchArtistIDs } }
     var featuredPlaylistFetchCount: Int { lock.withLock { storedFeaturedPlaylistFetchCount } }
+
+    init(gateRuntime: Bool = false) {
+        self.gateRuntime = gateRuntime
+    }
 
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
     func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
@@ -332,6 +703,9 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
 
     func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
         lock.withLock { storedRuntimeFetchCount += 1 }
+        if gateRuntime {
+            await waitForRuntimeCatalogRelease()
+        }
         return Array(Self.payload(artistID: artistID, fetchedAt: Date()).songs.prefix(10))
     }
 
@@ -339,7 +713,10 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
         artistID: String,
         fetchedAt: Date
     ) async throws -> ListeningArtistCatalogPayload {
-        lock.withLock { storedFullFetchCount += 1 }
+        lock.withLock {
+            storedFullFetchCount += 1
+            storedFullFetchArtistIDs.append(artistID)
+        }
         await waitForFullCatalogRelease()
         return Self.payload(artistID: artistID, fetchedAt: fetchedAt)
     }
@@ -355,6 +732,27 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
             songs: [],
             fetchedAt: fetchedAt
         )
+    }
+
+    func releaseRuntimeCatalog() {
+        let waiters: [CheckedContinuation<Void, Never>] = lock.withLock {
+            guard !runtimeCatalogReleased else { return [] }
+            runtimeCatalogReleased = true
+            defer { runtimeCatalogWaiters.removeAll() }
+            return runtimeCatalogWaiters
+        }
+        waiters.forEach { $0.resume() }
+    }
+
+    private func waitForRuntimeCatalogRelease() async {
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock {
+                if runtimeCatalogReleased { return true }
+                runtimeCatalogWaiters.append(continuation)
+                return false
+            }
+            if resumeImmediately { continuation.resume() }
+        }
     }
 
     func releaseFullCatalog() {

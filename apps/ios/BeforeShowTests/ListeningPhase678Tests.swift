@@ -395,10 +395,11 @@ final class ListeningAccessibilityTests: XCTestCase {
 
         await room.load(show: show)
         XCTAssertEqual(search.searchCount, 1)
+        XCTAssertEqual(show.artists.first?.appleMusicArtistID, "unmatched-artist-id")
         XCTAssertFalse(room.shouldReloadCatalog(for: show), "An empty but completed first load must not restart on every tab activation")
 
         await room.authorize()
-        XCTAssertEqual(search.searchCount, 2, "Authorization should match the unconnected artist after initial matching")
+        XCTAssertEqual(search.searchCount, 1, "Authorization must not repeat matching for an already connected artist")
         XCTAssertEqual(show.artists.first?.appleMusicArtistID, "unmatched-artist-id")
         XCTAssertFalse(room.shouldReloadCatalog(for: show))
     }
@@ -430,7 +431,7 @@ final class ListeningAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(room.access.authorizationStatus, .authorized)
         XCTAssertEqual(room.access.catalogPlaybackAccess, .available)
-        XCTAssertGreaterThan(catalog.fullFetchCount, 0, "granting access in Settings must trigger a catalog reload")
+        XCTAssertEqual(catalog.fullFetchCount, 0, "granting access in Settings must not eagerly fetch full artist catalogs in the all-artists scope")
         XCTAssertEqual(room.display.roomMode, .fullPlayback)
     }
 
@@ -505,6 +506,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
         room.playPause()
         XCTAssertEqual(room.display.player.phase, .paused)
+        room.seek(42)
 
         let selectedTrackID = try XCTUnwrap(room.track?.id)
         let selectedIndex = room.trackIndex
@@ -516,7 +518,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertEqual(room.display.player.phase, .stopped)
         XCTAssertEqual(room.track?.id, selectedTrackID)
         XCTAssertEqual(room.trackIndex, selectedIndex)
-        XCTAssertEqual(room.elapsed, 0)
+        XCTAssertEqual(room.elapsed, 42, "capability loss must retain the paused playback position")
     }
 
     func testForegroundAccessCheckFailureKeepsEstablishedFullPlaybackAndWarnsForFuturePlayback() async throws {

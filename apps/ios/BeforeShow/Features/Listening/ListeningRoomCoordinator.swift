@@ -116,6 +116,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var preparedSongID: String?
     @ObservationIgnored private var pendingResumePosition: (songID: String, time: TimeInterval)?
     @ObservationIgnored private var preparedDiscID: String?
+    @ObservationIgnored private var preparedCompilationDiscs: [ListeningDisc] = []
     @ObservationIgnored private var finishedSongID: String?
     @ObservationIgnored private var catalogProjectionContext: ModelContext?
     @ObservationIgnored private var featuredPlaylistTasks: [String: Task<Void, Never>] = [:]
@@ -310,6 +311,9 @@ private let listeningCatalogFetchConcurrency = 4
         defer {
             if generation == catalogGeneration {
                 isLoadingShow = false
+                if case let .artist(artistID) = browser.scope {
+                    scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+                }
             }
         }
 
@@ -405,9 +409,17 @@ private let listeningCatalogFetchConcurrency = 4
     /// retry paths use this instead of restarting artist matching and room setup.
     func reloadCatalog(force: Bool = false) async {
         guard show != nil, !isLoadingShow else { return }
+        let startingScope = browser.scope
         let generation = UUID()
         catalogGeneration = generation
         catalogState = .loading
+        defer {
+            if generation == catalogGeneration,
+               startingScope != browser.scope,
+               case let .artist(artistID) = browser.scope {
+                scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+            }
+        }
         if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
             initialLoaded = true
             completedCatalogKey = completedKey
@@ -464,8 +476,15 @@ private let listeningCatalogFetchConcurrency = 4
             catalogSnapshots.map { ($0.artistID, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        let cachedIDs = Set(snapshotsByID.keys)
-        let quickIDs = ids.filter { !cachedIDs.contains($0) && runtimeSongs[$0] == nil }
+        let now = Date()
+        let quickIDs = ids.filter { artistID in
+            guard force || runtimeSongs[artistID] == nil else { return false }
+            guard let snapshot = snapshotsByID[artistID] else { return true }
+            return force || ListeningCatalogRefreshPolicy.shouldRefresh(
+                fetchedAt: snapshot.fetchedAt,
+                now: now
+            )
+        }
 
         // Publish the first playable songs as soon as they arrive. Subsequent
         // results are coalesced to avoid rebuilding SwiftData projections per song.
@@ -501,18 +520,25 @@ private let listeningCatalogFetchConcurrency = 4
 
         guard generation == catalogGeneration, !Task.isCancelled else { return }
 
-        // Cached complete snapshots stay visible while stale ones revalidate. Core
-        // refresh work is collected into one network pass and one persistence batch.
-        let now = Date()
-        var orderedIDs = ids
-        if case let .artist(selectedID) = browser.scope, let idx = orderedIDs.firstIndex(of: selectedID) {
-            orderedIDs.remove(at: idx)
-            orderedIDs.insert(selectedID, at: 0)
-        }
-        let fullIDs = orderedIDs.filter { id in
-            if force { return true }
-            guard let snapshot = snapshotsByID[id] else { return true }
-            return ListeningCatalogRefreshPolicy.shouldRefresh(fetchedAt: snapshot.fetchedAt, now: now)
+        // Runtime top songs are sufficient for the all-artists compilation scope.
+        // Full artist catalogs are browse/familiarity data and are loaded only for
+        // the artist the user explicitly selects.
+        let fullIDs: [String]
+        if case let .artist(selectedID) = browser.scope, ids.contains(selectedID) {
+            let needsRefresh: Bool
+            if force {
+                needsRefresh = true
+            } else if let snapshot = snapshotsByID[selectedID] {
+                needsRefresh = ListeningCatalogRefreshPolicy.shouldRefresh(
+                    fetchedAt: snapshot.fetchedAt,
+                    now: now
+                )
+            } else {
+                needsRefresh = true
+            }
+            fullIDs = needsRefresh ? [selectedID] : []
+        } else {
+            fullIDs = []
         }
         if !fullIDs.isEmpty {
             _ = await fetchFullCatalog(for: fullIDs) { [weak self] batchValues in
@@ -529,6 +555,9 @@ private let listeningCatalogFetchConcurrency = 4
                     do {
                         let persistedIDs = try await self.catalogStore.persistArtistCatalogBatch(batchPayloads)
                         failedIDs.subtract(persistedIDs)
+                        for artistID in persistedIDs {
+                            self.runtimeSongs.removeValue(forKey: artistID)
+                        }
                     } catch {
                         failedIDs.formUnion(batchPayloads.map(\.artistID))
                     }
@@ -737,10 +766,13 @@ private let listeningCatalogFetchConcurrency = 4
             guard let id = artist.appleMusicArtistID else {
                 return nil
             }
+            if let runtime = runtimeSongs[id], !runtime.isEmpty {
+                return runtime.map(ListeningDiscTrack.init)
+            }
             if let snapshot = catalogSnapshots.first(where: { $0.artistID == id }) {
                 return snapshot.topSongIDs.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
             }
-            return (runtimeSongs[id] ?? []).map(ListeningDiscTrack.init)
+            return []
         })
         var discIDs = Set<String>()
         discs = (compilationDiscs + browseArtists.flatMap(\.albums)).filter { discIDs.insert($0.id).inserted }
@@ -800,7 +832,35 @@ private let listeningCatalogFetchConcurrency = 4
         let validArtistIDs = Set(browseArtists.map(\.id))
         browser.select(scope, validArtistIDs: validArtistIDs)
         if case let .artist(artistID) = browser.scope {
+            scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+        }
+    }
+
+    private func scheduleSelectedArtistCatalogLoadIfNeeded(for artistID: String) {
+        guard active, access.authorizationStatus == .authorized else { return }
+
+        let needsFullCatalog: Bool
+        if let snapshot = catalogSnapshots.first(where: { $0.artistID == artistID }) {
+            needsFullCatalog = ListeningCatalogRefreshPolicy.shouldRefresh(
+                fetchedAt: snapshot.fetchedAt,
+                now: Date()
+            )
+        } else {
+            needsFullCatalog = true
+        }
+
+        guard needsFullCatalog else {
             loadFeaturedPlaylistsIfNeeded(for: artistID)
+            return
+        }
+
+        guard !isLoadingShow, !isCatalogEnriching else { return }
+
+        Task { @MainActor [weak self] in
+            guard let self,
+                  case let .artist(currentArtistID) = self.browser.scope,
+                  currentArtistID == artistID else { return }
+            await self.reloadCatalog()
         }
     }
     private func loadFeaturedPlaylistsIfNeeded(for artistID: String) {
@@ -902,12 +962,9 @@ private let listeningCatalogFetchConcurrency = 4
             catalogState = .cacheFailed
         }
 
-        // An active initial load detects key drift after its current catalog pass and
-        // repeats only that catalog stage. Otherwise start a catalog-only refresh now.
-        guard !isLoadingShow else { return }
-        Task { @MainActor [weak self] in
-            await self?.reloadCatalog()
-        }
+        // Selecting the confirmed artist owns any detailed-catalog load. If an
+        // initial show load is still active, the pending browse request is started
+        // when that load releases its identity/catalog generation.
     }
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
         guard mechanism.position == .stored, !busy else { return }
@@ -1074,10 +1131,11 @@ private let listeningCatalogFetchConcurrency = 4
                 CDSoundPlayer.shared.play("read")
                 preparedDiscID = disc.id
             }
-            // A single physical disc owns continuation. The transport receives the
-            // whole CD so iOS can advance tracks even while this view is not running.
+            // Real records own only their physical disc. BeforeShow compilations are
+            // three visible virtual volumes backed by one continuous transport queue.
+            let queueTracks = playbackTracks(for: disc)
             try await next.prepare(
-                items: disc.tracks.map(\.playbackItem),
+                items: queueTracks.map(\.playbackItem),
                 source: source,
                 startingAtSongID: track.id
             )
@@ -1103,13 +1161,81 @@ private let listeningCatalogFetchConcurrency = 4
         }
         finishedSongID = nil
     }
+    private func playbackTracks(for disc: ListeningDisc) -> [ListeningDiscTrack] {
+        guard case let .compilation(showID, _) = disc.origin,
+              showID == show?.id else {
+            preparedCompilationDiscs = []
+            return disc.tracks
+        }
+
+        let availableVolumes = compilationDiscs
+        let canUseContinuousQueue = availableVolumes.contains(disc)
+        guard canUseContinuousQueue else {
+            preparedCompilationDiscs = [disc]
+            return disc.tracks
+        }
+
+        preparedCompilationDiscs = availableVolumes
+        return availableVolumes.flatMap(\.tracks)
+    }
+
+    private var activeCompilationDiscs: [ListeningDisc] {
+        if !preparedCompilationDiscs.isEmpty { return preparedCompilationDiscs }
+        if let loadedDisc = mechanism.disc,
+           case .compilation = loadedDisc.origin,
+           !compilationDiscs.contains(loadedDisc) {
+            return [loadedDisc]
+        }
+        return compilationDiscs
+    }
+
     private func completeSleevePlaybackIfNeeded() {
         guard transportIsPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
         sleevePlaybackSongID = pendingSleeveSongID
         self.pendingSleeveSongID = nil
     }
     func skip(_ delta: Int) {
-        guard let disc = mechanism.disc, mechanism.position == .seated, mechanism.isClosed else { return }
+        guard delta != 0,
+              let disc = mechanism.disc,
+              let currentTrack = track,
+              mechanism.position == .seated,
+              mechanism.isClosed else { return }
+
+        if case .compilation = disc.origin {
+            let queue = activeCompilationDiscs.flatMap(\.tracks)
+            guard let currentIndex = queue.firstIndex(where: { $0.id == currentTrack.id }) else { return }
+            let targetIndex = currentIndex + delta
+            guard queue.indices.contains(targetIndex) else { return }
+
+            if let controller {
+                run {
+                    let stepCount = abs(delta)
+                    for _ in 0..<stepCount {
+                        if delta > 0 {
+                            try await controller.skipToNext()
+                        } else {
+                            try await controller.skipToPrevious()
+                        }
+                    }
+                }
+                return
+            }
+
+            guard let targetDisc = activeCompilationDiscs.first(where: {
+                $0.tracks.contains(where: { $0.id == queue[targetIndex].id })
+            }), let localIndex = targetDisc.tracks.firstIndex(where: {
+                $0.id == queue[targetIndex].id
+            }) else { return }
+
+            mechanism.updateContents(targetDisc)
+            trackIndex = localIndex
+            persistedPlaybackTime = 0
+            pendingResumePosition = nil
+            preparedDiscID = targetDisc.id
+            persistLoadedDisc()
+            return
+        }
+
         let nextIndex = trackIndex + delta
         guard disc.tracks.indices.contains(nextIndex) else { return }
         let resume = isPlaying
@@ -1142,6 +1268,7 @@ private let listeningCatalogFetchConcurrency = 4
         }
         preparedSongID = nil
         preparedSource = nil
+        preparedCompilationDiscs = []
         playbackState = .idle
         transportPlaybackState = .idle
         transportPlaybackPhase = .stopped
@@ -1334,9 +1461,27 @@ private let listeningCatalogFetchConcurrency = 4
         case .idle, .preparing, .failed:
             songID = nil
         }
-        guard let songID, let disc = mechanism.disc,
-              let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
-        if trackIndex != index {
+        guard let songID, let currentDisc = mechanism.disc else { return }
+
+        let targetDisc: ListeningDisc
+        let index: Int
+        if let currentIndex = currentDisc.tracks.firstIndex(where: { $0.id == songID }) {
+            targetDisc = currentDisc
+            index = currentIndex
+        } else if case .compilation = currentDisc.origin,
+                  let compilationDisc = activeCompilationDiscs.first(where: {
+                      $0.tracks.contains(where: { $0.id == songID })
+                  }),
+                  let compilationIndex = compilationDisc.tracks.firstIndex(where: { $0.id == songID }) {
+            targetDisc = compilationDisc
+            index = compilationIndex
+            mechanism.updateContents(compilationDisc)
+            preparedDiscID = compilationDisc.id
+        } else {
+            return
+        }
+
+        if trackIndex != index || currentDisc.id != targetDisc.id {
             trackIndex = index
             persistedPlaybackTime = 0
             pendingResumePosition = nil
@@ -1376,7 +1521,7 @@ private let listeningCatalogFetchConcurrency = 4
         active = value
         if value {
             if case let .artist(artistID) = browser.scope {
-                loadFeaturedPlaylistsIfNeeded(for: artistID)
+                scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
             }
         } else {
             cancelFeaturedPlaylistTasks()
