@@ -38,9 +38,14 @@ import SwiftUI
     var isClosed: Bool { motion.lid.value < 0.002 && motion.lid.target != 1 }
     var hasDisc: Bool { position == .seated }
 
-    /// Refresh metadata for the same physical compilation, without swapping it.
+    /// Refresh the seated record, including virtual volumes of the same compilation.
     func updateContents(_ replacement: ListeningDisc) {
-        guard !isAutomatic, disc?.id == replacement.id else { return }
+        guard !isAutomatic, let current = disc else { return }
+        if current.id != replacement.id {
+            guard case let .compilation(currentShowID, _) = current.origin,
+                  case let .compilation(replacementShowID, _) = replacement.origin,
+                  currentShowID == replacementShowID else { return }
+        }
         disc = replacement
     }
 

@@ -414,10 +414,11 @@ private let listeningCatalogFetchConcurrency = 4
         catalogGeneration = generation
         catalogState = .loading
         defer {
-            guard generation == catalogGeneration,
-                  startingScope != browser.scope,
-                  case let .artist(artistID) = browser.scope else { return }
-            scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+            if generation == catalogGeneration,
+               startingScope != browser.scope,
+               case let .artist(artistID) = browser.scope {
+                scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+            }
         }
         if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
             initialLoaded = true
@@ -477,7 +478,7 @@ private let listeningCatalogFetchConcurrency = 4
         )
         let now = Date()
         let quickIDs = ids.filter { artistID in
-            guard runtimeSongs[artistID] == nil else { return false }
+            guard force || runtimeSongs[artistID] == nil else { return false }
             guard let snapshot = snapshotsByID[artistID] else { return true }
             return force || ListeningCatalogRefreshPolicy.shouldRefresh(
                 fetchedAt: snapshot.fetchedAt,
@@ -1167,12 +1168,8 @@ private let listeningCatalogFetchConcurrency = 4
             return disc.tracks
         }
 
-        let currentSongIDs = Set(disc.tracks.map(\.id))
         let availableVolumes = compilationDiscs
-        let canUseContinuousQueue = !availableVolumes.isEmpty
-            && availableVolumes.contains { volume in
-                volume.tracks.contains { currentSongIDs.contains($0.id) }
-            }
+        let canUseContinuousQueue = availableVolumes.contains(disc)
         guard canUseContinuousQueue else {
             preparedCompilationDiscs = [disc]
             return disc.tracks

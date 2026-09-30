@@ -144,6 +144,10 @@ final class ListeningLoadingTests: XCTestCase {
             })
         )
 
+        await room.reloadCatalog(force: true)
+        XCTAssertEqual(catalog.runtimeFetchCount, 4, "repeated force refresh must bypass the in-memory runtime cache")
+        XCTAssertEqual(catalog.fullFetchCount, 0)
+
         let read = ModelContext(container)
         let snapshots = try read.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
         XCTAssertEqual(snapshots.count, 2)
@@ -197,6 +201,7 @@ final class ListeningLoadingTests: XCTestCase {
         try await wait {
             room.browsingArtist?.id == "artist-6"
                 && room.browsingArtist?.albums.count == 15
+                && catalog.featuredPlaylistFetchCount == 1
         }
 
         let finalRead = ModelContext(container)
@@ -264,12 +269,12 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(catalog.fullFetchCount, 0, "selected artist should wait for the in-flight runtime refresh instead of starting a competing catalog generation")
 
         catalog.releaseRuntimeCatalog()
-        await refresh.value
         try await wait { catalog.fullFetchCount == 1 }
 
         XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-1"])
 
         catalog.releaseFullCatalog()
+        await refresh.value
         try await wait {
             room.browsingArtist?.id == "artist-1"
                 && room.browsingArtist?.albums.count == 15
@@ -320,7 +325,7 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(playback.prepareCount, 1)
 
         playback.advanceToNextForTesting()
-        room.tick()
+        try await wait { room.track?.id == secondFirstSongID }
 
         XCTAssertEqual(room.mechanism.disc?.id, second.id, "virtual disc identity should follow the active queue volume")
         XCTAssertEqual(room.track?.id, secondFirstSongID)
@@ -331,6 +336,39 @@ final class ListeningLoadingTests: XCTestCase {
             room.track?.id == firstLastSongID && room.mechanism.disc?.id == first.id
         }
         XCTAssertEqual(playback.prepareCount, 1, "previous across a volume boundary should stay in the prepared queue")
+    }
+
+    func testRestoredCompilationKeepsSelectedSongWhenRefreshedVolumesOmitIt() async throws {
+        let (container, show) = try ListenTestData.make()
+        let playback = CompilationQueuePlaybackService()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in playback }
+        )
+        defer { room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
+        let current = try XCTUnwrap(room.compilationDiscs.first)
+        let sharedTrack = try XCTUnwrap(current.tracks.first)
+        let retiredTrack = ListeningDiscTrack(CatalogSong(
+            appleMusicSongID: "retired-top-song", title: "Retired", artistName: "Artist", duration: 180
+        ))
+        let restored = ListeningDisc(
+            id: current.id, title: current.title, artworkURL: nil,
+            tracks: [sharedTrack, retiredTrack], origin: current.origin
+        )
+        room.restoreDisc(restored, songID: retiredTrack.id)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(playback.preparedSongIDs, restored.tracks.map(\.id))
+        XCTAssertEqual(room.track?.id, retiredTrack.id)
+
+        room.stop()
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(playback.preparedSongIDs, restored.tracks.map(\.id), "a shared selected song must not replace the loaded record with refreshed contents")
+        XCTAssertEqual(room.track?.id, sharedTrack.id)
     }
 
     func testPlayerPositionAcrossColdLaunchAuthorizationAndCatalogArrival() async throws {
@@ -565,6 +603,10 @@ private final class CompilationQueuePlaybackService: ListeningPlaybackServicing 
     private var source: ListeningPlaybackSource = .fullCatalog
     private var playing = false
 
+    private let transport = AsyncStream<ListeningPlaybackSample>.makeStream()
+
+    func transportEvents() -> AsyncStream<ListeningPlaybackSample> { transport.stream }
+
     private(set) var preparedSongIDs: [String] = []
     private(set) var startingSongID: String?
     private(set) var prepareCount = 0
@@ -601,6 +643,9 @@ private final class CompilationQueuePlaybackService: ListeningPlaybackServicing 
 
     func advanceToNextForTesting() {
         if index + 1 < items.count { index += 1 }
+        if let sample = snapshot(observedAt: Date()) {
+            transport.continuation.yield(sample)
+        }
     }
 
     func seek(to time: TimeInterval) {}

@@ -140,25 +140,31 @@ if ! run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1; then
   run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1 || true
 fi
 
-SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available) || {
+SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available --json) || {
   if ! recover_core_simulator_service; then
     echo "Unable to list available simulators." >&2
     exit 2
   fi
-  SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available)
+  SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available --json)
 }
-SIM_UDID=$(
-  printf '%s\n' "$SIM_LIST" | awk -F '[()]' -v name="$SIM_NAME" '
-    {
-      candidate=$1
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", candidate)
-      if (candidate == name) {
-        print $2
-        exit
-      }
-    }
-  '
-)
+# Hosted images contain several iPhone 17 devices. Choose the newest iOS
+# runtime so an older device cannot fall below the app's deployment target.
+SIM_UDID=$(printf '%s\n' "$SIM_LIST" | python3 -c '
+import json
+import re
+import sys
+
+candidates = []
+for runtime, devices in json.load(sys.stdin)["devices"].items():
+    match = re.search(r"\.iOS-(\d+(?:-\d+)*)$", runtime)
+    if not match:
+        continue
+    version = tuple(int(part) for part in match.group(1).split("-"))
+    for device in devices:
+        if device["name"] == sys.argv[1] and device.get("isAvailable", False):
+            candidates.append((version, device["udid"]))
+print(max(candidates)[1] if candidates else "")
+' "$SIM_NAME")
 
 if [ -z "$SIM_UDID" ]; then
   echo "Warmed simulator '$SIM_NAME' was not found; refusing to create a cold CI device." >&2
