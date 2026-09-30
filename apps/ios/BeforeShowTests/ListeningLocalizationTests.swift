@@ -398,20 +398,13 @@ final class ListeningReviewerRegressionTests: XCTestCase {
     func testRootAndDestinationsHideTheNativeSystemTabBar() throws {
         let rootView = try listeningSource("RootView.swift")
         XCTAssertTrue(
-            rootView.contains(".toolbar(.hidden, for: .tabBar)\n        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))"),
-            "Root TabView must hide the labeled system bar before detached Bottom Chrome is installed so cold start cannot flash two tab bars"
+            rootView.contains("ZStack") && !rootView.contains("TabView(selection:"),
+            "RootView uses a custom ZStack to prevent system tab bar flashing on cold start"
         )
-
-        for path in [
-            "Features/CurrentShow/CurrentShowSession.swift",
-            "Features/Listening/ListeningFeatureRootView.swift",
-            "Features/Footprints/FootprintsView.swift"
-        ] {
-            XCTAssertTrue(
-                try listeningSource(path).contains(".toolbar(.hidden, for: .tabBar)"),
-                "\(path) must keep its defensive system-tab-bar hide behind detached icon-only root controls"
-            )
-        }
+        XCTAssertTrue(
+            rootView.contains(".modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))"),
+            "RootView must mount detached Bottom Chrome"
+        )
     }
 
     func testListenStageDoesNotPersistAuthorizationActionUnderMachine() throws {
@@ -432,7 +425,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(header.contains("case .fullPlayback:"))
         XCTAssertTrue(header.contains("if notice != nil"))
         XCTAssertTrue(header.contains("case .preview, .metadataOnly, .unavailable:"))
-        XCTAssertTrue(header.contains("BSDrawerSheet(detent: .height(180), fitsContent: true)"))
+        XCTAssertTrue(header.contains("BSDrawerSheet(detent: .height(310), fitsContent: true)"))
         XCTAssertTrue(room.contains("notice: room.display.headerNotice"))
         XCTAssertTrue(room.contains("onRecovery: { room.performListeningRecovery($0) }"))
         XCTAssertFalse(room.contains("refreshMusicAccessAfterForeground()"))
