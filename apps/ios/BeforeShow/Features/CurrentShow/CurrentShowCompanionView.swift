@@ -44,15 +44,16 @@ struct CompanionQuickActionPresentation: Equatable {
     let displayShowsPendingIndicator: Bool
     let showsAvatars: Bool
 
-    init(status: ShowCompanionStatus, companionName: String?, isEnded: Bool) {
+    init(status: ShowCompanionStatus, companionName: String?, isEnded: Bool, isInvitationShared: Bool = true) {
         self.init(
             status: status,
             companionNames: CompanionNameList.normalized([companionName].compactMap { $0 }),
-            isEnded: isEnded
+            isEnded: isEnded,
+            isInvitationShared: isInvitationShared
         )
     }
 
-    init(status: ShowCompanionStatus, companionNames: [String], isEnded: Bool) {
+    init(status: ShowCompanionStatus, companionNames: [String], isEnded: Bool, isInvitationShared: Bool = true) {
         let names = CompanionNameList.normalized(companionNames)
         let joined = CompanionNameList.joined(names)
         self.companionNames = names
@@ -68,9 +69,15 @@ struct CompanionQuickActionPresentation: Equatable {
             showsAvatars = false
         case .pending:
             title = BSLocalization.text("待确认")
-            displayTitle = BSLocalization.text("等待同行")
-            accessibilityLabel = BSLocalization.text("同行，等待朋友加入")
-            showsPendingIndicator = true
+            if isInvitationShared {
+                displayTitle = BSLocalization.text("等待同行")
+                accessibilityLabel = BSLocalization.text("同行，等待朋友加入")
+                showsPendingIndicator = true
+            } else {
+                displayTitle = BSLocalization.text("继续分享")
+                accessibilityLabel = BSLocalization.text("同行，邀请链接已就绪")
+                showsPendingIndicator = false
+            }
             displayShowsPendingIndicator = false
             showsAvatars = false
         case .confirmed:
@@ -116,8 +123,12 @@ struct CurrentShowCompanionSheet: View {
     @State private var currentUserName: String = BSLocalization.text("我")
     @State private var isEditingMyNickname = false
     @State private var editingMyNickname = ""
-    @State private var editingCompanionIndex: Int?
+    @State private var editingMember: CompanionMember?
     @State private var editingCompanionName = ""
+    @State private var isShowingRevokeConfirmation = false
+    @State private var isShowingEndCompanionConfirmation = false
+    @State private var isShowingLeaveCompanionConfirmation = false
+    @State private var isCancelingCompanion = false
 
     init(
         show: Show,
@@ -201,27 +212,53 @@ struct CurrentShowCompanionSheet: View {
         .alert(
             BSLocalization.text("修改同行人备注"),
             isPresented: Binding(
-                get: { editingCompanionIndex != nil },
-                set: { if !$0 { editingCompanionIndex = nil } }
+                get: { editingMember != nil },
+                set: { if !$0 { editingMember = nil } }
             )
         ) {
             TextField(BSLocalization.text("备注名称"), text: $editingCompanionName)
-            Button(BSLocalization.text("取消"), role: .cancel) { editingCompanionIndex = nil }
+            Button(BSLocalization.text("取消"), role: .cancel) { editingMember = nil }
             Button(BSLocalization.text("保存")) {
-                guard let idx = editingCompanionIndex else { return }
-                let trimmed = editingCompanionName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    var names = show.companionNames
-                    if idx < names.count {
-                        names[idx] = trimmed
-                        show.applyCompanionState(status: show.companionStatus, names: names)
-                        try? modelContext.save()
-                    }
-                }
-                editingCompanionIndex = nil
+                guard let member = editingMember else { return }
+                show.setCompanionAlias(editingCompanionName, for: member.id)
+                try? modelContext.save()
+                editingMember = nil
             }
         } message: {
             Text(BSLocalization.text("仅在本地修改该同行者的展示名称。"))
+        }
+        .alert(
+            BSLocalization.text("撤销同行邀请？"),
+            isPresented: $isShowingRevokeConfirmation
+        ) {
+            Button(BSLocalization.text("撤销邀请"), role: .destructive) {
+                Task { await cancelCompanion() }
+            }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
+        } message: {
+            Text(BSLocalization.text("撤销后，之前分享的邀请链接将失效。"))
+        }
+        .alert(
+            BSLocalization.text("结束同行？"),
+            isPresented: $isShowingEndCompanionConfirmation
+        ) {
+            Button(BSLocalization.text("结束同行"), role: .destructive) {
+                Task { await cancelCompanion() }
+            }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
+        } message: {
+            Text(BSLocalization.text("结束同行后，将解散本次同行记录，所有成员的同行状态都将被取消。"))
+        }
+        .alert(
+            BSLocalization.text("退出同行？"),
+            isPresented: $isShowingLeaveCompanionConfirmation
+        ) {
+            Button(BSLocalization.text("退出同行"), role: .destructive) {
+                Task { await cancelCompanion() }
+            }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
+        } message: {
+            Text(BSLocalization.text("退出后，你将不再参与这场现场的同行记录。"))
         }
         .task {
             if let name = await coordinator.fetchCurrentUserDisplayName() {
@@ -232,6 +269,18 @@ struct CurrentShowCompanionSheet: View {
             if let error = coordinator.consumeLastErrorMessage() {
                 errorMessage = error
             }
+        }
+    }
+
+    @MainActor
+    private func cancelCompanion() async {
+        guard !isCancelingCompanion else { return }
+        isCancelingCompanion = true
+        defer { isCancelingCompanion = false }
+        do {
+            try await coordinator.cancelCompanion(for: show, in: modelContext)
+        } catch {
+            errorMessage = CompanionSharingCoordinator.userMessage(for: error)
         }
     }
 
@@ -268,8 +317,12 @@ struct CurrentShowCompanionSheet: View {
         VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "person.2",
-                title: BSLocalization.text("等待朋友加入"),
-                subtitle: BSLocalization.text("朋友接受邀请后，会出现在这里。")
+                title: show.companionInvitationShared
+                    ? BSLocalization.text("等待朋友加入")
+                    : BSLocalization.text("邀请已就绪"),
+                subtitle: show.companionInvitationShared
+                    ? BSLocalization.text("朋友接受邀请后，会出现在这里。")
+                    : BSLocalization.text("邀请链接已生成，分享给朋友即可加入。")
             )
 
             Button {
@@ -287,9 +340,27 @@ struct CurrentShowCompanionSheet: View {
                 }
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(isPreparingInvite)
+            .disabled(isPreparingInvite || isCancelingCompanion)
 
             nicknameEditor
+
+            Button {
+                isShowingRevokeConfirmation = true
+            } label: {
+                if isCancelingCompanion {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(BSColor.Stage.danger)
+                        Text(BSLocalization.text("正在撤销"))
+                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Text(BSLocalization.text("撤销邀请"))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(BSDangerButtonStyle())
+            .disabled(isPreparingInvite || isCancelingCompanion)
         }
     }
 
@@ -363,6 +434,44 @@ struct CurrentShowCompanionSheet: View {
             if show.companionIsOwner != false {
                 inviteMoreButton
             }
+
+            if show.companionIsOwner ?? true {
+                Button {
+                    isShowingEndCompanionConfirmation = true
+                } label: {
+                    if isCancelingCompanion {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .tint(BSColor.Stage.danger)
+                            Text(BSLocalization.text("正在结束"))
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        Text(BSLocalization.text("结束同行"))
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(BSDangerButtonStyle())
+                .disabled(isPreparingInvite || isCancelingCompanion)
+            } else {
+                Button {
+                    isShowingLeaveCompanionConfirmation = true
+                } label: {
+                    if isCancelingCompanion {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .tint(BSColor.Stage.danger)
+                            Text(BSLocalization.text("正在退出"))
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        Text(BSLocalization.text("退出同行"))
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(BSDangerButtonStyle())
+                .disabled(isPreparingInvite || isCancelingCompanion)
+            }
         }
     }
 
@@ -381,7 +490,16 @@ struct CurrentShowCompanionSheet: View {
             }
         }
         .buttonStyle(BSSecondaryButtonStyle())
-        .disabled(isPreparingInvite || show.companionShareRecordName == nil)
+        .disabled(isPreparingInvite || show.companionShareRecordName == nil || isCancelingCompanion)
+    }
+
+    private var companionMembersList: [CompanionMember] {
+        if !show.companionMembers.isEmpty {
+            return show.companionMembers
+        }
+        return show.companionNames.enumerated().map { idx, name in
+            CompanionMember(id: "fallback-\(idx)", name: name)
+        }
     }
 
     private var companionMembers: some View {
@@ -395,7 +513,8 @@ struct CurrentShowCompanionSheet: View {
                 }
                 .buttonStyle(.plain)
 
-                ForEach(Array(memberNames.enumerated()), id: \.offset) { index, name in
+                ForEach(companionMembersList) { member in
+                    let name = member.displayName
                     if isEnded {
                         Button {
                             selectedPairName = name
@@ -405,8 +524,8 @@ struct CurrentShowCompanionSheet: View {
                         .buttonStyle(.plain)
                         .contextMenu {
                             Button {
-                                editingCompanionIndex = index
-                                editingCompanionName = name
+                                editingMember = member
+                                editingCompanionName = member.alias ?? member.name
                             } label: {
                                 Label(BSLocalization.text("修改备注"), systemImage: "pencil")
                             }
@@ -414,16 +533,16 @@ struct CurrentShowCompanionSheet: View {
                         .accessibilityHint(BSLocalization.text("查看你们的共同足迹"))
                     } else {
                         Button {
-                            editingCompanionIndex = index
-                            editingCompanionName = name
+                            editingMember = member
+                            editingCompanionName = member.alias ?? member.name
                         } label: {
                             person(name: name, initial: String(name.prefix(1)), isMe: false)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
                             Button {
-                                editingCompanionIndex = index
-                                editingCompanionName = name
+                                editingMember = member
+                                editingCompanionName = member.alias ?? member.name
                             } label: {
                                 Label(BSLocalization.text("修改备注"), systemImage: "pencil")
                             }
@@ -529,7 +648,7 @@ struct CurrentShowCompanionSheet: View {
     }
 
     private var memberNames: [String] {
-        CompanionNameList.normalized(show.companionNames)
+        companionMembersList.map(\.displayName)
     }
 
     private var companionTitle: String {
@@ -545,6 +664,11 @@ struct CurrentShowCompanionSheet: View {
     private var inviteActionTitle: String {
         if isPreparingInvite {
             return BSLocalization.text("正在准备邀请")
+        }
+        if show.companionStatus == .pending {
+            return show.companionInvitationShared
+                ? BSLocalization.text("再次分享")
+                : BSLocalization.text("继续分享")
         }
         return CompanionInvitePreparingPresentation.actionTitle(
             hasExistingShare: show.companionStatus == .pending
@@ -664,8 +788,12 @@ struct CurrentShowCompanionSheet: View {
                     }
                 }
             },
-            onDismiss: {
+            onDismiss: { completed in
                 isPreparingInvite = false
+                if completed {
+                    show.companionInvitationShared = true
+                    try? modelContext.save()
+                }
                 if let error = coordinator.consumeLastErrorMessage() {
                     errorMessage = error
                 }

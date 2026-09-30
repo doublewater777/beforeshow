@@ -450,7 +450,8 @@ struct ShowDetailView: View {
         CompanionQuickActionPresentation(
             status: show.companionStatus,
             companionNames: show.companionNames,
-            isEnded: HomeShowPhase(timeState: timeState) == .ended
+            isEnded: HomeShowPhase(timeState: timeState) == .ended,
+            isInvitationShared: show.companionInvitationShared
         )
     }
 

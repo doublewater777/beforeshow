@@ -15,10 +15,23 @@ enum CompanionSessionRecord {
     static let showSnapshotV1 = "showSnapshotV1"
     static let ownerDisplayName = "ownerDisplayName"
     static let participantDisplayName = "participantDisplayName"
+    static let participantNicknamesJSON = "participantNicknamesJSON"
     static let status = "status"
     static let createdAt = "createdAt"
     static let acceptedAt = "acceptedAt"
     static let canceledAt = "canceledAt"
+}
+
+enum CompanionNicknamesSerialization {
+    static func decode(from jsonString: String?) -> [String: String] {
+        guard let jsonString, let data = jsonString.data(using: .utf8) else { return [:] }
+        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    static func encode(_ dict: [String: String]) -> String? {
+        guard !dict.isEmpty, let data = try? JSONEncoder().encode(dict) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 }
 
 // MARK: - CloudKit implementation

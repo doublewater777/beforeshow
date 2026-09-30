@@ -73,6 +73,16 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
     var createdAt: Date
     var acceptedAt: Date?
     var canceledAt: Date?
+    var members: [CompanionMember]? = nil
+    var ownerCompanions: [CompanionMember]? = nil
+    var participantCompanions: [CompanionMember]? = nil
+
+    func resolvedMembers(isOwner: Bool) -> [CompanionMember]? {
+        if isOwner, let ownerCompanions { return ownerCompanions }
+        if !isOwner, let participantCompanions { return participantCompanions }
+        if let members { return members }
+        return nil
+    }
 
     /// Convenience for tests / call sites that only need the record name.
     var recordName: String { sessionLocator.recordName }
@@ -80,6 +90,9 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
 
     /// Names this device should show for the other people in the group.
     func companionDisplayNames(isOwner: Bool) -> [String] {
+        if let resolved = resolvedMembers(isOwner: isOwner) {
+            return resolved.map(\.displayName)
+        }
         let listed = CompanionNameList.normalized(participantDisplayNames)
         let friend = BSLocalization.text("朋友")
         if isOwner {
@@ -201,6 +214,16 @@ enum CompanionMembershipPolicy {
 }
 
 enum CompanionNameList {
+    static func cleaned(_ names: [String]) -> [String] {
+        var result: [String] = []
+        for raw in names {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            result.append(trimmed)
+        }
+        return result
+    }
+
     static func normalized(_ names: [String]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
@@ -214,13 +237,13 @@ enum CompanionNameList {
     }
 
     static func joined(_ names: [String]) -> String? {
-        let cleaned = normalized(names)
-        guard !cleaned.isEmpty else { return nil }
-        return cleaned.joined(separator: "、")
+        let items = cleaned(names)
+        guard !items.isEmpty else { return nil }
+        return items.joined(separator: "、")
     }
 
     static func isSameGroup(_ lhs: [String], _ rhs: [String]) -> Bool {
-        Set(normalized(lhs)) == Set(normalized(rhs))
+        cleaned(lhs).sorted() == cleaned(rhs).sorted()
     }
 }
 

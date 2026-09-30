@@ -5,6 +5,26 @@ import XCTest
 @testable import BeforeShow
 
 final class CompanionSharingTests: XCTestCase {
+    @MainActor
+    func testCloudMemberIdentityPreservesNamesAndAliasesAcrossRefreshAndReordering() throws {
+        let show = try Show(name: "同行现场", date: Date(), startTime: Date())
+        var session = makeSession(recordName: "members", shareName: "share", status: .accepted,
+                                  owner: "Owner", participant: nil, showID: show.id.uuidString,
+                                  showName: show.name, showDate: show.date, createdAt: Date(), acceptedAt: Date())
+        session.members = [CompanionMember(id: "a", name: "Alex"), CompanionMember(id: "b", name: "Alex")]
+        show.applyCompanionSession(session, isOwner: true)
+        XCTAssertEqual(show.companionNames, ["Alex", "Alex"])
+        show.setCompanionAlias("朋友 A", for: "a")
+        session.members = [CompanionMember(id: "b", name: "新昵称"), CompanionMember(id: "a", name: "Alex")]
+        show.applyCompanionSession(session, isOwner: true)
+        XCTAssertEqual(show.companionNames, ["新昵称", "朋友 A"])
+        session.members = [CompanionMember(id: "a", name: "Alex")]
+        show.applyCompanionSession(session, isOwner: true)
+        XCTAssertEqual(show.companionNames, ["朋友 A"])
+        show.setCompanionAlias("", for: "a")
+        XCTAssertEqual(show.companionNames, ["Alex"])
+    }
+
     func testNewInviteIsOnlyBlockedByMissingICloud() {
         XCTAssertTrue(CompanionInviteGate.blocksNewInvite(.iCloudAccountUnavailable))
         XCTAssertFalse(CompanionInviteGate.blocksNewInvite(.networkFailure))
@@ -1335,6 +1355,40 @@ final class CompanionSharingTests: XCTestCase {
     }
 
     @MainActor
+    func testIncomingInviteRemainsAvailableUntilFirstTimeOnboardingHandlesIt() throws {
+        let defaults = UserDefaults.standard
+        let completionBefore = defaults.object(forKey: OnboardingCompletionStore.appStorageKey)
+        let processedBefore = defaults.object(forKey: "CompanionInviteLastProcessedToken")
+        let delegateBefore = BeforeShowAppDelegate.shared
+        defer {
+            defaults.set(completionBefore, forKey: OnboardingCompletionStore.appStorageKey)
+            defaults.set(processedBefore, forKey: "CompanionInviteLastProcessedToken")
+            CompanionInviteClipboardDetector.setPendingFirstTimeInvite(nil)
+            BeforeShowAppDelegate.shared = delegateBefore
+        }
+        defaults.set(false, forKey: OnboardingCompletionStore.appStorageKey)
+        let payload: [String: Any] = [
+            "v": 1, "u": "https://www.icloud.com/share/onboarding-regression",
+            "n": "受邀现场", "t": 1_900_000_000, "o": "Alex"
+        ]
+        let token = try JSONSerialization.data(withJSONObject: payload).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        let delegate = BeforeShowAppDelegate()
+        for link in ["https://beforeshow.doublewaterapps.com/join/", "beforeshow://join/"] {
+            CompanionInviteClipboardDetector.setPendingFirstTimeInvite(nil)
+            CompanionInviteClipboardDetector.clearProcessedToken()
+            delegate.deliverCompanionInviteURL(try XCTUnwrap(URL(string: link + token)))
+            XCTAssertEqual(CompanionInviteClipboardDetector.activeFirstTimeInvite()?.showName, "受邀现场")
+            XCTAssertFalse(CompanionInviteClipboardDetector.isTokenProcessed(token))
+            // Only successful joining or explicitly skipping retires the invitation.
+            CompanionInviteClipboardDetector.markTokenProcessed(token)
+            XCTAssertNil(CompanionInviteClipboardDetector.activeFirstTimeInvite())
+        }
+    }
+
+    @MainActor
     func testClipboardDetectorTokenProcessingAndFirstTimeInvite() {
         let suiteName = "CompanionClipboardTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -1368,6 +1422,114 @@ final class CompanionSharingTests: XCTestCase {
 
         CompanionInviteClipboardDetector.setPendingFirstTimeInvite(nil)
     }
+
+    func testMultipleCompanionsWithIdenticalNamesDoNotCollapse() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "现场", date: now, startTime: now)
+        let member1 = CompanionMember(id: "pid-1", name: "Alex")
+        let member2 = CompanionMember(id: "pid-2", name: "Alex")
+        let session = makeSession(
+            recordName: "session-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Owner",
+            ownerCompanions: [member1, member2]
+        )
+
+        show.applyCompanionSession(session, isOwner: true)
+        XCTAssertEqual(show.companionMembers.count, 2)
+        XCTAssertEqual(show.companionNames, ["Alex", "Alex"])
+        XCTAssertEqual(show.companionName, "Alex、Alex")
+    }
+
+    func testParticipantPerspectiveNeverDuplicatesOwner() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "现场", date: now, startTime: now)
+        let ownerMember = CompanionMember(id: "owner-id", name: "Wang")
+        let otherMember = CompanionMember(id: "other-id", name: "Lin")
+        let session = makeSession(
+            recordName: "session-2",
+            shareName: "share-2",
+            status: .accepted,
+            owner: "Wang",
+            participantCompanions: [ownerMember, otherMember]
+        )
+
+        show.applyCompanionSession(session, isOwner: false)
+        XCTAssertEqual(show.companionMembers.count, 2)
+        XCTAssertEqual(show.companionMembers.map(\.name), ["Wang", "Lin"])
+        XCTAssertEqual(show.companionNames, ["Wang", "Lin"])
+    }
+
+    func testPreserveLocalRemarkAcrossCloudSyncAndMemberCountChanges() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "现场", date: now, startTime: now)
+        let member1 = CompanionMember(id: "pid-1", name: "朋友")
+        let session1 = makeSession(
+            recordName: "session-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Owner",
+            ownerCompanions: [member1]
+        )
+        show.applyCompanionSession(session1, isOwner: true)
+        XCTAssertEqual(show.companionNames, ["朋友"])
+
+        // User edits local remark
+        show.setCompanionAlias("阿强", for: "pid-1")
+        XCTAssertEqual(show.companionNames, ["阿强"])
+
+        // CloudKit syncs: member name updated to Apple ID name "Zhang San", and a second member joined
+        let updatedMember1 = CompanionMember(id: "pid-1", name: "Zhang San")
+        let member2 = CompanionMember(id: "pid-2", name: "Li Si")
+        let session2 = makeSession(
+            recordName: "session-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Owner",
+            ownerCompanions: [updatedMember1, member2]
+        )
+        show.applyCompanionSession(session2, isOwner: true)
+
+        // Remark "阿强" must be preserved on pid-1!
+        XCTAssertEqual(show.companionMembers.count, 2)
+        XCTAssertEqual(show.companionMembers[0].id, "pid-1")
+        XCTAssertEqual(show.companionMembers[0].alias, "阿强")
+        XCTAssertEqual(show.companionMembers[0].displayName, "阿强")
+        XCTAssertEqual(show.companionMembers[1].displayName, "Li Si")
+        XCTAssertEqual(show.companionNames, ["阿强", "Li Si"])
+    }
+
+    func testNicknamesSerialization() {
+        let dict = ["pid-1": "小明", "pid-2": "小红"]
+        let encoded = CompanionNicknamesSerialization.encode(dict)
+        XCTAssertNotNil(encoded)
+        let decoded = CompanionNicknamesSerialization.decode(from: encoded)
+        XCTAssertEqual(decoded, dict)
+
+        XCTAssertEqual(CompanionNicknamesSerialization.decode(from: nil), [:])
+        XCTAssertEqual(CompanionNicknamesSerialization.decode(from: "invalid-json"), [:])
+    }
+
+    func testShareSheetCancelPreservesPreparedStateWithoutPulsingPending() {
+        let unsharedPresentation = CompanionQuickActionPresentation(
+            status: .pending,
+            companionNames: [],
+            isEnded: false,
+            isInvitationShared: false
+        )
+        XCTAssertEqual(unsharedPresentation.displayTitle, "继续分享")
+        XCTAssertFalse(unsharedPresentation.showsPendingIndicator)
+
+        let sharedPresentation = CompanionQuickActionPresentation(
+            status: .pending,
+            companionNames: [],
+            isEnded: false,
+            isInvitationShared: true
+        )
+        XCTAssertEqual(sharedPresentation.displayTitle, "等待同行")
+        XCTAssertTrue(sharedPresentation.showsPendingIndicator)
+    }
 }
 
 // MARK: - Helpers
@@ -1386,7 +1548,10 @@ private func makeSession(
     showDate: Date = Date(timeIntervalSince1970: 2_000_000_000),
     createdAt: Date = Date(timeIntervalSince1970: 2_000_000_000),
     acceptedAt: Date? = nil,
-    canceledAt: Date? = nil
+    canceledAt: Date? = nil,
+    members: [CompanionMember]? = nil,
+    ownerCompanions: [CompanionMember]? = nil,
+    participantCompanions: [CompanionMember]? = nil
 ) -> CompanionSessionSnapshot {
     CompanionSessionSnapshot(
         sessionLocator: CompanionRecordLocator(
@@ -1410,7 +1575,10 @@ private func makeSession(
         status: status,
         createdAt: createdAt,
         acceptedAt: acceptedAt,
-        canceledAt: canceledAt
+        canceledAt: canceledAt,
+        members: members,
+        ownerCompanions: ownerCompanions,
+        participantCompanions: participantCompanions
     )
 }
 

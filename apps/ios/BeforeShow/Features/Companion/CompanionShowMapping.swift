@@ -20,28 +20,23 @@ extension Show {
         }
         companionIsOwner = isOwner
 
-        let cloudNames = snapshot.companionDisplayNames(isOwner: isOwner)
-        let fallback = CompanionNameList.normalized([preferredName].compactMap { $0 })
-        let mergedCloudNames = Self.mergeCompanionNames(cloud: cloudNames, local: companionNames)
-        let resolvedNames: [String]
-        if isOwner, snapshot.status == .accepted {
-            resolvedNames = mergedCloudNames
-        } else if !cloudNames.isEmpty {
-            resolvedNames = mergedCloudNames
-        } else if !fallback.isEmpty {
-            resolvedNames = fallback
+        let targetStatus = snapshot.status.localStatus
+        if let cloudMembers = snapshot.resolvedMembers(isOwner: isOwner), !cloudMembers.isEmpty {
+            applyCompanionMembers(cloudMembers, status: targetStatus)
+        } else if let preferredName, !preferredName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let member = CompanionMember(id: "preferred-0", name: preferredName.trimmingCharacters(in: .whitespacesAndNewlines))
+            applyCompanionMembers([member], status: targetStatus)
+        } else if snapshot.status == .accepted {
+            let cloudNames = snapshot.companionDisplayNames(isOwner: isOwner)
+            let members = cloudNames.enumerated().map { CompanionMember(id: "fallback-\($0)", name: $1) }
+            applyCompanionMembers(members, status: targetStatus)
+        } else if !companionMembers.isEmpty {
+            applyCompanionMembers(companionMembers, status: targetStatus)
+        } else if !companionNames.isEmpty {
+            let members = companionNames.enumerated().map { CompanionMember(id: "fallback-\($0)", name: $1) }
+            applyCompanionMembers(members, status: targetStatus)
         } else {
-            resolvedNames = companionNames
-        }
-
-        applyCompanionState(status: snapshot.status.localStatus, names: resolvedNames)
-    }
-
-    private static func mergeCompanionNames(cloud: [String], local: [String]) -> [String] {
-        guard cloud.count == local.count else { return cloud }
-        let friend = BSLocalization.text("朋友")
-        return zip(cloud, local).map { c, l in
-            (c == friend && !l.isEmpty && l != friend) ? l : c
+            applyCompanionMembers([], status: targetStatus)
         }
     }
 

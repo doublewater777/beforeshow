@@ -1641,3 +1641,21 @@ First show: %@";
 "这份邀请已失效" = "This invitation is no longer valid.";
 "已加入同行" = "Companion joined";
 "已确认共同足迹" = "Shared footprint confirmed";
+
+"邀请已就绪" = "Invitation Ready";
+"邀请链接已生成，分享给朋友即可加入。" = "Invite link generated. Share it with friends to join.";
+"继续分享" = "Continue Sharing";
+"再次分享" = "Share Again";
+"撤销同行邀请？" = "Revoke Companion Invitation?";
+"撤销后，之前分享的邀请链接将失效。" = "Once revoked, previously shared invite links will become invalid.";
+"撤销邀请" = "Revoke Invitation";
+"正在撤销" = "Revoking";
+"结束同行？" = "End Companion?";
+"结束同行后，将解散本次同行记录，所有成员的同行状态都将被取消。" = "Ending companion will disband this companion record and cancel it for all members.";
+"结束同行" = "End Companion";
+"正在结束" = "Ending";
+"退出同行？" = "Leave Companion?";
+"退出后，你将不再参与这场现场的同行记录。" = "After leaving, you will no longer be part of this show's companion record.";
+"正在退出" = "Leaving";
+"同行，邀请链接已就绪" = "Companion, invite link ready";
+

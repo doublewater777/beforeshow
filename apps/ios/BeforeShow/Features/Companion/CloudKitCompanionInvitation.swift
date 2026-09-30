@@ -67,7 +67,8 @@ extension CloudKitCompanionSharingService {
 
         let snapshot = try Self.snapshot(
             from: savedSession,
-            shareLocator: CompanionRecordLocator(recordID: savedShare.recordID)
+            shareLocator: CompanionRecordLocator(recordID: savedShare.recordID),
+            share: savedShare
         )
 
         do {

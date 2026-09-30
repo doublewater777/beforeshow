@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { onRequestGet } from "../functions/join/[token].js";
+import { onRequestGet as onRequestGetIndex } from "../functions/join/index.js";
 
 function invite(overrides = {}) {
   const payload = {
@@ -125,10 +126,32 @@ test("includes Apple Smart App Banner, download guidance and deferred link copy 
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /<meta name="apple-itunes-app" content="app-id=6780078298, app-argument=beforeshow:\/\/join\/[A-Za-z0-9_-]+">/);
-  assert.match(html, /class="download-hint"/);
-  assert.match(html, /下载后打开 App，将自动识别同行邀请/);
+  assert.match(html, /一起去现场/);
+  assert.match(html, /尚未安装？前往 App Store/);
+  assert.match(html, /复制邀请链接/);
   assert.match(html, /id="toast"/);
   assert.match(html, /id="btn-open"/);
   assert.match(html, /id="btn-download"/);
+  assert.match(html, /id="btn-copy"/);
   assert.match(html, /<script defer>/);
+});
+
+test("returns styled 404 for empty or missing join token", async () => {
+  const response = onRequestGetIndex({
+    request: new Request("https://beforeshow.doublewaterapps.com/join", {
+      headers: { "Accept-Language": "zh-CN" },
+    }),
+  });
+  assert.equal(response.status, 404);
+  const html = await response.text();
+  assert.match(html, /无法打开邀请/);
+  assert.match(html, /邀请链接不完整或格式有误/);
+  assert.match(html, /返回首页/);
+});
+
+test("falls back to UTC with offset when timezone identifier is invalid", async () => {
+  const response = invite({ z: "Invalid/Timezone_Name", s: 28800, t: 1792324800 });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /10月18日 20:00/);
 });

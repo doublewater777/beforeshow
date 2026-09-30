@@ -83,6 +83,8 @@ final class Show {
 
     private var companionStatusRawValue: String?
     private(set) var companionNames: [String] = []
+    var companionMembers: [CompanionMember] = []
+    var companionInvitationShared: Bool = false
 
     var companionName: String? {
         CompanionNameList.joined(companionNames)
@@ -340,6 +342,8 @@ final class Show {
             throw ShowCompanionMutationError.invalidTransition(from: from, to: .canceled)
         }
         companionNames = []
+        companionMembers = []
+        companionInvitationShared = false
         companionStatusRawValue = ShowCompanionStatus.canceled.rawValue
         touch()
     }
@@ -365,8 +369,8 @@ final class Show {
         )
     }
 
-    func applyCompanionState(status: ShowCompanionStatus, names: [String]) {
-        companionNames = CompanionNameList.normalized(names)
+    func applyCompanionState(status: ShowCompanionStatus, names: [String], preserveDuplicates: Bool = false) {
+        companionNames = preserveDuplicates ? names : CompanionNameList.normalized(names)
         companionStatusRawValue = status.rawValue
         touch()
     }

@@ -44,7 +44,9 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         }
     }
 
-    func deliverCompanionInviteURL(_ shareURL: URL) {
+    @MainActor
+    func deliverCompanionInviteURL(_ url: URL) {
+        guard let shareURL = CompanionInviteClipboardDetector.routeIncomingInvite(url) else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             let presentationGeneration = companionCoordinator?.beginLoadingInvitation()
@@ -152,10 +154,9 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
     }
 
     private func deliver(_ webpageURL: URL) {
-        guard let shareURL = CompanionInviteWebLink.shareURL(from: webpageURL),
-              let appDelegate = (UIApplication.shared.delegate as? BeforeShowAppDelegate) ?? BeforeShowAppDelegate.shared else {
+        guard let appDelegate = (UIApplication.shared.delegate as? BeforeShowAppDelegate) ?? BeforeShowAppDelegate.shared else {
             return
         }
-        appDelegate.deliverCompanionInviteURL(shareURL)
+        appDelegate.deliverCompanionInviteURL(webpageURL)
     }
 }

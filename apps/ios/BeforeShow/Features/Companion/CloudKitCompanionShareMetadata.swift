@@ -70,6 +70,7 @@ struct CompanionAcceptedShareContext {
     let record: CKRecord
     let participantDisplayNames: [String]
     let ownerDisplayName: String?
+    let acceptedShare: CKShare
 }
 
 extension CloudKitCompanionSharingService {
@@ -180,7 +181,8 @@ extension CloudKitCompanionSharingService {
             shareLocator: shareLocator,
             record: record,
             participantDisplayNames: Self.participantNames(from: acceptedShare),
-            ownerDisplayName: Self.displayName(for: acceptedMetadata.ownerIdentity)
+            ownerDisplayName: Self.displayName(for: acceptedMetadata.ownerIdentity),
+            acceptedShare: acceptedShare
         )
     }
 

@@ -331,6 +331,7 @@
 		C4C5D9144B75B152BB6FBDCC /* ListeningEmptyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F558C03CFF40A8A85AC7A92 /* ListeningEmptyView.swift */; };
 		C4F835031493606E71BACCD0 /* ListeningMusicContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D024883624FF980BCBCDA7 /* ListeningMusicContracts.swift */; };
 		C59C216DB3EB1AB600A28E56 /* ShowScreenshotRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17098BD24AC149A783AB802 /* ShowScreenshotRecognitionService.swift */; };
+		C602B709518EB2EBE6050B15 /* CompanionMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7159D8AE36B7C26D04602192 /* CompanionMember.swift */; };
 		C8A11138E7124CCDAAE49BD6 /* CurrentShowHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B83A34563BD0FA48907007 /* CurrentShowHomeView.swift */; };
 		C9129321388CA361740F93A3 /* ShowOpeningFamiliarityBaseline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E610BD4DFFFCAD72D81DCBA /* ShowOpeningFamiliarityBaseline.swift */; };
 		C933F65E5CFF5361620A425F /* CurrentShowSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D88E2E7AC3848D529167745 /* CurrentShowSelection.swift */; };
@@ -672,6 +673,7 @@
 		709BBA6D0BD46772E2BB1F5D /* ListeningColdStartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningColdStartTests.swift; sourceTree = "<group>"; };
 		70EA39AEEA47B90F87C8C06B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		711E15D7D9CF1B31D0EC3287 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		7159D8AE36B7C26D04602192 /* CompanionMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionMember.swift; sourceTree = "<group>"; };
 		73053A1EE3EC823DA417ED53 /* CurrentShowRoutePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowRoutePresentation.swift; sourceTree = "<group>"; };
 		730542BD36EED4A191E38D60 /* ListeningCabinetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningCabinetView.swift; sourceTree = "<group>"; };
 		7380ACEC295263262C61FB58 /* FootprintPhotoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintPhotoLibrary.swift; sourceTree = "<group>"; };
@@ -1489,6 +1491,7 @@
 		D6416584765E07E612F6296E /* Shows */ = {
 			isa = PBXGroup;
 			children = (
+				7159D8AE36B7C26D04602192 /* CompanionMember.swift */,
 				C59A0670159D0CB9138FD56D /* Show.swift */,
 				8FD3CB707C012D15BB348F16 /* ShowAsset.swift */,
 				7FBD7981808E2DCAD0D8626D /* ShowDeletionCoordinator.swift */,
@@ -1887,6 +1890,7 @@
 				5A4F1B6A0A290D1F539A8ADC /* CompanionInviteSnapshot.swift in Sources */,
 				9447ACBCB75F87B540A28425 /* CompanionJoinConfirmationView.swift in Sources */,
 				A12E2920637EF57698C348D2 /* CompanionLiveCurrentPromptPolicy.swift in Sources */,
+				C602B709518EB2EBE6050B15 /* CompanionMember.swift in Sources */,
 				97093D91AA08B21571043597 /* CompanionPairFootprintView.swift in Sources */,
 				B8E928528DE9237FDEA9C40B /* CompanionPendingInviteDrainPolicy.swift in Sources */,
 				501652722F0425EC919D6A4A /* CompanionShareControllerSaveHandler.swift in Sources */,

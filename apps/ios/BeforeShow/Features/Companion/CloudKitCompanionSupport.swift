@@ -124,7 +124,8 @@ extension CloudKitCompanionSharingService {
         from record: CKRecord,
         shareLocator: CompanionRecordLocator?,
         forcedStatus: CompanionCloudStatus? = nil,
-        participantDisplayNames: [String] = []
+        participantDisplayNames: [String] = [],
+        share: CKShare? = nil
     ) throws -> CompanionSessionSnapshot {
         guard
             let showID = record[CompanionSessionRecord.showID] as? String,
@@ -175,6 +176,49 @@ extension CloudKitCompanionSharingService {
             showSnapshot = legacyShow
         }
 
+        var ownerCompanions: [CompanionMember]? = nil
+        var participantCompanions: [CompanionMember]? = nil
+        var directMembers: [CompanionMember]? = nil
+
+        if let share {
+            let nicknames = CompanionNicknamesSerialization.decode(
+                from: record[CompanionSessionRecord.participantNicknamesJSON] as? String
+            )
+            let currentParticipantID = share.currentUserParticipant?.participantID
+            let acceptedNonOwners = share.participants.filter {
+                $0.role != .owner && $0.acceptanceStatus == .accepted
+            }
+
+            let builtOwnerCompanions: [CompanionMember] = acceptedNonOwners.map { participant in
+                let pid = participant.participantID
+                let name = nicknames[pid]
+                    ?? Self.displayName(for: participant)
+                    ?? (record[CompanionSessionRecord.participantDisplayName] as? String)
+                    ?? BSLocalization.text("朋友")
+                return CompanionMember(id: pid, name: name)
+            }
+            ownerCompanions = builtOwnerCompanions
+
+            let ownerPID = share.owner.participantID
+            let ownerName = (record[CompanionSessionRecord.ownerDisplayName] as? String)
+                ?? Self.displayName(for: share.owner)
+                ?? BSLocalization.text("同行者")
+            let ownerMember = CompanionMember(id: ownerPID, name: ownerName)
+
+            let otherNonOwners: [CompanionMember] = acceptedNonOwners.compactMap { participant in
+                if let currentParticipantID, participant.participantID == currentParticipantID {
+                    return nil
+                }
+                let pid = participant.participantID
+                let name = nicknames[pid]
+                    ?? Self.displayName(for: participant)
+                    ?? BSLocalization.text("朋友")
+                return CompanionMember(id: pid, name: name)
+            }
+            participantCompanions = [ownerMember] + otherNonOwners
+            directMembers = builtOwnerCompanions
+        }
+
         return CompanionSessionSnapshot(
             sessionLocator: CompanionRecordLocator(recordID: record.recordID),
             shareLocator: shareLocator,
@@ -185,7 +229,10 @@ extension CloudKitCompanionSharingService {
             status: status,
             createdAt: createdAt,
             acceptedAt: record[CompanionSessionRecord.acceptedAt] as? Date,
-            canceledAt: record[CompanionSessionRecord.canceledAt] as? Date
+            canceledAt: record[CompanionSessionRecord.canceledAt] as? Date,
+            members: directMembers,
+            ownerCompanions: ownerCompanions,
+            participantCompanions: participantCompanions
         )
     }
 

@@ -179,7 +179,7 @@ enum CompanionInviteWebLink {
         return decodeSnapshot(from: token)
     }
 
-    private static func validShareURL(_ url: URL) -> Bool {
+    static func validShareURL(_ url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else {
             return false
         }
@@ -259,7 +259,7 @@ enum SystemCloudSharePresenter {
         containerIdentifier: String,
         coverImage: UIImage? = nil,
         onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
-        onDismiss: @escaping () -> Void,
+        onDismiss: @escaping (_ completed: Bool) -> Void,
         onPresented: (() -> Void)? = nil
     ) -> Bool {
         guard let share = try? CloudKitCompanionSharingService.unarchiveShare(from: shareData) else {
@@ -284,7 +284,7 @@ enum SystemCloudSharePresenter {
         container _: CKContainer,
         coverImage: UIImage? = nil,
         onEvent _: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
-        onDismiss: @escaping () -> Void,
+        onDismiss: @escaping (_ completed: Bool) -> Void,
         onPresented: (() -> Void)? = nil
     ) -> Bool {
         guard let invitationURL = share.url,
@@ -319,9 +319,9 @@ enum SystemCloudSharePresenter {
             activityItems: [CompanionInviteActivityItemSource(url: webURL, title: title, coverImage: resolvedCoverImage)],
             applicationActivities: nil
         )
-        controller.completionWithItemsHandler = { _, _, _, _ in
+        controller.completionWithItemsHandler = { _, completed, _, _ in
             Task { @MainActor in
-                onDismiss()
+                onDismiss(completed)
             }
         }
         if let popover = controller.popoverPresentationController {

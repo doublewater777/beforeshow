@@ -500,7 +500,8 @@ struct CurrentShowManagementSection: View {
                 companion: CompanionQuickActionPresentation(
                     status: show.companionStatus,
                     companionNames: show.companionNames,
-                    isEnded: currentPhase == .ended
+                    isEnded: currentPhase == .ended,
+                    isInvitationShared: show.companionInvitationShared
                 )
             )
         default:

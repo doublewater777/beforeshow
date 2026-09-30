@@ -45,10 +45,44 @@ function invitationFromToken(token) {
   }
 }
 
-function copyFor(request, invite) {
+function localeFor(request) {
   const language = request.headers.get("Accept-Language") || "";
-  const locale = /^zh-(TW|HK|Hant)/i.test(language) ? "zh-Hant"
-    : /^en/i.test(language) ? "en" : "zh-Hans";
+  if (/^zh-(TW|HK|MO|Hant)/i.test(language)) return "zh-Hant";
+  if (!language || /^zh/i.test(language)) return "zh-Hans";
+  return "en";
+}
+
+function invalidInvitationResponse(request) {
+  const locale = localeFor(request);
+  const [title, message, home] = {
+    en: ["Invite unavailable", "This invite link is incomplete or invalid. Ask your friend to share it again.", "Back to home"],
+    "zh-Hant": ["無法開啟邀請", "邀請連結不完整或格式有誤，請讓朋友重新分享。", "返回首頁"],
+    "zh-Hans": ["无法打开邀请", "邀请链接不完整或格式有误，请让朋友重新分享。", "返回首页"],
+  }[locale];
+  return new Response(`<!doctype html>
+<html lang="${locale}"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow"><title>${title} · BeforeShow</title>
+<link rel="icon" href="/app-icon.png">
+<style>
+:root { color-scheme: dark; --bg: #050508; --text: #F5F1E9; --text-soft: #AAA5AF; --radius-btn: 14px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { margin: 0; min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; -webkit-font-smoothing: antialiased; }
+main { width: min(400px, 100%); text-align: center; }
+img { width: 88px; height: 88px; border-radius: 22px; margin-bottom: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+h1 { font-size: 26px; font-weight: 750; margin-bottom: 12px; letter-spacing: -0.015em; }
+p { color: var(--text-soft); line-height: 1.6; font-size: 15px; }
+a { display: block; margin-top: 28px; padding: 13px 20px; border-radius: var(--radius-btn); background: var(--text); color: var(--bg); text-decoration: none; font-weight: 650; font-size: 15px; transition: transform 0.15s ease; }
+a:active { transform: scale(0.985); }
+</style></head><body><main><img src="/app-icon.png" alt="BeforeShow">
+<h1>${title}</h1><p>${message}</p><a href="/">${home}</a></main></body></html>`, {
+    status: 404,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" },
+  });
+}
+
+function copyFor(request, invite) {
+  const locale = localeFor(request);
   let tz = invite.z;
   let offset = 0;
   if (!tz) {
@@ -63,14 +97,25 @@ function copyFor(request, invite) {
   }
   const date = new Date((invite.t + offset) * 1000);
   if (Number.isNaN(date.getTime())) return null;
+  const currentYear = new Date().getFullYear();
+  const formatOptions = {
+    month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+    timeZone: tz,
+  };
+  if (date.getUTCFullYear() !== currentYear) {
+    formatOptions.year = "numeric";
+  }
   let when;
   try {
-    when = new Intl.DateTimeFormat(locale, {
-      month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
-      timeZone: tz,
-    }).format(date);
+    when = new Intl.DateTimeFormat(locale, formatOptions).format(date);
   } catch {
-    return null;
+    try {
+      const fallbackDate = new Date((invite.t + (invite.s || 0)) * 1000);
+      formatOptions.timeZone = "UTC";
+      when = new Intl.DateTimeFormat(locale, formatOptions).format(fallbackDate);
+    } catch {
+      return null;
+    }
   }
   const owner = invite.o?.trim() || ({ en: "A friend", "zh-Hant": "朋友", "zh-Hans": "朋友" })[locale];
   const words = {
@@ -78,40 +123,55 @@ function copyFor(request, invite) {
       title: `Let's go to ${invite.n}`,
       byline: `${owner} invited you to go together`,
       companionTag: "Companion Invite",
-      open: "Open in BeforeShow",
+      joinShow: "Join the Show",
       openInBrowser: "Open in Browser",
+      notInstalledLink: "Not installed? Get BeforeShow",
       download: "Download BeforeShow",
-      downloadHint: "Open BeforeShow after installing to join automatically",
-      copiedToast: "Invite copied! Open BeforeShow after installing to join",
-      notInstalledToast: "BeforeShow not detected. Invite copied, please download from App Store",
+      downloadHint: "Open BeforeShow after installing to join, or return here to open",
+      copiedToast: "Invite copied",
+      downloadCopiedToast: "Invite copied! Open BeforeShow after installing to join",
+      openFailureHint: "Couldn’t open? Try again, or get BeforeShow below.",
       wechatTip: "Tap ··· at top right and choose \"Open in Browser\"",
-      note: "Confirm in BeforeShow to join",
+      copyLink: "Copy invite link",
+      copyFailed: "Couldn’t copy. Select and copy the link below.",
+      closeGuide: "Tap anywhere to close",
+      note: "Invite availability is confirmed in BeforeShow",
     },
     "zh-Hant": {
       title: `一起去 ${invite.n}`,
       byline: `${owner} 邀請你一起去`,
       companionTag: "同行邀請",
-      open: "在 BeforeShow 中開啟",
+      joinShow: "一起去現場",
       openInBrowser: "在瀏覽器中開啟",
+      notInstalledLink: "尚未安裝？前往 App Store",
       download: "下載 BeforeShow",
-      downloadHint: "下載後打開 App，將自動識別同行邀請",
-      copiedToast: "已複製同行邀請，下載打開 App 即可直接加入",
-      notInstalledToast: "未檢測到 App，已複製邀請，請前往 App Store 下載",
+      downloadHint: "安裝打開 App 將自動識別同行邀請，也可返回此頁開啟",
+      copiedToast: "已複製邀請連結",
+      downloadCopiedToast: "已複製同行邀請，安裝打開 App 即可直接加入",
+      openFailureHint: "未能開啟？請重試，或前往下方下載 App。",
       wechatTip: "點擊右上角「···」，選擇在瀏覽器中開啟",
-      note: "在 App 內確認後加入同行",
+      copyLink: "複製邀請連結",
+      copyFailed: "未能複製，請選取下方連結手動複製。",
+      closeGuide: "輕觸任意處關閉",
+      note: "邀請是否有效，以 App 內確認為準",
     },
     "zh-Hans": {
       title: `一起去 ${invite.n}`,
       byline: `${owner} 邀请你一起去`,
       companionTag: "同行邀请",
-      open: "在 BeforeShow 中打开",
+      joinShow: "一起去现场",
       openInBrowser: "在浏览器中打开",
+      notInstalledLink: "尚未安装？前往 App Store",
       download: "下载 BeforeShow",
-      downloadHint: "下载后打开 App，将自动识别同行邀请",
-      copiedToast: "已复制同行邀请，下载打开 App 即可直接加入",
-      notInstalledToast: "未检测到 App，已复制邀请，请前往 App Store 下载",
+      downloadHint: "安装打开 App 将自动识别同行邀请，也可返回此页开启",
+      copiedToast: "已复制邀请链接",
+      downloadCopiedToast: "已复制同行邀请，安装打开 App 即可直接加入",
+      openFailureHint: "未能打开？请重试，或前往下方下载 App。",
       wechatTip: "点击右上角「···」，选择在浏览器中打开",
-      note: "在 App 内确认后加入同行",
+      copyLink: "复制邀请链接",
+      copyFailed: "未能复制，请选取下方链接手动复制。",
+      closeGuide: "轻触任意处关闭",
+      note: "邀请是否有效，以 App 内确认为准",
     },
   }[locale];
   return { locale, when, ...words };
@@ -122,7 +182,7 @@ export function onRequestGet({ request, params }) {
   const invite = typeof token === "string" && invitationFromToken(token);
   const copy = invite && copyFor(request, invite);
   if (!copy) {
-    return new Response("Invalid invitation", { status: 404 });
+    return invalidInvitationResponse(request);
   }
   const canonical = `https://beforeshow.doublewaterapps.com/join/${token}`;
   const deepLink = `beforeshow://join/${token}`;
@@ -173,6 +233,9 @@ export function onRequestGet({ request, params }) {
       --radius-pill: 999px;
       --shadow-card: 0 24px 64px rgba(0, 0, 0, 0.65);
     }
+    [hidden] { display: none !important; }
+    button.btn { width: 100%; font: inherit; cursor: pointer; }
+    .invite-link { width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-btn); padding: 12px; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100vh;
@@ -488,6 +551,58 @@ export function onRequestGet({ request, params }) {
       0%, 100% { border-color: var(--border); box-shadow: none; }
       50% { border-color: var(--accent); box-shadow: 0 0 16px rgba(132, 191, 255, 0.4); }
     }
+    .action-sublinks {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding-top: 4px;
+      font-size: 13px;
+    }
+    .sublink, .sublink-btn {
+      color: var(--text-soft);
+      text-decoration: none;
+      background: none;
+      border: none;
+      font: inherit;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 6px;
+      transition: color 0.15s ease, text-decoration 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sublink:hover, .sublink-btn:hover {
+      color: var(--text);
+    }
+    .sublink-sep {
+      color: var(--text-faint);
+      user-select: none;
+      font-size: 11px;
+    }
+    .link-highlight {
+      color: var(--accent) !important;
+      font-weight: 600;
+      text-decoration: underline;
+      animation: pulseText 1.5s ease-in-out infinite;
+    }
+    @keyframes pulseText {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 1; }
+    }
+    .action-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--accent-warm);
+      padding-top: 2px;
+      text-align: center;
+    }
     .download-hint {
       display: flex;
       align-items: center;
@@ -655,20 +770,22 @@ export function onRequestGet({ request, params }) {
       <div class="ticket-action">
         <a id="btn-open" class="btn btn-primary" href="${isWechat ? "#wechat-guide" : escapeHTML(deepLink)}">
           <svg class="btn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-          <span>${isWechat ? escapeHTML(copy.openInBrowser) : escapeHTML(copy.open)}</span>
+          <span>${isWechat ? escapeHTML(copy.openInBrowser) : escapeHTML(copy.joinShow)}</span>
         </a>
 
-        <a id="btn-download" class="btn btn-secondary" href="${APP_STORE_URL}" target="_blank" rel="noopener">
-          <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          <span>${escapeHTML(copy.download)}</span>
-        </a>
-
-        <div class="download-hint">
-          <span class="download-hint-icon">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-          </span>
-          <span>${escapeHTML(copy.downloadHint)}</span>
+        <div class="action-sublinks">
+          <a id="btn-download" class="sublink" href="${isWechat ? "#wechat-guide" : APP_STORE_URL}">
+            <span>${escapeHTML(copy.notInstalledLink)}</span>
+          </a>
+          <span class="sublink-sep">·</span>
+          <button id="btn-copy" class="sublink-btn" type="button">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span>${escapeHTML(copy.copyLink)}</span>
+          </button>
         </div>
+
+        <p id="action-status" class="action-status" role="status" hidden></p>
+        <input id="invite-link" class="invite-link" value="${escapeHTML(canonical)}" aria-label="${escapeHTML(copy.copyLink)}" readonly hidden>
       </div>
     </article>
 
@@ -677,15 +794,15 @@ export function onRequestGet({ request, params }) {
     </footer>
   </main>
 
-  <a href="#" class="wechat-overlay" id="wechat-guide" aria-label="关闭指引">
+  <a href="#" class="wechat-overlay" id="wechat-guide" aria-label="${escapeHTML(copy.closeGuide)}">
     <div class="guide-pointer-box">
       <svg class="guide-arrow" width="56" height="56" viewBox="0 0 60 60" fill="none">
         <path d="M10 50 C 20 30, 36 18, 50 10" stroke="#FFB36B" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 4"/>
         <polyline points="38,10 50,10 50,22" stroke="#FFB36B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <div class="guide-bubble">
-        <div>点击右上角 <strong>「 ··· 」</strong><br>选择在浏览器中打开</div>
-        <span class="guide-bubble-hint">轻触任意处关闭</span>
+        <div>${escapeHTML(copy.wechatTip)}</div>
+        <span class="guide-bubble-hint">${escapeHTML(copy.closeGuide)}</span>
       </div>
     </div>
   </a>
@@ -696,7 +813,8 @@ export function onRequestGet({ request, params }) {
     (function() {
       var inviteUrl = ${JSON.stringify(canonical)};
       var copiedToast = ${JSON.stringify(copy.copiedToast)};
-      var notInstalledToast = ${JSON.stringify(copy.notInstalledToast)};
+      var downloadCopiedToast = ${JSON.stringify(copy.downloadCopiedToast)};
+      var openFailureHint = ${JSON.stringify(copy.openFailureHint)};
       var toastEl = document.getElementById("toast");
       var toastTimer = null;
 
@@ -710,60 +828,79 @@ export function onRequestGet({ request, params }) {
         }, 2800);
       }
 
-      function copyInviteText() {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(inviteUrl).catch(function() {
-            fallbackCopy(inviteUrl);
-          });
-        } else {
-          fallbackCopy(inviteUrl);
+      var statusEl = document.getElementById("action-status");
+      var linkEl = document.getElementById("invite-link");
+      var copyFailed = ${JSON.stringify(copy.copyFailed)};
+
+      async function copyInviteText(customMessage, showFeedback) {
+        if (showFeedback !== false) {
+          clearOpenAttempt();
+          clearTimeout(toastTimer);
+          toastEl.classList.remove("visible");
         }
+        var toastMessage = (typeof customMessage === "string" && customMessage) ? customMessage : copiedToast;
+        var copied = false;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(inviteUrl);
+            copied = true;
+          }
+        } catch (e) {}
+        if (!copied && showFeedback !== false) {
+          linkEl.hidden = false;
+          linkEl.focus();
+          linkEl.select();
+          if (linkEl.setSelectionRange) {
+            linkEl.setSelectionRange(0, 9999);
+          }
+          try { copied = document.execCommand("copy"); } catch (e) {}
+        }
+        if (showFeedback !== false) {
+          linkEl.hidden = copied;
+          statusEl.hidden = copied;
+          if (copied) showToast(toastMessage);
+          else statusEl.textContent = copyFailed;
+        }
+        return copied;
       }
 
-      function fallbackCopy(text) {
-        var ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        try { document.execCommand("copy"); } catch (e) {}
-        document.body.removeChild(ta);
-      }
-
+      document.getElementById("btn-copy").addEventListener("click", function() {
+        copyInviteText(copiedToast);
+      });
       var btnOpen = document.getElementById("btn-open");
       var btnDownload = document.getElementById("btn-download");
-
+      var openTimer;
+      function clearOpenAttempt() {
+        clearTimeout(openTimer);
+        window.removeEventListener("pagehide", clearOpenAttempt);
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
+      function handleVisibility() {
+        if (document.hidden) clearOpenAttempt();
+      }
       if (btnDownload) {
         btnDownload.addEventListener("click", function() {
-          copyInviteText();
-          showToast(copiedToast);
+          if (document.body.classList.contains("is-wechat")) return;
+          copyInviteText(downloadCopiedToast);
         });
       }
-
       if (btnOpen) {
         btnOpen.addEventListener("click", function() {
-          if (document.body.classList.contains("is-wechat")) {
-            return;
-          }
-          var hasNavigated = false;
-          function markNavigated() {
-            if (document.hidden) hasNavigated = true;
-          }
-          window.addEventListener("pagehide", markNavigated, { once: true });
-          document.addEventListener("visibilitychange", markNavigated);
-
-          setTimeout(function() {
-            document.removeEventListener("visibilitychange", markNavigated);
-            if (!hasNavigated && !document.hidden) {
-              copyInviteText();
-              showToast(notInstalledToast);
-              if (btnDownload) {
-                btnDownload.classList.add("btn-highlight");
-              }
+          if (document.body.classList.contains("is-wechat")) return;
+          copyInviteText(null, false);
+          clearOpenAttempt();
+          statusEl.hidden = true;
+          if (btnDownload) btnDownload.classList.remove("link-highlight");
+          window.addEventListener("pagehide", clearOpenAttempt, { once: true });
+          document.addEventListener("visibilitychange", handleVisibility);
+          openTimer = setTimeout(function() {
+            clearOpenAttempt();
+            if (!document.hidden) {
+              statusEl.textContent = openFailureHint;
+              statusEl.hidden = false;
+              if (btnDownload) btnDownload.classList.add("link-highlight");
             }
-          }, 2000);
+          }, 2600);
         });
       }
     })();

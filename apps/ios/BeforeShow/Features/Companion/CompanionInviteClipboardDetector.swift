@@ -1,14 +1,34 @@
 import Foundation
+import Observation
 import SwiftData
 import UIKit
 
 @MainActor
-enum CompanionInviteClipboardDetector {
+@Observable
+final class CompanionInviteClipboardDetector {
+    static let shared = CompanionInviteClipboardDetector()
+    private init() {}
     private static let lastProcessedTokenKey = "CompanionInviteLastProcessedToken"
-    private(set) static var pendingFirstTimeInvite: CompanionInviteSnapshot?
+    private(set) var pendingFirstTimeInvite: CompanionInviteSnapshot?
 
     static func setPendingFirstTimeInvite(_ snapshot: CompanionInviteSnapshot?) {
-        pendingFirstTimeInvite = snapshot
+        shared.pendingFirstTimeInvite = snapshot
+    }
+
+    /// Keeps first-time links in onboarding; returns the CloudKit URL for returning users.
+    static func routeIncomingInvite(_ url: URL) -> URL? {
+        guard let token = CompanionInviteWebLink.token(from: url) else {
+            return CompanionInviteWebLink.validShareURL(url) ? url : nil
+        }
+        guard let snapshot = CompanionInviteWebLink.decodeSnapshot(from: token) else { return nil }
+        if !OnboardingCompletionStore.hasCompleted() {
+            // An explicit link open is a new attempt, not a clipboard replay.
+            clearProcessedToken()
+            setPendingFirstTimeInvite(snapshot)
+            return nil
+        }
+        markTokenProcessed(snapshot.token)
+        return snapshot.shareURL
     }
 
     static func activeFirstTimeInvite(userDefaults: UserDefaults = .standard) -> CompanionInviteSnapshot? {
@@ -21,12 +41,12 @@ enum CompanionInviteClipboardDetector {
             }
         }
         #endif
-        if let pending = pendingFirstTimeInvite, !isTokenProcessed(pending.token, userDefaults: userDefaults) {
+        if let pending = shared.pendingFirstTimeInvite, !isTokenProcessed(pending.token, userDefaults: userDefaults) {
             return pending
         }
         let detected = detectInviteFromPasteboard(userDefaults: userDefaults)
         if let detected {
-            pendingFirstTimeInvite = detected
+            shared.pendingFirstTimeInvite = detected
         }
         return detected
     }

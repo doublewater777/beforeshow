@@ -64,10 +64,8 @@ struct RootView: View {
             guard newPhase == .active, isShowingOnboarding, invitedSnapshot == nil else { return }
             invitedSnapshot = CompanionInviteClipboardDetector.activeFirstTimeInvite()
         }
-        .onOpenURL { _ in
-            if isShowingOnboarding {
-                invitedSnapshot = CompanionInviteClipboardDetector.activeFirstTimeInvite()
-            }
+        .onChange(of: CompanionInviteClipboardDetector.shared.pendingFirstTimeInvite) { _, snapshot in
+            if isShowingOnboarding { invitedSnapshot = snapshot }
         }
         .onChange(of: rootShows.map(\.id)) { _, _ in
             if isShowingOnboarding, !rootShows.isEmpty {
