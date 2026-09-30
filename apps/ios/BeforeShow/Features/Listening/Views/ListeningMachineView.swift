@@ -124,7 +124,8 @@ struct ListeningMachineView: View {
         DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onEnded { value in
                 let motion = player.motion
-                let partsAreMoving = motion.discX.target != nil
+                let partsAreMoving = motion.lid.target != nil
+                    || motion.discX.target != nil
                     || motion.discY.target != nil
                     || motion.discScale.target != nil
                     || motion.lift.target != nil
