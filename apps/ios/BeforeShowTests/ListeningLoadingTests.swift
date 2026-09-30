@@ -74,6 +74,8 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(catalog.featuredPlaylistFetchCount, 0)
         XCTAssertLessThanOrEqual(room.compilationDiscs.count, 3)
 
+        await load.value
+
         let compilationTracks = room.compilationDiscs.flatMap(\.tracks)
         XCTAssertTrue((40...60).contains(compilationTracks.count), "large-festival compilation should stay within the bounded continuous-listening target")
         XCTAssertEqual(Set(compilationTracks.map(\.id)).count, compilationTracks.count)
@@ -82,8 +84,6 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(countsByArtist.count, 17, "coverage-first allocation should represent every artist")
         XCTAssertGreaterThanOrEqual(countsByArtist.values.min() ?? 0, 2)
         XCTAssertLessThanOrEqual((countsByArtist.values.max() ?? 0) - (countsByArtist.values.min() ?? 0), 1)
-
-        await load.value
 
         let finalRead = ModelContext(container)
         XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 0)

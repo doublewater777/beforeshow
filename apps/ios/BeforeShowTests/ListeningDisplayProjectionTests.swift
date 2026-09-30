@@ -310,7 +310,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(projection.roomMode, .preview)
         XCTAssertEqual(
             projection.headerNotice?.message,
-            ListeningCopy.text("当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。")
+            BSLocalization.text("未开通 Apple Music 会员，提供 30 秒官方试听")
         )
         XCTAssertNil(projection.headerNotice?.recoveryAction)
     }

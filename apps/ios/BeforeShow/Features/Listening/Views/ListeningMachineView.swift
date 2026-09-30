@@ -32,10 +32,48 @@ enum ListeningLoadedLidAppearance {
     }
 }
 
+
+enum ListeningDiscDetailTapPolicy {
+    static let maximumMovement: CGFloat = 8
+    static let hitSlop: CGFloat = 8
+
+    static func canOpen(
+        position: CDMechanism.Position,
+        isAutomatic: Bool,
+        isReturning: Bool,
+        isCabinetDragging: Bool,
+        lidIsStable: Bool,
+        partsAreMoving: Bool
+    ) -> Bool {
+        position == .seated
+            && !isAutomatic
+            && !isReturning
+            && !isCabinetDragging
+            && lidIsStable
+            && !partsAreMoving
+    }
+
+    static func isIntentionalTap(_ translation: CGSize) -> Bool {
+        translation.width * translation.width + translation.height * translation.height
+            <= maximumMovement * maximumMovement
+    }
+
+    static func contains(_ location: CGPoint, center: CGPoint, size: CGSize) -> Bool {
+        let radiusX = size.width / 2 + hitSlop
+        let radiusY = size.height / 2 + hitSlop
+        guard radiusX > 0, radiusY > 0 else { return false }
+
+        let dx = (location.x - center.x) / radiusX
+        let dy = (location.y - center.y) / radiusY
+        return dx * dx + dy * dy <= 1
+    }
+}
+
 struct ListeningMachineView: View {
     @Bindable var room: ListeningRoomCoordinator
     private var player: CDMechanism { room.mechanism }
     let scale: CGFloat
+    let showDetails: (ListeningDisc) -> Void
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
 
     var body: some View {
@@ -79,6 +117,46 @@ struct ListeningMachineView: View {
         .disabled(player.isAutomatic)
         .scaleEffect(scale, anchor: .topLeading)
         .frame(width: geometry.canvas.width * scale, height: geometry.canvas.height * scale, alignment: .topLeading)
+        .simultaneousGesture(discDetailGesture)
+    }
+
+    private var discDetailGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .onEnded { value in
+                let motion = player.motion
+                let partsAreMoving = motion.lid.target != nil
+                    || motion.discX.target != nil
+                    || motion.discY.target != nil
+                    || motion.discScale.target != nil
+                    || motion.lift.target != nil
+                guard let disc = player.disc,
+                      ListeningDiscDetailTapPolicy.canOpen(
+                        position: player.position,
+                        isAutomatic: player.isAutomatic,
+                        isReturning: player.isReturning,
+                        isCabinetDragging: player.isCabinetDragging,
+                        lidIsStable: player.isOpen || player.isClosed,
+                        partsAreMoving: partsAreMoving
+                      ),
+                      ListeningDiscDetailTapPolicy.isIntentionalTap(value.translation) else {
+                    return
+                }
+
+                let projectedHeight = geometry.discDiameter * cos(geometry.tiltDegrees * .pi / 180)
+                let center = CGPoint(
+                    x: geometry.discCenter.x * scale,
+                    y: geometry.projectedY(geometry.discCenter.y) * scale
+                )
+                let size = CGSize(
+                    width: geometry.discDiameter * scale,
+                    height: projectedHeight * scale
+                )
+                guard ListeningDiscDetailTapPolicy.contains(value.location, center: center, size: size) else {
+                    return
+                }
+
+                showDetails(disc)
+            }
     }
 
     private var spindle: some View {
