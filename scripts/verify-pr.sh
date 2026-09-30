@@ -227,7 +227,7 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
-APP=$(find "$DD/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "*.app" 2>/dev/null | head -1 || true)
+APP=$(find "$DD/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "*.app" 2>/dev/null | sed -n '1p' || true)
 if [ "$RESULT" = PASS ]; then
   ENT_HITS=$(find "$DD/Build/Intermediates.noindex" -name "Entitlements-Simulated.plist" \
     -exec grep -l "icloud-container-identifiers" {} + 2>/dev/null | wc -l | tr -d ' ')
@@ -262,9 +262,9 @@ if [ "$RESULT" = PASS ]; then
     EVIDENCE+=("launch: built .app not found")
   else
     BID=$(plutil -extract CFBundleIdentifier raw "$APP/Info.plist")
-    UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Booted)[[:space:]]*\$/\1/p" | head -1 | tr -d '[:space:]')
+    UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Booted)[[:space:]]*\$/\1/p" | sed -n '1p' | tr -d '[:space:]')
     if [ -z "$UDID" ]; then
-      UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Shutdown)[[:space:]]*\$/\1/p" | head -1 | tr -d '[:space:]')
+      UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Shutdown)[[:space:]]*\$/\1/p" | sed -n '1p' | tr -d '[:space:]')
       if [ -z "$UDID" ]; then
         RESULT=FAIL
         EVIDENCE+=("launch: iPhone 17 simulator not found")
@@ -299,7 +299,7 @@ if [ "$RESULT" = PASS ]; then
       if [ "$LAUNCH_OK" = 0 ]; then
         RESULT=FAIL
         EVIDENCE+=("launch: 两次安装启动均在 5 秒内退出 (last: $LAUNCH_OUT)")
-        CRASH=$(find ~/Library/Logs/DiagnosticReports -maxdepth 1 -iname "*beforeshow*" -mmin -10 2>/dev/null | head -1 || true)
+        CRASH=$(find ~/Library/Logs/DiagnosticReports -maxdepth 1 -iname "*beforeshow*" -mmin -10 2>/dev/null | sed -n '1p' || true)
         [ -n "$CRASH" ] && EVIDENCE+=("crash report: $CRASH")
       fi
       xcrun simctl terminate "$UDID" "$BID" 2>/dev/null || true
@@ -307,7 +307,7 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
-ENV_DESC="Xcode $(xcodebuild -version | head -1 | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
+ENV_DESC="Xcode $(xcodebuild -version | sed -n '1p' | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
 SCENARIO="xcodegen + committed project freshness + architecture + Phase 1/2/3/4/5 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
 
 REPORT=$(cat <<EOF

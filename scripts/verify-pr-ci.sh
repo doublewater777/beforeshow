@@ -469,22 +469,6 @@ PREAMBLE
     | sed 's/LAUNCH_OUT=$(xcrun simctl launch \"$UDID\" \"$BID\")/LAUNCH_OUT=$(ci_run_with_timeout 60 xcrun simctl launch \"$UDID\" \"$BID\")/g'
 } > "$TEMP_VERIFY"
 
-# `head -1` closes the pipe before Xcode 26.6 finishes writing `xcodebuild
-# -version`, which can raise NSFileHandleOperationException/Broken pipe. Make the
-# generated report command consume the whole stream with awk instead.
-python3 - "$TEMP_VERIFY" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text()
-old = "xcodebuild -version | head -1 | awk '{print $2}'"
-new = "xcodebuild -version | awk 'NR == 1 {print $2}'"
-if old not in text:
-    raise SystemExit("Expected xcodebuild version pipeline was not found")
-path.write_text(text.replace(old, new))
-PY
-
 chmod +x "$TEMP_VERIFY"
 
 PATCHED_TEST_COUNT=$(grep -c 'if ! ci_xcodebuild test \\' "$TEMP_VERIFY" || true)
