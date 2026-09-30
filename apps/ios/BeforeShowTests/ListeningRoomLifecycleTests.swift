@@ -581,7 +581,8 @@ import SwiftData
 
         room.mechanism.setLid(open: true)
         try await ListenTestData.settle(room) { room.mechanism.isOpen }
-        XCTAssertEqual(room.trackIndex, 0)
+        XCTAssertEqual(room.track?.id, songID)
+        XCTAssertEqual(room.trackIndex, disc.tracks.count - 1)
 
         let reopened = ListenTestData.room(container.mainContext)
         XCTAssertEqual(reopened.mechanism.disc?.id, disc.id)
