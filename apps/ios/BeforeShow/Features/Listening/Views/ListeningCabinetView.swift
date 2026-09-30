@@ -60,12 +60,18 @@ struct ListeningCabinetView<Placeholder: View>: View {
                             showsPullHint: hintedDiscID == disc.id,
                             showDetails: showDetails
                         )
-                        if index < shelfDiscs.count - 1 {
+                        if index < ListeningDisplayProjector.Shelf.visibleCount - 1 {
                             Spacer(minLength: BSSpacing.compact)
                         }
                     }
-                    if shelfDiscs.count < ListeningDisplayProjector.Shelf.visibleCount {
-                        Spacer(minLength: 0)
+                    ForEach(shelfDiscs.count..<ListeningDisplayProjector.Shelf.visibleCount, id: \.self) { index in
+                        Color.clear
+                            .frame(width: BSListeningTokens.shelfItemWidth)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                        if index < ListeningDisplayProjector.Shelf.visibleCount - 1 {
+                            Spacer(minLength: BSSpacing.compact)
+                        }
                     }
                 }
                 .frame(maxHeight: .infinity, alignment: .bottom)
