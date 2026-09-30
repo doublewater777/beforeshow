@@ -22,11 +22,6 @@ struct ListeningCabinetView<Placeholder: View>: View {
 
     private var shelfDiscs: [ListeningDisc] { room.display.shelfDiscs }
 
-    private var currentDisc: ListeningDisc? {
-        guard room.mechanism.position != .stored else { return nil }
-        return room.mechanism.disc
-    }
-
     private var hintDisc: ListeningDisc? {
         shelfDiscs.first { room.discPresentation(for: $0).canLoad }
     }
@@ -38,13 +33,7 @@ struct ListeningCabinetView<Placeholder: View>: View {
             isLoading: isLoading,
             showsCount: !room.libraryDiscs.isEmpty || isLoading,
             showsAllDiscs: room.display.showsAllDiscs,
-            showsCurrentDisc: currentDisc != nil,
-            showAll: showAll,
-            showCurrentDisc: {
-                if let currentDisc {
-                    showDetails(currentDisc)
-                }
-            }
+            showAll: showAll
         ) {
             if shelfDiscs.isEmpty {
                 placeholder
