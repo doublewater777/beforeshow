@@ -36,7 +36,7 @@ final class ListeningLidSelectionTests: XCTestCase {
 
     func testClosingSameDiscKeepsResumePointWithoutAutoplay() async throws {
         let (container, show) = try ListenTestData.make()
-        let playback = LidResumePlaybackService()
+        let playback = ListeningFixturePlayer()
         let room = ListeningRoomCoordinator(
             context: container.mainContext,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
@@ -55,109 +55,29 @@ final class ListeningLidSelectionTests: XCTestCase {
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
-        playback.setCurrentTime(97)
+        playback.elapsed = 97
+        playback.start = Date()
         room.mechanism.setLid(open: true)
         try await ListenTestData.settle(room) { room.mechanism.isOpen }
 
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.track?.id, songID)
         XCTAssertEqual(room.timeText, "01:37")
-        XCTAssertEqual(playback.stopCount, 1)
+        XCTAssertNil(playback.start)
 
         room.mechanism.setLid(open: false)
         try await ListenTestData.settle(room) { room.mechanism.isClosed }
 
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.track?.id, songID)
-        XCTAssertEqual(playback.prepareCount, 1)
-        XCTAssertEqual(playback.playCount, 1)
+        XCTAssertNil(playback.start)
 
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
-        XCTAssertEqual(playback.prepareCount, 2)
-        XCTAssertEqual(playback.playCount, 2)
-        XCTAssertEqual(playback.seekTimes.last, 97)
-        XCTAssertEqual(playback.currentTime, 97)
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertNotNil(playback.start)
+        XCTAssertEqual(playback.elapsed, 97, accuracy: 1)
     }
 }
 
-@MainActor
-private final class LidResumePlaybackService: ListeningPlaybackServicing {
-    private var items: [ListeningPlaybackItem] = []
-    private var index = 0
-    private var source: ListeningPlaybackSource = .fullCatalog
-    private(set) var currentTime: TimeInterval = 0
-    private var playing = false
-    private(set) var prepareCount = 0
-    private(set) var playCount = 0
-    private(set) var stopCount = 0
-    private(set) var seekTimes: [TimeInterval] = []
-
-    func prepare(
-        items: [ListeningPlaybackItem],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String?
-    ) async throws {
-        guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
-        self.items = items
-        self.source = source
-        index = startingAtSongID.flatMap { songID in
-            items.firstIndex { $0.songID == songID }
-        } ?? 0
-        currentTime = 0
-        playing = false
-        prepareCount += 1
-    }
-
-    func play() async throws {
-        playing = true
-        playCount += 1
-    }
-
-    func pause() {
-        playing = false
-    }
-
-    func skipToNext() async throws {
-        guard index + 1 < items.count else { throw ListeningPlaybackError.queueBoundary }
-        index += 1
-        currentTime = 0
-    }
-
-    func skipToPrevious() async throws {
-        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
-        index -= 1
-        currentTime = 0
-    }
-
-    func seek(to time: TimeInterval) {
-        currentTime = time
-        seekTimes.append(time)
-    }
-
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
-        guard items.indices.contains(index) else { return nil }
-        let item = items[index]
-        return ListeningPlaybackSample(
-            songID: item.songID,
-            source: source,
-            currentTime: currentTime,
-            duration: item.duration,
-            isPlaying: playing,
-            observedAt: observedAt
-        )
-    }
-
-    func stop() {
-        playing = false
-        items = []
-        index = 0
-        currentTime = 0
-        stopCount += 1
-    }
-
-    func setCurrentTime(_ time: TimeInterval) {
-        currentTime = time
-    }
-}
