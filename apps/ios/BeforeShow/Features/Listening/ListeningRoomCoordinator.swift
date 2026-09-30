@@ -1180,7 +1180,13 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private var activeCompilationDiscs: [ListeningDisc] {
-        preparedCompilationDiscs.isEmpty ? compilationDiscs : preparedCompilationDiscs
+        if !preparedCompilationDiscs.isEmpty { return preparedCompilationDiscs }
+        if let loadedDisc = mechanism.disc,
+           case .compilation = loadedDisc.origin,
+           !compilationDiscs.contains(loadedDisc) {
+            return [loadedDisc]
+        }
+        return compilationDiscs
     }
 
     private func completeSleevePlaybackIfNeeded() {

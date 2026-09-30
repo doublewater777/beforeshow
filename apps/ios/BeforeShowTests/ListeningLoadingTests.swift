@@ -365,6 +365,10 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(room.track?.id, retiredTrack.id)
 
         room.stop()
+        room.skip(1)
+        XCTAssertEqual(room.mechanism.disc?.tracks.map(\.id), restored.tracks.map(\.id))
+        XCTAssertEqual(room.track?.id, retiredTrack.id, "stopped Next must retain the loaded version")
+        room.skip(-1)
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
         XCTAssertEqual(playback.preparedSongIDs, restored.tracks.map(\.id), "a shared selected song must not replace the loaded record with refreshed contents")
