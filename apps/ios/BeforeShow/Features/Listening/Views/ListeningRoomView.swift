@@ -198,7 +198,7 @@ struct ListeningRoomView: View {
                         .opacity(room.isPlaying ? BSListeningTokens.selectionRestingOpacity : 1)
                         .animation(reduceMotion ? nil : BSListeningTokens.selectionAnimation, value: room.isPlaying)
 
-                        ListeningMachineView(room: room, scale: scale)
+                        ListeningMachineView(room: room, scale: scale, showDetails: { room.browser.open($0) })
                             .coordinateSpace(name: "playerStage")
                             .listeningFrame("stage")
                             .frame(width: proxy.size.width - BSSpacing.roomy * 2)
