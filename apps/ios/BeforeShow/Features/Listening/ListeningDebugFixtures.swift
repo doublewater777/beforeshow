@@ -236,23 +236,35 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
 }
 
 @MainActor final class ListeningFixturePlayer: ListeningPlaybackServicing {
+    private var items: [ListeningPlaybackItem] = []
+    private var index = 0
     var item: ListeningPlaybackItem?
     var source: ListeningPlaybackSource = .fullCatalog
     var start: Date?
     var elapsed: TimeInterval = 0
     func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
         self.source = source
-        item = startingAtSongID.flatMap { id in
-            items.first(where: { $0.songID == id })
-        } ?? items.first
+        self.items = items
+        index = startingAtSongID.flatMap { id in
+            items.firstIndex(where: { $0.songID == id })
+        } ?? 0
+        item = items.indices.contains(index) ? items[index] : nil
         elapsed = 0
         start = nil
     }
     func play() async throws { start = Date() }
     func pause() { if let start { elapsed += Date().timeIntervalSince(start) }; start = nil }
     func seek(to time: TimeInterval) { elapsed = time; if start != nil { start = Date() } }
-    func skipToNext() async throws { throw ListeningPlaybackError.queueBoundary }
-    func skipToPrevious() async throws { throw ListeningPlaybackError.queueBoundary }
+    func skipToNext() async throws { try skip(1) }
+    func skipToPrevious() async throws { try skip(-1) }
+    private func skip(_ delta: Int) throws {
+        let nextIndex = index + delta
+        guard items.indices.contains(nextIndex) else { throw ListeningPlaybackError.queueBoundary }
+        index = nextIndex
+        item = items[index]
+        elapsed = 0
+        if start != nil { start = Date() }
+    }
     func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
         guard let item else { return nil }
         let duration = source == .preview ? 30 : (item.duration ?? 180)
@@ -260,6 +272,6 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
         return .init(songID: item.songID, source: source, currentTime: min(value, duration), duration: duration,
                      isPlaying: start != nil && value < duration, observedAt: observedAt, hasEnded: value >= duration)
     }
-    func stop() { item = nil; start = nil; elapsed = 0 }
+    func stop() { items = []; item = nil; start = nil; elapsed = 0 }
 }
 #endif
