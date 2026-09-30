@@ -127,6 +127,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var playbackGeneration = UUID()
     @ObservationIgnored private var lidOpenedDiscID: String?
     @ObservationIgnored private var lidOpenedSongID: String?
+    @ObservationIgnored private var lidOpenedPlaybackTime: TimeInterval?
 
     init(context: ModelContext, catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
          artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
@@ -145,9 +146,7 @@ private let listeningCatalogFetchConcurrency = 4
             if self?.opensWithoutStopping == true { return }
             #endif
             guard let self else { return }
-            self.lidOpenedDiscID = self.mechanism.disc?.id
-            self.lidOpenedSongID = self.track?.id
-            self.stop()
+            self.suspendPlaybackForLid()
         }
         mechanism.onTransition = { [weak self] transition in
             if transition == "remove" || transition == "store" {
@@ -170,6 +169,35 @@ private let listeningCatalogFetchConcurrency = 4
         }
         restorePersistedDiscIfNeeded()
     }
+    private func suspendPlaybackForLid() {
+        lidOpenedDiscID = mechanism.disc?.id
+        lidOpenedSongID = track?.id
+
+        let hadController = controller != nil
+        if hadController {
+            do {
+                _ = try controller?.refresh()
+            } catch {
+                handlePlaybackEvidenceFailure()
+            }
+        }
+
+        if !playbackState.isFinished {
+            if hadController {
+                lidOpenedPlaybackTime = persistedPlaybackTime
+            } else if let resume = pendingResumePosition,
+                      resume.songID == lidOpenedSongID {
+                lidOpenedPlaybackTime = resume.time
+            } else {
+                lidOpenedPlaybackTime = nil
+            }
+        } else {
+            lidOpenedPlaybackTime = nil
+        }
+
+        endPlaybackSession(resetTrackSelection: false)
+        pendingResumePosition = nil
+    }
     private func handleMechanismTransition(_ transition: String) {
         switch transition {
         case "seat":
@@ -178,9 +206,13 @@ private let listeningCatalogFetchConcurrency = 4
             restoreLidSelectionIfNeeded()
         case "remove":
             clearLidSelection()
+            pendingResumePosition = nil
+            persistedPlaybackTime = 0
             if !mechanism.isAutomatic { clearPersistedDisc() }
         case "store":
             clearLidSelection()
+            pendingResumePosition = nil
+            persistedPlaybackTime = 0
             clearPersistedDisc()
         default:
             break
@@ -195,11 +227,15 @@ private let listeningCatalogFetchConcurrency = 4
               let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
         trackIndex = index
         trackBelongsToShow = true
-        persistLoadedDisc()
+        let resumeTime = max(0, lidOpenedPlaybackTime ?? 0)
+        persistedPlaybackTime = resumeTime
+        pendingResumePosition = resumeTime > 0 ? (songID, resumeTime) : nil
+        persistLoadedDisc(force: true)
     }
     private func clearLidSelection() {
         lidOpenedDiscID = nil
         lidOpenedSongID = nil
+        lidOpenedPlaybackTime = nil
     }
     private func restorePersistedDiscIfNeeded() {
         guard mechanism.position == .stored else { return }
