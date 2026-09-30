@@ -7,9 +7,7 @@ struct ListeningShelfView<Content: View>: View {
     var isLoading = false
     var showsCount = true
     var showsAllDiscs = false
-    var showsCurrentDisc = false
     var showAll: () -> Void = {}
-    var showCurrentDisc: () -> Void = {}
     @ViewBuilder let content: Content
 
     @ScaledMetric(relativeTo: .caption) private var labelHeight = BSListeningTokens.shelfLabelHeight
@@ -32,17 +30,6 @@ struct ListeningShelfView<Content: View>: View {
                     countLabel
                 }
                 Spacer(minLength: 0)
-                if showsCurrentDisc {
-                    Button(action: showCurrentDisc) {
-                        Image(systemName: "opticaldisc")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(BSColor.Stage.accent)
-                            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    }
-                    .buttonStyle(BSListeningPressStyle())
-                    .accessibilityLabel(BSLocalization.text("已在播放机中"))
-                    .accessibilityIdentifier("listening.currentDisc")
-                }
             }
             .frame(height: headerHeight)
 
