@@ -858,6 +858,7 @@ First show: %@";
 "设备存储空间不足。" = "Not enough device storage.";
 "请保留至少一项媒体或一段文字。" = "Keep at least one media item or a line of text.";
 "足迹图片生成失败，请重试。" = "Failed to generate footprint image; please retry.";
+"轻点查看" = "Tap to view";
 "轻点查看现场详情" = "Tap for show details";
 "轻点查看现场详情，长按翻转动态封面" = "Tap for show details; long-press to flip the dynamic cover";
 "这个媒体格式暂不支持，请换一张照片或视频。" = "This media format isn't supported; use a different photo or video.";

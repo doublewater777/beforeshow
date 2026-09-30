@@ -210,7 +210,10 @@ final class ListeningPlaybackControllerTests: XCTestCase {
 
         service.setPlayingExternally(true)
         service.emitCurrentTransport(observedAt: time(3))
-        await Task.yield()
+        for _ in 0..<100 {
+            if controller.transportState.isPlaying { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
 
         XCTAssertEqual(
             controller.transportState,
