@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import XCTest
 @testable import BeforeShow
@@ -6,6 +7,11 @@ import XCTest
 /// end policy without a separate phase arg, cover lifecycle is in
 /// `ShowCoverLifecycleTests`.
 final class ArchitectureModuleTests: XCTestCase {
+    func testDynamicCoverPlaybackExcludesAudioTracks() {
+        XCTAssertTrue(DynamicCoverPlaybackPolicy.includes(mediaType: .video))
+        XCTAssertFalse(DynamicCoverPlaybackPolicy.includes(mediaType: .audio))
+    }
+
     func testForegroundMediaMaintenanceRunsInitiallyAndAfterThrottleWindow() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 
