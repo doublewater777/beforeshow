@@ -71,7 +71,6 @@
 "正在现场" = "At the show";
 "现场" = "Show";
 "还有 %lld %@" = "%lld %@ remaining";
-"还有 %lld 天" = "%lld days remaining";
 "这场已结束" = "This show has ended";
 "这场还会在这里停留" = "This show will stay here for a while";
 "这场还没有真正结束" = "This show is not quite over";
@@ -105,7 +104,6 @@
 "%lld年%lld月%lld日 %@" = "%lld/%lld/%lld at %@";
 "%lld 天前" = "%lld days ago";
 "今晚开场" = "Opening Tonight";
-"还有 %lld 天" = "%lld days left";
 "还有 %lld 天 · %@" = "%lld days left · %@";
 
 /* i18n gap fill */

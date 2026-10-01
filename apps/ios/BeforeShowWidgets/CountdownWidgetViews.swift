@@ -267,7 +267,7 @@ private struct SmallCountdownView: View {
                     .font(.system(size: 56, weight: .semibold))
                     .tracking(-0.5)
                     .foregroundStyle(WidgetTheme.heroIvory)
-                Text("天")
+                Text(BSLocalization.format("天（按天数）", days))
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(WidgetTheme.muted)
             }
@@ -367,7 +367,7 @@ private struct MediumCountdownView: View {
                         .font(.system(size: 44, weight: .semibold))
                         .tracking(-0.5)
                         .foregroundStyle(WidgetTheme.heroIvory)
-                    Text("天")
+                    Text(BSLocalization.format("天（按天数）", days))
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(WidgetTheme.muted)
                 }
@@ -509,7 +509,7 @@ private struct CircularCountdownView: View {
                     .font(.title3.weight(.bold))
                     .monospacedDigit()
                     .minimumScaleFactor(0.78)
-                Text("天")
+                Text(BSLocalization.format("天（按天数）", days))
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
             }
