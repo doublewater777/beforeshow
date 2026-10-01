@@ -296,7 +296,7 @@ private let listeningCatalogFetchConcurrency = 4
     func discardLoadedDiscState() {
         operation?.cancel()
         operation = nil
-        stop()
+        resetPlaybackForTransition()
         mechanism.discardDisc()
         trackBelongsToShow = false
         pendingSleeveSongID = nil
@@ -1072,7 +1072,7 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
         guard mechanism.position == .stored, !busy else { return }
-        stop()
+        resetPlaybackForTransition()
         mechanism.restoreSeated(disc)
         trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
         persistedPlaybackTime = 0
@@ -1092,7 +1092,7 @@ private let listeningCatalogFetchConcurrency = 4
             return
         }
         run { [self] in
-            stop()
+            resetPlaybackForTransition()
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             persistedPlaybackTime = 0
@@ -1142,7 +1142,7 @@ private let listeningCatalogFetchConcurrency = 4
         mechanism.updateContents(disc)
         let resume = autoplay || isPlaying
         run { [self] in
-            stop(); trackIndex = nextIndex; trackBelongsToShow = true
+            resetPlaybackForTransition(); trackIndex = nextIndex; trackBelongsToShow = true
             persistedPlaybackTime = 0
             pendingResumePosition = nil
             persistLoadedDisc()
@@ -1151,7 +1151,7 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func manualDiscChanged() {
         guard !mechanism.isAutomatic else { return }
-        stop()
+        resetPlaybackForTransition()
         trackIndex = 0
         persistedPlaybackTime = 0
         pendingResumePosition = nil
@@ -1344,7 +1344,7 @@ private let listeningCatalogFetchConcurrency = 4
         guard disc.tracks.indices.contains(nextIndex) else { return }
         let resume = isPlaying
         run { [self] in
-            stop(); trackIndex = nextIndex
+            resetPlaybackForTransition(); trackIndex = nextIndex
             persistedPlaybackTime = 0
             pendingResumePosition = nil
             persistLoadedDisc()
@@ -1352,6 +1352,13 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
     func stop() {
+        operation?.cancel()
+        pendingSleeveSongID = nil
+        endPlaybackSession(resetTrackSelection: true)
+        persistLoadedDisc(force: true)
+    }
+
+    private func resetPlaybackForTransition() {
         endPlaybackSession(resetTrackSelection: true)
     }
 
@@ -1414,7 +1421,7 @@ private let listeningCatalogFetchConcurrency = 4
             _ = try controller.refresh()
         } catch {
             pendingSleeveSongID = nil
-            stop()
+            resetPlaybackForTransition()
             playbackError = BSLocalization.text("暂时无法播放")
         }
     }
@@ -1668,8 +1675,8 @@ private let listeningCatalogFetchConcurrency = 4
             self.busy = true
             defer { self.busy = false }
             do { try await action() }
-            catch is CancellationError { self.pendingSleeveSongID = nil; self.stop() }
-            catch { self.pendingSleeveSongID = nil; self.stop(); self.playbackError = BSLocalization.text("暂时无法播放") }
+            catch is CancellationError { self.pendingSleeveSongID = nil; self.resetPlaybackForTransition() }
+            catch { self.pendingSleeveSongID = nil; self.resetPlaybackForTransition(); self.playbackError = BSLocalization.text("暂时无法播放") }
         }
     }
 }

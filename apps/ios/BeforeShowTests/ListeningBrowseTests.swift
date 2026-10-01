@@ -266,9 +266,55 @@ import SwiftData
         XCTAssertEqual(room.elapsed, 0)
         XCTAssertEqual(room.timeText, "00:00")
         XCTAssertEqual(room.mechanism.disc, album)
+
+        let reopened = ListenTestData.room(container.mainContext)
+        XCTAssertEqual(reopened.trackIndex, 0)
+        XCTAssertEqual(reopened.track?.id, album.tracks.first?.id)
+        XCTAssertEqual(reopened.elapsed, 0)
+        XCTAssertEqual(reopened.timeText, "00:00")
+        reopened.mechanism.motion.stop()
+
         room.loadDisc(album)
         XCTAssertFalse(room.isPlaying)
         XCTAssertFalse(room.busy)
+    }
+
+    func testStopDuringPendingTrackImmediatelyRestoresFirstTrack() async throws {
+        let (container, show) = try ListenTestData.make()
+        let service = SleevePlaybackService()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in service }
+        )
+        await room.load(show: show)
+        let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
+        let firstSongID = try XCTUnwrap(album.tracks.first?.id)
+        let targetSongID = try XCTUnwrap(album.tracks.last?.id)
+        XCTAssertNotEqual(firstSongID, targetSongID)
+
+        room.loadDisc(album, songID: firstSongID)
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        service.delaysPrepare = true
+        room.playFromSleeve(album, songID: targetSongID)
+        try await ListenTestData.settle(room) { room.busy && room.isPlayerDisplayPreparing }
+        XCTAssertEqual(room.playerDisplayTrack?.id, targetSongID)
+
+        room.stop()
+
+        XCTAssertEqual(room.trackIndex, 0)
+        XCTAssertEqual(room.playerDisplayTrack?.id, firstSongID)
+        XCTAssertFalse(room.isPlayerDisplayPreparing)
+        XCTAssertEqual(room.elapsed, 0)
+        XCTAssertEqual(room.playerDisplayTimeText, "00:00")
+
+        service.delaysPrepare = false
+        try await ListenTestData.settle(room) { !room.busy }
+        XCTAssertEqual(room.trackIndex, 0)
+        XCTAssertEqual(room.playerDisplayTrack?.id, firstSongID)
+        XCTAssertEqual(room.playerDisplayTimeText, "00:00")
     }
 
     func testPendingTrackSelectionImmediatelyDrivesPlayerDisplay() async throws {
@@ -484,9 +530,14 @@ import SwiftData
 @MainActor private final class SleevePlaybackService: ListeningPlaybackServicing {
     var shouldFail = false
     var delaysPlayback = false
+    var delaysPrepare = false
     var failure: ListeningPlaybackError?
     private let player = ListeningFixturePlayer()
     func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
+        while delaysPrepare {
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(5))
+        }
         try await player.prepare(items: items, source: source, startingAtSongID: startingAtSongID)
     }
     func play() async throws {
