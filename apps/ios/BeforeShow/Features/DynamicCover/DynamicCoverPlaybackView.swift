@@ -2,6 +2,45 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
+/// Dynamic covers are visual decoration. Their player item must contain video
+/// only so starting a cover can never contend with Listening for audio output.
+@MainActor
+enum DynamicCoverPlaybackPolicy {
+    static func includes(mediaType: AVMediaType) -> Bool {
+        mediaType == .video
+    }
+
+    static func makeVideoOnlyItem(url: URL) async throws -> AVPlayerItem {
+        let asset = AVURLAsset(url: url)
+        let duration = try await asset.load(.duration)
+        let tracks = try await asset.load(.tracks)
+        guard let sourceVideoTrack = tracks.first(where: { includes(mediaType: $0.mediaType) }) else {
+            throw DynamicCoverPlaybackError.missingVideoTrack
+        }
+
+        let composition = AVMutableComposition()
+        guard let videoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw DynamicCoverPlaybackError.unableToCreateVideoTrack
+        }
+
+        try videoTrack.insertTimeRange(
+            CMTimeRange(start: .zero, duration: duration),
+            of: sourceVideoTrack,
+            at: .zero
+        )
+        videoTrack.preferredTransform = try await sourceVideoTrack.load(.preferredTransform)
+        return AVPlayerItem(asset: composition)
+    }
+}
+
+private enum DynamicCoverPlaybackError: Error {
+    case missingVideoTrack
+    case unableToCreateVideoTrack
+}
+
 /// A borderless, always-muted AVPlayer surface used by dynamic covers.
 ///
 /// Covers are decorative and must never compete with listening playback, so
@@ -42,12 +81,14 @@ final class DynamicCoverPlayerView: UIView {
     private let player = AVPlayer()
     private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     private var endObserver: NSObjectProtocol?
+    private var loadTask: Task<Void, Never>?
     private var loadedURL: URL?
 
     override class var layerClass: AnyClass { AVPlayerLayer.self }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        // Keep mute as a second line of defense. The item itself is video-only.
         player.isMuted = true
         playerLayer.player = player
         playerLayer.videoGravity = .resizeAspectFill
@@ -66,23 +107,29 @@ final class DynamicCoverPlayerView: UIView {
         let urlChanged = loadedURL != url
         if urlChanged {
             loadedURL = url
+            isPlayingRequested = isPlaying
+            loadTask?.cancel()
             removeEndObserver()
-            let item = AVPlayerItem(url: url)
-            player.replaceCurrentItem(with: item)
-            endObserver = NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemDidPlayToEndTime,
-                object: item,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.player.seek(to: .zero)
-                    if self?.isPlayingRequested == true {
-                        self?.player.play()
-                    }
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+
+            loadTask = Task { @MainActor [weak self] in
+                do {
+                    let item = try await DynamicCoverPlaybackPolicy.makeVideoOnlyItem(url: url)
+                    try Task.checkCancellation()
+                    guard let self, self.loadedURL == url else { return }
+                    self.install(item)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    guard let self, self.loadedURL == url else { return }
+                    self.player.replaceCurrentItem(with: nil)
                 }
             }
+            return
         }
-        guard urlChanged || isPlayingRequested != isPlaying else { return }
+
+        guard isPlayingRequested != isPlaying else { return }
         isPlayingRequested = isPlaying
         if isPlaying {
             player.play()
@@ -93,6 +140,8 @@ final class DynamicCoverPlayerView: UIView {
 
     func stop() {
         isPlayingRequested = false
+        loadTask?.cancel()
+        loadTask = nil
         player.pause()
         removeEndObserver()
         player.replaceCurrentItem(with: nil)
@@ -100,6 +149,26 @@ final class DynamicCoverPlayerView: UIView {
     }
 
     private var isPlayingRequested = false
+
+    private func install(_ item: AVPlayerItem) {
+        removeEndObserver()
+        player.replaceCurrentItem(with: item)
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.player.seek(to: .zero)
+                if self?.isPlayingRequested == true {
+                    self?.player.play()
+                }
+            }
+        }
+        if isPlayingRequested {
+            player.play()
+        }
+    }
 
     private func removeEndObserver() {
         if let endObserver {
