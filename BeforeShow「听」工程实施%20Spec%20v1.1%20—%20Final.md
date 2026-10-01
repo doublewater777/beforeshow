@@ -45,15 +45,14 @@ Current Show 是：
 
 > 用户主动拥有的长期现场焦点。
 
-除第 5 条外，时间流逝不能自动改变 Current Show。
+时间流逝不能自动改变 Current Show。
 
 只允许以下情况改变：
 
 1. 用户主动选择另一场；
 2. 当前 Show 被删除；
 3. `selectedShowID` 已无法解析到任何 Show；
-4. 从未建立过 Current Show，需要第一次初始化；
-5. 当前 Show 已结束并过了散场后停留期，且有未来现场：接到开场最近的未来现场（ADR 0038）。
+4. 从未建立过 Current Show，需要第一次初始化。
 
 以下事件均不得自动抢 Current：
 
@@ -61,7 +60,8 @@ Current Show 是：
 - 新增正在进行现场
 - 下一场到达当天
 - 下一场开场
-- 当前现场结束（停留期内）
+- 当前现场结束
+- 当前现场结束超过 3 天
 - 当前现场被标记 canceled / postponed / historical
 
 只要 Show 仍存在，用户就可以主动把它设为 Current。
