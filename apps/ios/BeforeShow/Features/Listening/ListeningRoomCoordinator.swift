@@ -1011,7 +1011,6 @@ private let listeningCatalogFetchConcurrency = 4
     func rematch(slotIndex: Int, artist: RecognizedArtist) async {
         guard let show, slotIndex >= 0, slotIndex <= show.artists.count else { return }
         do {
-            try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
             var artists = show.artists
             if slotIndex == artists.count { artists.append(ArtistSlot(name: artist.canonicalName, avatarURL: nil)) }
             artists[slotIndex].name = artist.canonicalName
@@ -1021,7 +1020,6 @@ private let listeningCatalogFetchConcurrency = 4
             show.artists = artists
             show.updatedAt = Date()
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
-            _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
             try context.save()
         } catch {
             context.rollback()
