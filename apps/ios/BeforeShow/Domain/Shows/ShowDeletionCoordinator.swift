@@ -26,6 +26,7 @@ enum ShowDeletionCoordinator {
         selections: [CurrentShowSelection],
         notificationStates: [NotificationSchedulingState],
         in modelContext: ModelContext,
+        onRecordDeleted: @MainActor () -> Void = {},
         effects: CurrentShowPostCommitEffects = .live
     ) async throws -> ShowDeletionResult {
         await ShowAssetMediaStore.shared.acquireCommitGate()
@@ -63,6 +64,10 @@ enum ShowDeletionCoordinator {
                 notificationStates: notificationStates,
                 in: modelContext
             )
+
+            // The SwiftData row is now durably gone. Give observing views a synchronous
+            // chance to stop rendering the invalidated model before the first cleanup await.
+            onRecordDeleted()
 
             var cleanupPending = false
             if !hasRemainingSameBusinessID {
