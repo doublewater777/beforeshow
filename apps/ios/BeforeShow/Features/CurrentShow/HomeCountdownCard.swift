@@ -294,16 +294,18 @@ struct HomeCountdownLockup: View {
     }
 
     // MARK: pre:渐进精度倒计时
-    // 精度随临近程度收束:>24h 只到「天」超大节拍;≤24h 显示小时,<1h 显示分钟。
+    // 精度随临近程度收束:>24h 用自然日差展示「N 天」;≤24h 显示小时,<1h 显示分钟。
     // 色温递进:远场奶白 heroIvory → 当天暖金 heroWarmGold → <1h 纯金 accent + 光晕,
     // 字重同步加码(ultraLight → regular → semibold),视觉强度随临近升温。
-    // 天数/时钟的阈值与 widget 共用 WidgetTimelinePlanner.isDayCountHero。
+    // 天数/时钟的阈值与自然日计数规则与 widget 共用 WidgetTimelinePlanner。
 
     @ViewBuilder
     private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
         if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now) {
-            if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: total) {
-                let days = total / Int(WidgetTimelinePlanner.dayCountdownThreshold)
+            if let days = WidgetTimelinePlanner.dayCountHeroDays(
+                remainingSeconds: total,
+                dayDistance: timeState.dayDistance
+            ) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .lastTextBaseline, spacing: 10) {
                         Text("\(days)")
