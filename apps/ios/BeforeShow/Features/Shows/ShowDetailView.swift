@@ -21,6 +21,7 @@ struct ShowDetailView: View {
     @State private var confirmedEndDraft = Date()
     @State private var postponeDraft = Date()
     @State private var isShowingCoverPreview = false
+    @State private var isDeleting = false
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
@@ -61,8 +62,12 @@ struct ShowDetailView: View {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                ScrollView {
+            if isDeleting {
+                ProgressView()
+                    .tint(BSColor.Stage.foreground)
+            } else {
+                VStack(spacing: 0) {
+                    ScrollView {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
                         detailSummaryCard
                         countdownCard
@@ -77,8 +82,9 @@ struct ShowDetailView: View {
                     .padding(.top, BSSpacing.xs)
                     .padding(.bottom, BSLayout.tabBarContentInset)
                 }
-                .scrollIndicators(.hidden)
-                .bsNavigationScrollEdge()
+                    .scrollIndicators(.hidden)
+                    .bsNavigationScrollEdge()
+                }
             }
         }
         .bsToastOverlay(toast, bottomPadding: 90)
@@ -86,7 +92,8 @@ struct ShowDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            if !isDeleting {
+                ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button(BSLocalization.text("编辑"), systemImage: "square.and.pencil") {
                         presentedSheet = .editor
@@ -110,7 +117,8 @@ struct ShowDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
-                .accessibilityLabel(BSLocalization.text("更多操作"))
+                    .accessibilityLabel(BSLocalization.text("更多操作"))
+                }
             }
         }
         .sheet(item: $presentedSheet) { sheet in
@@ -186,7 +194,7 @@ struct ShowDetailView: View {
             isPresented: $isShowingDeleteConfirmation
         ) {
             Button(DangerConfirmation.deleteShow.confirmTitle, role: .destructive) {
-                Task { @MainActor in await deleteShow() }
+                beginDelete()
             }
             Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
@@ -819,6 +827,17 @@ format: BSLocalization.text("M月d日 HH:mm"),
         )
     }
 
+    private func beginDelete() {
+        guard !isDeleting else { return }
+        presentedSheet = nil
+        isShowingCoverPreview = false
+        isDeleting = true
+        Task { @MainActor in
+            await Task.yield()
+            await deleteShow()
+        }
+    }
+
     @MainActor
     private func deleteShow() async {
         do {
@@ -827,7 +846,10 @@ format: BSLocalization.text("M月d日 HH:mm"),
                 from: shows,
                 selections: selections,
                 notificationStates: notificationStates,
-                in: modelContext
+                in: modelContext,
+                onRecordDeleted: {
+                    isDeleting = true
+                }
             )
             if result.hasPendingMediaCleanup {
                 presentToast(
@@ -842,6 +864,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
             dismiss()
         } catch {
             modelContext.rollback()
+            isDeleting = false
             presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
         }
     }
