@@ -1,266 +1,130 @@
-"use client";
+const APP_STORE_URL = "https://apps.apple.com/cn/app/id6780078298";
 
-import { useEffect, useRef, useState } from "react";
-
-const STORAGE_EVENTS = "beforeshow.events.v2";
-const STORAGE_SESSION = "beforeshow.session.v2";
-
-const show = {
-  id: "jay",
-  type: "concert",
-  label: "演唱会",
-  artist: "周杰伦",
-  venue: "南京奥体中心体育场",
-  date: "2026-09-24T19:30:00+08:00",
-  accent: "#84BFFF",
-  song: "晴天",
-};
-
-const useFlowSteps = [
-  ["放入下一场", "粘贴票务链接、上传截图，或手动添加。把下一场先落到本地。"],
-  ["准备开场", "看现场倒计时，收好票根和时刻表，出门前把关键信息准备齐。"],
-  ["留下现场记录", "散场后把现场记录留在本地，之后还能回头翻看这一场。"],
+const features = [
+  {
+    id: "listen",
+    kicker: "听",
+    title: "开场前，先把歌听熟",
+    desc: "按这一场的阵容整理热门合辑，放进拟物 CD 机里。走进现场时，每一首都已经熟悉。",
+    screen: "/screens/listen.jpg",
+    alt: "开场前「听」页：CD 机与按阵容整理的热门合辑",
+  },
+  {
+    id: "widgets",
+    kicker: "桌面小组件",
+    title: "不用打开，也在靠近",
+    desc: "倒计时和正在听的歌放在主屏上。解锁手机的每一次，都离开场更近一点。",
+    screen: "/screens/home.jpg",
+    alt: "主屏上的开场前倒计时与播放器小组件",
+  },
+  {
+    id: "footprints",
+    kicker: "足迹",
+    title: "散场后，收进足迹",
+    desc: "去过的场次、城市、场馆和艺人会慢慢累积，回头看看，就是你的现场生活。",
+    screen: "/screens/footprints.jpg",
+    alt: "开场前「足迹」页：现场场次、轨迹与艺人统计",
+  },
 ];
 
-const audienceItems = [
-  "适合需要现场准备的人",
-  "适合想把票根、时刻表留在本地的人",
-  "适合演唱会、Livehouse、音乐节",
-];
+const reminders = ["开场前 14 天", "7 天", "3 天", "1 天", "当天上午", "开场前 3 小时", "散场次日"];
 
-function getSessionId() {
-  const existing = localStorage.getItem(STORAGE_SESSION);
-  if (existing) return existing;
-  const id = `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  localStorage.setItem(STORAGE_SESSION, id);
-  return id;
+function AppStoreButton({ className = "" }) {
+  return (
+    <a className={`store-btn ${className}`} href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+      <svg className="store-btn-mark" viewBox="0 0 384 512" aria-hidden="true">
+        <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+      </svg>
+      <span className="store-btn-text">
+        <small>在 App Store</small>
+        免费下载
+      </span>
+    </a>
+  );
 }
 
-function track(type, detail = {}) {
-  try {
-    const event = {
-      id: `e_${Date.now().toString(36)}`,
-      at: new Date().toISOString(),
-      session: getSessionId(),
-      type,
-      ...detail,
-    };
-    const raw = localStorage.getItem(STORAGE_EVENTS);
-    const events = raw ? JSON.parse(raw) : [];
-    events.push(event);
-    localStorage.setItem(STORAGE_EVENTS, JSON.stringify(events.slice(-300)));
-  } catch {}
-}
-
-function daysUntil(iso) {
-  return Math.max(0, Math.ceil((new Date(iso) - Date.now()) / 86400000));
-}
-
-function formatDate(iso) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Shanghai",
-  }).format(new Date(iso));
+function Phone({ src, alt, eager = false }) {
+  return (
+    <div className="phone">
+      <img src={src} alt={alt} width="720" height="1565" loading={eager ? "eager" : "lazy"} />
+    </div>
+  );
 }
 
 export default function HomePage() {
-  const [ambientMode, setAmbientMode] = useState(false);
-  const [toast, setToast] = useState("");
-  const toastTimer = useRef();
-  const days = daysUntil(show.date);
-
-  useEffect(() => {
-    track("page_view", { ref: document.referrer || "direct" });
-    return () => clearTimeout(toastTimer.current);
-  }, []);
-
-  useEffect(() => {
-    if (!ambientMode) return undefined;
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") closeAmbient();
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [ambientMode]);
-
-  function openAmbient() {
-    track("ambient_mode_enter", { showId: show.id });
-    setAmbientMode(true);
-  }
-
-  function closeAmbient() {
-    track("ambient_mode_exit", { showId: show.id });
-    setAmbientMode(false);
-  }
-
-  function saveCountdown() {
-    track("save_countdown", { showId: show.id });
-    setToast("已放进你的开场前。");
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 2800);
-  }
-
   return (
     <>
       <a href="#main-content" className="skip-link">跳到主要内容</a>
-      <nav className="site-nav" aria-label="主导航">
-        <div className="nav-logo">
-          <img className="nav-logo-mark" src="/app-icon.png" alt="开场前 BeforeShow 图标" width="32" height="32" />
-          <span className="nav-brand">开场前</span>
-        </div>
-      </nav>
+      <header className="site-nav">
+        <a className="nav-logo" href="/">
+          <img src="/app-icon.png" alt="" width="32" height="32" />
+          <span>开场前</span>
+        </a>
+        <a className="nav-cta" href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">下载</a>
+      </header>
 
       <main id="main-content">
         <section className="hero" aria-labelledby="hero-title">
-          <div className="hero-bg" aria-hidden="true">
-            <div className="hero-bg-base" />
-            <div className="beam beam-1" />
-            <div className="beam beam-2" />
-            <div className="beam beam-3" />
-            <div className="beam beam-4" />
-            <div className="stage-orb" />
-            <div className="hero-crowd" />
-          </div>
-          <div className="hero-content">
-            <div className="hero-eyebrow fade-up"><span className="hero-eyebrow-dot" />现场准备 · 本地记录</div>
-            <h1 id="hero-title" className="hero-title fade-up fade-up-delay-1">
-              <span className="hero-title-line">现场准备与</span>
-              <span className="hero-title-line hero-title-accent">本地记录工具。</span>
-            </h1>
-            <p className="hero-sub fade-up fade-up-delay-2">
-              开场前 BeforeShow 用于现场准备与本地记录，提供现场倒计时、记录票根、记录时刻表、现场记录等功能。
-            </p>
-            <div className="hero-feature-list fade-up fade-up-delay-2" aria-label="BeforeShow 可做的事">
-              <span>现场倒计时</span><span>记录票根</span><span>记录时刻表</span><span>现场记录</span>
+          <div className="hero-seam" aria-hidden="true" />
+          <div className="hero-copy">
+            <p className="eyebrow"><span className="eyebrow-dot" />演唱会 · 音乐节 · Livehouse 倒计时</p>
+            <h1 id="hero-title" className="hero-title">灯亮之前，<br />先进入状态。</h1>
+            <p className="hero-sub">首页只围着下一场：海报、开场时间和倒计时都在一屏里，陪你慢慢靠近这一场。</p>
+            <div className="hero-actions">
+              <AppStoreButton />
+              <span className="hero-note">iOS · 前 5 场免费保存</span>
             </div>
+          </div>
+          <div className="hero-visual">
+            <Phone src="/screens/current.jpg" alt="开场前「当前」页：现场海报与开场倒计时" eager />
           </div>
         </section>
 
-        <section id="experience" aria-labelledby="experience-title">
-          <div className="section">
-            <p className="section-label">开场前两周</p>
-            <h2 className="section-title" id="experience-title">先把下一场放进来，<br />再把准备做齐。</h2>
-            <p className="section-desc">现场倒计时帮你盯住开场时间；票根、时刻表和现场记录都留在本地。</p>
-            <div className="feature-modules" aria-label="BeforeShow 核心体验">
-              <article className="feature-module">
-                <div className="feature-module-head">
-                  <span className="feature-module-num">01</span>
-                  <div>
-                    <h3 className="feature-module-title">现场倒计时</h3>
-                    <p className="feature-module-desc">把下一场放进来，每天知道离开场还有多久。</p>
-                  </div>
-                </div>
-                <div className="countdown-card" style={{ "--show-accent": show.accent }}>
-                  <div className="countdown-top">
-                    <span className="countdown-kicker">我的下一场</span>
-                    <span className="single-show-chip"><span className={`show-type-dot show-type-${show.type}`} />{show.label} · {show.artist}</span>
-                  </div>
-                  <div className="countdown-main-area">
-                    <div className="countdown-left">
-                      <div className="countdown-glow" />
-                      <p className="countdown-days-label">距离开场</p>
-                      <span className="countdown-days-number" aria-label={`${days} 天`} suppressHydrationWarning>{days}</span>
-                      <span className="countdown-days-unit">天</span>
-                      <button className="btn-ambient" type="button" onClick={openAmbient}>✨ 现场前夕氛围</button>
-                    </div>
-                    <div className="countdown-right">
-                      <div>
-                        <h3 className="countdown-artist">{show.artist} · {show.venue}</h3>
-                        <p className="countdown-meta">{formatDate(show.date)}</p>
-                        <div className="countdown-suggestion">
-                          <p className="suggestion-label">今天先靠近一点</p>
-                          <p className="suggestion-text">先听一遍<strong>《{show.song}》</strong>现场版，让身体记得这场演出的节奏。</p>
-                        </div>
-                      </div>
-                      <button className="btn btn-primary" type="button" onClick={saveCountdown}>放进我的开场前</button>
-                    </div>
-                  </div>
-                </div>
-              </article>
+        {features.map((feature, index) => (
+          <section
+            className={`feature ${index % 2 ? "feature-flip" : ""}`}
+            id={feature.id}
+            key={feature.id}
+            aria-labelledby={`${feature.id}-title`}
+          >
+            <div className="feature-copy">
+              <p className="feature-kicker">{String(index + 1).padStart(2, "0")} · {feature.kicker}</p>
+              <h2 className="feature-title" id={`${feature.id}-title`}>{feature.title}</h2>
+              <p className="feature-desc">{feature.desc}</p>
             </div>
-          </div>
+            <div className="feature-visual">
+              <Phone src={feature.screen} alt={feature.alt} />
+            </div>
+          </section>
+        ))}
+
+        <section className="reminders" aria-labelledby="reminders-title">
+          <p className="feature-kicker">轻轻提醒</p>
+          <h2 className="feature-title" id="reminders-title">只在该出现的时候出现</h2>
+          <p className="feature-desc">提醒用你已经记下的现场信息说话，不刷屏，也不打扰。</p>
+          <ol className="reminder-track">
+            {reminders.map((label) => (
+              <li key={label}><span className="reminder-dot" />{label}</li>
+            ))}
+          </ol>
         </section>
 
-        <section id="use-flow" className="use-flow" aria-labelledby="use-flow-title">
-          <div className="section">
-            <p className="section-label">使用流程</p>
-            <h2 className="section-title" id="use-flow-title">从准备开场，<br />到留下这场记录。</h2>
-            <div className="how-grid" aria-label="BeforeShow 使用流程">
-              {useFlowSteps.map(([title, description], index) => (
-                <article className="how-card" style={{ "--line-color": "var(--accent)" }} key={title}>
-                  <p className="how-num">{String(index + 1).padStart(2, "0")}</p>
-                  <h3 className="how-title">{title}</h3>
-                  <p className="how-desc">{description}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="audience" className="audience" aria-labelledby="audience-title">
-          <div className="section">
-            <p className="section-label">适合谁</p>
-            <h2 className="section-title" id="audience-title">给需要把现场准备好，<br />也想把记录留在本地的人。</h2>
-            <div className="audience-list" aria-label="BeforeShow 适合的人群">
-              {audienceItems.map((item) => (
-                <article className="audience-item" key={item}>
-                  <span className="audience-check" aria-hidden="true">✓</span>
-                  <h3 className="audience-text">{item}</h3>
-                </article>
-              ))}
-            </div>
-          </div>
+        <section className="closing" aria-labelledby="closing-title">
+          <img className="closing-icon" src="/app-icon.png" alt="" width="96" height="96" loading="lazy" />
+          <h2 className="closing-title" id="closing-title">下一场，从开场前开始。</h2>
+          <AppStoreButton />
         </section>
       </main>
 
       <footer className="footer">
         <span>开场前 · BeforeShow</span>
-        <span>现场准备与本地记录工具。</span>
         <nav className="footer-links" aria-label="页脚链接">
-          <a className="footer-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026041359号-2</a>
-          <a className="footer-link" href="/privacy/">隐私政策</a>
-          <a className="footer-link" href="/terms/">用户协议</a>
-          <a className="footer-link" href="/link-guide/">如何获取票务链接</a>
+          <a href="/privacy/">隐私政策</a>
+          <a href="/terms/">用户协议</a>
+          <a href="/link-guide/">如何获取票务链接</a>
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026041359号-2</a>
         </nav>
       </footer>
-
-      {toast && <div className="toast" role="status">{toast}</div>}
-      {ambientMode && (
-        <div className="ambient-modal" style={{ "--show-accent": show.accent }} onClick={(event) => event.target === event.currentTarget && closeAmbient()}>
-          <div className="ambient-modal-bg" style={{ backgroundImage: "url('https://img.alicdn.com/bao/uploaded/https://img.alicdn.com/imgextra/i2/2251059038/O1CN01nWPQm82GdSnG5tWAW_!!2251059038.jpg_q60.jpg_.webp')" }} />
-          <div className="ambient-modal-overlay" />
-          <button className="ambient-close-btn" type="button" aria-label="关闭氛围模式" onClick={closeAmbient}>✕</button>
-          <div className="ambient-container">
-            <div className="ambient-header">
-              <p className="ambient-venue-label">现场前夕 · {show.venue}</p>
-              <h2 className="ambient-show-artist">{show.artist}</h2>
-            </div>
-            <div className="ambient-glow-ring">
-              <svg className="ambient-ring-svg" viewBox="0 0 100 100" aria-hidden="true">
-                <circle className="ambient-ring-bg" cx="50" cy="50" r="45" />
-                <circle className="ambient-ring-active" cx="50" cy="50" r="45" style={{ strokeDasharray: 283, strokeDashoffset: 60, stroke: show.accent }} />
-              </svg>
-              <div className="ambient-countdown-content">
-                <span className="ambient-countdown-days" suppressHydrationWarning>{days}</span>
-                <span className="ambient-countdown-unit">天</span>
-              </div>
-            </div>
-            <div className="ambient-player">
-              <div className="visualizer" aria-hidden="true">
-                {[1, 2, 3, 4, 5].map((bar) => <div className={`bar bar-${bar}`} key={bar} />)}
-              </div>
-              <div className="ambient-song-info">
-                <span className="ambient-song-title">正在播放预演单曲：《{show.song}》</span>
-                <span className="ambient-song-desc">感受这一刻，走到门口时，你已经在那场演出了。</span>
-              </div>
-            </div>
-            <button className="btn btn-ghost ambient-exit" type="button" onClick={closeAmbient}>返回网页</button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
