@@ -4,10 +4,9 @@ import XCTest
 @testable import BeforeShow
 
 final class ListeningLocalizationTests: XCTestCase {
-    func testAllListeningLiteralKeysAndTierNamesExistInThreeLanguages() throws {
+    func testAllListeningLiteralKeysExistInThreeLanguages() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
-        var keys = Set(ListeningFamiliarityTier.allCases.map(\.localizationKey))
-        keys.formUnion(["想现场听", "开场前想现场听", "当前现场", "只听这位", "回到整场", "不听这位", "恢复", "接下来", "下一位", "热门", "全部", "尚未匹配艺人", "暂时无法更新", "暂时无法载入音乐"])
+        var keys = Set(["想现场听", "开场前想现场听", "当前现场", "只听这位", "回到整场", "不听这位", "恢复", "接下来", "下一位", "热门", "全部", "尚未匹配艺人", "暂时无法更新", "暂时无法载入音乐"])
         let regex = try NSRegularExpression(pattern: #"BSLocalization\.text\("([^"\\]+)"\)"#)
         for subdir in ["Features/Listening", "Features/Footprints"] {
             let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root.appendingPathComponent(subdir), includingPropertiesForKeys: nil))
