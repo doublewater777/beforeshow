@@ -63,11 +63,11 @@ final class ListeningFamiliarityPolicyTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 100)
 
         _ = try repository.confirmManualFamiliarity(songID: "song", at: now)
-        _ = try repository.addSetlistMemory(
+        context.insert(ShowSetlistMemory(
             showID: UUID(),
             catalogSongID: "song",
-            at: now.addingTimeInterval(1)
-        )
+            createdAt: now.addingTimeInterval(1)
+        ))
         try repository.undoManualFamiliarity(songID: "song", at: now.addingTimeInterval(2))
 
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
