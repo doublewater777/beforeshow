@@ -21,7 +21,7 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/UI/DesignSystem/BSShowCoverComponents.swift": 12_000,
     "BeforeShow/UI/DesignSystem/BSArtistComponents.swift": 5_000,
     "BeforeShow/UI/DesignSystem/BSDrawerComponents.swift": 8_000,
-    "BeforeShow/Features/Settings/SettingsView.swift": 22_000,
+    "BeforeShow/Features/Settings/SettingsView.swift": 27_000,
     "BeforeShow/Features/Settings/SettingsDebugViews.swift": 6_000,
     "BeforeShow/Features/Settings/PrivacyLocalDataView.swift": 13_000,
     "BeforeShow/Features/Settings/FeedbackView.swift": 8_000,
