@@ -212,34 +212,6 @@ struct ListeningRepository {
         }
     }
 
-    @discardableResult
-    func addSetlistMemory(
-        showID: UUID,
-        catalogSongID: String? = nil,
-        manualTitle: String? = nil,
-        manualArtistName: String? = nil,
-        mostSurprising: Bool = false,
-        at date: Date = Date()
-    ) throws -> ShowSetlistMemory {
-        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
-        let memory = ShowSetlistMemory(
-            showID: showID,
-            catalogSongID: catalogSongID,
-            manualTitle: manualTitle,
-            manualArtistName: manualArtistName,
-            isMostSurprising: mostSurprising,
-            createdAt: date,
-            updatedAt: date
-        )
-        modelContext.insert(memory)
-        return memory
-    }
-
-    func deleteSetlistMemory(_ memory: ShowSetlistMemory, at date: Date = Date()) throws {
-        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
-        modelContext.delete(memory)
-    }
-
     func setWantsLive(showID: UUID, songID: String, isWanted: Bool, at date: Date = Date()) throws {
         if let show = try modelContext.fetch(FetchDescriptor<Show>()).first(where: { $0.id == showID }),
            !WantsLivePolicy.isMutable(show: show, now: date) {
