@@ -127,81 +127,50 @@ final class ListeningWidgetTests: XCTestCase {
         XCTAssertNotNil(fallback)
         XCTAssertEqual(fallback?.showID, showSnapshot.showID)
         XCTAssertEqual(fallback?.showName, "安溥「炼云」演唱会")
-        XCTAssertEqual(fallback?.coverImageURL, "https://example.com/anpu.jpg")
+        XCTAssertNil(fallback?.coverImageURL, "现场海报留给倒计时小组件")
         XCTAssertFalse(fallback?.isPlaying ?? true)
     }
 
     @MainActor
-    func testListeningIntentBridgeInvocation() async {
+    func testListeningIntentBridgeInvocation() async throws {
         final class MockIntentHandler: ListeningIntentHandling {
             var toggleCallCount = 0
-            var skipNextCallCount = 0
-            var skipPreviousCallCount = 0
 
             func togglePlayPause() async { toggleCallCount += 1 }
-            func skipToNext() async { skipNextCallCount += 1 }
-            func skipToPrevious() async { skipPreviousCallCount += 1 }
         }
 
         let mock = MockIntentHandler()
         ListeningIntentBridge.handler = mock
+        defer { ListeningIntentBridge.handler = nil }
 
         await ListeningIntentBridge.performTogglePlayPause()
         XCTAssertEqual(mock.toggleCallCount, 1)
-
-        await ListeningIntentBridge.performSkipToNext()
-        XCTAssertEqual(mock.skipNextCallCount, 1)
-
-        await ListeningIntentBridge.performSkipToPrevious()
-        XCTAssertEqual(mock.skipPreviousCallCount, 1)
     }
 
     func testListeningWidgetKindsRegistered() {
         XCTAssertTrue(BeforeShowWidgetKind.all.contains(BeforeShowWidgetKind.homeListening))
-        XCTAssertTrue(BeforeShowWidgetKind.all.contains(BeforeShowWidgetKind.lockScreenListening))
-        XCTAssertTrue(BeforeShowWidgetKind.all.contains(BeforeShowWidgetKind.homeCabinet))
         XCTAssertEqual(BeforeShowWidgetKind.homeListening, "BeforeShowListeningWidget")
-        XCTAssertEqual(BeforeShowWidgetKind.lockScreenListening, "BeforeShowLockScreenListeningWidget")
-        XCTAssertEqual(BeforeShowWidgetKind.homeCabinet, "BeforeShowCabinetWidget")
     }
 
-    func testCabinetDiscItemCodableAndWidgetKind() throws {
-        let disc = WidgetCabinetDiscItem(
-            id: "disc-01",
-            title: "热门合辑 01",
-            artistName: "回春丹",
-            coverImageURL: "https://example.com/cover.jpg",
-            trackCount: 12,
-            isLoaded: true
-        )
-        let data = try JSONEncoder().encode(disc)
-        let decoded = try JSONDecoder().decode(WidgetCabinetDiscItem.self, from: data)
-        XCTAssertEqual(disc, decoded)
-    }
+    @MainActor
+    func testSkippingInsideAppUpdatesWidgetTrack() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        defer { room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
 
-    func testFallbackPopulatesCabinetDiscs() {
-        let timing = ShowTimingFields(
-            date: Date(),
-            startTime: Date(),
-            endDate: nil,
-            endTime: nil,
-            postponedDate: nil,
-            changeStatus: .scheduled
-        )
-        let showSnapshot = WidgetShowSnapshot(
-            showID: UUID(),
-            name: "告五人「宇宙的有趣」巡演",
-            city: "杭州",
-            venueName: "奥体中心",
-            coverImageURL: "https://example.com/accusefive.jpg",
-            timing: timing,
-            generatedAt: Date()
-        )
-        WidgetSnapshotStore.write(showSnapshot)
+        for disc in [room.compilationDiscs.first, room.browseArtists.first?.albums.first].compactMap({ $0 }) {
+            guard disc.tracks.count >= 2 else { continue }
+            room.restoreDisc(disc, songID: disc.tracks[0].id)
+            room.playPause()
+            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            XCTAssertEqual(WidgetListeningStore.read()?.trackTitle, disc.tracks[0].title)
 
-        let fallback = WidgetListeningStore.read()
-        XCTAssertNotNil(fallback)
-        XCTAssertEqual(fallback?.cabinetDiscs.count, 3)
-        XCTAssertEqual(fallback?.cabinetDiscs.first?.title, "热门合辑 01")
+            room.skip(1)
+            let next = disc.tracks[1]
+            try await ListenTestData.settle(room) { room.track?.id == next.id && room.isPlaying && !room.busy }
+            XCTAssertEqual(WidgetListeningStore.read()?.trackTitle, next.title, "disc \(disc.title)")
+            room.stop()
+        }
     }
 }

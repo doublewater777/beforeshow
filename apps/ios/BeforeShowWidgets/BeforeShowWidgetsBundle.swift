@@ -11,8 +11,6 @@ struct BeforeShowWidgetsBundle: WidgetBundle {
         CountdownWidget()
         LockScreenCountdownWidget()
         ListeningWidget()
-        LockScreenListeningWidget()
-        CabinetWidget()
         ShowLiveActivity()
     }
 }

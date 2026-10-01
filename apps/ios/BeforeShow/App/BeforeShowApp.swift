@@ -49,6 +49,10 @@ struct BeforeShowApp: App {
             fatalError("Failed to create ModelContainer: \(error)")
         }
 
+        MainActor.assumeIsolated {
+            ListeningIntentHandler.shared.configure(with: modelContainer)
+        }
+
         if !isRunningHostedUnitTests {
             // Run development-store repairs exactly once before RootView can read state.
             MainActor.assumeIsolated {

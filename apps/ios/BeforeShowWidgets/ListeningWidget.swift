@@ -93,8 +93,8 @@ struct ListeningWidget: Widget {
         StaticConfiguration(kind: kind, provider: ListeningTimelineProvider()) { entry in
             ListeningWidgetView(entry: entry)
         }
-        .configurationDisplayName("现场听歌")
-        .description("快速进入当前现场 CD 播放机，随时熟悉演出曲目。")
+        .configurationDisplayName("听歌")
+        .description("最近一场现场的歌，轻点接着听。")
         .supportedFamilies([
             .systemSmall,
             .systemMedium,
@@ -102,19 +102,41 @@ struct ListeningWidget: Widget {
     }
 }
 
-struct LockScreenListeningWidget: Widget {
-    let kind = BeforeShowWidgetKind.lockScreenListening
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: ListeningTimelineProvider()) { entry in
-            ListeningWidgetView(entry: entry)
-        }
-        .configurationDisplayName("现场听歌")
-        .description("锁屏快速控制听歌与进入 CD 播放机。")
-        .supportedFamilies([
-            .accessoryInline,
-            .accessoryCircular,
-            .accessoryRectangular,
-        ])
-    }
+#if DEBUG
+private func listeningPreviewEntry(trackTitle: String?, isPlaying: Bool) -> ListeningEntry {
+    ListeningEntry(
+        date: .now,
+        snapshot: WidgetListeningSnapshot(
+            showID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            showName: "喜力®星银®·泡泡岛音乐与艺术节·江浙沪站",
+            artistName: trackTitle == nil ? nil : "张悬",
+            discTitle: nil,
+            trackTitle: trackTitle,
+            coverImageURL: nil,
+            trackCount: nil,
+            isPlaying: isPlaying,
+            generatedAt: .now
+        ),
+        coverImagePath: nil,
+        ambientColor: nil
+    )
 }
+
+#Preview("小号", as: .systemSmall) {
+    ListeningWidget()
+} timeline: {
+    listeningPreviewEntry(trackTitle: nil, isPlaying: false)
+    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: false)
+    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: true)
+    ListeningEntry.empty
+}
+
+#Preview("中号", as: .systemMedium) {
+    ListeningWidget()
+} timeline: {
+    listeningPreviewEntry(trackTitle: nil, isPlaying: false)
+    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: false)
+    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: true)
+    ListeningEntry.empty
+}
+#endif

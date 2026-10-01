@@ -8,8 +8,6 @@ import Foundation
 @MainActor
 public protocol ListeningIntentHandling: AnyObject {
     func togglePlayPause() async
-    func skipToNext() async
-    func skipToPrevious() async
 }
 
 public enum ListeningIntentBridge {
@@ -19,20 +17,6 @@ public enum ListeningIntentBridge {
     public static func performTogglePlayPause() async {
         if let handler {
             await handler.togglePlayPause()
-        }
-    }
-
-    @MainActor
-    public static func performSkipToNext() async {
-        if let handler {
-            await handler.skipToNext()
-        }
-    }
-
-    @MainActor
-    public static func performSkipToPrevious() async {
-        if let handler {
-            await handler.skipToPrevious()
         }
     }
 }
@@ -48,32 +32,6 @@ public struct ToggleListeningPlaybackIntent: AudioPlaybackIntent {
     @MainActor
     public func perform() async throws -> some IntentResult {
         await ListeningIntentBridge.performTogglePlayPause()
-        return .result()
-    }
-}
-
-public struct PlayNextListeningTrackIntent: AudioPlaybackIntent {
-    public static let title: LocalizedStringResource = "下一首"
-    public static let description = IntentDescription("在小组件上直接切换下一首歌曲")
-
-    public init() {}
-
-    @MainActor
-    public func perform() async throws -> some IntentResult {
-        await ListeningIntentBridge.performSkipToNext()
-        return .result()
-    }
-}
-
-public struct PlayPreviousListeningTrackIntent: AudioPlaybackIntent {
-    public static let title: LocalizedStringResource = "上一首"
-    public static let description = IntentDescription("在小组件上直接切换上一首歌曲")
-
-    public init() {}
-
-    @MainActor
-    public func perform() async throws -> some IntentResult {
-        await ListeningIntentBridge.performSkipToPrevious()
         return .result()
     }
 }

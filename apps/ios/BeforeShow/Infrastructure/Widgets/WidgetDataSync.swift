@@ -37,7 +37,7 @@ enum WidgetDataSync {
 
         let widgetSnapshot = currentShow.map { WidgetShowSnapshot(show: $0, generatedAt: now) }
         let liveActivitySnapshot = liveActivityShow.map { WidgetShowSnapshot(show: $0, generatedAt: now) }
-        let retainedCoverSources = Set(
+        var retainedCoverSources = Set(
             [widgetSnapshot?.coverImageURL, liveActivitySnapshot?.coverImageURL]
                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
@@ -57,7 +57,7 @@ enum WidgetDataSync {
                             artistName: currentShow.artists.first?.name,
                             discTitle: nil,
                             trackTitle: nil,
-                            coverImageURL: currentShow.coverImageURL,
+                            coverImageURL: nil,
                             trackCount: nil,
                             isPlaying: false,
                             generatedAt: now
@@ -69,6 +69,11 @@ enum WidgetDataSync {
                 }
                 BeforeShowWidgetKind.reloadAllTimelines()
             }
+        }
+
+        if let listening = WidgetListeningStore.read(), listening.showID == currentShow?.id,
+           let cover = listening.coverImageURL, !cover.isEmpty {
+            retainedCoverSources.insert(cover)
         }
 
         // SwiftData Show is not Sendable; only immutable value snapshots cross actors.

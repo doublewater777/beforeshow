@@ -110,6 +110,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var evidenceFailureOwnsErrorText = false
     @ObservationIgnored private var controller: ListeningPlaybackController?
     @ObservationIgnored private var operation: Task<Void, Never>?
+    @ObservationIgnored private var widgetCoverTask: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
@@ -303,22 +304,17 @@ private let listeningCatalogFetchConcurrency = 4
         clearPersistedDisc()
         syncWidgetListeningState()
     }
-    func syncWidgetListeningState() {
-        let disc = mechanism.disc
+    /// 未装碟时小组件播放键会装入的唱片
+    var defaultDisc: ListeningDisc? {
+        compilationDiscs.first ?? discs.first
+    }
+    /// - Parameter isPlayingOverride: 小组件按键的乐观状态，真实播放落定前先写入
+    func syncWidgetListeningState(isPlayingOverride: Bool? = nil) {
+        // 未装碟时展示播放键将要装入的唱片；封面只用唱片封面，现场海报留给倒计时小组件
+        let disc = mechanism.disc ?? defaultDisc
         let currentTrack = track
-        let artist = currentTrack?.artistName ?? disc?.artistNames.first ?? show?.artists.first?.name
-        let artwork = currentTrack?.artworkURL?.absoluteString ?? disc?.artworkURL?.absoluteString ?? show?.coverImageURL
-        let availableDiscs = compilationDiscs.isEmpty ? discs : compilationDiscs
-        let cabinetItems: [WidgetCabinetDiscItem] = availableDiscs.prefix(6).map { d in
-            WidgetCabinetDiscItem(
-                id: d.id,
-                title: d.title,
-                artistName: d.artistNames.first,
-                coverImageURL: d.artworkURL?.absoluteString ?? show?.coverImageURL,
-                trackCount: d.tracks.count,
-                isLoaded: mechanism.disc?.id == d.id
-            )
-        }
+        let artist = currentTrack?.artistName ?? disc?.artistNames.first
+        let artwork = currentTrack?.artworkURL?.absoluteString ?? disc?.artworkURL?.absoluteString
         let snapshot = WidgetListeningSnapshot(
             showID: show?.id,
             showName: show?.name ?? (WidgetSnapshotStore.read()?.name ?? ""),
@@ -327,13 +323,23 @@ private let listeningCatalogFetchConcurrency = 4
             trackTitle: currentTrack?.title,
             coverImageURL: artwork,
             trackCount: disc?.tracks.count,
-            isPlaying: isPlaying,
-            cabinetDiscs: cabinetItems.isEmpty ? (WidgetListeningStore.read()?.cabinetDiscs ?? []) : cabinetItems,
+            isPlaying: isPlayingOverride ?? isPlaying,
             generatedAt: Date()
         )
         let previous = WidgetListeningStore.read()
         if previous == nil || !previous!.isContentEqual(to: snapshot) {
             WidgetListeningStore.write(snapshot)
+            BeforeShowWidgetKind.reloadAllTimelines()
+        }
+        prefetchWidgetCover(artwork)
+    }
+    /// 小组件扩展的后台刷新受系统预算限制，封面由 App 下载进 App Group 后再刷新小组件。
+    private func prefetchWidgetCover(_ source: String?) {
+        guard let source, WidgetCoverCache.cachedCoverPath(matching: source) == nil else { return }
+        widgetCoverTask?.cancel()
+        widgetCoverTask = Task {
+            await WidgetCoverCache.refresh(for: source)
+            guard !Task.isCancelled, WidgetCoverCache.cachedCoverPath(matching: source) != nil else { return }
             BeforeShowWidgetKind.reloadAllTimelines()
         }
     }
@@ -383,6 +389,8 @@ private let listeningCatalogFetchConcurrency = 4
         defer {
             if generation == catalogGeneration {
                 isLoadingShow = false
+                // 目录到齐后未装碟时的默认唱片可能变化
+                syncWidgetListeningState()
                 if case let .artist(artistID) = browser.scope {
                     scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
                 }
@@ -422,6 +430,7 @@ private let listeningCatalogFetchConcurrency = 4
         // `initialLoaded` means the fixed room and any cached records are ready to
         // present. It deliberately does not wait for artist lookup or catalog IO.
         initialLoaded = true
+        syncWidgetListeningState()
 
         // Subscription lookup and artist identity lookup are independent. Publish
         // resolved access immediately so cached records can play during matching.
@@ -1620,6 +1629,11 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
     func returnToWholeShow() { selectScope(.all) }
+    /// 等待排队中的播放/装碟操作完成，供小组件乐观状态之后按真实结果回写。
+    func settlePendingOperation() async {
+        await operation?.value
+    }
+
     private func run(_ action: @escaping @MainActor () async throws -> Void) {
         let previous = operation
         previous?.cancel()

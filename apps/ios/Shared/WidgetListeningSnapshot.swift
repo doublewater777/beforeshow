@@ -2,16 +2,6 @@ import Foundation
 
 // MARK: - Widget Listening Snapshot
 // App 侧把「听模块」状态写成 Codable 快照放进 App Group,widget extension 只读。
-// 支持记录当前现场、已装载唱片（合辑或专辑）、当前播放音轨、艺人及播放状态。
-
-struct WidgetCabinetDiscItem: Codable, Equatable, Identifiable {
-    var id: String
-    var title: String
-    var artistName: String?
-    var coverImageURL: String?
-    var trackCount: Int
-    var isLoaded: Bool
-}
 
 struct WidgetListeningSnapshot: Codable, Equatable {
     var showID: UUID?
@@ -22,7 +12,6 @@ struct WidgetListeningSnapshot: Codable, Equatable {
     var coverImageURL: String?
     var trackCount: Int?
     var isPlaying: Bool
-    var cabinetDiscs: [WidgetCabinetDiscItem] = []
     var generatedAt: Date
 
     /// 内容级相等(忽略 generatedAt 去重)
@@ -35,7 +24,6 @@ struct WidgetListeningSnapshot: Codable, Equatable {
             && coverImageURL == other.coverImageURL
             && trackCount == other.trackCount
             && isPlaying == other.isPlaying
-            && cabinetDiscs == other.cabinetDiscs
     }
 }
 
@@ -64,23 +52,24 @@ enum WidgetListeningStore {
     /// 当尚未有独立装载唱片快照时，根据当前现场快照降级生成预习快照
     static func fallbackFromShowSnapshot() -> WidgetListeningSnapshot? {
         guard let show = WidgetSnapshotStore.read() else { return nil }
-        let fallbackDiscs = [
-            WidgetCabinetDiscItem(id: "compilation-01", title: "热门合辑 01", artistName: nil, coverImageURL: show.coverImageURL, trackCount: 12, isLoaded: false),
-            WidgetCabinetDiscItem(id: "compilation-02", title: "热门合辑 02", artistName: nil, coverImageURL: show.coverImageURL, trackCount: 12, isLoaded: false),
-            WidgetCabinetDiscItem(id: "compilation-03", title: "热门合辑 03", artistName: nil, coverImageURL: show.coverImageURL, trackCount: 12, isLoaded: false)
-        ]
         return WidgetListeningSnapshot(
             showID: show.showID,
             showName: show.name,
             artistName: nil,
             discTitle: nil,
             trackTitle: nil,
-            coverImageURL: show.coverImageURL,
+            coverImageURL: nil,
             trackCount: nil,
             isPlaying: false,
-            cabinetDiscs: fallbackDiscs,
             generatedAt: show.generatedAt
         )
+    }
+
+    /// 只改播放态；没有快照时不做事。
+    static func setPlaying(_ isPlaying: Bool) {
+        guard var snapshot = read(), snapshot.isPlaying != isPlaying else { return }
+        snapshot.isPlaying = isPlaying
+        write(snapshot)
     }
 
     @discardableResult
