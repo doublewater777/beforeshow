@@ -4,7 +4,7 @@ import SwiftUI
 private struct CurrentShowLibraryDestination: Identifiable, Hashable {
     let show: Show
     let startsEditing: Bool
-    var id: String { "\(show.id.uuidString)-\(startsEditing)" }
+    var id: String { "\(show.persistentModelID)-\(startsEditing)" }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -25,6 +25,7 @@ struct CurrentShowLibraryManagementView: View {
     @State private var filter: CurrentShowLibraryFilter = .all
     @State private var destination: CurrentShowLibraryDestination?
     @State private var deleteTarget: Show?
+    @State private var deletingPersistentID: PersistentIdentifier?
     @State private var postponeTarget: Show?
     @State private var postponeDate = Date()
     @State private var cancelTarget: Show?
@@ -268,12 +269,17 @@ struct CurrentShowLibraryManagementView: View {
         return sections.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
     }
 
+    private var visibleShows: [Show] {
+        guard let deletingPersistentID else { return shows }
+        return shows.filter { $0.persistentModelID != deletingPersistentID }
+    }
+
     private var selectedShowID: UUID? {
         session.selectCurrentShow(from: shows, manualSelection: selections.first)?.id
     }
 
     private var upcomingShows: [Show] {
-        shows.filter { show in
+        visibleShows.filter { show in
             guard show.changeStatus == .scheduled else { return false }
             let kind = session.phase(for: show, now: Date()).kind
             return kind == .before || kind == .today || kind == .dayEnded
@@ -281,7 +287,7 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private var endedShows: [Show] {
-        shows.filter { show in
+        visibleShows.filter { show in
             guard show.changeStatus == .scheduled else { return false }
             let kind = session.phase(for: show, now: Date()).kind
             return kind == .postShow || kind == .ended
@@ -289,11 +295,11 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private var postponedShows: [Show] {
-        shows.filter { $0.changeStatus == .postponed }.sorted { $0.effectiveDate < $1.effectiveDate }
+        visibleShows.filter { $0.changeStatus == .postponed }.sorted { $0.effectiveDate < $1.effectiveDate }
     }
 
     private var canceledShows: [Show] {
-        shows.filter { $0.changeStatus == .canceled }.sorted { $0.effectiveDate > $1.effectiveDate }
+        visibleShows.filter { $0.changeStatus == .canceled }.sorted { $0.effectiveDate > $1.effectiveDate }
     }
 
     private func matchesSearch(_ show: Show) -> Bool {
@@ -309,7 +315,7 @@ struct CurrentShowLibraryManagementView: View {
         switch filter {
         case .upcoming: return upcomingShows.count + postponedShows.count
         case .ended: return endedShows.count
-        case .all: return shows.count
+        case .all: return visibleShows.count
         }
     }
 
@@ -362,6 +368,7 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private func presentDelete(_ show: Show) {
+        guard deletingPersistentID == nil else { return }
         deleteTarget = show
     }
 
@@ -416,16 +423,26 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private func delete(_ show: Show) {
+        guard deletingPersistentID == nil else { return }
+        let targetPersistentID = show.persistentModelID
+        let sourceShows = shows
         deleteTarget = nil
+        deletingPersistentID = targetPersistentID
+
         Task { @MainActor in
+            await Task.yield()
             do {
                 let result = try await ShowDeletionCoordinator.delete(
                     show,
-                    from: shows,
+                    from: sourceShows,
                     selections: selections,
                     notificationStates: notificationStates,
-                    in: modelContext
+                    in: modelContext,
+                    onRecordDeleted: {
+                        deletingPersistentID = targetPersistentID
+                    }
                 )
+                deletingPersistentID = nil
                 presentToast(
                     result.hasPendingMediaCleanup || !result.didSync ? .neutral : .success,
                     message: result.hasPendingMediaCleanup
@@ -436,6 +453,9 @@ struct CurrentShowLibraryManagementView: View {
                 )
             } catch {
                 modelContext.rollback()
+                if deletingPersistentID == targetPersistentID {
+                    deletingPersistentID = nil
+                }
                 presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
             }
         }
@@ -453,7 +473,7 @@ struct CurrentShowLibraryManagementView: View {
     private var emptyStateView: some View {
         VStack(spacing: BSSpacing.md) {
             Spacer(minLength: 32)
-            if shows.isEmpty {
+            if visibleShows.isEmpty {
                 Image(systemName: "music.note.list")
                     .font(.system(size: 34, weight: .light))
                     .foregroundColor(BSColor.Stage.accent)
