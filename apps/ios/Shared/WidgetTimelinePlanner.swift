@@ -17,6 +17,15 @@ enum WidgetTimelinePlanner {
         remainingSeconds > Int(dayCountdownThreshold)
     }
 
+    /// 天数 hero 仍由真实剩余时间是否超过 24h 决定；
+    /// 一旦展示「N 天」，N 使用演出时区里的自然日差，而不是 remaining / 86400。
+    static func dayCountHeroDays(remainingSeconds: Int, dayDistance: Int) -> Int? {
+        guard isDayCountHero(remainingSeconds: remainingSeconds), dayDistance > 0 else {
+            return nil
+        }
+        return dayDistance
+    }
+
     /// 生成 timeline 日期点(已排序、已去重)。最后一个始终是窗口终点。
     static func entryDates(
         now: Date,
