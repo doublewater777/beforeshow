@@ -3,8 +3,13 @@ import WidgetKit
 enum BeforeShowWidgetKind {
     static let homeCountdown = "BeforeShowCountdownWidget"
     static let lockScreenCountdown = "BeforeShowLockScreenCountdownWidget"
+    static let homeListening = "BeforeShowListeningWidget"
+    static let lockScreenListening = "BeforeShowLockScreenListeningWidget"
+    static let homeCabinet = "BeforeShowCabinetWidget"
 
-    static var all: [String] { [homeCountdown, lockScreenCountdown] }
+    static var all: [String] {
+        [homeCountdown, lockScreenCountdown, homeListening, lockScreenListening, homeCabinet]
+    }
 
     static func reloadAllTimelines() {
         for kind in all {

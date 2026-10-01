@@ -5,115 +5,143 @@ import UserNotifications
 
 struct SettingsView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
+    @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeFeedbackEnabled = true
+    @ObservedObject private var languageController = AppLanguageController.shared
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingProPaywall = false
 
-    /// 设置以 sheet 形式呈现，自带 NavigationStack 容纳内层子页面。
     var body: some View {
-        BSStageScaffold(
-            title: "",
-            subtitle: nil,
-            bottomPadding: BSSpacing.xl
-        ) {
-            Button {
-                isShowingProPaywall = true
-            } label: {
-                SettingsMembershipCard(summary: membershipSummary)
+        List {
+            Section {
+                Button {
+                    isShowingProPaywall = true
+                } label: {
+                    SettingsMembershipCard(
+                        summary: membershipSummary,
+                        actionTitle: membershipActionTitle
+                    )
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
-            .buttonStyle(SettingsPressButtonStyle())
 
-            SettingsGroup(title: BSLocalization.text("通知与数据")) {
+            Section(header: Text(BSLocalization.text("小组件"))) {
+                NavigationLink {
+                    WidgetSettingsView()
+                } label: {
+                    SettingsNativeRow(
+                        icon: "square.text.square.fill",
+                        iconBackground: BSColor.Stage.accent,
+                        title: BSLocalization.text("桌面与锁屏小组件"),
+                        subtitle: BSLocalization.text("主屏幕和锁屏倒计时"),
+                        value: widgetStatusText
+                    )
+                }
+                .listRowBackground(BSColor.Stage.surface)
+            }
+
+            Section(header: Text(BSLocalization.text("通知与数据"))) {
                 NotificationSettingsRow()
-
-                SettingsDivider()
+                    .listRowBackground(BSColor.Stage.surface)
 
                 NavigationLink {
                     PrivacyLocalDataView()
                 } label: {
-                    SettingsRowContent(
-                        iconName: "lock.fill",
-                        title: SettingsEntry.privacyAndLocalData.displayTitle,
-                        subtitle: nil,
-                        value: nil,
-                        tint: BSColor.Stage.muted
+                    SettingsNativeRow(
+                        icon: "lock.fill",
+                        iconBackground: Color(red: 0.35, green: 0.55, blue: 0.85),
+                        title: SettingsEntry.privacyAndLocalData.displayTitle
                     )
                 }
-                .buttonStyle(SettingsPressButtonStyle())
+                .listRowBackground(BSColor.Stage.surface)
             }
 
-            SettingsGroup(title: BSLocalization.text("支持")) {
+            Section(header: Text(BSLocalization.text("支持"))) {
                 NavigationLink {
                     FeedbackView()
                 } label: {
-                    SettingsRowContent(
-                        iconName: "bubble.left.and.bubble.right.fill",
-                        title: SettingsEntry.feedback.displayTitle,
-                        subtitle: nil,
-                        value: nil,
-                        tint: BSColor.Stage.muted
+                    SettingsNativeRow(
+                        icon: "bubble.left.and.bubble.right.fill",
+                        iconBackground: Color(red: 0.40, green: 0.75, blue: 0.65),
+                        title: SettingsEntry.feedback.displayTitle
                     )
                 }
-                .buttonStyle(SettingsPressButtonStyle())
+                .listRowBackground(BSColor.Stage.surface)
 
-                SettingsDivider()
+                Toggle(isOn: $isShakeFeedbackEnabled) {
+                    SettingsNativeRow(
+                        icon: "iphone.gen3.radiowaves.left.and.right",
+                        iconBackground: Color(red: 0.55, green: 0.45, blue: 0.75),
+                        title: BSLocalization.text("摇一摇反馈"),
+                        subtitle: BSLocalization.text("晃动 iPhone 快速呼出反馈表单")
+                    )
+                }
+                .tint(BSColor.Stage.accent)
+                .listRowBackground(BSColor.Stage.surface)
 
                 Button {
                     AppReviewPrompt.consider(.settings)
                 } label: {
-                    SettingsRowContent(
-                        iconName: "star.fill",
-                        title: SettingsEntry.rateApp.displayTitle,
-                        subtitle: nil,
-                        value: nil,
-                        tint: BSColor.Stage.muted,
-                        trailingIconName: "arrow.up.right.square"
-                    )
+                    HStack {
+                        SettingsNativeRow(
+                            icon: "star.fill",
+                            iconBackground: Color(red: 0.95, green: 0.75, blue: 0.30),
+                            title: SettingsEntry.rateApp.displayTitle
+                        )
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
                 }
-                .buttonStyle(SettingsPressButtonStyle())
+                .buttonStyle(.plain)
+                .listRowBackground(BSColor.Stage.surface)
                 .accessibilityHint(BSLocalization.text("打开 App Store 写下评价"))
             }
 
-            SettingsGroup(title: BSLocalization.text("语言")) {
+            Section(header: Text(BSLocalization.text("语言"))) {
                 NavigationLink {
                     LanguageSettingsView()
                 } label: {
-                    SettingsRowContent(
-                        iconName: "globe",
+                    SettingsNativeRow(
+                        icon: "globe",
+                        iconBackground: Color(red: 0.35, green: 0.65, blue: 0.95),
                         title: BSLocalization.text("App 语言"),
-                        subtitle: nil,
-                        value: AppLanguageController.shared.language.displayName,
-                        tint: BSColor.Stage.muted
+                        value: languageController.language.displayName
                     )
                 }
-                .buttonStyle(SettingsPressButtonStyle())
+                .listRowBackground(BSColor.Stage.surface)
             }
 
-            SettingsGroup(title: BSLocalization.text("关于")) {
+            Section(header: Text(BSLocalization.text("关于"))) {
                 NavigationLink {
                     AboutBeforeShowView()
                 } label: {
-                    SettingsRowContent(
-                        iconName: "info.circle.fill",
+                    SettingsNativeRow(
+                        icon: "info.circle.fill",
+                        iconBackground: Color(red: 0.55, green: 0.55, blue: 0.65),
                         title: SettingsEntry.about.displayTitle,
-                        subtitle: nil,
-                        value: AppVersionInformation.current.compactCopy,
-                        tint: BSColor.Stage.muted
+                        value: AppVersionInformation.current.compactCopy
                     )
                 }
-                .buttonStyle(SettingsPressButtonStyle())
+                .listRowBackground(BSColor.Stage.surface)
             }
 
             #if DEBUG
-            SettingsGroup(title: BSLocalization.text("调试")) {
+            Section(header: Text(BSLocalization.text("调试"))) {
                 ProEntitlementDebugPicker()
-
-                SettingsDivider()
+                    .listRowBackground(BSColor.Stage.surface)
 
                 DebugPrintPendingNotificationsRow()
+                    .listRowBackground(BSColor.Stage.surface)
             }
             #endif
         }
-        .navigationTitle("设置")
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(BSColor.Stage.background.ignoresSafeArea())
+        .navigationTitle(BSLocalization.text("设置"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
@@ -127,16 +155,75 @@ struct SettingsView: View {
     private var membershipSummary: SettingsMembershipSummary {
         SettingsMembershipSummary(entitlement: ProEntitlementStorage.decode(entitlementRawValue))
     }
+
+    private var membershipActionTitle: String {
+        switch ProEntitlementStorage.decode(entitlementRawValue) {
+        case .active:
+            return BSLocalization.text("查看会员方案与权益")
+        case .free, .expired:
+            return BSLocalization.text("查看会员方案与购买")
+        }
+    }
+
+    private var widgetStatusText: String {
+        if let snapshot = WidgetSnapshotStore.read() {
+            return snapshot.name
+        }
+        return BSLocalization.text("未添加")
+    }
 }
+
+// MARK: - Native Row Component
+
+struct SettingsNativeRow: View {
+    let icon: String
+    var iconBackground: Color = BSColor.Stage.accent
+    let title: String
+    var subtitle: String? = nil
+    var value: String? = nil
+    var valueTint: Color = BSColor.Stage.muted
+
+    var body: some View {
+        HStack(spacing: BSSpacing.compact) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 30, height: 30)
+                .background(iconBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(BSFont.V3.body)
+                    .foregroundColor(BSColor.Stage.foreground)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(BSFont.V3.small)
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+            }
+
+            if let value {
+                Spacer()
+                Text(value)
+                    .font(BSFont.V3.body)
+                    .foregroundColor(valueTint)
+            }
+        }
+    }
+}
+
+// MARK: - Membership Card
 
 private struct SettingsMembershipCard: View {
     let summary: SettingsMembershipSummary
+    let actionTitle: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             HStack(alignment: .top, spacing: BSSpacing.md) {
                 VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                    Text("当前方案")
+                    Text(BSLocalization.text("当前方案"))
                         .font(BSFont.tag)
                         .foregroundColor(BSColor.Stage.dim)
 
@@ -165,7 +252,7 @@ private struct SettingsMembershipCard: View {
                 .overlay(BSColor.Stage.border)
 
             HStack(spacing: BSSpacing.sm) {
-                Text("查看会员方案与购买")
+                Text(actionTitle)
                     .font(BSFont.V3.body.weight(.medium))
                     .foregroundColor(BSColor.Stage.accent)
 
@@ -195,139 +282,11 @@ private struct SettingsMembershipCard: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: BSRadius.lg))
         .accessibilityElement(children: .combine)
-        .accessibilityHint("打开 Pro 会员方案")
+        .accessibilityHint(BSLocalization.text("打开 Pro 会员方案"))
     }
 }
 
-struct SettingsPressButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? BSSettingsStyle.pressedOpacity : 1)
-            .animation(reduceMotion ? nil : .easeOut(duration: BSMotion.micro), value: configuration.isPressed)
-    }
-}
-
-struct SettingsDivider: View {
-    var body: some View {
-        Divider()
-            .overlay(BSColor.Stage.border)
-            .padding(.leading, BSSettingsStyle.rowDividerInset)
-    }
-}
-
-struct SettingsGroup<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(title)
-                .font(BSFont.tag)
-                .foregroundColor(BSColor.Stage.dim)
-                .padding(.horizontal, BSSpacing.xs)
-
-            BSSettingsSurface {
-                VStack(alignment: .leading, spacing: 0) {
-                    content
-                }
-            }
-        }
-    }
-}
-
-struct SettingsRowContent: View {
-    let iconName: String
-    let title: String
-    let subtitle: String?
-    let value: String?
-    let tint: Color
-    var valueTint: Color = BSColor.Stage.muted
-    var trailingIconName = "chevron.right"
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: BSSpacing.compact) {
-                    HStack(spacing: BSSpacing.compact) {
-                        icon
-                        Text(title)
-                            .font(BSFont.V3.body.weight(.semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
-
-                        Spacer(minLength: BSSpacing.sm)
-                        trailingIcon
-                    }
-
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(BSFont.V3.body)
-                            .foregroundColor(BSColor.Stage.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if let value {
-                        Text(value)
-                            .font(BSFont.V3.body.weight(.medium))
-                            .foregroundColor(valueTint)
-                    }
-                }
-            } else {
-                HStack(spacing: BSSpacing.compact) {
-                    icon
-
-                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        Text(title)
-                            .font(BSFont.V3.body.weight(.semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
-                        if let subtitle {
-                            Text(subtitle)
-                                .font(BSFont.V3.body)
-                                .foregroundColor(BSColor.Stage.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .layoutPriority(1)
-
-                    Spacer(minLength: BSSpacing.sm)
-
-                    if let value {
-                        Text(value)
-                            .font(BSFont.V3.small.weight(.semibold))
-                            .foregroundColor(valueTint)
-                            .lineLimit(1)
-                    }
-
-                    trailingIcon
-                }
-            }
-        }
-        .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
-        .frame(maxWidth: .infinity, minHeight: BSSettingsStyle.rowMinimumHeight, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-
-    private var icon: some View {
-        Image(systemName: iconName)
-            .font(.system(size: BSSettingsStyle.iconSize, weight: .semibold))
-            .foregroundColor(tint)
-            .frame(width: BSSettingsStyle.iconContainerSize, height: BSSettingsStyle.iconContainerSize)
-            .background(tint.opacity(BSSettingsStyle.iconSurfaceOpacity))
-            .clipShape(RoundedRectangle(cornerRadius: BSSettingsStyle.iconCornerRadius))
-            .accessibilityHidden(true)
-    }
-
-    private var trailingIcon: some View {
-        Image(systemName: trailingIconName)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(BSColor.Stage.dim)
-            .accessibilityHidden(true)
-    }
-}
+// MARK: - Notification Row
 
 private struct NotificationSettingsRow: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -337,26 +296,28 @@ private struct NotificationSettingsRow: View {
 
     var body: some View {
         Button(action: performAction) {
-            SettingsRowContent(
-                iconName: "bell.fill",
-                title: BSLocalization.text("开场提醒"),
-                subtitle: nil,
-                value: isPerformingAction ? nil : presentation.status,
-                tint: statusTint,
-                valueTint: statusTint,
-                trailingIconName: presentation.action == .openSystemSettings
-                    ? "arrow.up.right.square"
-                    : "chevron.right"
-            )
-            .overlay(alignment: .trailing) {
+            HStack {
+                SettingsNativeRow(
+                    icon: "bell.fill",
+                    iconBackground: Color(red: 0.95, green: 0.40, blue: 0.40),
+                    title: BSLocalization.text("开场提醒"),
+                    value: isPerformingAction ? nil : presentation.status,
+                    valueTint: statusTint
+                )
+
                 if isPerformingAction {
+                    Spacer()
                     ProgressView()
                         .tint(BSColor.Stage.foreground)
-                        .padding(.trailing, BSSpacing.md)
+                } else if presentation.action == .openSystemSettings {
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.dim)
                 }
             }
         }
-        .buttonStyle(SettingsPressButtonStyle())
+        .buttonStyle(.plain)
         .disabled(isPerformingAction)
         .accessibilityLabel(BSLocalization.format("开场提醒，%@", presentation.status))
         .accessibilityHint(
@@ -400,7 +361,6 @@ private struct NotificationSettingsRow: View {
             case .requestPermission:
                 _ = await LocalNotificationCenter.shared.requestAuthorization()
                 await refreshAuthorizationState()
-                // 之前未授权时系统 pending 可能不完整，授权后立刻对齐完整 portfolio。
                 await reconcilePortfolioAfterAuthorizationChange()
             case .openSystemSettings:
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -416,92 +376,11 @@ private struct NotificationSettingsRow: View {
         authorizationState = await LocalNotificationCenter.shared.authorizationState()
     }
 
-    /// 用户在系统设置里打开开关后回到 app 也走这里：把完整通知组合补齐。
     @MainActor
     private func reconcilePortfolioAfterAuthorizationChange() async {
         guard authorizationState == .authorized || authorizationState == .provisional else { return }
         await LocalNotificationCenter.shared.reconcilePortfolio(
             in: ModelContext(modelContext.container)
         )
-    }
-}
-
-struct FeedbackShakeShortcutModifier: ViewModifier {
-    @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeEnabled = true
-    @State private var isShowingFeedback = false
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                FeedbackShakeResponder(
-                    isArmed: isShakeEnabled && !isShowingFeedback,
-                    onShake: handleShake
-                )
-                .frame(width: 0, height: 0)
-            }
-            .sheet(isPresented: $isShowingFeedback) {
-                FeedbackShakeSheet()
-            }
-    }
-
-    @MainActor
-    private func handleShake() {
-        guard FeedbackShakePresentationPolicy.shouldPresent(
-            isShakeEnabled: isShakeEnabled,
-            isFeedbackPresented: isShowingFeedback,
-            hasPresentedModal: FeedbackShakePresentationState.hasPresentedModal
-        ) else { return }
-        isShowingFeedback = true
-    }
-}
-
-private struct FeedbackShakeSheet: View {
-    @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeEnabled = true
-    @Environment(\.dismiss) private var dismiss
-    @State private var isShowingForm = false
-
-    var body: some View {
-        if isShowingForm {
-            NavigationStack {
-                FeedbackView()
-            }
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .preferredColorScheme(.dark)
-        } else {
-            BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
-                BSStageSheetHeader(
-                    icon: "exclamationmark.bubble",
-                    title: BSLocalization.text("遇到问题？"),
-                    subtitle: BSLocalization.text("有问题或建议，都可以告诉我们。")
-                )
-
-                Button {
-                    isShowingForm = true
-                } label: {
-                    Label(
-                        BSLocalization.text("提交反馈"),
-                        systemImage: "paperplane.fill"
-                    )
-                }
-                .buttonStyle(BSPrimaryButtonStyle())
-
-                Divider()
-                    .overlay(BSColor.Stage.border)
-
-                Toggle(isOn: $isShakeEnabled) {
-                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        Text(BSLocalization.text("晃动 iPhone 打开反馈"))
-                            .font(BSFont.V3.body.weight(.semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
-
-                        Text(BSLocalization.text("关闭以禁用"))
-                            .font(BSFont.V3.small)
-                            .foregroundColor(BSColor.Stage.muted)
-                    }
-                }
-                .tint(BSColor.Stage.accent)
-            }
-        }
     }
 }

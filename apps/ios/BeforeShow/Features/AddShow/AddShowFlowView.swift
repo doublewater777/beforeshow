@@ -900,7 +900,6 @@ struct AddShowFlowView: View {
                 "method": sheet.rawValue,
                 "lifecycle": result.outcome.rawValue
             ])
-            AppReviewPrompt.consider(.addedShow)
             didSave = true
             coverLifecycle.finalize(keeping: draft.coverImageURL)
 

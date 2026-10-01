@@ -10,6 +10,9 @@ struct BeforeShowWidgetsBundle: WidgetBundle {
     var body: some Widget {
         CountdownWidget()
         LockScreenCountdownWidget()
+        ListeningWidget()
+        LockScreenListeningWidget()
+        CabinetWidget()
         ShowLiveActivity()
     }
 }

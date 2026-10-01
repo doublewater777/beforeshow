@@ -281,6 +281,7 @@ private let listeningCatalogFetchConcurrency = 4
                 context.insert(ListeningLoadedDiscState(discData: data, songID: songID, currentTime: time))
             }
             try context.save()
+            syncWidgetListeningState()
         } catch {}
     }
     private func clearPersistedDisc() {
@@ -300,6 +301,41 @@ private let listeningCatalogFetchConcurrency = 4
         pendingSleeveSongID = nil
         sleevePlaybackSongID = nil
         clearPersistedDisc()
+        syncWidgetListeningState()
+    }
+    func syncWidgetListeningState() {
+        let disc = mechanism.disc
+        let currentTrack = track
+        let artist = currentTrack?.artistName ?? disc?.artistNames.first ?? show?.artists.first?.name
+        let artwork = currentTrack?.artworkURL?.absoluteString ?? disc?.artworkURL?.absoluteString ?? show?.coverImageURL
+        let availableDiscs = compilationDiscs.isEmpty ? discs : compilationDiscs
+        let cabinetItems: [WidgetCabinetDiscItem] = availableDiscs.prefix(6).map { d in
+            WidgetCabinetDiscItem(
+                id: d.id,
+                title: d.title,
+                artistName: d.artistNames.first,
+                coverImageURL: d.artworkURL?.absoluteString ?? show?.coverImageURL,
+                trackCount: d.tracks.count,
+                isLoaded: mechanism.disc?.id == d.id
+            )
+        }
+        let snapshot = WidgetListeningSnapshot(
+            showID: show?.id,
+            showName: show?.name ?? (WidgetSnapshotStore.read()?.name ?? ""),
+            artistName: artist,
+            discTitle: disc?.title,
+            trackTitle: currentTrack?.title,
+            coverImageURL: artwork,
+            trackCount: disc?.tracks.count,
+            isPlaying: isPlaying,
+            cabinetDiscs: cabinetItems.isEmpty ? (WidgetListeningStore.read()?.cabinetDiscs ?? []) : cabinetItems,
+            generatedAt: Date()
+        )
+        let previous = WidgetListeningStore.read()
+        if previous == nil || !previous!.isContentEqual(to: snapshot) {
+            WidgetListeningStore.write(snapshot)
+            BeforeShowWidgetKind.reloadAllTimelines()
+        }
     }
     var track: ListeningDiscTrack? {
         guard trackBelongsToShow, mechanism.position != .stored, let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex) else { return nil }
@@ -1351,6 +1387,7 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func applyPlaybackState(_ state: ListeningPlaybackState) {
         playbackState = state
+        syncWidgetListeningState()
     }
 
     private func applyTransportPlaybackState(_ state: ListeningPlaybackState) {
@@ -1383,6 +1420,9 @@ private let listeningCatalogFetchConcurrency = 4
         persistLoadedDisc(currentTime: sample.currentTime, force: !sample.isPlaying)
         completeSleevePlaybackIfNeeded()
         recordPlayingIfNeeded()
+        if active, foreground, sample.isPlaying, sample.currentTime > 0 {
+            AppReviewPrompt.consider(.listenedToSong)
+        }
     }
     private func refreshPlaybackEvidenceProjection() {
         do {

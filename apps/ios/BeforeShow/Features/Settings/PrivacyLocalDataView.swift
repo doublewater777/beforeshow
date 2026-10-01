@@ -13,80 +13,80 @@ struct PrivacyLocalDataView: View {
     @State private var showsClearConfirmation = false
 
     var body: some View {
-        BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
-            SettingsGroup(title: BSLocalization.text("产品改进")) {
+        List {
+            Section(header: Text(BSLocalization.text("产品改进"))) {
                 Toggle(isOn: productAnalyticsBinding) {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
                         Text(BSLocalization.text("帮助改进产品"))
                             .font(BSFont.V3.body.weight(.semibold))
                             .foregroundColor(BSColor.Stage.foreground)
                         Text(BSLocalization.text("匿名分析与操作回放，用于发现卡点和修复问题。可随时关闭。"))
-                            .font(BSFont.V3.body)
+                            .font(BSFont.V3.small)
                             .foregroundColor(BSColor.Stage.muted)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .tint(BSColor.Stage.accent)
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+                .listRowBackground(BSColor.Stage.surface)
                 .accessibilityHint(BSLocalization.text("关闭后停止发送匿名分析与操作回放"))
             }
 
-            SettingsGroup(title: BSLocalization.text("本地数据")) {
+            Section(header: Text(BSLocalization.text("本地数据"))) {
                 if let inventory {
                     if inventory.isEmpty {
-                        settingsStatusRow(BSLocalization.text("暂无本地数据"))
+                        Text(BSLocalization.text("暂无本地数据"))
+                            .font(BSFont.V3.body)
+                            .foregroundColor(BSColor.Stage.muted)
+                            .listRowBackground(BSColor.Stage.surface)
                     } else {
                         inventoryRow(BSLocalization.text("现场"), value: BSLocalization.format("%lld 场", inventory.showCount))
-                        SettingsDivider()
+                            .listRowBackground(BSColor.Stage.surface)
                         inventoryRow(BSLocalization.text("记忆碎片"), value: BSLocalization.format("%lld 条", inventory.memoryFragmentCount))
-                        SettingsDivider()
+                            .listRowBackground(BSColor.Stage.surface)
                         inventoryRow(BSLocalization.text("票根与时刻表"), value: BSLocalization.format("%lld 个", inventory.assetCount))
-                        SettingsDivider()
+                            .listRowBackground(BSColor.Stage.surface)
                         inventoryRow(BSLocalization.text("动态封面"), value: BSLocalization.format("%lld 个", inventory.dynamicCoverCount))
-                        SettingsDivider()
+                            .listRowBackground(BSColor.Stage.surface)
                         inventoryRow(BSLocalization.text("App 内占用"), value: formattedBytes(inventory.appBytes))
+                            .listRowBackground(BSColor.Stage.surface)
                     }
                 } else {
                     ProgressView()
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, BSSpacing.md)
-                        .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+                        .listRowBackground(BSColor.Stage.surface)
                 }
             }
 
-            SettingsGroup(title: "清除本地数据") {
+            Section(header: Text(BSLocalization.text("清除本地数据"))) {
                 Button(role: .destructive) {
                     showsClearConfirmation = true
                 } label: {
                     HStack(spacing: BSSpacing.sm) {
                         if isClearing {
                             ProgressView()
+                                .tint(BSColor.Stage.danger)
                         }
-                        Text("清除 BeforeShow 本地数据")
+                        Text(BSLocalization.text("清除 BeforeShow 本地数据"))
+                            .foregroundColor(BSColor.Stage.danger)
                     }
                 }
-                .buttonStyle(BSDangerButtonStyle())
                 .disabled(isClearing || inventory?.isEmpty != false)
-                .opacity(isClearing || inventory?.isEmpty != false ? 0.35 : 1)
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+                .opacity(isClearing || inventory?.isEmpty != false ? 0.4 : 1)
+                .listRowBackground(BSColor.Stage.surface)
 
                 if let clearFeedback {
-                    SettingsDivider()
                     Label(
                         clearFeedback.text,
                         systemImage: clearFeedback.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
                     )
                     .font(BSFont.V3.body)
                     .foregroundColor(clearFeedback.isError ? BSColor.Stage.danger : BSColor.Stage.success)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, BSSpacing.md)
-                    .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .listRowBackground(BSColor.Stage.surface)
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(BSColor.Stage.background.ignoresSafeArea())
         .alert(
             DangerConfirmation.clearLocalData.title,
             isPresented: $showsClearConfirmation
@@ -126,18 +126,6 @@ struct PrivacyLocalDataView: View {
                 .foregroundColor(BSColor.Stage.muted)
                 .lineLimit(1)
         }
-        .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
-        .frame(maxWidth: .infinity, minHeight: BSSettingsStyle.rowMinimumHeight, alignment: .leading)
-    }
-
-    private func settingsStatusRow(_ text: String) -> some View {
-        Text(text)
-            .font(BSFont.V3.body)
-            .foregroundColor(BSColor.Stage.muted)
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
-            .frame(maxWidth: .infinity, minHeight: BSSettingsStyle.rowMinimumHeight, alignment: .leading)
     }
 
     private func formattedBytes(_ bytes: Int64) -> String {

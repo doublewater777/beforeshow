@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 struct FeedbackView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var message = ""
     @State private var sendState: FeedbackSendState = .idle
     @FocusState private var isMessageFocused: Bool
@@ -33,8 +34,8 @@ struct FeedbackView: View {
                             Text(BSLocalization.text("写下你的问题或建议"))
                                 .font(BSFont.V3.body)
                                 .foregroundColor(BSColor.Stage.dim)
-                                .padding(.horizontal, 19)
-                                .padding(.vertical, 20)
+                                .padding(.horizontal, BSSpacing.lg)
+                                .padding(.vertical, BSSpacing.lg)
                                 .allowsHitTesting(false)
                         }
 
@@ -138,6 +139,10 @@ struct FeedbackView: View {
                 )
                 try await service.submit(payload)
                 sendState = .sent
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                message = ""
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                dismiss()
             } catch let error as FeedbackSubmissionError {
                 sendState = .failed(error)
             } catch {

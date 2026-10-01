@@ -2,9 +2,9 @@ import XCTest
 @testable import BeforeShow
 
 final class AppReviewPromptTests: XCTestCase {
-    func testAddedShowReviewWaitsForHomeArrival() {
+    func testListeningReviewWaitsForPlaybackToSettle() {
         XCTAssertEqual(
-            AppReviewPromptPolicy.presentationDelayNanoseconds(for: .addedShow),
+            AppReviewPromptPolicy.presentationDelayNanoseconds(for: .listenedToSong),
             2_000_000_000
         )
     }

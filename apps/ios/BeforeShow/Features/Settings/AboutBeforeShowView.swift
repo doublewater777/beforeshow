@@ -11,75 +11,87 @@ struct AboutBeforeShowView: View {
     @State private var legalPage: BSInAppBrowserPage?
 
     var body: some View {
-        BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
-            BSSurfacePanel {
+        List {
+            Section {
                 VStack(spacing: BSSpacing.md) {
-                    Text("开场前")
-                        .font(.system(size: 44, weight: .light))
+                    Text(BSLocalization.text("开场前"))
+                        .font(.system(size: 38, weight: .light))
                         .tracking(BSFont.titleTracking)
                         .bsGradientText()
 
                     Text("BeforeShow")
                         .font(BSFont.caption)
                         .tracking(4)
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundColor(BSColor.Stage.dim)
 
-                   Text("开场之前，先进入状态")
-                       .font(BSFont.body)
-                       .foregroundColor(BSColor.textSecondary)
+                    Text(BSLocalization.text("开场之前，先进入状态"))
+                        .font(BSFont.V3.body)
+                        .foregroundColor(BSColor.Stage.muted)
 
                     Text(AppVersionInformation.current.fullCopy)
-                        .font(.subheadline)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .font(BSFont.V3.small)
+                        .foregroundColor(BSColor.Stage.dim)
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, BSSpacing.md)
+                .listRowBackground(BSColor.Stage.surface)
             }
 
-            SettingsGroup(title: BSLocalization.text("法律信息")) {
+            Section(header: Text(BSLocalization.text("法律信息"))) {
                 Button {
                     legalPage = BSInAppBrowserPage(url: localizedSiteURL(Self.privacyURL))
                 } label: {
-                    SettingsRowContent(
-                        iconName: "hand.raised.fill",
-                        title: BSLocalization.text("隐私政策"),
-                        subtitle: nil,
-                        value: nil,
-                        tint: BSColor.Stage.muted
-                    )
+                    HStack {
+                        Text(BSLocalization.text("隐私政策"))
+                            .foregroundColor(BSColor.Stage.foreground)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
                 }
-                .buttonStyle(SettingsPressButtonStyle())
-
-                SettingsDivider()
+                .buttonStyle(.plain)
+                .listRowBackground(BSColor.Stage.surface)
 
                 Button {
                     legalPage = BSInAppBrowserPage(url: localizedSiteURL(Self.termsURL))
                 } label: {
-                    SettingsRowContent(
-                        iconName: "doc.text.fill",
-                        title: BSLocalization.text("用户协议"),
-                        subtitle: nil,
-                        value: nil,
-                        tint: BSColor.Stage.muted
-                    )
+                    HStack {
+                        Text(BSLocalization.text("用户协议"))
+                            .foregroundColor(BSColor.Stage.foreground)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
                 }
-                .buttonStyle(SettingsPressButtonStyle())
-
-                SettingsDivider()
+                .buttonStyle(.plain)
+                .listRowBackground(BSColor.Stage.surface)
 
                 Button {
                     legalPage = BSInAppBrowserPage(url: Self.icpQueryURL)
                 } label: {
-                    SettingsRowContent(
-                        iconName: "checkmark.seal.fill",
-                        title: BSLocalization.text("ICP备案号"),
-                        subtitle: Self.icpFilingNumber,
-                        value: nil,
-                        tint: BSColor.Stage.muted
-                    )
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(BSLocalization.text("ICP备案号"))
+                                .foregroundColor(BSColor.Stage.foreground)
+                            Text(Self.icpFilingNumber)
+                                .font(BSFont.V3.small)
+                                .foregroundColor(BSColor.Stage.muted)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
                 }
-                .buttonStyle(SettingsPressButtonStyle())
+                .buttonStyle(.plain)
+                .listRowBackground(BSColor.Stage.surface)
             }
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(BSColor.Stage.background.ignoresSafeArea())
         .navigationTitle(BSLocalization.text("关于开场前"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $legalPage) { page in

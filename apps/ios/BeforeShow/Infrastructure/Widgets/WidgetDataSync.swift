@@ -48,6 +48,25 @@ enum WidgetDataSync {
         if contentChanged(from: previous, to: widgetSnapshot) {
             didStoreSnapshot = WidgetSnapshotStore.write(widgetSnapshot)
             if didStoreSnapshot {
+                let currentListening = WidgetListeningStore.read()
+                if currentListening?.showID != currentShow?.id {
+                    if let currentShow {
+                        let baselineListening = WidgetListeningSnapshot(
+                            showID: currentShow.id,
+                            showName: currentShow.name,
+                            artistName: currentShow.artists.first?.name,
+                            discTitle: nil,
+                            trackTitle: nil,
+                            coverImageURL: currentShow.coverImageURL,
+                            trackCount: nil,
+                            isPlaying: false,
+                            generatedAt: now
+                        )
+                        WidgetListeningStore.write(baselineListening)
+                    } else {
+                        WidgetListeningStore.write(nil)
+                    }
+                }
                 BeforeShowWidgetKind.reloadAllTimelines()
             }
         }

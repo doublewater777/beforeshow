@@ -36,6 +36,7 @@ struct BeforeShowApp: App {
             // instance is created. Preview playback then participates in the same
             // event-driven transport architecture as MusicKit.
             AVPlayer.isObservationEnabled = true
+            ListeningIntentBridge.handler = ListeningIntentHandler.shared
         }
 
         let isRunningHostedUnitTests = Self.isRunningHostedUnitTests
@@ -111,8 +112,11 @@ struct BeforeShowApp: App {
                     .environment(companionCoordinator)
                     .environment(\.locale, languageController.language.locale)
                     .onOpenURL { url in
-                        guard CompanionInviteWebLink.token(from: url) != nil || CompanionInviteWebLink.validShareURL(url) else { return }
-                        appDelegate.deliverCompanionInviteURL(url)
+                        if CompanionInviteWebLink.token(from: url) != nil || CompanionInviteWebLink.validShareURL(url) {
+                            appDelegate.deliverCompanionInviteURL(url)
+                        } else if url.scheme == "beforeshow", url.host == "listen" || url.host == "listening" {
+                            NotificationDeepLinkRouter.shared.route(to: NotificationDeepLink(showID: UUID(), destination: .listen))
+                        }
                     }
                     .onAppear {
                         appDelegate.companionCoordinator = companionCoordinator

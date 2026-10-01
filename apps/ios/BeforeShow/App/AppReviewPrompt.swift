@@ -4,7 +4,7 @@ import StoreKit
 import UIKit
 
 enum AppReviewPromptMoment: String {
-    case addedShow
+    case listenedToSong
     case settings
 }
 
@@ -14,10 +14,8 @@ enum AppReviewPromptPolicy {
     static let minimumInterval: TimeInterval = 90 * 24 * 60 * 60
 
     static func presentationDelayNanoseconds(for moment: AppReviewPromptMoment) -> UInt64 {
-        // Adding a show now hands off through a completion card and a home-arrival
-        // transition. Let that meaningful product feedback finish before StoreKit
-        // presents its review card.
-        moment == .addedShow ? 2_000_000_000 : 800_000_000
+        // Let playback settle before presenting the review card.
+        moment == .listenedToSong ? 2_000_000_000 : 800_000_000
     }
 
     static func shouldPrompt(
