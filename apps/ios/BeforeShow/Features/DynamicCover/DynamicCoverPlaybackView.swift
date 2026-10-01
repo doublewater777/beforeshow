@@ -12,11 +12,11 @@ enum DynamicCoverPlaybackPolicy {
 
     static func makeVideoOnlyItem(url: URL) async throws -> AVPlayerItem {
         let asset = AVURLAsset(url: url)
-        let duration = try await asset.load(.duration)
         let tracks = try await asset.load(.tracks)
         guard let sourceVideoTrack = tracks.first(where: { includes(mediaType: $0.mediaType) }) else {
             throw DynamicCoverPlaybackError.missingVideoTrack
         }
+        let sourceTimeRange = try await sourceVideoTrack.load(.timeRange)
 
         let composition = AVMutableComposition()
         guard let videoTrack = composition.addMutableTrack(
@@ -27,7 +27,7 @@ enum DynamicCoverPlaybackPolicy {
         }
 
         try videoTrack.insertTimeRange(
-            CMTimeRange(start: .zero, duration: duration),
+            sourceTimeRange,
             of: sourceVideoTrack,
             at: .zero
         )
