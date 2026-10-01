@@ -16,7 +16,6 @@
 		063DB117786CA0E6CD48E9C6 /* MemoryFragmentMediaCommit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06D2C46CB5E9A4CC648E2043 /* MemoryFragmentMediaCommit.swift */; };
 		0680B0F4DCCA5ED3CA8201A2 /* WidgetCoverCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */; };
 		07B1F339FC61072AEBA2FAB2 /* AppPersistenceReconciliation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB76310DD4929CC103E58C4 /* AppPersistenceReconciliation.swift */; };
-		07C0EA46C1F8E7885EDDFD19 /* FootprintsPreparationFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142D6FF534748E4505E129C6 /* FootprintsPreparationFingerprint.swift */; };
 		089E4AE16BAE63D0C224D429 /* CompanionInviteClipboardDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF0FCC8356474C5D5CD74BD /* CompanionInviteClipboardDetector.swift */; };
 		09365F14EBA065FD0A4F97AC /* AddShowPresentationPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5AE849B71AA6655E6FB971 /* AddShowPresentationPrimitives.swift */; };
 		0958413B1EBA7C70B5F3E713 /* ListeningMVPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4344E7B4300303BA6DDB2394 /* ListeningMVPTests.swift */; };
@@ -504,7 +503,6 @@
 		13694A1616B2AF261BE64211 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		13FA246F6A2CD9BBD76F12B3 /* HomeShowPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeShowPhase.swift; sourceTree = "<group>"; };
 		142853908D24C77A7BC20FDB /* BSDrawerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSDrawerComponents.swift; sourceTree = "<group>"; };
-		142D6FF534748E4505E129C6 /* FootprintsPreparationFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintsPreparationFingerprint.swift; sourceTree = "<group>"; };
 		14F49F8632C4C82CF888C346 /* BeforeShowTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BeforeShowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		15B2149AD9722950DA172340 /* CompanionPostShowImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionPostShowImportTests.swift; sourceTree = "<group>"; };
 		16BC0D41B89058E361123A3F /* CurrentShowSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowSelectionTests.swift; sourceTree = "<group>"; };
@@ -1558,7 +1556,6 @@
 				46B914672382EBB3B23E88BC /* FootprintShareActionSheet.swift */,
 				3287BAA3EF70D7C728E6FBBC /* FootprintShareComposerView.swift */,
 				0B5B2697611600BD7155E4AE /* FootprintShareExport.swift */,
-				142D6FF534748E4505E129C6 /* FootprintsPreparationFingerprint.swift */,
 				8E66BD12E8F6A0C36E091E67 /* FootprintsView.swift */,
 				2912C8E43F44D329789FDB1F /* FootprintVenueArchiveView.swift */,
 				93461C62DBE725E2DEEA196F /* FootprintYearArchiveView.swift */,
@@ -1979,7 +1976,6 @@
 				26BD1B5A23E23540D330EC18 /* FootprintShareExport.swift in Sources */,
 				144AC13E807C61EAA44EA068 /* FootprintVenueArchiveView.swift in Sources */,
 				BC35FE8EAD2F7DD7B4183757 /* FootprintYearArchiveView.swift in Sources */,
-				07C0EA46C1F8E7885EDDFD19 /* FootprintsPreparationFingerprint.swift in Sources */,
 				EDE34C99FF42E3E5801C4577 /* FootprintsView.swift in Sources */,
 				AC2101E8AC8E236A70DCBA9D /* FreeShowCapacityCoordinator.swift in Sources */,
 				4D1657A54EA9C52E0282DB2B /* FreeShowCapacityStateStore.swift in Sources */,

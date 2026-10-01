@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 // MARK: - Footprint Archive Domain
 
@@ -87,7 +88,12 @@ enum FootprintEmptyStateCopy {
 struct FootprintDetailDestination: Identifiable, Hashable {
     let show: Show
 
-    var id: UUID { show.id }
+    let id: PersistentIdentifier
+
+    init(show: Show) {
+        self.show = show
+        self.id = show.persistentModelID
+    }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 
