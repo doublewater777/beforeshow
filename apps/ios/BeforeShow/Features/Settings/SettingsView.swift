@@ -421,7 +421,6 @@ private struct NotificationSettingsRow: View {
     private func reconcilePortfolioAfterAuthorizationChange() async {
         guard authorizationState == .authorized || authorizationState == .provisional else { return }
         await LocalNotificationCenter.shared.reconcilePortfolio(
-            reason: .foreground,
             in: ModelContext(modelContext.container)
         )
     }

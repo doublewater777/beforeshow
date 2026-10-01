@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeCountdownLockup: View {
     let show: Show
+    let snapshot: HomeHeroSnapshot
     var onEndShow: (() -> Void)? = nil
     var onCompanion: (() -> Void)? = nil
     var onMemoryFragments: (() -> Void)? = nil
@@ -19,12 +20,8 @@ struct HomeCountdownLockup: View {
     @ScaledMetric(relativeTo: .title) private var clockNumber: CGFloat = 64
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let timeState = CurrentShowTimeState(show: show, now: context.date)
-            let phase = HomeShowPhase(timeState: timeState, now: context.date)
-            lockup(phase: phase, timeState: timeState, now: context.date)
-        }
-        .dynamicTypeSize(.large ... .accessibility2)
+        lockup(phase: snapshot.phase, timeState: snapshot.timeState, now: snapshot.now)
+            .dynamicTypeSize(.large ... .accessibility2)
     }
 
     @ViewBuilder
@@ -93,7 +90,7 @@ struct HomeCountdownLockup: View {
             }
             .padding(.top, 10)
 
-            if let action = availablePrimaryAction(phase: phase, timeState: timeState, now: now) {
+            if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
                 primaryActionButton(action)
             }
         }
@@ -404,14 +401,11 @@ struct HomeCountdownLockup: View {
 
     private func availablePrimaryAction(
         phase: HomeShowPhase,
-        timeState: CurrentShowTimeState,
-        now: Date
+        timeState: CurrentShowTimeState
     ) -> PrimaryAction? {
         Self.primaryAction(
             phase: phase,
             timeState: timeState,
-            now: now,
-            showStart: CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar()),
             hasConfirmedEnd: show.endedAt != nil,
             hasEndHandler: onEndShow != nil
         )
@@ -420,8 +414,6 @@ struct HomeCountdownLockup: View {
     nonisolated static func primaryAction(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
-        now: Date,
-        showStart: Date,
         hasConfirmedEnd: Bool,
         hasEndHandler: Bool
     ) -> PrimaryAction? {
@@ -430,10 +422,7 @@ struct HomeCountdownLockup: View {
         case .pre:
             return nil
         case .live:
-            if OpeningMemoryWindow.isActive(now: now, showStart: showStart, isLive: true) {
-                return .memoryCreate
-            }
-            return hasEndHandler ? .end(live: true) : nil
+            return .memoryCreate
         case .ended:
             if timeState.kind == .postShow || timeState.kind == .ended {
                 return hasEndHandler ? .end(live: false) : nil
@@ -501,8 +490,6 @@ struct HomeCountdownLockup: View {
         guard let action = primaryAction(
             phase: phase,
             timeState: timeState,
-            now: now,
-            showStart: showStart,
             hasConfirmedEnd: hasConfirmedEnd,
             hasEndHandler: hasEndHandler
         ) else { return nil }

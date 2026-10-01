@@ -41,7 +41,6 @@ enum CurrentShowQuickAction: Hashable {
     /// `embedsRouteInLocation` 为真时路线收进倒计时地点,不再占一格。
     static func actions(
         for phase: HomeShowPhase,
-        inOpeningMemoryWindow: Bool = false,
         canRecordEnd: Bool = true,
         embedsRouteInLocation: Bool = false,
         isPostShowRetention: Bool = false,
@@ -52,15 +51,11 @@ enum CurrentShowQuickAction: Hashable {
         case .pre:
             actions = [.route, .ticket, .timetable, .companion, .memoryFragments]
         case .live:
-            if inOpeningMemoryWindow {
-                var live: [Self] = [.companion, .memoryFragments, .route, .ticket, .timetable]
-                if canRecordEnd {
-                    live.insert(.endShow, at: 0)
-                }
-                actions = live
-            } else {
-                actions = [.companion, .memoryFragments, .route, .ticket, .timetable]
+            var live: [Self] = [.companion, .memoryFragments, .route, .ticket, .timetable]
+            if canRecordEnd {
+                live.insert(.endShow, at: 0)
             }
+            actions = live
         case .ended:
             if isPostShowRetention {
                 actions = [

@@ -295,7 +295,6 @@ struct CurrentShowHomeView: View {
     @MainActor
     private func reconcileNotificationPortfolio() async {
         await LocalNotificationCenter.shared.reconcilePortfolio(
-            reason: .foreground,
             in: ModelContext(modelContext.container)
         )
     }

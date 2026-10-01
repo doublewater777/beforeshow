@@ -11,10 +11,7 @@ extension ScheduledShowNotification {
     }
 
     var requestIdentifier: String {
-        if isBackfill {
-            return "\(showID.uuidString).backfill.\(milestone.rawValue)"
-        }
-        return "\(showID.uuidString).\(milestone.rawValue)"
+        "\(showID.uuidString).\(milestone.rawValue)"
     }
 
     func makeNotificationRequest() -> UNNotificationRequest {
@@ -33,7 +30,7 @@ extension ScheduledShowNotification {
             // 其余一律普通横幅：弹横幅、亮屏、进通知中心，但不带声音。
             content.sound = nil
             content.interruptionLevel = .active
-            content.relevanceScore = isBackfill ? 0.7 : 0.5
+            content.relevanceScore = 0.5
         }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

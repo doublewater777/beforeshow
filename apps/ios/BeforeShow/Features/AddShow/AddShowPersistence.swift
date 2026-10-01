@@ -64,8 +64,7 @@ enum AddShowSaveOutcome: String, Equatable {
 
 struct AddShowPersistenceResult {
     let outcome: AddShowSaveOutcome
-    /// The state carries permission history plus a transient just-added backfill
-    /// candidate. It is no longer a notification focus.
+    /// Permission history for a show that can still own future notification nodes.
     let notificationState: NotificationSchedulingState?
 }
 
@@ -119,10 +118,7 @@ enum AddShowPersistenceCoordinator {
             }
 
             // A confirmed ended import can still own a future after-show reminder.
-            // Stage it as a one-shot portfolio backfill candidate independently of
-            // whether it bootstrapped an otherwise-empty Current Show selection.
             let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
-            state.stageBackfillCandidate(showID: show.id)
             try modelContext.save()
             return AddShowPersistenceResult(
                 outcome: .footprint,
@@ -136,9 +132,7 @@ enum AddShowPersistenceCoordinator {
             }
 
             // Every newly added upcoming/live show gets its own notification nodes.
-            // `stagedBackfillShowID` is only a crash-safe hand-off to the portfolio reconciler.
             let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
-            state.stageBackfillCandidate(showID: show.id)
             try modelContext.save()
 
             return AddShowPersistenceResult(

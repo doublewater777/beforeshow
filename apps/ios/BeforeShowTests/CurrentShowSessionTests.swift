@@ -162,7 +162,7 @@ final class CurrentShowSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testMigrationRunnerCanonicalizesSingletonsAndMarksPrePortfolioShowsMinted() throws {
+    func testMigrationRunnerCanonicalizesSingletonsAndPreservesPermissionHistory() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
         let first = try makeShow(name: "旧现场一", day: 16)
@@ -178,14 +178,11 @@ final class CurrentShowSessionTests: XCTestCase {
             updatedAt: Date(timeIntervalSince1970: 20)
         )
         let state = NotificationSchedulingState(
-            stagedBackfillShowID: first.id,
             hasRequestedPermissionAfterFirstShow: false,
             updatedAt: Date(timeIntervalSince1970: 30)
         )
         let duplicateState = NotificationSchedulingState(
-            stagedBackfillShowID: second.id,
             hasRequestedPermissionAfterFirstShow: true,
-            backfillMintedShowIDs: [first.id],
             updatedAt: Date(timeIntervalSince1970: 20)
         )
         context.insert(first)
@@ -207,10 +204,7 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertEqual(selections.count, 1)
         XCTAssertEqual(storedSelection.selectedShowID, second.id)
         XCTAssertEqual(states.count, 1)
-        XCTAssertEqual(storedState.portfolioMigrationVersion, 1)
-        XCTAssertNil(storedState.stagedBackfillShowID)
         XCTAssertTrue(storedState.hasRequestedPermissionAfterFirstShow)
-        XCTAssertEqual(Set(storedState.backfillMintedShowIDs ?? []), Set([first.id, second.id]))
     }
 
     @MainActor
@@ -219,7 +213,7 @@ final class CurrentShowSessionTests: XCTestCase {
         let context = container.mainContext
         let show = try makeShow(name: "容器现场", day: 20)
         let selection = CurrentShowSelection(selectedShowID: show.id)
-        let state = NotificationSchedulingState(backfillMintedShowIDs: [show.id])
+        let state = NotificationSchedulingState()
         let record = ShowNotificationScheduleRecord(
             showID: show.id,
             milestone: .showDay,
@@ -247,8 +241,6 @@ final class CurrentShowSessionTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: [second, first],
             existingRecords: [],
-            schedulingState: nil,
-            reason: .startup,
             now: portfolioNow
         )
 
@@ -269,8 +261,6 @@ final class CurrentShowSessionTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: [valid, canceled, historical, postponed],
             existingRecords: [],
-            schedulingState: nil,
-            reason: .foreground,
             now: makeDate(year: 2026, month: 6, day: 1, hour: 10)
         )
 
@@ -286,8 +276,6 @@ final class CurrentShowSessionTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [],
-            schedulingState: nil,
-            reason: .startup,
             now: portfolioNow
         )
 
@@ -296,7 +284,7 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertGreaterThan(Set(plan.scheduledRequests.map(\.showID)).count, 1)
     }
 
-    func testDeferredBackfillRecordSurvivesPortfolioCapacity() throws {
+    func testExistingBackfillIsRemovedFromPortfolio() throws {
         let portfolioNow = makeDate(year: 2026, month: 6, day: 1, hour: 10)
         let shows = try (20...29).map { day in
             try makeShow(name: "第\(day)场", day: day)
@@ -314,47 +302,71 @@ final class CurrentShowSessionTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [deferredBackfill],
-            schedulingState: nil,
-            reason: .foreground,
             now: portfolioNow
         )
 
         XCTAssertFalse(
             plan.scheduledRequests.contains { $0.requestIdentifier == deferredBackfill.requestIdentifier }
         )
-        XCTAssertTrue(
-            plan.retainedBackfillRequests.contains { $0.requestIdentifier == deferredBackfill.requestIdentifier }
-        )
-        XCTAssertTrue(
+        XCTAssertFalse(
             plan.modelRequests.contains { $0.requestIdentifier == deferredBackfill.requestIdentifier }
         )
     }
 
-    func testAddedShowMintsBackfillOnlyOnce() throws {
-        let show = try makeShow(name: "临近添加", day: 20)
-        let state = NotificationSchedulingState()
+    func testShowDayReminderDoesNotMoveOrRepeatAcrossReconciles() throws {
+        let start = makeDate(year: 2026, month: 6, day: 15, hour: 12)
+        let show = try Show(name: "临时补票", date: start, startTime: start)
         let planner = NotificationPortfolioPlanner(calendar: calendar)
-
         let first = planner.plan(
-            shows: [show],
-            existingRecords: [],
-            schedulingState: state,
-            reason: .showAddedCandidate(show.id),
-            now: now
+            shows: [show], existingRecords: [],
+            now: makeDate(year: 2026, month: 6, day: 15, hour: 10)
         )
-        XCTAssertFalse(first.retainedBackfillRequests.isEmpty)
-        XCTAssertEqual(first.backfillShowIDsToMarkMinted, [show.id])
+        let reminder = try XCTUnwrap(first.scheduledRequests.first { $0.milestone == .showDay })
+        let fireDate = makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: 10)
+        XCTAssertEqual(reminder.fireDate, fireDate)
+        let record = ShowNotificationScheduleRecord(showID: show.id, milestone: .showDay, fireDate: fireDate)
+        record.apply(reminder)
 
-        state.markBackfillMinted(showID: show.id)
-        let second = planner.plan(
-            shows: [show],
-            existingRecords: [],
-            schedulingState: state,
-            reason: .showAddedCandidate(show.id),
-            now: now
+        for minute in [5, 20, 25] {
+            let plan = planner.plan(
+                shows: [show], existingRecords: [record],
+                now: makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: minute)
+            )
+            XCTAssertEqual(
+                plan.scheduledRequests.first { $0.milestone == .showDay }?.fireDate,
+                minute < 10 ? fireDate : nil
+            )
+            // Reconciliation must keep the due record until opening, otherwise the next pass remints it.
+            XCTAssertEqual(plan.modelRequests.first { $0.milestone == .showDay }?.fireDate, fireDate)
+        }
+    }
+
+    func testChangingShowStartReplacesTheAnchoredShowDayReminder() throws {
+        let start = makeDate(year: 2026, month: 6, day: 15, hour: 12)
+        let show = try Show(name: "修改开场时间", date: start, startTime: start)
+        let planner = NotificationPortfolioPlanner(calendar: calendar)
+        let first = planner.plan(
+            shows: [show], existingRecords: [],
+            now: makeDate(year: 2026, month: 6, day: 15, hour: 10)
         )
-        XCTAssertTrue(second.retainedBackfillRequests.isEmpty)
-        XCTAssertTrue(second.backfillShowIDsToMarkMinted.isEmpty)
+        let reminder = try XCTUnwrap(first.scheduledRequests.first { $0.milestone == .showDay })
+        let record = ShowNotificationScheduleRecord(showID: show.id, milestone: .showDay, fireDate: reminder.fireDate)
+        record.apply(reminder)
+        show.startTime = makeDate(year: 2026, month: 6, day: 15, hour: 13)
+
+        let changed = planner.plan(
+            shows: [show], existingRecords: [record],
+            now: makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: 20)
+        )
+        let replacement = try XCTUnwrap(changed.scheduledRequests.first { $0.milestone == .showDay })
+        let fireDate = makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: 30)
+        XCTAssertEqual(replacement.fireDate, fireDate)
+        record.apply(replacement)
+        let refreshed = planner.plan(
+            shows: [show], existingRecords: [record],
+            now: makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: 25)
+        )
+        XCTAssertEqual(refreshed.scheduledRequests.first { $0.milestone == .showDay }?.fireDate, fireDate)
     }
 
     func testPortfolioRecordNormalizationPrefersRecordMatchingDesiredRequest() throws {

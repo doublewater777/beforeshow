@@ -179,7 +179,7 @@ final class FootprintArchiveTests: XCTestCase {
         ]))
     }
 
-    func testUnifiedEndedAddPreservesCurrentSelectionAndNotificationFocus() throws {
+    func testUnifiedEndedAddPreservesCurrentSelectionAndPermissionHistory() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -187,7 +187,7 @@ final class FootprintArchiveTests: XCTestCase {
         let context = container.mainContext
         let current = try makeShow("未来现场", year: 2027, artist: "未来艺人", city: "上海", venue: "MAO")
         let selection = CurrentShowSelection(selectedShowID: current.id)
-        let notificationState = NotificationSchedulingState(stagedBackfillShowID: current.id)
+        let notificationState = NotificationSchedulingState(hasRequestedPermissionAfterFirstShow: true)
         context.insert(current)
         context.insert(selection)
         context.insert(notificationState)
@@ -206,7 +206,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(result.outcome, .footprint)
         XCTAssertNil(result.notificationState)
         XCTAssertEqual(selection.selectedShowID, current.id)
-        XCTAssertEqual(notificationState.stagedBackfillShowID, current.id)
+        XCTAssertTrue(notificationState.hasRequestedPermissionAfterFirstShow)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
@@ -318,8 +318,6 @@ final class FootprintArchiveTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [],
-            schedulingState: result.notificationState,
-            reason: .showAddedCandidate(ended.id),
             now: now
         )
         XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == current.id })
@@ -376,8 +374,6 @@ final class FootprintArchiveTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [],
-            schedulingState: result.notificationState,
-            reason: .showAddedCandidate(farther.id),
             now: now
         )
         XCTAssertEqual(Set(plan.scheduledRequests.map(\.showID)), Set([current.id, farther.id]))
@@ -483,7 +479,7 @@ final class FootprintArchiveTests: XCTestCase {
         )
 
         XCTAssertEqual(result.outcome, .future)
-        XCTAssertEqual(result.notificationState?.stagedBackfillShowID, future.id)
+        XCTAssertNotNil(result.notificationState)
         let selections = try context.fetch(FetchDescriptor<CurrentShowSelection>())
         XCTAssertEqual(selections.first?.selectedShowID, future.id)
     }

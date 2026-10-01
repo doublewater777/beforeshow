@@ -912,8 +912,7 @@ struct AddShowFlowView: View {
             onSaved?(show.id)
 
             if result.notificationState != nil {
-                await LocalNotificationCenter.shared.reconcileAfterShowAdded(
-                    show,
+                await LocalNotificationCenter.shared.reconcilePortfolio(
                     in: modelContext
                 )
             }

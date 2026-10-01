@@ -73,15 +73,6 @@ extension ShowNotificationMilestone {
         self == .showDay
     }
 
-    var isAnticipation: Bool {
-        switch self {
-        case .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .oneDayBefore:
-            return true
-        case .showDayMorning, .showDay, .openingMemory, .afterShow:
-            return false
-        }
-    }
-
     fileprivate var portfolioPriority: Int {
         switch self {
         case .showDay: return 0
@@ -163,28 +154,20 @@ struct ScheduledShowNotification: Equatable {
     let fireDate: Date
     let title: String
     let body: String
-    var isBackfill: Bool = false
-}
-
-enum NotificationReconcileReason: Equatable {
-    case startup
-    case foreground
-    case mutation
-    case showAddedCandidate(UUID)
+    var showStartTime: Date? = nil
 }
 
 struct NotificationPortfolioPlan {
     static let maximumScheduledRequests = 56
 
     let scheduledRequests: [ScheduledShowNotification]
-    let retainedBackfillRequests: [ScheduledShowNotification]
-    let backfillShowIDsToMarkMinted: [UUID]
+    let retainedShowDayRequests: [ScheduledShowNotification]
 
     var modelRequests: [ScheduledShowNotification] {
         var byIdentifier = Dictionary(
             uniqueKeysWithValues: scheduledRequests.map { ($0.requestIdentifier, $0) }
         )
-        for request in retainedBackfillRequests {
+        for request in retainedShowDayRequests where byIdentifier[request.requestIdentifier] == nil {
             byIdentifier[request.requestIdentifier] = request
         }
         return Array(byIdentifier.values)
@@ -201,59 +184,48 @@ struct NotificationPortfolioPlanner {
     func plan(
         shows: [Show],
         existingRecords: [ShowNotificationScheduleRecord],
-        schedulingState: NotificationSchedulingState?,
-        reason: NotificationReconcileReason,
         now: Date = Date()
     ) -> NotificationPortfolioPlan {
         let eligibleShows = shows.filter(Self.isEligibleForPortfolio)
-        let liveShowIDs = Set(eligibleShows.map(\.id))
 
         var naturalRequests: [ScheduledShowNotification] = []
+        var retainedShowDayRequests: [ScheduledShowNotification] = []
         for show in eligibleShows {
             if show.endedAt != nil {
                 if let afterShow = scheduler.afterShowRequest(for: show, now: now) {
                     naturalRequests.append(afterShow)
                 }
             } else {
-                naturalRequests.append(contentsOf: scheduler.futureRequests(for: show, now: now))
-            }
-        }
-
-        var backfillRequests = existingRecords
-            .filter {
-                $0.isBackfill == true
-                    && $0.fireDate > now
-                    && liveShowIDs.contains($0.showID)
-            }
-            .map {
-                ScheduledShowNotification(
-                    showID: $0.showID,
-                    milestone: $0.milestone,
-                    fireDate: $0.fireDate,
-                    title: $0.title ?? "",
-                    body: $0.body ?? "",
-                    isBackfill: true
+                let start = CurrentShowTimeState(show: show, calendar: scheduler.calendar, now: now).effectiveStartTime
+                let previous = existingRecords.filter {
+                    $0.showID == show.id && $0.milestone == .showDay && $0.isBackfill != true
+                        && $0.showStartTime != nil && $0.showStartTime == start
+                }.min { $0.fireDate < $1.fireDate }
+                let requests = scheduler.futureRequests(
+                    for: show, now: now, scheduledShowDayFireDate: previous?.fireDate
                 )
+                naturalRequests.append(contentsOf: requests)
+                if let reminder = requests.first(where: { $0.milestone == .showDay }) {
+                    retainedShowDayRequests.append(reminder)
+                } else if let previous, let start, now < start {
+                    // Keep a due reminder as a completion marker until opening so another
+                    // foreground reconciliation cannot mint a fresh now + 10 minute reminder.
+                    retainedShowDayRequests.append(ScheduledShowNotification(
+                        showID: show.id, milestone: .showDay, fireDate: previous.fireDate,
+                        title: previous.title ?? "", body: previous.body ?? "", showStartTime: start
+                    ))
+                }
             }
-
-        var backfillShowIDsToMarkMinted: [UUID] = []
-        if case .showAddedCandidate(let showID) = reason,
-           let show = eligibleShows.first(where: { $0.id == showID }),
-           schedulingState?.hasMintedBackfill(for: showID) != true {
-            backfillRequests.append(contentsOf: scheduler.backfillRequests(for: show, now: now))
-            backfillShowIDsToMarkMinted.append(showID)
         }
 
         naturalRequests = Self.deduplicated(naturalRequests)
-        backfillRequests = Self.deduplicated(backfillRequests)
 
-        let allCandidates = Self.sortedForScheduling(naturalRequests + backfillRequests)
+        let allCandidates = Self.sortedForScheduling(naturalRequests)
         let scheduled = Array(allCandidates.prefix(NotificationPortfolioPlan.maximumScheduledRequests))
 
         return NotificationPortfolioPlan(
             scheduledRequests: scheduled,
-            retainedBackfillRequests: backfillRequests,
-            backfillShowIDsToMarkMinted: backfillShowIDsToMarkMinted
+            retainedShowDayRequests: retainedShowDayRequests
         )
     }
 
@@ -294,108 +266,21 @@ struct NotificationPortfolioPlanner {
 @Model
 final class NotificationSchedulingState {
     var id: UUID
-    @Attribute(originalName: "focusedShowID")
-    var stagedBackfillShowID: UUID?
     var hasRequestedPermissionAfterFirstShow: Bool
-    var backfillMintedShowIDs: [UUID]?
-    var portfolioMigrationVersion: Int?
     var updatedAt: Date
 
     init(
         id: UUID = UUID(),
-        stagedBackfillShowID: UUID? = nil,
         hasRequestedPermissionAfterFirstShow: Bool = false,
-        backfillMintedShowIDs: [UUID]? = nil,
-        portfolioMigrationVersion: Int? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
-        self.stagedBackfillShowID = stagedBackfillShowID
         self.hasRequestedPermissionAfterFirstShow = hasRequestedPermissionAfterFirstShow
-        self.backfillMintedShowIDs = backfillMintedShowIDs
-        self.portfolioMigrationVersion = portfolioMigrationVersion
         self.updatedAt = updatedAt
     }
 
     func recordPermissionRequest() {
         hasRequestedPermissionAfterFirstShow = true
         updatedAt = Date()
-    }
-
-    func stageBackfillCandidate(showID: UUID) {
-        stagedBackfillShowID = showID
-        updatedAt = Date()
-    }
-
-    func clearStagedBackfillCandidate() {
-        stagedBackfillShowID = nil
-        updatedAt = Date()
-    }
-
-    func hasMintedBackfill(for showID: UUID) -> Bool {
-        backfillMintedShowIDs?.contains(showID) ?? false
-    }
-
-    func markBackfillMinted(showID: UUID) {
-        var ids = backfillMintedShowIDs ?? []
-        if !ids.contains(showID) {
-            ids.append(showID)
-            backfillMintedShowIDs = ids
-        }
-        updatedAt = Date()
-    }
-}
-
-@Model
-final class ShowNotificationScheduleRecord {
-    var id: UUID
-    var showID: UUID
-    var milestoneRawValue: String
-    var fireDate: Date
-    var isBackfill: Bool?
-    var title: String?
-    var body: String?
-    var createdAt: Date
-
-    var milestone: ShowNotificationMilestone {
-        ShowNotificationMilestone(rawValue: milestoneRawValue) ?? .showDay
-    }
-
-    init(
-        id: UUID = UUID(),
-        showID: UUID,
-        milestone: ShowNotificationMilestone,
-        fireDate: Date,
-        isBackfill: Bool = false,
-        title: String = "",
-        body: String = "",
-        createdAt: Date = Date()
-    ) {
-        self.id = id
-        self.showID = showID
-        self.milestoneRawValue = milestone.rawValue
-        self.fireDate = fireDate
-        self.isBackfill = isBackfill
-        self.title = title
-        self.body = body
-        self.createdAt = createdAt
-    }
-
-    func matches(_ request: ScheduledShowNotification) -> Bool {
-        showID == request.showID
-            && milestoneRawValue == request.milestone.rawValue
-            && fireDate == request.fireDate
-            && (isBackfill == true) == request.isBackfill
-            && (title ?? "") == request.title
-            && (body ?? "") == request.body
-    }
-
-    func apply(_ request: ScheduledShowNotification) {
-        showID = request.showID
-        milestoneRawValue = request.milestone.rawValue
-        fireDate = request.fireDate
-        isBackfill = request.isBackfill
-        title = request.title
-        body = request.body
     }
 }

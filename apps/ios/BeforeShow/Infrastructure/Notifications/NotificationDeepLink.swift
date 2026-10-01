@@ -7,12 +7,14 @@ enum NotificationUserInfoKey {
     static let destination = "destination"
 }
 
-/// Payload carried in each notification's `userInfo`. Tapping opens the target
-/// show's destination without changing the user's durable Current Show.
+/// Payload carried in each notification's `userInfo`. Tapping opens a tab or the
+/// target show's memory without changing the user's durable Current Show.
 struct NotificationDeepLink: Equatable, Sendable {
     enum Destination: String, Codable, Equatable, CaseIterable, Sendable {
-        /// 普通等待期 / 临场通知只负责把 App 带回「当前」，不额外打开详情页。
+        /// 当天 / 临场通知只负责把 App 带回「当前」，不额外打开详情页。
         case home
+        /// 邀请听歌的期待期通知打开「听」，不改变当前现场。
+        case listen
         /// 散场后那条通知点进来直接开记忆碎片，否则回首页会落空。
         case memoryFragments
         /// 开场记忆通知点进来直接开统一记忆编辑器。
@@ -20,7 +22,7 @@ struct NotificationDeepLink: Equatable, Sendable {
 
         var requiresFeaturePresentation: Bool {
             switch self {
-            case .home:
+            case .home, .listen:
                 return false
             case .memoryFragments, .memoryCreate:
                 return true
@@ -66,8 +68,9 @@ extension ShowNotificationMilestone {
             return .memoryFragments
         case .openingMemory:
             return .memoryCreate
-        case .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore,
-             .oneDayBefore, .showDayMorning, .showDay:
+        case .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .oneDayBefore:
+            return .listen
+        case .showDayMorning, .showDay:
             return .home
         }
     }

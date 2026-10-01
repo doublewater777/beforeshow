@@ -73,8 +73,8 @@ struct CurrentShowSession {
 
 // MARK: - Notification-owned Current Show feature root
 
-/// Owns notification navigation for the Current tab. Ordinary notifications only
-/// foreground Current; explicit memory destinations may present a feature sheet.
+/// Owns Current and memory notification destinations. Listening tab routes belong
+/// to the app root; explicit memory destinations may present a feature sheet.
 /// Notification routing never mutates the user's durable CurrentShowSelection.
 struct CurrentShowFeatureRootView: View {
     var isPlaybackActive = true
@@ -102,7 +102,7 @@ struct CurrentShowFeatureRootView: View {
         .sheet(item: $notificationPresentation, onDismiss: notificationPresentationDidDismiss) { presentation in
             if let show = shows.first(where: { $0.id == presentation.showID }) {
                 switch presentation.destination {
-                case .home:
+                case .home, .listen:
                     EmptyView()
                 case .memoryFragments:
                     MemoryFragmentsSheet(show: show, pendingCreate: presentation.pendingCreate)
@@ -123,7 +123,8 @@ struct CurrentShowFeatureRootView: View {
 
     private func consumeNotificationRouteIfNeeded() {
         guard notificationPresentation == nil,
-              let deepLink = notificationRouter.featureRootDeepLink else {
+              let deepLink = notificationRouter.featureRootDeepLink,
+              deepLink.destination != .listen else {
             return
         }
         guard shows.contains(where: { $0.id == deepLink.showID }) else {

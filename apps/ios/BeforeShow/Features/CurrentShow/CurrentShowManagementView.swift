@@ -81,7 +81,9 @@ struct CurrentShowManagementSection: View {
     }
 
     var body: some View {
-        homeContent(now: Date())
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            homeContent(now: context.date)
+        }
         #if DEBUG
         .task {
             if ProcessInfo.processInfo.arguments.contains("--open-memory-fragments") {
@@ -318,6 +320,7 @@ struct CurrentShowManagementSection: View {
 
                     HomeCountdownLockup(
                         show: show,
+                        snapshot: snapshot,
                         onEndShow: canRecordEnd
                             ? { presentedSheet = .endConfirmation }
                             : nil,
@@ -342,14 +345,6 @@ struct CurrentShowManagementSection: View {
                     quickActionRow(
                         CurrentShowQuickAction.actions(
                             for: phase,
-                            inOpeningMemoryWindow: OpeningMemoryWindow.isActive(
-                                now: now,
-                                showStart: CurrentShowTimeState.effectiveStartTime(
-                                    for: show,
-                                    calendar: show.timingCalendar()
-                                ),
-                                isLive: phase == .live
-                            ),
                             canRecordEnd: canRecordEnd,
                             embedsRouteInLocation: embedsRouteInLocation,
                             isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
@@ -520,7 +515,7 @@ struct CurrentShowManagementSection: View {
         notificationRouter.consume()
 
         switch deepLink.destination {
-        case .home:
+        case .home, .listen:
             break
         case .memoryFragments:
             pendingMemoryCreate = nil

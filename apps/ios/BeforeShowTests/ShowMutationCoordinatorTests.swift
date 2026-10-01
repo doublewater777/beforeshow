@@ -347,11 +347,11 @@ final class ShowMutationCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(result.outcome, .future)
         XCTAssertEqual(selection.selectedShowID, current.id)
-        XCTAssertEqual(result.notificationState?.stagedBackfillShowID, added.id)
+        XCTAssertNotNil(result.notificationState)
     }
 
     @MainActor
-    func testFirstUpcomingShowBecomesCurrentAndStagesOnlyItsBackfillHandoff() throws {
+    func testFirstUpcomingShowBecomesCurrentAndCanScheduleNotifications() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
@@ -371,7 +371,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
         XCTAssertEqual(selection.selectedShowID, show.id)
-        XCTAssertEqual(result.notificationState?.stagedBackfillShowID, show.id)
+        XCTAssertNotNil(result.notificationState)
         XCTAssertEqual(result.outcome, .future)
     }
 

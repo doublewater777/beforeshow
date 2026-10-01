@@ -19,15 +19,6 @@ enum NotificationSchedulingStateStore {
             canonical.hasRequestedPermissionAfterFirstShow = states.contains {
                 $0.hasRequestedPermissionAfterFirstShow
             }
-            if canonical.stagedBackfillShowID == nil {
-                canonical.stagedBackfillShowID = states.compactMap(\.stagedBackfillShowID).first
-            }
-            canonical.backfillMintedShowIDs = Array(
-                Set(states.flatMap { $0.backfillMintedShowIDs ?? [] })
-            )
-            canonical.portfolioMigrationVersion = states
-                .compactMap(\.portfolioMigrationVersion)
-                .max()
             for duplicate in states.dropFirst() {
                 modelContext.delete(duplicate)
             }
@@ -110,31 +101,16 @@ final class LocalNotificationCenter {
     /// the user's durable Current Show focus.
     @discardableResult
     func reconcilePortfolio(
-        reason: NotificationReconcileReason,
         in context: ModelContext,
         now: Date = Date()
     ) async -> Bool {
         do {
             let shows = try context.fetch(FetchDescriptor<Show>())
             let records = try context.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())
-            let schedulingState = try NotificationSchedulingStateStore.canonicalize(in: context)
-
-            // A staged show means Add Show saved successfully but the app exited
-            // before its one-shot backfill hand-off reconciled.
-            let effectiveReason: NotificationReconcileReason
-            if case .showAddedCandidate = reason {
-                effectiveReason = reason
-            } else if let stagedShowID = schedulingState.stagedBackfillShowID {
-                effectiveReason = .showAddedCandidate(stagedShowID)
-            } else {
-                effectiveReason = reason
-            }
 
             let plan = planner.plan(
                 shows: shows,
                 existingRecords: records,
-                schedulingState: schedulingState,
-                reason: effectiveReason,
                 now: now
             )
             let normalization = NotificationPortfolioRecordStore.normalize(
@@ -191,8 +167,8 @@ final class LocalNotificationCenter {
                 }
             }
 
-            // Retained backfills outside the 56-request system portfolio stay in
-            // SwiftData with their minted timing/copy and can be scheduled later.
+            // Keep deferred requests and due show-day markers in SwiftData, but only
+            // the active 56-request portfolio belongs in the system pending queue.
             let deferredIdentifiers = modelIdentifiers.subtracting(scheduledIdentifiers)
             let deferredPending = deferredIdentifiers.intersection(pendingIdentifiers)
             if !deferredPending.isEmpty {
@@ -209,33 +185,12 @@ final class LocalNotificationCenter {
                 }
             }
 
-            for showID in plan.backfillShowIDsToMarkMinted {
-                schedulingState.markBackfillMinted(showID: showID)
-            }
-            schedulingState.clearStagedBackfillCandidate()
-
             try context.save()
             return didScheduleEveryRequest
         } catch {
             context.rollback()
             return false
         }
-    }
-
-    /// Reconcile immediately after a newly added show is persisted so that only this
-    /// hand-off may mint anticipation backfill. Natural requests still come from the
-    /// full multi-show portfolio.
-    @discardableResult
-    func reconcileAfterShowAdded(
-        _ show: Show,
-        in context: ModelContext,
-        now: Date = Date()
-    ) async -> Bool {
-        await reconcilePortfolio(
-            reason: .showAddedCandidate(show.id),
-            in: context,
-            now: now
-        )
     }
 
     private static func makeRecord(
@@ -245,9 +200,9 @@ final class LocalNotificationCenter {
             showID: request.showID,
             milestone: request.milestone,
             fireDate: request.fireDate,
-            isBackfill: request.isBackfill,
             title: request.title,
-            body: request.body
+            body: request.body,
+            showStartTime: request.showStartTime
         )
     }
 

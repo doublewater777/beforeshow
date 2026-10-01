@@ -79,7 +79,6 @@ struct CurrentShowPostCommitEffects {
     static let live = CurrentShowPostCommitEffects(
         reconcileNotifications: { modelContext in
             await LocalNotificationCenter.shared.reconcilePortfolio(
-                reason: .mutation,
                 in: modelContext
             )
         },

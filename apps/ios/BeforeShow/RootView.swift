@@ -57,8 +57,7 @@ struct RootView: View {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
         }
         .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
-            guard deepLink != nil else { return }
-            selectedTab = .current
+            routeNotificationTab(deepLink)
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active, isShowingOnboarding, invitedSnapshot == nil else { return }
@@ -79,9 +78,7 @@ struct RootView: View {
                 await companionCoordinator.refreshAllLinkedShows(in: modelContext)
             }
             resolveOnboardingRouteIfNeeded(hasShowsOverride: persistedShowExists())
-            if notificationRouter.featureRootDeepLink != nil {
-                selectedTab = .current
-            }
+            routeNotificationTab(notificationRouter.featureRootDeepLink)
         }
         #if DEBUG
         .task {
@@ -94,6 +91,13 @@ struct RootView: View {
             if args.contains("--open-pro-winback") { ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true) }
         }
         #endif
+    }
+    private func routeNotificationTab(_ deepLink: NotificationDeepLink?) {
+        guard let deepLink else { return }
+        selectedTab = deepLink.destination == .listen ? .listen : .current
+        if deepLink.destination == .listen {
+            _ = notificationRouter.consumeFeatureRoot()
+        }
     }
     private func persistedShowExists() -> Bool {
         var descriptor = FetchDescriptor<Show>()

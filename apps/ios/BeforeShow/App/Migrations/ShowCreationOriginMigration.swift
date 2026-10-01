@@ -9,7 +9,7 @@ enum AppPersistenceMigrationRunner {
     static func run(in modelContext: ModelContext, now: Date = Date()) {
         ShowCreationOriginMigration.migrateIfNeeded(in: modelContext)
         CurrentShowOwnershipMigration.migrateIfNeeded(in: modelContext, now: now)
-        NotificationPortfolioMigration.migrateIfNeeded(in: modelContext)
+        _ = try? NotificationSchedulingStateStore.canonicalize(in: modelContext)
         AppleMusicArtistIdentityMigration.migrateIfNeeded(in: modelContext)
     }
 }
@@ -95,30 +95,6 @@ enum CurrentShowOwnershipMigration {
             modelContext.insert(CurrentShowSelection(selectedShowID: candidate.id))
         }
 
-        try? modelContext.save()
-    }
-}
-
-/// One-time bridge from the old single-focus notification world.
-/// Existing shows must not suddenly mint anticipation backfill after upgrading to
-/// the portfolio scheduler. New Add Show rows are minted explicitly by the add flow.
-@MainActor
-enum NotificationPortfolioMigration {
-    private static let currentVersion = 1
-
-    static func migrateIfNeeded(in modelContext: ModelContext) {
-        guard let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
-              let state = try? NotificationSchedulingStateStore.canonicalize(in: modelContext) else {
-            return
-        }
-        guard (state.portfolioMigrationVersion ?? 0) < currentVersion else { return }
-
-        var minted = Set(state.backfillMintedShowIDs ?? [])
-        minted.formUnion(shows.map(\.id))
-        state.backfillMintedShowIDs = Array(minted)
-        state.stagedBackfillShowID = nil
-        state.portfolioMigrationVersion = currentVersion
-        state.updatedAt = Date()
         try? modelContext.save()
     }
 }

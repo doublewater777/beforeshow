@@ -144,7 +144,6 @@ struct BeforeShowApp: App {
                         lastLocalMediaMaintenanceAt = Date()
                         isLocalMediaMaintenanceRunning = false
                         await LocalNotificationCenter.shared.reconcilePortfolio(
-                            reason: .startup,
                             in: modelContainer.mainContext
                         )
                     }
@@ -181,7 +180,6 @@ struct BeforeShowApp: App {
                                 isLocalMediaMaintenanceRunning = false
                             }
                             await LocalNotificationCenter.shared.reconcilePortfolio(
-                                reason: .foreground,
                                 in: modelContainer.mainContext
                             )
                         }

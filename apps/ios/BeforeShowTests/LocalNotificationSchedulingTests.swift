@@ -98,10 +98,9 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20)
         )
 
-        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
-            for: show,
-            now: now
-        )
+        let requests = NotificationPortfolioPlanner(calendar: calendar).plan(
+            shows: [show], existingRecords: [], now: now
+        ).scheduledRequests
 
         // now = June 15 10:00; show = June 20 20:00. T-14 and T-7 are past.
         XCTAssertEqual(
@@ -194,7 +193,6 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let showID = UUID()
         let state = NotificationSchedulingState()
         state.recordPermissionRequest()
-        state.stageBackfillCandidate(showID: showID)
         let record = ShowNotificationScheduleRecord(
             showID: showID,
             milestone: .showDay,
@@ -212,7 +210,6 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let states = try container.mainContext.fetch(FetchDescriptor<NotificationSchedulingState>())
         let records = try container.mainContext.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())
 
-        XCTAssertEqual(states.first?.stagedBackfillShowID, showID)
         XCTAssertEqual(states.first?.hasRequestedPermissionAfterFirstShow, true)
         XCTAssertEqual(records.first?.milestone, .showDay)
     }
@@ -229,22 +226,21 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             now: makeDate(year: 2026, month: 7, day: 1)
         )
 
-        let fourteen = requests.first { $0.milestone == .fourteenDaysBefore }!
-        XCTAssertEqual(fourteen.userInfo["showID"] as? String, show.id.uuidString)
-        XCTAssertEqual(fourteen.userInfo["destination"] as? String, "home")
-
-        let oneDay = requests.first { $0.milestone == .oneDayBefore }!
-        XCTAssertEqual(oneDay.userInfo["destination"] as? String, "home")
-
-        let showDay = requests.first { $0.milestone == .showDay }!
-        XCTAssertEqual(showDay.userInfo["destination"] as? String, "home")
-
-        XCTAssertEqual(
-            NotificationDeepLink(userInfo: fourteen.userInfo),
-            NotificationDeepLink(showID: show.id, destination: .home)
-        )
-        XCTAssertEqual(NotificationDeepLink(userInfo: oneDay.userInfo)?.destination, .home)
-        XCTAssertEqual(NotificationDeepLink(userInfo: showDay.userInfo)?.destination, .home)
+        let destinations: [ShowNotificationMilestone: NotificationDeepLink.Destination] = [
+            .fourteenDaysBefore: .listen, .sevenDaysBefore: .listen,
+            .threeDaysBefore: .listen, .oneDayBefore: .listen,
+            .showDayMorning: .home, .showDay: .home,
+            .openingMemory: .memoryCreate, .afterShow: .memoryFragments
+        ]
+        for (milestone, destination) in destinations {
+            let request = try XCTUnwrap(requests.first { $0.milestone == milestone })
+            XCTAssertEqual(request.userInfo["showID"] as? String, show.id.uuidString)
+            XCTAssertEqual(request.userInfo["destination"] as? String, destination.rawValue)
+            XCTAssertEqual(
+                NotificationDeepLink(userInfo: request.userInfo),
+                NotificationDeepLink(showID: show.id, destination: destination)
+            )
+        }
     }
 
     func testNotificationRequestKeepsAbsoluteFireDateAcrossDeviceTimeZones() throws {
@@ -264,6 +260,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
 
     func testOnlyExplicitMemoryDestinationsRequireFeaturePresentation() {
         XCTAssertFalse(NotificationDeepLink.Destination.home.requiresFeaturePresentation)
+        XCTAssertFalse(NotificationDeepLink.Destination.listen.requiresFeaturePresentation)
         XCTAssertTrue(NotificationDeepLink.Destination.memoryCreate.requiresFeaturePresentation)
         XCTAssertTrue(NotificationDeepLink.Destination.memoryFragments.requiresFeaturePresentation)
     }
@@ -584,8 +581,6 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: [ended, next],
             existingRecords: [staleRecord],
-            schedulingState: nil,
-            reason: .mutation,
             now: now
         )
 
@@ -626,150 +621,6 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         pastMidnight.markEnded(at: makeDate(year: 2026, month: 6, day: 15, hour: 1, minute: 30))
         let request = try XCTUnwrap(scheduler.afterShowRequest(for: pastMidnight, now: now))
         XCTAssertEqual(request.fireDate, makeDate(year: 2026, month: 6, day: 16, hour: 11))
-    }
-
-    // MARK: - 过期节点补发
-
-    /// 还剩 5 天添加：错过 14/7 天两个节点，逐条补发、按情绪曲线顺序重放，
-    /// 链式 12h 节奏（第二条 23:00 落进深夜，顺延到次日 10:00）。
-    func testBackfillReplaysMissedAnticipationMilestonesInOrder() throws {
-        let show = try Show(
-            name: "夏夜演唱会",
-            date: makeDate(year: 2026, month: 6, day: 20),
-            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20)
-        )
-
-        // now = 6/15 10:00：T-14(6/6)、T-7(6/13) 已过，T-3(6/17) 还在未来。
-        let requests = LocalNotificationScheduler(calendar: calendar).backfillRequests(
-            for: show,
-            now: now
-        )
-
-        XCTAssertEqual(
-            requests.map(\.milestone),
-            [.fourteenDaysBefore, .sevenDaysBefore]
-        )
-        XCTAssertEqual(requests.map(\.fireDate), [
-            makeDate(year: 2026, month: 6, day: 15, hour: 11),
-            makeDate(year: 2026, month: 6, day: 16, hour: 10)
-        ])
-        XCTAssertTrue(requests.allSatisfy(\.isBackfill))
-    }
-
-    /// 还剩 1 天添加（最晚的典型场景）：3 条错过，但第 2 条槽位与当天早上的
-    /// 自然节点相距 <4h 被丢弃，第 3 条晚于开场时刻直接收工——只剩 1 条补发。
-    func testBackfillDropsSlotsCrowdingNaturalMilestonesOrPastShowStart() throws {
-        let show = try Show(
-            name: "明天开场的现场",
-            date: makeDate(year: 2026, month: 6, day: 16),
-            startTime: makeDate(year: 2026, month: 6, day: 16, hour: 20)
-        )
-
-        let requests = LocalNotificationScheduler(calendar: calendar).backfillRequests(
-            for: show,
-            now: now
-        )
-
-        XCTAssertEqual(requests.map(\.milestone), [.fourteenDaysBefore])
-        XCTAssertEqual(
-            requests.first?.fireDate,
-            makeDate(year: 2026, month: 6, day: 15, hour: 11)
-        )
-    }
-
-    /// 提前 16 天添加没有任何错过节点，不补发。
-    func testBackfillDoesNothingWhenAddedEarly() throws {
-        let show = try Show(
-            name: "还很远的现场",
-            date: makeDate(year: 2026, month: 7, day: 1),
-            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20)
-        )
-
-        XCTAssertEqual(
-            LocalNotificationScheduler(calendar: calendar).backfillRequests(for: show, now: now),
-            []
-        )
-    }
-
-    /// 已经开场之后添加：所有槽位都不早于开场时刻，一条都不补。
-    func testBackfillDoesNothingAfterShowStart() throws {
-        let show = try Show(
-            name: "已经开场的现场",
-            date: makeDate(year: 2026, month: 6, day: 15),
-            startTime: makeDate(year: 2026, month: 6, day: 15, hour: 9)
-        )
-
-        XCTAssertEqual(
-            LocalNotificationScheduler(calendar: calendar).backfillRequests(for: show, now: now),
-            []
-        )
-    }
-
-    /// 深夜添加：首条 now+1h 落进 22 点后，顺延到次日 10:00，之后按链式 +12h
-    /// 稳定在每天上午，不会半夜弹横幅。
-    func testBackfillSlotsStayInWakingHours() throws {
-        let show = try Show(
-            name: "夏夜演唱会",
-            date: makeDate(year: 2026, month: 6, day: 20),
-            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20)
-        )
-
-        let requests = LocalNotificationScheduler(calendar: calendar).backfillRequests(
-            for: show,
-            now: makeDate(year: 2026, month: 6, day: 15, hour: 21, minute: 30)
-        )
-
-        XCTAssertEqual(requests.map(\.fireDate), [
-            makeDate(year: 2026, month: 6, day: 16, hour: 10),
-            makeDate(year: 2026, month: 6, day: 17, hour: 10)
-        ])
-    }
-
-    /// 文案写实际剩余天数，而不是原节点的「还有两周」。
-    func testBackfillCopyStatesActualDaysRemaining() throws {
-        let show = try Show(
-            name: "夏夜演唱会",
-            date: makeDate(year: 2026, month: 6, day: 20),
-            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20)
-        )
-
-        let requests = LocalNotificationScheduler(calendar: calendar).backfillRequests(
-            for: show,
-            now: now
-        )
-
-        // 第一条 6/15 触发，距 6/20 还有 5 天。
-        let first = try XCTUnwrap(requests.first)
-        XCTAssertTrue(first.body.contains("还有 5 天"), "body: \(first.body)")
-        XCTAssertFalse(first.body.contains("还有两周"))
-    }
-
-    /// 补发是普通横幅：.active、无声音；标识符带 backfill 前缀；深链回首页。
-    func testBackfillRequestIsActiveBannerWithoutSound() throws {
-        let show = try Show(
-            name: "夏夜演唱会",
-            date: makeDate(year: 2026, month: 6, day: 20),
-            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20)
-        )
-        let backfill = try XCTUnwrap(
-            LocalNotificationScheduler(calendar: calendar)
-                .backfillRequests(for: show, now: now)
-                .first
-        )
-
-        XCTAssertEqual(
-            backfill.requestIdentifier,
-            "\(show.id.uuidString).backfill.fourteenDaysBefore"
-        )
-        XCTAssertEqual(
-            NotificationDeepLink(userInfo: backfill.userInfo),
-            NotificationDeepLink(showID: show.id, destination: .home)
-        )
-
-        let request = backfill.makeNotificationRequest()
-        XCTAssertEqual(request.content.interruptionLevel, .active)
-        XCTAssertNil(request.content.sound)
-        XCTAssertEqual(request.content.threadIdentifier, show.id.uuidString)
     }
 
     private func makeDate(year: Int, month: Int, day: Int, hour: Int = 20, minute: Int = 0) -> Date {

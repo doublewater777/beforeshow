@@ -1287,8 +1287,6 @@ final class CompanionSharingTests: XCTestCase {
         let action = HomeCountdownLockup.primaryAction(
             phase: HomeShowPhase(timeState: timeState, now: now),
             timeState: timeState,
-            now: now,
-            showStart: start,
             hasConfirmedEnd: false,
             hasEndHandler: true
         )
