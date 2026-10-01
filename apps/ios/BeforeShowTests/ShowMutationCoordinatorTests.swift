@@ -438,6 +438,52 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testDeletionNotifiesObserversAfterDurableDeleteBeforePostCommitSync() async throws {
+        let container = try makeContainer(
+            MemoryFragment.self,
+            MemoryMediaItem.self,
+            ShowAsset.self,
+            DynamicCover.self
+        )
+        let context = container.mainContext
+        let start = Date(timeIntervalSinceNow: 86_400)
+        let show = try Show(name: "删除交接测试", date: start, startTime: start)
+        context.insert(show)
+        try context.save()
+
+        var didNotifyRecordDeleted = false
+        var callbackSawDurableDelete = false
+        let effects = CurrentShowPostCommitEffects(
+            reconcileNotifications: { _ in
+                XCTAssertTrue(didNotifyRecordDeleted)
+                return true
+            },
+            syncWidget: { _, _ in
+                XCTAssertTrue(didNotifyRecordDeleted)
+                return true
+            }
+        )
+
+        _ = try await ShowDeletionCoordinator.delete(
+            show,
+            from: [show],
+            selections: [],
+            notificationStates: [],
+            in: context,
+            onRecordDeleted: {
+                didNotifyRecordDeleted = true
+                let verificationContext = ModelContext(container)
+                callbackSawDurableDelete =
+                    ((try? verificationContext.fetch(FetchDescriptor<Show>())) ?? []).isEmpty
+            },
+            effects: effects
+        )
+
+        XCTAssertTrue(didNotifyRecordDeleted)
+        XCTAssertTrue(callbackSawDurableDelete)
+    }
+
+    @MainActor
     func testDeletionKeepsContentDuplicateWithDistinctIDs() async throws {
         let container = try makeContainer(
             MemoryFragment.self,

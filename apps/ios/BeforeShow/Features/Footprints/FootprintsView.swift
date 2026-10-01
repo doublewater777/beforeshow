@@ -13,35 +13,24 @@ struct FootprintsView: View {
     @State private var detailTarget: FootprintDetailDestination?
     @State private var activeSheet: FootprintSheet?
     @State private var toast: BSToastPayload?
-    @State private var prepared: PreparedFootprint?
     private let currentShowSession = CurrentShowSession()
 
     var body: some View {
-        NavigationStack {
-            if let prepared {
-                timelineContent(
-                    prepared,
-                    hasCurrentShow: currentShowSession.selectCurrentShow(
-                        from: shows,
-                        manualSelection: selections.first
-                    ) != nil
-                )
-            } else {
-                FootprintPreparingView()
-            }
-        }
-        .task(id: preparationFingerprint()) {
-            // Build archive + covers in one pass, then commit atomically so
-            // the dashboard's first paint already has the cover it ends with.
-            // (Previously the two pieces landed in two `@State` writes and
-            // produced a visible two-stage layout jump on cold start.)
-            let archive = FootprintArchiveBuilder.make(shows: shows)
-            let covers = FootprintCoverResolver.resolve(
-                shows: archive.shows,
-                fragments: fragments,
-                assets: assets
+        let archive = FootprintArchiveBuilder.make(shows: shows)
+        let covers = FootprintCoverResolver.resolve(
+            shows: archive.shows,
+            fragments: fragments,
+            assets: assets
+        )
+        let prepared = PreparedFootprint(archive: archive, covers: covers)
+        return NavigationStack {
+            timelineContent(
+                prepared,
+                hasCurrentShow: currentShowSession.selectCurrentShow(
+                    from: shows,
+                    manualSelection: selections.first
+                ) != nil
             )
-            prepared = PreparedFootprint(archive: archive, covers: covers)
         }
     }
 
@@ -117,15 +106,6 @@ struct FootprintsView: View {
         )
     }
 
-    private func preparationFingerprint() -> FootprintsPreparationFingerprint {
-        FootprintsPreparationFingerprint.make(
-            shows: shows,
-            fragments: fragments,
-            assets: assets
-        )
-    }
-
-
     private func presentToast(_ message: String) {
         let payload = BSToastPayload(tone: .success, message: message)
         toast = payload
@@ -141,146 +121,6 @@ private enum FootprintSheet: String, Identifiable {
     case search
     case share
     var id: String { rawValue }
-}
-
-private struct FootprintPreparingView: View {
-    var body: some View {
-        ZStack {
-            FootprintBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    passportShell
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                }
-            }
-            .scrollDisabled(true)
-            .scrollIndicators(.hidden)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .accessibilityHidden(true)
-    }
-
-    private var header: some View {
-        HStack {
-            Text(BSLocalization.text("足迹"))
-                .font(.system(size: 32, weight: .bold))
-                .tracking(-0.5)
-                .foregroundColor(BSColor.Stage.foreground)
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 8) {
-                shellHeaderIcon("plus")
-                shellHeaderIcon("magnifyingglass")
-                shellHeaderIcon("square.and.arrow.up")
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 20)
-        .padding(.top, BSLayout.pageHeaderTopPadding)
-    }
-
-    private func shellHeaderIcon(_ systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundColor(BSColor.Stage.foreground.opacity(0.55))
-            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-            .background(Color.white.opacity(0.07), in: Circle())
-            .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-    }
-
-    private var passportShell: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.md) {
-            HStack(alignment: .center, spacing: BSSpacing.roomy) {
-                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                    .fill(Color.white.opacity(0.055))
-                    .frame(width: 78, height: 104)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                            .stroke(BSColor.Stage.accent.opacity(0.12), lineWidth: 0.75)
-                    )
-                    .padding(.leading, 6)
-                    .padding(.trailing, 2)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(BSColor.Stage.accent.opacity(0.16))
-                        .frame(width: 118, height: 34)
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.white.opacity(0.055))
-                        .frame(width: 148, height: 12)
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(BSColor.Stage.accent.opacity(0.10))
-                        .frame(width: 104, height: 11)
-                }
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: BSSpacing.sm) {
-                metricShell
-                metricShell
-                metricShell
-            }
-        }
-        .padding(BSSpacing.roomy)
-        .background(shellBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            BSColor.Stage.accent.opacity(0.22),
-                            BSColor.Stage.border,
-                            BSColor.Stage.glowBlue.opacity(0.12)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .shadow(color: Color.black.opacity(0.24), radius: 18, x: 0, y: 10)
-    }
-
-    private var metricShell: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(BSColor.Stage.accent.opacity(0.13))
-                .frame(width: 34, height: 19)
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(Color.white.opacity(0.05))
-                .frame(width: 48, height: 9)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var shellBackground: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            RadialGradient(
-                colors: [BSColor.Stage.accent.opacity(0.10), Color.clear],
-                center: .topLeading,
-                startRadius: 0,
-                endRadius: 190
-            )
-            RadialGradient(
-                colors: [BSColor.Stage.glowBlue.opacity(0.07), Color.clear],
-                center: .bottomTrailing,
-                startRadius: 0,
-                endRadius: 220
-            )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous))
-    }
 }
 
 struct FootprintBackground: View {

@@ -128,7 +128,11 @@ struct FootprintDetailView: View {
     var body: some View {
         ZStack {
             footprintBackground
-            ScrollView(.vertical, showsIndicators: false) {
+            if isDeleting {
+                ProgressView()
+                    .tint(BSColor.Stage.foreground)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                     hero
                     FootprintDynamicCoverSection(
@@ -153,13 +157,15 @@ struct FootprintDetailView: View {
                 .padding(.top, BSSpacing.sm)
                 .padding(.bottom, BSSpacing.xl)
             }
-            .bsNavigationScrollEdge()
+                .bsNavigationScrollEdge()
+            }
         }
         .navigationTitle(BSLocalization.text("足迹详情"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            if !isDeleting {
+                ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if shareRoute != .none {
                         Button(BSLocalization.text("分享这场回忆"), systemImage: "square.and.arrow.up") {
@@ -172,8 +178,8 @@ struct FootprintDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
-                .disabled(isDeleting)
-                .accessibilityLabel(BSLocalization.text("更多操作"))
+                    .accessibilityLabel(BSLocalization.text("更多操作"))
+                }
             }
         }
         .fullScreenCover(item: $memoryTarget) { target in
@@ -217,7 +223,7 @@ struct FootprintDetailView: View {
             isPresented: $isShowingDeleteConfirmation
         ) {
             Button(DangerConfirmation.deleteShow.confirmTitle, role: .destructive) {
-                Task { @MainActor in await deleteShow() }
+                beginDelete()
             }
             Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
@@ -577,17 +583,31 @@ struct FootprintDetailView: View {
         }
     }
 
+    private func beginDelete() {
+        guard !isDeleting else { return }
+        memoryTarget = nil
+        showingAssetKind = nil
+        isShowingShareComposer = false
+        isShowingDispersalShare = false
+        isDeleting = true
+        Task { @MainActor in
+            await Task.yield()
+            await deleteShow()
+        }
+    }
+
     @MainActor
     private func deleteShow() async {
-        guard !isDeleting else { return }
-        isDeleting = true
         do {
             _ = try await ShowDeletionCoordinator.delete(
                 show,
                 from: shows,
                 selections: selections,
                 notificationStates: notificationStates,
-                in: modelContext
+                in: modelContext,
+                onRecordDeleted: {
+                    isDeleting = true
+                }
             )
             dismiss()
         } catch {
