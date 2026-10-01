@@ -202,7 +202,7 @@ struct CurrentShowLibraryManagementView: View {
                     alignment: .leading,
                     spacing: BSSpacing.md
                 ) {
-                    ForEach(Array(section.shows.enumerated()), id: \.element.id) { index, show in
+                    ForEach(Array(section.shows.enumerated()), id: \.element.persistentModelID) { index, show in
                         CurrentShowLibraryCoverCard(
                             show: show,
                             isCurrent: selectedShowID == show.id,
@@ -214,7 +214,7 @@ struct CurrentShowLibraryManagementView: View {
                     }
                 }
             } else {
-                ForEach(Array(section.shows.enumerated()), id: \.element.id) { index, show in
+                ForEach(Array(section.shows.enumerated()), id: \.element.persistentModelID) { index, show in
                     CurrentShowLibraryRow(
                         show: show,
                         isCurrent: selectedShowID == show.id,
