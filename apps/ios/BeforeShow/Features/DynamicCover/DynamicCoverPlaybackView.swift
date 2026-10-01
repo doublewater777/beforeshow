@@ -2,106 +2,34 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
-enum DynamicCoverSoundPolicy {
-    static func shouldExposeControl(hasAudioTrack: Bool, isPlaying: Bool) -> Bool {
-        hasAudioTrack && isPlaying
-    }
-
-    static func iconName(isMuted: Bool) -> String {
-        isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"
-    }
-}
-
-/// A borderless AVPlayer surface used by dynamic covers.
+/// A borderless, always-muted AVPlayer surface used by dynamic covers.
 ///
-/// Every viewing session starts muted. The sound control only appears while a
-/// cover with an audio track is actively playing. Losing active playback (flip,
-/// tab/page change, overlay, or backgrounding) revokes the user's temporary
-/// unmute choice and restores the app-wide ambient audio policy.
+/// Covers are decorative and must never compete with listening playback, so
+/// they have no sound control and leave the app-wide ambient audio policy alone.
 struct DynamicCoverPlaybackView: View {
     let url: URL
     let isPlaying: Bool
 
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isMuted = true
-    @State private var hasAudioTrack = false
-
-    private var effectiveIsPlaying: Bool {
-        isPlaying && scenePhase == .active
-    }
 
     var body: some View {
         DynamicCoverPlayerSurface(
             url: url,
-            isPlaying: effectiveIsPlaying,
-            muted: isMuted
+            isPlaying: isPlaying && scenePhase == .active
         )
-        .overlay(alignment: .topTrailing) {
-            if DynamicCoverSoundPolicy.shouldExposeControl(
-                hasAudioTrack: hasAudioTrack,
-                isPlaying: effectiveIsPlaying
-            ) {
-                soundButton
-                    .padding(BSSpacing.sm)
-            }
-        }
-        .task(id: url) {
-            resetSoundIfNeeded()
-            hasAudioTrack = await DynamicCoverAudioTrackProbe.hasAudioTrack(at: url)
-        }
-        .onChange(of: effectiveIsPlaying) { _, isActive in
-            if !isActive {
-                resetSoundIfNeeded()
-            }
-        }
-        .onDisappear {
-            resetSoundIfNeeded()
-        }
-    }
-
-    private var soundButton: some View {
-        Button {
-            if isMuted {
-                AppAudioSession.configureSoundPlayback()
-                isMuted = false
-            } else {
-                isMuted = true
-                AppAudioSession.configureAmbient()
-            }
-        } label: {
-            Image(systemName: DynamicCoverSoundPolicy.iconName(isMuted: isMuted))
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                .background(Color.black.opacity(0.42), in: Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("dynamic-cover-sound-toggle")
-    }
-
-    private func resetSoundIfNeeded() {
-        guard !isMuted else { return }
-        isMuted = true
-        AppAudioSession.configureAmbient()
     }
 }
 
 private struct DynamicCoverPlayerSurface: UIViewRepresentable {
     let url: URL
     let isPlaying: Bool
-    let muted: Bool
 
     func makeUIView(context: Context) -> DynamicCoverPlayerView {
         DynamicCoverPlayerView()
     }
 
     func updateUIView(_ view: DynamicCoverPlayerView, context: Context) {
-        view.configure(url: url, isPlaying: isPlaying, muted: muted)
+        view.configure(url: url, isPlaying: isPlaying)
     }
 
     static func dismantleUIView(_ view: DynamicCoverPlayerView, coordinator: ()) {
@@ -120,6 +48,7 @@ final class DynamicCoverPlayerView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        player.isMuted = true
         playerLayer.player = player
         playerLayer.videoGravity = .resizeAspectFill
         backgroundColor = .black
@@ -129,15 +58,20 @@ final class DynamicCoverPlayerView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(url: URL, isPlaying: Bool, muted: Bool) {
-        player.isMuted = muted
-        if loadedURL != url {
+    /// Called from `updateUIView`. With `AVPlayer.isObservationEnabled`, any
+    /// player access here is tracked by SwiftUI, and the resulting state change
+    /// re-invalidates the view. Only touch the player when the request changes,
+    /// otherwise pause/play re-triggers updates forever and hangs the main thread.
+    func configure(url: URL, isPlaying: Bool) {
+        let urlChanged = loadedURL != url
+        if urlChanged {
             loadedURL = url
             removeEndObserver()
-            player.replaceCurrentItem(with: AVPlayerItem(url: url))
+            let item = AVPlayerItem(url: url)
+            player.replaceCurrentItem(with: item)
             endObserver = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
-                object: player.currentItem,
+                object: item,
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -148,6 +82,7 @@ final class DynamicCoverPlayerView: UIView {
                 }
             }
         }
+        guard urlChanged || isPlayingRequested != isPlaying else { return }
         isPlayingRequested = isPlaying
         if isPlaying {
             player.play()

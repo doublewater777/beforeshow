@@ -5,9 +5,8 @@ import AVFoundation
 /// iOS defaults to `soloAmbient`, which interrupts other audio as soon as an
 /// `AVPlayer` with an audio track starts — `isMuted` only zeroes the output, it
 /// does not stop the session from activating. Dynamic covers are decorative and
-/// muted, so the app stays on `ambient` + `mixWithOthers` until the user explicitly
-/// asks to hear one. Views that intentionally play sound switch to `playback` while
-/// they are on screen.
+/// always muted, so the app stays on `ambient` + `mixWithOthers` by default.
+/// Views that intentionally play sound switch to `playback` while they are on screen.
 @MainActor
 enum AppAudioSession {
     enum Owner: Equatable {
