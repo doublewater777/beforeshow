@@ -8,7 +8,7 @@ i18n
 
 不要有非必要的解释性文字
 
-use iphone 17 simulator
+use iphone 17 simulator，如果模拟器正在被占用，不要争抢，用另外的模拟器
 
 ## iOS 命令行构建（重要）
 
