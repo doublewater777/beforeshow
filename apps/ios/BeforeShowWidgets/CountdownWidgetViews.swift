@@ -3,7 +3,7 @@ import WidgetKit
 
 // MARK: - Countdown Widget Views
 // 设计稿:docs/design/widget/BeforeShow Widgets.html
-// 与 app 首页同一套精度收束:>1 天天数 hero、<24h 时:分:秒、live 正在现场;
+// 与 app 首页同一套精度收束:>24h 自然日 hero、≤24h 时:分:秒、live 正在现场;
 // 秒针用 Text(timerInterval:) 原生跳动,不靠 timeline 高频刷新。
 
 struct CountdownWidgetView: View {
@@ -100,11 +100,15 @@ struct CountdownPresentation {
 
         switch HomeShowPhase(timeState: state, now: entry.date) {
         case .pre:
-            // 与首页一致:按实际剩余秒数分档,不用日历 dayDistance
-            // (23:50→次日 00:10 是 20 分钟,不是「1 天」)
-            // 用 `>` 阈值:start−24h 的 timeline entry 上 remaining==86400 必须已是 near
-            if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remaining) {
-                hero = .far(days: remaining / Int(WidgetTimelinePlanner.dayCountdownThreshold))
+            // 与首页一致:是否进入「天」档仍按真实剩余时间 >24h 判断，
+            // 但一旦展示 N 天，N 使用演出时区自然日差。
+            // 因此 10/1 → 10/3 即使只剩约 40 小时仍显示 2 天；
+            // 而 23:50 → 次日 00:10 仍会进入 near，不显示 1 天。
+            if let days = WidgetTimelinePlanner.dayCountHeroDays(
+                remainingSeconds: remaining,
+                dayDistance: state.dayDistance
+            ) {
+                hero = .far(days: days)
             } else if let start = state.effectiveStartTime {
                 hero = .near(start: start)
             } else {

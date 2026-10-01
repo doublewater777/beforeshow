@@ -115,9 +115,53 @@ final class ArchitectureModuleTests: XCTestCase {
     }
 
     func testCountdownBoundaryAtExactly24HoursShowsClockNotOneDay() {
-        // 与 widget 同一阈值:remaining == 86400 必须是时钟,只有 > 86400 才是「天」。
-        XCTAssertFalse(WidgetTimelinePlanner.isDayCountHero(remainingSeconds: 86_400))
-        XCTAssertTrue(WidgetTimelinePlanner.isDayCountHero(remainingSeconds: 86_401))
+        // 与 widget 同一阈值:remaining == 86400 必须是时钟,只有 > 86400 才进入「天」档。
+        XCTAssertNil(
+            WidgetTimelinePlanner.dayCountHeroDays(
+                remainingSeconds: 86_400,
+                dayDistance: 1
+            )
+        )
+        XCTAssertEqual(
+            WidgetTimelinePlanner.dayCountHeroDays(
+                remainingSeconds: 86_401,
+                dayDistance: 1
+            ),
+            1
+        )
+    }
+
+    func testCountdownDayHeroUsesCalendarDayDistanceInsteadOfFull24HourBlocks() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 8 * 3_600))
+
+        let now = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 16))
+        )
+        let start = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 9))
+        )
+        let timing = ShowTimingFields(
+            date: calendar.startOfDay(for: start),
+            startTime: start,
+            endDate: nil,
+            endTime: nil,
+            timeZoneSecondsFromGMT: 8 * 3_600,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        )
+        let state = CurrentShowTimeState(timing: timing, calendar: calendar, now: now)
+        let remaining = Int(start.timeIntervalSince(now))
+
+        XCTAssertEqual(remaining / 86_400, 1, "旧算法会把约 41 小时截断成 1 天")
+        XCTAssertEqual(state.dayDistance, 2)
+        XCTAssertEqual(
+            WidgetTimelinePlanner.dayCountHeroDays(
+                remainingSeconds: remaining,
+                dayDistance: state.dayDistance
+            ),
+            2
+        )
     }
 
     func testCountdownCopyUsesHoursThenMinutes() {

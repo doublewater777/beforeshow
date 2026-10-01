@@ -17,6 +17,15 @@ enum WidgetTimelinePlanner {
         remainingSeconds > Int(dayCountdownThreshold)
     }
 
+    /// 天数 hero 仍由真实剩余时间是否超过 24h 决定；
+    /// 一旦展示「N 天」，N 使用演出时区里的自然日差，而不是 remaining / 86400。
+    static func dayCountHeroDays(remainingSeconds: Int, dayDistance: Int) -> Int? {
+        guard isDayCountHero(remainingSeconds: remainingSeconds), dayDistance > 0 else {
+            return nil
+        }
+        return dayDistance
+    }
+
     /// 生成 timeline 日期点(已排序、已去重)。最后一个始终是窗口终点。
     static func entryDates(
         now: Date,
@@ -41,6 +50,11 @@ enum WidgetTimelinePlanner {
 
         if let start = startBoundary {
             appendBoundary(start)
+            // 自然日天数在演出时区午夜递减，不能等到下一个小时点。
+            if let midnight = calendar.dateInterval(of: .day, for: now)?.end,
+               start.timeIntervalSince(midnight) > dayCountdownThreshold {
+                appendBoundary(midnight)
+            }
             // 「N 天」→ 小时文案的切换点:start − 24h
             appendBoundary(start.addingTimeInterval(-dayCountdownThreshold))
             // 最后一小时按分钟更新,避免「还有 59 分钟」在 widget 中停满一小时。
@@ -60,7 +74,7 @@ enum WidgetTimelinePlanner {
             let isBoundary = boundaryRefs.contains(date.timeIntervalSinceReferenceDate)
             if let last = kept.last {
                 let delta = abs(last.timeIntervalSince(date))
-                if delta < 0.5 {
+                if date == last {
                     continue
                 }
                 if delta <= 60 {
@@ -71,7 +85,8 @@ enum WidgetTimelinePlanner {
                     if isBoundary && !lastIsBoundary && !lastIsNow {
                         kept.removeLast()
                         kept.append(date)
-                    } else if isBoundary && lastIsNow {
+                    } else if isBoundary || date == windowEnd {
+                        // 不同边界与窗口终点都保留，避免午夜吞掉紧邻的 24h 切换点。
                         kept.append(date)
                     }
                     continue
