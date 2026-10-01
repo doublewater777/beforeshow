@@ -46,18 +46,6 @@ enum ListeningDiscDetailTrackAction: Equatable {
     }
 }
 
-extension ListeningFamiliarityTier {
-    var localizationKey: String {
-        switch self {
-        case .firstEncounter: "初次相遇"
-        case .newListener: "开始认识"
-        case .gettingIntoIt: "渐渐入迷"
-        case .familiar: "已经熟悉"
-        case .deepListener: "深度乐迷"
-        }
-    }
-}
-
 /// User pause and lifecycle visibility have different ownership. Listening audio
 /// is a secondary task, so tab changes and app backgrounding never own transport.
 struct ListeningVisibilityPolicy {
