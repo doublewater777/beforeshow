@@ -255,23 +255,107 @@ final class WidgetSnapshotTests: XCTestCase {
     }
 
     /// 远期演出:timeline 最后日期必须是 12h 窗口终点,不能是 30 天后的谢幕。
-    func testTimelineWindowIgnoresFarFutureBoundaries() {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let farStart = now.addingTimeInterval(30 * 86_400)
-        let farEnd = farStart.addingTimeInterval(4 * 3_600)
-        let plan = WidgetTimelinePlanner.entryDates(
-            now: now,
-            startBoundary: farStart,
-            endBoundary: farEnd
-        )
-        XCTAssertEqual(
-            plan.windowEnd.timeIntervalSince(now),
-            WidgetTimelinePlanner.refreshWindow,
-            accuracy: 1
-        )
-        XCTAssertEqual(plan.dates.last, plan.windowEnd)
-        XCTAssertFalse(plan.dates.contains(farStart))
-        XCTAssertFalse(plan.dates.contains(farEnd))
+    func testTimelineWindowIgnoresFarFutureBoundaries() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 8 * 3_600))
+        let nearMidnight = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 1, hour: 12, minute: 0, second: 30
+        )))
+
+        for now in [Date(timeIntervalSince1970: 1_800_000_000), nearMidnight] {
+            let farStart = now.addingTimeInterval(30 * 86_400)
+            let farEnd = farStart.addingTimeInterval(4 * 3_600)
+            let plan = WidgetTimelinePlanner.entryDates(
+                now: now,
+                startBoundary: farStart,
+                endBoundary: farEnd,
+                calendar: calendar
+            )
+            XCTAssertEqual(
+                plan.windowEnd.timeIntervalSince(now),
+                WidgetTimelinePlanner.refreshWindow,
+                accuracy: 1
+            )
+            XCTAssertEqual(plan.dates.last, plan.windowEnd)
+            XCTAssertFalse(plan.dates.contains(farStart))
+            XCTAssertFalse(plan.dates.contains(farEnd))
+        }
+    }
+
+    func testTimelineUpdatesCalendarDayCountdownAtEventMidnight() throws {
+        var deviceCalendar = Calendar(identifier: .gregorian)
+        deviceCalendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let cases = [
+            (zone: "Asia/Taipei", month: 10, day: 1, secondsBeforeMidnight: 1_800.0),
+            (zone: "Asia/Taipei", month: 10, day: 1, secondsBeforeMidnight: 3_570.0),
+            (zone: "Asia/Taipei", month: 10, day: 1, secondsBeforeMidnight: 30.0),
+            (zone: "Asia/Taipei", month: 10, day: 1, secondsBeforeMidnight: 0.25),
+            (zone: "America/New_York", month: 3, day: 8, secondsBeforeMidnight: 1_800.0),
+            (zone: "America/New_York", month: 11, day: 1, secondsBeforeMidnight: 1_800.0)
+        ]
+
+        for testCase in cases {
+            var calendar = deviceCalendar
+            calendar.timeZone = try XCTUnwrap(TimeZone(identifier: testCase.zone))
+            let midnight = try XCTUnwrap(calendar.date(from: DateComponents(
+                year: 2026, month: testCase.month, day: testCase.day + 1
+            )))
+            let now = midnight.addingTimeInterval(-testCase.secondsBeforeMidnight)
+            let start = try XCTUnwrap(calendar.date(from: DateComponents(
+                year: 2026, month: testCase.month, day: testCase.day + 3, hour: 9
+            )))
+            let timing = ShowTimingFields(
+                date: calendar.startOfDay(for: start),
+                startTime: start,
+                endDate: nil,
+                endTime: nil,
+                timeZoneIdentifier: testCase.zone,
+                postponedDate: nil,
+                changeStatus: .scheduled
+            )
+            let plan = WidgetTimelinePlanner.entryDates(
+                now: now,
+                startBoundary: start,
+                endBoundary: nil,
+                calendar: timing.eventCalendar(fallback: deviceCalendar)
+            )
+            let entryDate = try XCTUnwrap(plan.dates.last(where: { $0 <= midnight }))
+            let state = CurrentShowTimeState(timing: timing, calendar: deviceCalendar, now: entryDate)
+
+            XCTAssertEqual(
+                WidgetTimelinePlanner.dayCountHeroDays(
+                    remainingSeconds: Int(start.timeIntervalSince(entryDate)),
+                    dayDistance: state.dayDistance
+                ),
+                2,
+                "\(testCase): the widget must use the new calendar day at midnight"
+            )
+        }
+    }
+
+    func testTimelineKeepsClockThresholdImmediatelyAfterMidnight() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 8 * 3_600))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 1, hour: 23, minute: 30
+        )))
+        let midnight = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 2
+        )))
+
+        for offset in [1.0, 30.0, 60.0] {
+            let threshold = midnight.addingTimeInterval(offset)
+            let start = threshold.addingTimeInterval(WidgetTimelinePlanner.dayCountdownThreshold)
+            let plan = WidgetTimelinePlanner.entryDates(
+                now: now, startBoundary: start, endBoundary: nil, calendar: calendar
+            )
+            let entryDate = try XCTUnwrap(plan.dates.last(where: { $0 <= threshold }))
+
+            XCTAssertNil(WidgetTimelinePlanner.dayCountHeroDays(
+                remainingSeconds: Int(start.timeIntervalSince(entryDate)),
+                dayDistance: 1
+            ), "the clock threshold must survive a nearby midnight boundary")
+        }
     }
 
     /// 开场边界与小时点接近时,边界优先保留。

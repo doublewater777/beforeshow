@@ -107,6 +107,7 @@ struct CountdownTimelineProvider: TimelineProvider {
 
         var startBoundary: Date?
         var endBoundary: Date?
+        let calendar = snapshot?.timing.eventCalendar(fallback: .current) ?? .current
         if let timing = snapshot?.timing {
             let state = CurrentShowTimeState(timing: timing, now: now)
             startBoundary = state.effectiveStartTime
@@ -116,7 +117,8 @@ struct CountdownTimelineProvider: TimelineProvider {
         let plan = WidgetTimelinePlanner.entryDates(
             now: now,
             startBoundary: startBoundary,
-            endBoundary: endBoundary
+            endBoundary: endBoundary,
+            calendar: calendar
         )
         let entries = plan.dates.map {
             CountdownEntry(
