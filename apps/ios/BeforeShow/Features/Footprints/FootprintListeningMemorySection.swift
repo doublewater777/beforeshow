@@ -8,14 +8,6 @@ struct FootprintListeningMemorySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             if let coordinator {
-                ForEach(coordinator.tiers) { tier in
-                    if let resolved = ListeningFamiliarityTier(rawValue: tier.tierRawValue) {
-                        VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                            Text(BSLocalization.text("去见 TA 时") + " · " + tier.artistNameAtCapture).font(.caption)
-                            Text(BSLocalization.text(resolved.localizationKey)).font(.title3)
-                        }
-                    }
-                }
                 if !WantsLivePolicy.isMutable(show: show) && coordinator.wantedCount > 0 {
                     Label(BSLocalization.text("开场前想现场听") + " · " + String(coordinator.wantedCount), systemImage: "heart.fill")
                         .font(.subheadline)

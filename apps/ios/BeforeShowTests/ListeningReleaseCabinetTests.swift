@@ -206,7 +206,7 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         reopened.mechanism.motion.stop()
     }
 
-    func testPlaylistOnlyGuestPlaybackCreatesFamiliarityEvidenceWithoutChangingTargetArtistCountTierOrDenominator() async throws {
+    func testPlaylistOnlyGuestPlaybackCreatesHeardSongEvidenceWithoutChangingTargetArtistDenominator() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
         context.insert(CatalogSong(
@@ -233,7 +233,6 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         let before = try XCTUnwrap(room.artistPresentation("a"))
         let beforeDenominator = before.all.count
         XCTAssertEqual(beforeDenominator, 2)
-        XCTAssertEqual(before.familiarCount, 0)
         let featured = try XCTUnwrap(
             before.albums.first { $0.id == "featured-guest" }
         )
@@ -248,8 +247,8 @@ final class ListeningReleaseCabinetTests: XCTestCase {
 
         let evidence = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
             .first { $0.songID == "playlist-guest" }
-        XCTAssertNotNil(evidence?.actualListeningAt, "featured-playlist playback must create real familiarity evidence")
-        XCTAssertTrue(room.familiarSongIDs.contains("playlist-guest"))
+        XCTAssertNotNil(evidence?.actualListeningAt, "featured-playlist playback must create heard-song evidence")
+        XCTAssertTrue(room.containsHeardSongs(featured))
 
         let after = try XCTUnwrap(room.artistPresentation("a"))
         let snapshot = try XCTUnwrap(
@@ -259,8 +258,6 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         XCTAssertFalse(snapshot.orderedSongIDs.contains("playlist-guest"))
         XCTAssertEqual(snapshot.orderedSongIDs.count, beforeDenominator)
         XCTAssertEqual(after.all.count, beforeDenominator)
-        XCTAssertEqual(after.familiarCount, before.familiarCount)
-        XCTAssertEqual(after.tier, before.tier)
         room.stop()
         room.mechanism.motion.stop()
     }

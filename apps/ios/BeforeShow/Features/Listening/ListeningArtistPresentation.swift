@@ -7,8 +7,6 @@ struct ListeningArtistPresentation: Identifiable {
     let artworkURL: URL?
     let editorialText: String?
     let genres: [String]
-    let tier: ListeningFamiliarityTier?
-    let familiarCount: Int
     let top: [ListeningDiscTrack]
     let all: [ListeningDiscTrack]
     let albums: [ListeningDisc]
@@ -19,7 +17,6 @@ struct ListeningArtistPresentation: Identifiable {
         guard let snapshot = catalogSnapshots.first(where: { $0.artistID == id }) else { return nil }
         let byID = Dictionary(catalogSongs.map { ($0.appleMusicSongID, $0) }, uniquingKeysWith: { a, _ in a })
         func tracks(_ ids: [String]) -> [ListeningDiscTrack] { ids.compactMap { byID[$0].map(ListeningDiscTrack.init) } }
-        let familiar = snapshot.orderedSongIDs.filter { familiarSongIDs.contains($0) }.count
         let albumsByID = Dictionary(catalogAlbums.map { ($0.appleMusicAlbumID, $0) }, uniquingKeysWith: { a, _ in a })
         let featuredPlaylists = ListeningDiscAssembler.discs(
             featuredPlaylists: snapshot.featuredPlaylists,
@@ -33,9 +30,7 @@ struct ListeningArtistPresentation: Identifiable {
         return ListeningArtistPresentation(id: id, name: snapshot.artistName,
             artworkURL: snapshot.artworkURL.flatMap(URL.init(string:)), editorialText: snapshot.editorialText,
             genres: snapshot.genreNames,
-            tier: openingTiers.first { $0.artistID == id }.flatMap { ListeningFamiliarityTier(rawValue: $0.tierRawValue) }
-                ?? (show.map { WantsLivePolicy.isMutable(show: $0) } == true ? ListeningFamiliarityTier.resolve(familiarCount: familiar, totalCount: snapshot.orderedSongIDs.count) : nil),
-            familiarCount: familiar, top: tracks(snapshot.topSongIDs), all: tracks(snapshot.orderedSongIDs),
+            top: tracks(snapshot.topSongIDs), all: tracks(snapshot.orderedSongIDs),
             albums: featuredPlaylists + releases)
     }
     var currentArtistID: String? {

@@ -138,11 +138,6 @@ enum ShowMutationCoordinator {
                 in: modelContext,
                 now: listeningNow
             )
-            _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(
-                in: modelContext,
-                now: listeningNow,
-                saveChanges: false
-            )
             let committedState = try commitCurrentShowState(
                 shows: shows,
                 selections: selections,

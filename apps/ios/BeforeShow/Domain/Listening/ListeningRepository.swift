@@ -179,7 +179,6 @@ struct ListeningRepository {
 
     @discardableResult
     func confirmActualFamiliarity(songID: String, at date: Date = Date()) throws -> SongFamiliarityRecord {
-        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
         let records = try modelContext.fetch(FetchDescriptor<SongFamiliarityRecord>())
         let record: SongFamiliarityRecord
         if let existing = records.first(where: { $0.songID == songID }) {
@@ -191,14 +190,6 @@ struct ListeningRepository {
             record = created
         }
 
-        if let actualListeningAt = record.actualListeningAt {
-            _ = try OpeningFamiliarityCoordinator.reconcilePersistedActualFamiliarity(
-                songID: songID,
-                familiarityReachedAt: actualListeningAt,
-                in: modelContext,
-                saveChanges: false
-            )
-        }
         return record
     }
 

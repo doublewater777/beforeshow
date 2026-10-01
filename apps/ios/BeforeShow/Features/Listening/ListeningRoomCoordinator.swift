@@ -461,7 +461,6 @@ private let listeningCatalogFetchConcurrency = 4
     ) {
         guard !matches.isEmpty else { return }
         do {
-            try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
             var artists = show.artists
             var changed = false
             for (index, candidate) in matches {
@@ -477,7 +476,6 @@ private let listeningCatalogFetchConcurrency = 4
             show.artists = artists
             show.updatedAt = Date()
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
-            _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
             try context.save()
             showCatalogKey = catalogKey(for: show)
             try rebuildDiscs()
@@ -1013,7 +1011,6 @@ private let listeningCatalogFetchConcurrency = 4
     func rematch(slotIndex: Int, artist: RecognizedArtist) async {
         guard let show, slotIndex >= 0, slotIndex <= show.artists.count else { return }
         do {
-            try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
             var artists = show.artists
             if slotIndex == artists.count { artists.append(ArtistSlot(name: artist.canonicalName, avatarURL: nil)) }
             artists[slotIndex].name = artist.canonicalName
@@ -1023,7 +1020,6 @@ private let listeningCatalogFetchConcurrency = 4
             show.artists = artists
             show.updatedAt = Date()
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
-            _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
             try context.save()
         } catch {
             context.rollback()
@@ -1441,7 +1437,7 @@ private let listeningCatalogFetchConcurrency = 4
                     .filter { $0.showID == show.id }
             }
         } catch {
-            errorText = BSLocalization.text("熟悉度保存失败，请重试")
+            errorText = BSLocalization.text("保存失败，请重试")
         }
     }
 
@@ -1468,7 +1464,7 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private var playbackEvidenceFailureMessage: String {
-        BSLocalization.text("熟悉度保存失败，请重试")
+        BSLocalization.text("保存失败，请重试")
     }
 
     private func handlePlaybackEvidenceFailure(

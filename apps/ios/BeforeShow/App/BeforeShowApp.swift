@@ -58,7 +58,6 @@ struct BeforeShowApp: App {
             MainActor.assumeIsolated {
                 AppPersistenceMigrationRunner.run(in: modelContainer.mainContext)
                 synchronizeFreeShowCapacity(in: modelContainer.mainContext)
-                try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
             }
 
             let posthogAPIKey = Bundle.main.object(forInfoDictionaryKey: "PostHogAPIKey") as? String ?? ""
@@ -175,7 +174,6 @@ struct BeforeShowApp: App {
                                 in: modelContainer.mainContext,
                                 entitlement: ProEntitlementStorage.decode(entitlementRawValue)
                             )
-                            try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
                             await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                             if shouldRunMediaMaintenance {
                                 await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
