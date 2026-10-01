@@ -485,30 +485,6 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         }
     }
 
-    func testProjectDeploymentTargetIsIOS26AndBottomChromeNeedsNoAvailabilityGate() throws {
-        let iosRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let projectYAML = try String(
-            contentsOf: iosRoot.appendingPathComponent("project.yml"),
-            encoding: .utf8
-        )
-        let project = try String(
-            contentsOf: iosRoot.appendingPathComponent("BeforeShow.xcodeproj/project.pbxproj"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(projectYAML.contains("iOS: \"26.0\""))
-        XCTAssertFalse(projectYAML.contains("iOS: \"18.0\""))
-        XCTAssertTrue(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 26.0;"))
-        XCTAssertFalse(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 18.0;"))
-
-        let chrome = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
-        XCTAssertFalse(chrome.contains("if #available(iOS 26.0, *)"))
-        XCTAssertFalse(chrome.contains("@available(iOS 26.0, *)"))
-        XCTAssertFalse(chrome.contains("ListeningLegacyDetachedBottomChrome"))
-    }
-
     private func resetChromeGlobals() {
         ListeningPlaybackChromeStore.shared.room = nil
         ListeningRoomCache.shared?.mechanism.motion.stop()

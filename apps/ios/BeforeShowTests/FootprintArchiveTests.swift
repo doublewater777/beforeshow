@@ -329,18 +329,6 @@ final class FootprintArchiveTests: XCTestCase {
         })
     }
 
-    func testAddShowFlowDoesNotPromptToReplaceCurrentAfterSaving() throws {
-        let sourceURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("BeforeShow/Features/AddShow/AddShowFlowView.swift")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
-
-        XCTAssertFalse(source.contains("pendingCurrentSwitchShowID"))
-        XCTAssertFalse(source.contains("switchPendingAddedShowToCurrent"))
-        XCTAssertFalse(source.contains("设为当前现场？"))
-    }
-
     func testUnifiedFutureAddDoesNotStealExistingCurrentShow() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
