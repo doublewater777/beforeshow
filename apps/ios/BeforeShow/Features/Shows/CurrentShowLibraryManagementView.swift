@@ -275,7 +275,7 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private var selectedShowID: UUID? {
-        session.selectCurrentShow(from: shows, manualSelection: selections.first)?.id
+        session.selectCurrentShow(from: visibleShows, manualSelection: selections.first)?.id
     }
 
     private var upcomingShows: [Show] {
