@@ -263,10 +263,32 @@ import SwiftData
         room.stop()
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.trackIndex, 0)
+        XCTAssertEqual(room.elapsed, 0)
+        XCTAssertEqual(room.timeText, "00:00")
         XCTAssertEqual(room.mechanism.disc, album)
         room.loadDisc(album)
         XCTAssertFalse(room.isPlaying)
         XCTAssertFalse(room.busy)
+    }
+
+    func testPendingTrackSelectionImmediatelyDrivesPlayerDisplay() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        await room.load(show: show)
+        let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
+        room.loadDisc(album, songID: "a1")
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        room.seek(23)
+        room.playFromSleeve(album, songID: "a2")
+
+        XCTAssertEqual(room.playerDisplayTrack?.id, "a2")
+        XCTAssertEqual(room.playerDisplayTrackIndex, album.tracks.firstIndex(where: { $0.id == "a2" }))
+        XCTAssertTrue(room.isPlayerDisplayPreparing)
+        XCTAssertEqual(room.playerDisplayTimeText, "00:00")
+
+        try await ListenTestData.settle(room) { room.track?.id == "a2" && room.isPlaying && !room.busy }
+        room.stop()
     }
 
     func testRefreshDoesNotReplaceLoadedCompilation() async throws {
