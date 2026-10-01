@@ -51,7 +51,7 @@ enum WidgetTimelinePlanner {
         if let start = startBoundary {
             appendBoundary(start)
             // 自然日天数在演出时区午夜递减，不能等到下一个小时点。
-            if let midnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)),
+            if let midnight = calendar.dateInterval(of: .day, for: now)?.end,
                start.timeIntervalSince(midnight) > dayCountdownThreshold {
                 appendBoundary(midnight)
             }

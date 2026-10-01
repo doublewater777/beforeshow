@@ -290,6 +290,8 @@ final class WidgetSnapshotTests: XCTestCase {
             (zone: "Asia/Taipei", month: 10, day: 1, secondsBeforeMidnight: 3_570.0),
             (zone: "Asia/Taipei", month: 10, day: 1, secondsBeforeMidnight: 30.0),
             (zone: "Asia/Taipei", month: 10, day: 1, secondsBeforeMidnight: 0.25),
+            (zone: "America/Santiago", month: 9, day: 6, secondsBeforeMidnight: 1_800.0),
+            (zone: "Africa/Cairo", month: 4, day: 24, secondsBeforeMidnight: 1_800.0),
             (zone: "America/New_York", month: 3, day: 8, secondsBeforeMidnight: 1_800.0),
             (zone: "America/New_York", month: 11, day: 1, secondsBeforeMidnight: 1_800.0)
         ]
@@ -320,6 +322,7 @@ final class WidgetSnapshotTests: XCTestCase {
                 calendar: timing.eventCalendar(fallback: deviceCalendar)
             )
             let entryDate = try XCTUnwrap(plan.dates.last(where: { $0 <= midnight }))
+            XCTAssertEqual(entryDate, midnight, "\(testCase): the new day must have its own entry")
             let state = CurrentShowTimeState(timing: timing, calendar: deviceCalendar, now: entryDate)
 
             XCTAssertEqual(
