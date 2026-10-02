@@ -96,7 +96,7 @@ struct WidgetSettingsView: View {
 
     private var countdownWidget: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(BSLocalization.text("距离开场还有"))
+            Text(BSLocalization.text("距离开场"))
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
                 .foregroundColor(BSColor.Stage.muted)
