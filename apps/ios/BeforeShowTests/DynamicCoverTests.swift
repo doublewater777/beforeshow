@@ -1,9 +1,59 @@
 import XCTest
 import AVFoundation
 import SwiftData
+import UIKit
 @testable import BeforeShow
 
 final class DynamicCoverTests: XCTestCase {
+    @MainActor
+    func testCoverFramesLoopWithoutChangingExclusiveMusicPlayback() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cover.mov")
+        try await Self.makeTestVideo(at: url)
+
+        AppAudioSession.configureMusicPlayback()
+        defer { AppAudioSession.releaseMusicPlayback() }
+        let soundURL = try XCTUnwrap(Bundle.main.url(forResource: "cd-read", withExtension: "caf"))
+        let audio = try AVAudioPlayer(contentsOf: soundURL)
+        audio.numberOfLoops = -1
+        XCTAssertTrue(audio.play())
+        defer { audio.stop() }
+
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 64, height: 64)
+        let controller = UIViewController()
+        window.rootViewController = controller
+        window.isHidden = false
+        let cover = DynamicCoverPlayerView(frame: window.bounds)
+        controller.view.addSubview(cover)
+        defer {
+            cover.stop()
+            window.isHidden = true
+        }
+        cover.configure(url: url, isPlaying: true)
+        try await Task.sleep(for: .seconds(2))
+        let layer = try XCTUnwrap(cover.layer as? AVSampleBufferDisplayLayer)
+        let timebase = try XCTUnwrap(layer.controlTimebase)
+        let duration = try await AVURLAsset(url: url).load(.duration)
+        XCTAssertEqual(layer.sampleBufferRenderer.status, .rendering)
+        XCTAssertLessThan(CMTimebaseGetTime(timebase).seconds, duration.seconds + 0.1)
+        XCTAssertTrue(audio.isPlaying)
+        XCTAssertEqual(AVAudioSession.sharedInstance().category, .playback)
+        XCTAssertFalse(AVAudioSession.sharedInstance().categoryOptions.contains(.mixWithOthers))
+
+        cover.configure(url: url, isPlaying: false)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(CMTimebaseGetRate(timebase), 0)
+        XCTAssertNotNil(layer.sampleBufferRenderer.displayedPixelBuffer())
+        cover.configure(url: url, isPlaying: true)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(CMTimebaseGetRate(timebase), 1)
+        XCTAssertTrue(audio.isPlaying)
+    }
+
     func testDynamicFaceStorePersistsPerShowAndClears() {
         let defaults = UserDefaults(suiteName: #file)!
         defaults.removePersistentDomain(forName: #file)

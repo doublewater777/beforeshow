@@ -182,6 +182,7 @@
 		657CF5DFAFE087FDEFAC3903 /* MemoryFragmentRelativeTimeBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56A115625BFA2AA222D9539B /* MemoryFragmentRelativeTimeBoundaryTests.swift */; };
 		6599EE883B5161F5EB29D892 /* ListeningSheetBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C1F4431810B51A96024798 /* ListeningSheetBackground.swift */; };
 		65CDB5F238AEED753D18BA2B /* FootprintDetailDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C48B90971F3F97D8DC3E11 /* FootprintDetailDomain.swift */; };
+		674464CA2CAC19EFEAB2E60C /* DynamicCoverFrameReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFA9FC9122843CC500B2901 /* DynamicCoverFrameReader.swift */; };
 		680D32B3EB39E166E1B937B5 /* CurrentShowLibraryRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABC9D23BAEE17B9559B0499 /* CurrentShowLibraryRows.swift */; };
 		68139A9290253CBDF82C9DB2 /* OpeningFamiliarityMutationOrderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EA15319897A357138A2D73C /* OpeningFamiliarityMutationOrderingTests.swift */; };
 		685A900DFF16F7B5770E6333 /* MemoryFragmentMediaStaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF9845CCB8B5F7FBB2ECD36 /* MemoryFragmentMediaStaging.swift */; };
@@ -828,6 +829,7 @@
 		BEF0FCC8356474C5D5CD74BD /* CompanionInviteClipboardDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionInviteClipboardDetector.swift; sourceTree = "<group>"; };
 		BF4B90B473CDCFB195A19C4D /* ShowDraftScheduleFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftScheduleFields.swift; sourceTree = "<group>"; };
 		BFBD355DF5BEB3517877E6DA /* ListeningAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningAtmosphere.swift; sourceTree = "<group>"; };
+		BFFA9FC9122843CC500B2901 /* DynamicCoverFrameReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverFrameReader.swift; sourceTree = "<group>"; };
 		BFFB6570A840BC166B92378E /* BeforeShowTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowTab.swift; sourceTree = "<group>"; };
 		C04A4A55B88B4AB086D4A96A /* ProOfferDeepLinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProOfferDeepLinkRouter.swift; sourceTree = "<group>"; };
 		C0842106D34D68F9F62645A6 /* ProSubscriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProSubscriptionTests.swift; sourceTree = "<group>"; };
@@ -1692,6 +1694,7 @@
 		E97B3B5D6A9917E5D508EC9A /* DynamicCover */ = {
 			isa = PBXGroup;
 			children = (
+				BFFA9FC9122843CC500B2901 /* DynamicCoverFrameReader.swift */,
 				A1B6B7DDF2282FE689AE2C5B /* DynamicCoverPlaybackView.swift */,
 				3663A4B92234C3C03FCA88D1 /* DynamicCoverPresentation.swift */,
 			);
@@ -2023,6 +2026,7 @@
 				A2AE3EE094A36B1E0C7E4003 /* DispersalCeremonySheet.swift in Sources */,
 				FF41122737AE84CF76592644 /* DispersalLightsOutView.swift in Sources */,
 				DAB41BAD4C2E9FF5B5C4B269 /* DynamicCover.swift in Sources */,
+				674464CA2CAC19EFEAB2E60C /* DynamicCoverFrameReader.swift in Sources */,
 				90C2A366E7D9A399AF2086E7 /* DynamicCoverImportCoordinator.swift in Sources */,
 				DFE1C36239209793E76407EB /* DynamicCoverManagementSection.swift in Sources */,
 				90AD2DD55C2FC5A5F0DBB71C /* DynamicCoverMediaCommit.swift in Sources */,
