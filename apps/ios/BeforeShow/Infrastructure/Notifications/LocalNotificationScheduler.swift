@@ -103,7 +103,7 @@ struct LocalNotificationScheduler {
                 timeState: timeState,
                 calendar: calendar
             ) {
-                planned.append(preparation)
+                planned.append((preparation.milestone, preparation.fireDate))
             }
             planned.append((.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20, calendar: calendar)))
 
