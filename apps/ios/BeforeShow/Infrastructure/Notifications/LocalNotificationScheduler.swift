@@ -77,8 +77,8 @@ struct LocalNotificationScheduler {
                 showID: show.id,
                 milestone: node.milestone,
                 fireDate: node.fireDate,
-                title: copy.title,
-                body: content.body,
+                title: copy.displayTitle(for: node.milestone),
+                body: copy.displayBody(content.body),
                 showStartTime: node.milestone == .showDay ? timeState.effectiveStartTime : nil,
                 destination: content.destination,
                 feature: content.feature
