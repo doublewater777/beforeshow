@@ -25,7 +25,7 @@ struct NotificationCopy {
         case .showDay:
             return BSLocalization.text("快开场了")
         case .openingMemory:
-            return BSLocalization.text("开始了")
+            return BSLocalization.text("现场开始了")
         case .postShowRitual:
             return BSLocalization.text("散场后")
         case .afterShow, .footprintArrival:
