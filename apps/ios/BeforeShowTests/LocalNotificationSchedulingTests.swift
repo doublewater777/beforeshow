@@ -342,7 +342,10 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             NotificationDeepLink(userInfo: afterShow.userInfo),
             NotificationDeepLink(showID: show.id, destination: .dispersal)
         )
-        XCTAssertEqual(afterShow.body, BSLocalization.text("这场几点散场？记下时间，也可以留一句感受。"))
+        XCTAssertEqual(
+            afterShow.body,
+            "散场后的现场\n" + BSLocalization.text("这场几点散场？记下时间，也可以留一句感受。")
+        )
     }
 
     func testOpeningMemoryNotificationFiresAtShowStartAndOpensEditor() throws {
@@ -359,8 +362,11 @@ final class LocalNotificationSchedulingTests: XCTestCase {
 
         let opening = try XCTUnwrap(requests.first { $0.milestone == .openingMemory })
         XCTAssertEqual(opening.fireDate, makeDate(year: 2026, month: 6, day: 20, hour: 20))
-        XCTAssertEqual(opening.title, "夜航")
-        XCTAssertEqual(opening.body, BSLocalization.text("开始了。现场怎么样，可以记一段记忆。"))
+        XCTAssertEqual(opening.title, BSLocalization.text("现场开始了"))
+        XCTAssertEqual(
+            opening.body,
+            "夜航\n" + BSLocalization.text("开始了。现场怎么样，可以记一段记忆。")
+        )
         XCTAssertEqual(
             NotificationDeepLink(userInfo: opening.userInfo),
             NotificationDeepLink(showID: show.id, destination: .memoryCreate)
@@ -501,7 +507,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         }
     }
 
-    /// 标题是现场名；推荐节点先说还有几天，再说此刻能顺手做的事，每条推不同的功能。
+    /// 系统标题保持简短；完整现场名进入正文第一行。推荐节点仍先说还有几天，再说可做的事。
     func testRecommendationCopyLeadsWithDaysLeftAndRotatesFeatures() throws {
         let show = try Show(
             name: "夜航",
@@ -518,10 +524,14 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let seven = try XCTUnwrap(requests.first { $0.milestone == .sevenDaysBefore })
         let one = try XCTUnwrap(requests.first { $0.milestone == .oneDayBefore })
 
-        XCTAssertEqual(fourteen.title, "夜航")
-        XCTAssertTrue(fourteen.body.hasPrefix(BSLocalization.format("还有 %lld 天。", Int64(14))))
+        XCTAssertEqual(fourteen.title, BSLocalization.text("准备这场"))
+        XCTAssertTrue(
+            fourteen.body.hasPrefix("夜航\n" + BSLocalization.format("还有 %lld 天。", Int64(14)))
+        )
         XCTAssertEqual(fourteen.feature, .listen)
-        XCTAssertTrue(seven.body.hasPrefix(BSLocalization.format("还有 %lld 天。", Int64(7))))
+        XCTAssertTrue(
+            seven.body.hasPrefix("夜航\n" + BSLocalization.format("还有 %lld 天。", Int64(7)))
+        )
         XCTAssertEqual(seven.feature, .companion)
         XCTAssertTrue(one.body.contains(BSLocalization.text("今晚可以再听听这场的歌。")))
         XCTAssertNil(one.feature)
@@ -544,9 +554,30 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let oneDayBefore = try XCTUnwrap(requests.first { $0.milestone == .oneDayBefore })
         XCTAssertEqual(
             oneDayBefore.body,
-            BSLocalization.format("明天 %@ 开始。", "12:00")
+            "两日音乐节\n"
+                + BSLocalization.format("明天 %@ 开始。", "12:00")
                 + BSLocalization.text("今晚可以再听听这场的歌。")
         )
+    }
+
+    func testLongShowNameLivesInBodyWithoutManualTruncation() throws {
+        let longName = "2026 超级超级超级长名字音乐节特别企划最终特别加长版上海站第一日"
+        let show = try Show(
+            name: longName,
+            date: makeDate(year: 2026, month: 8, day: 1),
+            startTime: makeDate(year: 2026, month: 8, day: 1, hour: 19)
+        )
+
+        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
+            for: show,
+            now: makeDate(year: 2026, month: 7, day: 1)
+        )
+
+        let oneDayBefore = try XCTUnwrap(requests.first { $0.milestone == .oneDayBefore })
+        XCTAssertEqual(oneDayBefore.title, BSLocalization.text("明天开场"))
+        XCTAssertNotEqual(oneDayBefore.title, longName)
+        XCTAssertTrue(oneDayBefore.body.hasPrefix(longName + "\n"))
+        XCTAssertFalse(oneDayBefore.body.contains("…"))
     }
 
     func testNotificationSchedulingIsTimezoneAware() throws {
@@ -629,7 +660,10 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             }
         )
         XCTAssertEqual(afterShow.fireDate, makeDate(year: 2026, month: 6, day: 15, hour: 11))
-        XCTAssertEqual(afterShow.body, BSLocalization.text("这场结束了，留下一点记忆。"))
+        XCTAssertEqual(
+            afterShow.body,
+            "已落幕的现场\n" + BSLocalization.text("这场结束了，留下一点记忆。")
+        )
         let nextMilestones = plan.scheduledRequests.filter { $0.showID == next.id }.map(\.milestone)
         XCTAssertEqual(nextMilestones, [.showDay])
     }
