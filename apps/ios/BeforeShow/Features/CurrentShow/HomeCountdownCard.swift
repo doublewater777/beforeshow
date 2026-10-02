@@ -277,7 +277,7 @@ struct HomeCountdownLockup: View {
     ) -> String {
         switch phase {
         case .pre:
-            return timeState.kind == .today ? "TONIGHT" : "COUNTDOWN"
+            return timeState.kind == .today ? "TODAY" : "COUNTDOWN"
         case .live:
             return "LIVE"
         case .ended:

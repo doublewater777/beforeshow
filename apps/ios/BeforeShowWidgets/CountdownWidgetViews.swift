@@ -90,8 +90,8 @@ struct CountdownPresentation {
         let state = CurrentShowTimeState(timing: snapshot.timing, now: entry.date)
         calendar = snapshot.timing.eventCalendar(fallback: .current)
         endedTitle = state.kind == .dayEnded
-            ? BSLocalization.text("今日已落幕")
-            : BSLocalization.text("已落幕")
+            ? BSLocalization.text("今天结束了")
+            : BSLocalization.text("已结束")
         startDate = state.effectiveStartTime
         endBoundary = state.endBoundary
         let remaining = state.effectiveStartTime
@@ -145,8 +145,8 @@ struct CountdownPresentation {
         )
     }
 
-    /// 「今晚」仅当日开场;`<24h` 但跨日只报钟点,避免今晚看明天场仍写今晚。
-    var isStartTonight: Bool {
+    /// 「今天开场」仅用于当日开场;`<24h` 但跨日仍使用「即将开场」。
+    var isStartToday: Bool {
         guard let startDate else { return false }
         return calendar.isDateInToday(startDate)
     }
@@ -165,10 +165,10 @@ struct CountdownPresentation {
     var phaseTag: String {
         switch hero {
         case .far:
-            return BSLocalization.text("距离开场还有")
+            return BSLocalization.text("距离开场")
         case .near:
-            return isStartTonight
-                ? BSLocalization.text("今晚开场")
+            return isStartToday
+                ? BSLocalization.text("今天开场")
                 : BSLocalization.text("即将开场")
         case .live, .ended, .endUnconfirmed, .inactive, .empty:
             return ""
@@ -198,7 +198,7 @@ private struct EmptyWidgetView: View {
             Text("还没有现场")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(WidgetTheme.foreground)
-            Text("打开开场前,添加下一场")
+            Text("打开开场前，添加下一场")
                 .font(.system(size: 10))
                 .foregroundStyle(WidgetTheme.dim)
         }
@@ -293,7 +293,7 @@ private struct SmallCountdownView: View {
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
         case .endUnconfirmed:
-            Text("已到预计结束时间")
+            Text("散场待确认")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
@@ -402,7 +402,7 @@ private struct MediumCountdownView: View {
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
         case .endUnconfirmed:
-            Text("已到预计结束时间")
+            Text("散场待确认")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
@@ -470,7 +470,7 @@ private struct InlineCountdownView: View {
         case .ended:
             Text(presentation.endedTitle)
         case .endUnconfirmed:
-            Text("待确认")
+            Text("散场待确认")
         case .inactive(let title):
             Text(title)
         case .empty:
@@ -523,8 +523,8 @@ private struct CircularCountdownView: View {
                     .font(.headline.weight(.bold))
                     .monospacedDigit()
                     .minimumScaleFactor(0.78)
-                if presentation.isStartTonight {
-                    Text("今晚")
+                if presentation.isStartToday {
+                    Text("今天")
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
@@ -583,7 +583,7 @@ private struct RectangularCountdownView: View {
                 if presentation.hasShow {
                     Text(presentation.showName)
                 } else {
-                    Text("打开开场前,添加下一场")
+                    Text("打开开场前，添加下一场")
                 }
             }
                 .font(.caption)
@@ -607,7 +607,7 @@ private struct RectangularCountdownView: View {
         case .ended:
             Text(presentation.endedTitle)
         case .endUnconfirmed:
-            Text("待确认")
+            Text("散场待确认")
         case .inactive(let title):
             Text(title)
         case .empty:
