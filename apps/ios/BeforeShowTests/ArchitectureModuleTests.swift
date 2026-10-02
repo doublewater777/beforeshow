@@ -171,6 +171,38 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
+    func testSharedCountdownUsesHoursWithin24HoursAcrossCalendarDays() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 8 * 3_600))
+
+        let now = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 20))
+        )
+        let start = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 19, minute: 30))
+        )
+        let timing = ShowTimingFields(
+            date: calendar.startOfDay(for: start),
+            startTime: start,
+            endDate: nil,
+            endTime: nil,
+            timeZoneSecondsFromGMT: 8 * 3_600,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        )
+
+        let state = CurrentShowTimeState(timing: timing, calendar: calendar, now: now)
+
+        XCTAssertEqual(state.kind, .before)
+        XCTAssertEqual(state.dayDistance, 1)
+        XCTAssertEqual(
+            state.countdownText,
+            BSLocalization.format("还有 %lld %@", Int64(23), BSLocalization.text("小时"))
+        )
+        XCTAssertEqual(state.countdownNumber, "23")
+        XCTAssertEqual(state.countdownUnit, BSLocalization.text("小时"))
+    }
+
     func testCountdownCopyUsesHoursThenMinutes() {
         XCTAssertEqual(
             CountdownCopy.until(remainingSeconds: 5 * 3_600 + 59),
@@ -182,7 +214,7 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
-    func testHomeStatusSaysStartingSoonBeforeTodayShow() throws {
+    func testHomeStatusSaysOpeningTodayBeforeTodayShow() throws {
         let start = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "今天开场", date: start, startTime: start)
         let now = start.addingTimeInterval(-3_600)
@@ -190,7 +222,7 @@ final class ArchitectureModuleTests: XCTestCase {
 
         XCTAssertEqual(
             HomeShowIdentityPresentation.statusText(for: state, now: now),
-            BSLocalization.text("马上开场")
+            BSLocalization.text("今天开场")
         )
     }
 
