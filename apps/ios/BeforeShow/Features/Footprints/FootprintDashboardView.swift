@@ -30,7 +30,6 @@ struct FootprintDashboardView: View {
                 sections.artistSection
                 sections.citySection
                 sections.venueSection
-                sections.memorySection
                 sections.timelineSection
             }
             .padding(.bottom, BSLayout.tabBarContentInset)

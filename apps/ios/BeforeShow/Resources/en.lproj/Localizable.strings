@@ -775,7 +775,6 @@ First show: %@";
 "分享这份档案" = "Share This Archive";
 "分享%@" = "Share %@";
 "还有 %lld 场现场" = "%lld more shows";
-"还有 %lld 个画面" = "%lld more stills";
 "生成中…" = "Generating…";
 "删除后可以重新添加。App 内保存的图片会一起移除。" = "You can re-add it later. Images saved in the app are removed too.";
 "删除后，这场现场将无法恢复，也会从足迹统计中移除。" = "After deleting, this show can't be restored and will be removed from footprint stats.";
@@ -1171,7 +1170,6 @@ First show: %@";
 "城市足迹" = "City Footprints";
 "场馆足迹" = "Venue Footprints";
 "最近观看 · %@" = "Last seen · %@";
-"最近留下的回忆" = "Recent Memories";
 "查看艺人档案 →" = "View Artist Archive →";
 "查看城市档案 →" = "View City Archive →";
 "查看场馆档案 →" = "View Venue Archive →";
@@ -1241,7 +1239,6 @@ First show: %@";
 "帮助改进产品" = "Help Improve Product";
 "当前已是 Pro，挽留方案不适用。" = "Already Pro; retention offer not applicable.";
 "查看全部 →" = "View All →";
-"查看全部 ›" = "View All ›";
 "艺人档案" = "Artist Archive";
 "锁屏小组件预览" = "Lock Screen Widget Preview";
 "现场轨迹" = "Live Trail";
@@ -1281,11 +1278,7 @@ First show: %@";
 "整张长图包含你的完整足迹档案，可直接保存或分享。" = "The full-page image covers your entire footprint archive — save or share it directly.";
 "我的现场足迹" = "My Live Footprints";
 
-"回忆档案" = "Memory Archive";
-"全部回忆" = "All Memories";
-"%lld 场回忆" = "%lld memories";
 
-"LATEST MEMORY" = "LATEST MEMORY";
 
 "回忆" = "Memory";
 
@@ -1293,13 +1286,9 @@ First show: %@";
 
 "归档" = "Archive";
 
-"场回忆" = "memories";
 
-"暂无回忆" = "No memories yet";
 
-"照片和视频都留在对应的那一晚里。这里按时间把它们重新铺开。" = "Photos and videos stay with the night they belong to, laid out here in time order.";
 
-"散场后留下照片或视频记忆，在这里筑造你的现场回忆。" = "Leave photo or video memories after the show, and build your live memories here.";
 "同场次按最近观看排序" = "Tied counts are ordered by most recent show";
 "全部场馆 · %lld" = "All venues · %lld";
 "场次" = "Shows";

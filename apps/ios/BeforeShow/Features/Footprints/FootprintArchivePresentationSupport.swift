@@ -62,10 +62,9 @@ func footprintRowChevron(
 @ViewBuilder
 func footprintExportRemainingCaption(
     total: Int,
-    limit: Int,
-    style: FootprintExportContentPolicy.RemainingStyle = .shows
+    limit: Int
 ) -> some View {
-    if let text = FootprintExportContentPolicy.remainingText(total: total, limit: limit, style: style) {
+    if let text = FootprintExportContentPolicy.remainingText(total: total, limit: limit) {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .foregroundColor(BSColor.Stage.dim)

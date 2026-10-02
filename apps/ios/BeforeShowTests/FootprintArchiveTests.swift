@@ -619,16 +619,11 @@ final class FootprintArchiveTests: XCTestCase {
 
     func testExportPolicyCapsTimelineYearGroupsAndReportsRemaining() {
         XCTAssertEqual(FootprintExportContentPolicy.timelineShowLimit, 12)
-        XCTAssertEqual(FootprintExportContentPolicy.memoryCardLimit, 4)
         XCTAssertEqual(FootprintExportContentPolicy.remainingCount(total: 20, limit: 12), 8)
-        XCTAssertNil(FootprintExportContentPolicy.remainingText(total: 4, limit: 12, style: .shows))
+        XCTAssertNil(FootprintExportContentPolicy.remainingText(total: 4, limit: 12))
         XCTAssertEqual(
-            FootprintExportContentPolicy.remainingText(total: 20, limit: 12, style: .shows),
+            FootprintExportContentPolicy.remainingText(total: 20, limit: 12),
             "还有 8 场现场"
-        )
-        XCTAssertEqual(
-            FootprintExportContentPolicy.remainingText(total: 16, limit: 4, style: .memories),
-            "还有 12 个画面"
         )
     }
 
@@ -980,12 +975,8 @@ final class LocalizableCompletenessTests: XCTestCase {
         "回忆",
         "留念",
         "归档",
-        "场回忆",
         "照片",
         "视频",
-        "暂无回忆",
-        "照片和视频都留在对应的那一晚里。这里按时间把它们重新铺开。",
-        "散场后留下照片或视频记忆，在这里筑造你的现场回忆。",
         "记录最完整的一晚",
         "weatherReminderLegalTitle",
         "ICP备案号",

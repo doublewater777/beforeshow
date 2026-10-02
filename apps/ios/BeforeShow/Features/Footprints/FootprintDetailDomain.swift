@@ -236,14 +236,7 @@ enum FootprintShareMaterialBuilder {
 
 enum FootprintExportContentPolicy {
     static let timelineShowLimit = 12
-    static let memoryCardLimit = 4
     static let yearShowLimit = 12
-    static let memoriesPageLimit = 12
-
-    enum RemainingStyle {
-        case shows
-        case memories
-    }
 
     static func prefix<T>(_ items: [T], limit: Int) -> [T] {
         Array(items.prefix(limit))
@@ -253,15 +246,10 @@ enum FootprintExportContentPolicy {
         max(0, total - limit)
     }
 
-    static func remainingText(total: Int, limit: Int, style: RemainingStyle) -> String? {
+    static func remainingText(total: Int, limit: Int) -> String? {
         let remaining = remainingCount(total: total, limit: limit)
         guard remaining > 0 else { return nil }
-        switch style {
-        case .shows:
-            return BSLocalization.format("还有 %lld 场现场", Int64(remaining))
-        case .memories:
-            return BSLocalization.format("还有 %lld 个画面", Int64(remaining))
-        }
+        return BSLocalization.format("还有 %lld 场现场", Int64(remaining))
     }
 
     static func cappedYearGroups(_ years: [FootprintYearGroup], limit: Int) -> [FootprintYearGroup] {
