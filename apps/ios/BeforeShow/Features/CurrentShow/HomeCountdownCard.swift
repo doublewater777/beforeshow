@@ -323,7 +323,7 @@ struct HomeCountdownLockup: View {
                             .foregroundColor(BSColor.Stage.heroIvory)
                             // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
                             .padding(.vertical, -9)
-                        Text(BSLocalization.text("天"))
+                        Text(BSLocalization.format("天（按天数）", days))
                             .font(.system(size: 20, weight: .regular))
                             .foregroundColor(BSColor.Stage.dim)
                     }

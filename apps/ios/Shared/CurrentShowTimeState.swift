@@ -443,7 +443,7 @@ struct CurrentShowTimeState: Equatable {
             return (
                 BSLocalization.format("还有 %lld 天", Int64(dayDistance)),
                 "\(dayDistance)",
-                BSLocalization.text("天"),
+                BSLocalization.format("天（按天数）", Int64(dayDistance)),
                 BSLocalization.text("慢慢进入状态")
             )
         case .today:

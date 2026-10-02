@@ -862,6 +862,18 @@ final class ProSubscriptionTests: XCTestCase {
         )
     }
 
+    func testEnglishDayCountsPluralizeByAppLanguage() {
+        let original = AppLanguageManager.persisted
+        defer { AppLanguageManager.apply(original) }
+
+        // 中文系统下手动选 English：复数要按所选语言，而不是系统语言。
+        AppLanguageManager.apply(.en)
+        XCTAssertEqual(BSLocalization.format("还有 %lld 天", 1), "1 day remaining")
+        XCTAssertEqual(BSLocalization.format("还有 %lld 天", 2), "2 days remaining")
+        XCTAssertEqual(BSLocalization.format("天（按天数）", 1), "day")
+        XCTAssertEqual(BSLocalization.format("天（按天数）", 56), "days")
+    }
+
     func testSystemLanguageResolvesToASupportedLocalizationBundle() {
         XCTAssertNotNil(AppLanguage.system.bundle)
         let resolved = AppLanguage.system.bundle?.preferredLocalizations.first

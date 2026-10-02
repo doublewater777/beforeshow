@@ -38,8 +38,7 @@ struct SettingsView: View {
                     BSSettingsRow(
                         icon: "square.stack.3d.down.right.fill",
                         tint: BSColor.Stage.accent,
-                        title: BSLocalization.text("小组件"),
-                        value: widgetStatusText
+                        title: BSLocalization.text("小组件")
                     )
                 }
                 .listRowBackground(BSColor.Stage.surface)
@@ -198,13 +197,6 @@ struct SettingsView: View {
         case .free, .expired:
             return BSLocalization.text("升级 Pro")
         }
-    }
-
-    private var widgetStatusText: String {
-        if let snapshot = WidgetSnapshotStore.read() {
-            return snapshot.name
-        }
-        return BSLocalization.text("未添加")
     }
 }
 
