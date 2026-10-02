@@ -20,35 +20,37 @@ struct NotificationCopy {
     private func recommendationLine(_ feature: RecommendedFeature) -> String {
         switch feature {
         case .widget:
-            return BSLocalization.text("把小组件放到主屏幕。")
+            return BSLocalization.text("想随时看倒计时，可以把这场放到主屏幕。")
         case .companion:
-            return BSLocalization.text("和朋友一起去？邀请他们加入这场。")
+            return BSLocalization.text("和朋友一起去？可以邀请他们一起记录这场。")
         case .listen:
             if let artist = context.artistName {
                 return BSLocalization.format("先听听 %@ 的歌。", artist)
             }
             return BSLocalization.text("先听听这场的歌。")
         case .timetable:
-            return BSLocalization.text("时刻表出来了保存在这里，可快速打开。")
+            return BSLocalization.text("时刻表准备好了，提前看看想去哪些舞台。")
         case .dispersal:
             return BSLocalization.text("这场结束了，留下一点记忆。")
         case .memoryFragments:
-            return BSLocalization.text("把这场的照片放进记忆碎片。")
+            return BSLocalization.text("还有照片没留下？可以收进这场的记忆里。")
         case .footprint:
-            return BSLocalization.text("已收进足迹，可以做一张回忆卡片。")
+            return BSLocalization.text("这场已经留在足迹里了。想做张回忆卡片吗？")
         case .nextShow, .addShow:
-            return BSLocalization.text("添加下一场现场。")
+            return BSLocalization.text("下一场去哪？可以先记下来。")
         }
     }
 
     func oneDayBefore() -> String {
+        let tail = context.artistName.map { BSLocalization.format("今晚再听听 %@ 的歌。", $0) }
+            ?? BSLocalization.text("今晚再听听这场的歌。")
         if context.isMultiDay {
-            return BSLocalization.text("明天开始。")
+            let lead = context.startClock.map { BSLocalization.format("明天 %@ 开始。", $0) }
+                ?? BSLocalization.text("明天开始。")
+            return lead + tail
         }
         let lead = context.startClock.map { BSLocalization.format("明天 %@ 开场。", $0) }
             ?? BSLocalization.text("明天开场。")
-        let tail = context.artistName.map { BSLocalization.format("今晚可以再听听 %@ 的歌。", $0) }
-            ?? BSLocalization.text("今晚可以再听听这场的歌。")
         return lead + tail
     }
 
@@ -75,33 +77,33 @@ struct NotificationCopy {
         guard let remainingSeconds else {
             let lead = context.startClock.map { BSLocalization.format("%@ 开场", $0) }
                 ?? BSLocalization.text("今天开场")
-            return lead + placeSuffix + BSLocalization.text("。还有 3 小时，准备出门。")
+            return lead + placeSuffix + BSLocalization.text("。还有 3 小时，可以准备出发了。")
         }
         let remaining = max(60, remainingSeconds)
         let lead = remaining >= 3_600
             ? BSLocalization.format("%lld 小时后开场", Int64(remaining / 3_600))
             : BSLocalization.format("%lld 分钟后开场", Int64(remaining / 60))
-        return lead + placeSuffix + BSLocalization.text("。该出门了。")
+        return lead + placeSuffix + BSLocalization.text("。别错过开场。")
     }
 
     var opening: String {
-        BSLocalization.text("开始了。现场怎么样，可以记一段记忆。")
+        BSLocalization.text("开始了。想记下什么，就留在这里。")
     }
 
     func postShowRitual(isConfirmed: Bool) -> String {
         isConfirmed
-            ? BSLocalization.text("散场了，记下这一刻。")
-            : BSLocalization.text("散场了吗？记下时间，也记下这一刻的感受。")
+            ? BSLocalization.text("散场了。留一句此刻的感受。")
+            : BSLocalization.text("散场了吗？记一下散场时间和此刻的感受。")
     }
 
     func afterShow(isConfirmed: Bool) -> String {
         isConfirmed
-            ? BSLocalization.text("这场结束了，留下一点记忆。")
-            : BSLocalization.text("这场几点散场？记下时间，也可以留一句感受。")
+            ? BSLocalization.text("昨天的现场，还想补点什么吗？")
+            : BSLocalization.text("这场几点散场？补一下时间，也可以留一句感受。")
     }
 
     var confirmEndForFootprint: String {
-        BSLocalization.text("这场几点散场？记下时间，这场就会收进足迹。")
+        BSLocalization.text("还没记散场时间。补上以后，这场就完整了。")
     }
 
     func afterRetention(_ feature: RecommendedFeature, nextShow: NotificationNextShow?) -> String {
