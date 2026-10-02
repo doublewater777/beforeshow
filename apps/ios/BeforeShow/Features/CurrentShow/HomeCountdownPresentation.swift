@@ -35,7 +35,7 @@ enum HomeShowIdentityPresentation {
         case .before: return BSLocalization.text("开场前")
         case .today:
             guard let start = timeState.effectiveStartTime, now >= start else {
-                return BSLocalization.text("马上开场")
+                return BSLocalization.text("今天开场")
             }
             return BSLocalization.text("开场了")
         case .dayEnded: return BSLocalization.text("今日已落幕")
