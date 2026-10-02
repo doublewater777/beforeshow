@@ -314,19 +314,16 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertNotNil(result.notificationState)
         XCTAssertEqual(selection.selectedShowID, current.id)
 
+        // 通知只给当前现场排（ADR 0037）：补录的已结束现场不是当前现场，不再收到散场后的通知。
         let shows = try context.fetch(FetchDescriptor<Show>())
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [],
+            currentShowID: selection.selectedShowID,
             now: now
         )
         XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == current.id })
-        XCTAssertTrue(plan.scheduledRequests.contains {
-            $0.showID == ended.id && $0.milestone == .afterShow
-        })
-        XCTAssertFalse(plan.scheduledRequests.contains {
-            $0.showID == ended.id && $0.milestone != .afterShow
-        })
+        XCTAssertFalse(plan.scheduledRequests.contains { $0.showID == ended.id })
     }
 
     func testUnifiedFutureAddDoesNotStealExistingCurrentShow() throws {
@@ -358,12 +355,15 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertNotNil(result.notificationState)
         XCTAssertEqual(selection.selectedShowID, current.id)
 
+        // 远场不是当前现场，只排开场前 3 小时那条。
         let shows = try context.fetch(FetchDescriptor<Show>())
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [],
+            currentShowID: current.id,
             now: now
         )
+        XCTAssertEqual(plan.scheduledRequests.filter { $0.showID == farther.id }.map(\.milestone), [.showDay])
         XCTAssertEqual(Set(plan.scheduledRequests.map(\.showID)), Set([current.id, farther.id]))
     }
 

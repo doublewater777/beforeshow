@@ -233,7 +233,7 @@ final class CurrentShowSessionTests: XCTestCase {
 
     // MARK: - Multi-show notification portfolio
 
-    func testPortfolioSchedulesMultipleShowsWithoutCurrentShowInput() throws {
+    func testPortfolioKeepsShowDayReminderForEveryShowButFullScheduleOnlyForCurrent() throws {
         let first = try makeShow(name: "第一场", day: 20)
         let second = try makeShow(name: "第二场", day: 25)
         let portfolioNow = makeDate(year: 2026, month: 6, day: 1, hour: 10)
@@ -241,12 +241,14 @@ final class CurrentShowSessionTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: [second, first],
             existingRecords: [],
+            currentShowID: first.id,
             now: portfolioNow
         )
 
         XCTAssertEqual(Set(plan.scheduledRequests.map(\.showID)), Set([first.id, second.id]))
         XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == first.id && $0.milestone == .showDay })
-        XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == second.id && $0.milestone == .showDay })
+        XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == first.id && $0.milestone == .oneDayBefore })
+        XCTAssertEqual(plan.scheduledRequests.filter { $0.showID == second.id }.map(\.milestone), [.showDay])
     }
 
     func testPortfolioExcludesCanceledHistoricalAndUndatedPostponedShows() throws {
@@ -261,6 +263,7 @@ final class CurrentShowSessionTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: [valid, canceled, historical, postponed],
             existingRecords: [],
+            currentShowID: canceled.id,
             now: makeDate(year: 2026, month: 6, day: 1, hour: 10)
         )
 
@@ -269,13 +272,14 @@ final class CurrentShowSessionTests: XCTestCase {
 
     func testPortfolioCapsSystemRequestsAtFiftySix() throws {
         let portfolioNow = makeDate(year: 2026, month: 6, day: 1, hour: 10)
-        let shows = try (20...29).map { day in
+        let shows = try (20...89).map { day in
             try makeShow(name: "第\(day)场", day: day)
         }
 
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [],
+            currentShowID: shows.first?.id,
             now: portfolioNow
         )
 
@@ -302,6 +306,7 @@ final class CurrentShowSessionTests: XCTestCase {
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: shows,
             existingRecords: [deferredBackfill],
+            currentShowID: owner.id,
             now: portfolioNow
         )
 
@@ -318,7 +323,7 @@ final class CurrentShowSessionTests: XCTestCase {
         let show = try Show(name: "临时补票", date: start, startTime: start)
         let planner = NotificationPortfolioPlanner(calendar: calendar)
         let first = planner.plan(
-            shows: [show], existingRecords: [],
+            shows: [show], existingRecords: [], currentShowID: show.id,
             now: makeDate(year: 2026, month: 6, day: 15, hour: 10)
         )
         let reminder = try XCTUnwrap(first.scheduledRequests.first { $0.milestone == .showDay })
@@ -329,7 +334,7 @@ final class CurrentShowSessionTests: XCTestCase {
 
         for minute in [5, 20, 25] {
             let plan = planner.plan(
-                shows: [show], existingRecords: [record],
+                shows: [show], existingRecords: [record], currentShowID: show.id,
                 now: makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: minute)
             )
             XCTAssertEqual(
@@ -346,7 +351,7 @@ final class CurrentShowSessionTests: XCTestCase {
         let show = try Show(name: "修改开场时间", date: start, startTime: start)
         let planner = NotificationPortfolioPlanner(calendar: calendar)
         let first = planner.plan(
-            shows: [show], existingRecords: [],
+            shows: [show], existingRecords: [], currentShowID: show.id,
             now: makeDate(year: 2026, month: 6, day: 15, hour: 10)
         )
         let reminder = try XCTUnwrap(first.scheduledRequests.first { $0.milestone == .showDay })
@@ -355,7 +360,7 @@ final class CurrentShowSessionTests: XCTestCase {
         show.startTime = makeDate(year: 2026, month: 6, day: 15, hour: 13)
 
         let changed = planner.plan(
-            shows: [show], existingRecords: [record],
+            shows: [show], existingRecords: [record], currentShowID: show.id,
             now: makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: 20)
         )
         let replacement = try XCTUnwrap(changed.scheduledRequests.first { $0.milestone == .showDay })
@@ -363,7 +368,7 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertEqual(replacement.fireDate, fireDate)
         record.apply(replacement)
         let refreshed = planner.plan(
-            shows: [show], existingRecords: [record],
+            shows: [show], existingRecords: [record], currentShowID: show.id,
             now: makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: 25)
         )
         XCTAssertEqual(refreshed.scheduledRequests.first { $0.milestone == .showDay }?.fireDate, fireDate)
@@ -396,6 +401,8 @@ final class CurrentShowSessionTests: XCTestCase {
             body: "旧正文",
             createdAt: Date(timeIntervalSince1970: 20)
         )
+        // 完全匹配也包括落点与推荐功能。
+        matching.apply(desired)
 
         let normalized = NotificationPortfolioRecordStore.normalize(
             records: [stale, matching],
@@ -496,7 +503,7 @@ final class CurrentShowSessionTests: XCTestCase {
     func testNotificationRouterPublishesOnlyToFeatureRootAndDoesNotMutateCurrentSelection() {
         let router = NotificationDeepLinkRouter.shared
         _ = router.consumeFeatureRoot()
-        _ = router.consume()
+        _ = router.consumeHandledRecommendation()
 
         let currentID = UUID()
         let targetID = UUID()
@@ -506,7 +513,7 @@ final class CurrentShowSessionTests: XCTestCase {
         router.route(to: deepLink)
 
         XCTAssertEqual(router.featureRootDeepLink, deepLink)
-        XCTAssertNil(router.pendingDeepLink)
+        XCTAssertNil(router.handledRecommendation)
         XCTAssertEqual(selection.selectedShowID, currentID)
         XCTAssertEqual(router.consumeFeatureRoot(), deepLink)
         XCTAssertNil(router.featureRootDeepLink)

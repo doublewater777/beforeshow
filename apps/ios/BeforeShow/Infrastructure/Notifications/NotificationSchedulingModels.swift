@@ -7,6 +7,10 @@ enum NotificationAuthorizationState: String, Codable, Equatable {
     case denied
     case authorized
     case provisional
+
+    var allowsDelivery: Bool {
+        self == .authorized || self == .provisional
+    }
 }
 
 extension NotificationAuthorizationState {
@@ -58,6 +62,7 @@ struct NotificationPermissionPolicy {
 }
 
 enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
+    case addedFollowUp
     case fourteenDaysBefore
     case sevenDaysBefore
     case threeDaysBefore
@@ -65,24 +70,46 @@ enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
     case showDayMorning
     case showDay
     case openingMemory
+    case postShowRitual
     case afterShow
+    case footprintArrival
 }
 
 extension ShowNotificationMilestone {
+    /// 唯一会响铃并突破专注模式的：「开场前 3 小时」错过有真实后果。
     var isTimeSensitive: Bool {
         self == .showDay
     }
 
-    fileprivate var portfolioPriority: Int {
+    /// 开场与刚散场时不亮屏，留在通知中心。
+    var isPassive: Bool {
+        self == .openingMemory || self == .postShowRitual
+    }
+
+    /// 功能推荐节点：没有可推荐的功能就不发。
+    var recommendationSlot: FeatureRecommendationSlot? {
+        switch self {
+        case .addedFollowUp: return .addedFollowUp
+        case .fourteenDaysBefore: return .fourteenDaysBefore
+        case .sevenDaysBefore: return .sevenDaysBefore
+        case .threeDaysBefore: return .threeDaysBefore
+        default: return nil
+        }
+    }
+
+    var portfolioPriority: Int {
         switch self {
         case .showDay: return 0
         case .openingMemory: return 1
         case .showDayMorning: return 2
-        case .afterShow: return 3
-        case .oneDayBefore: return 4
-        case .threeDaysBefore: return 5
-        case .sevenDaysBefore: return 6
-        case .fourteenDaysBefore: return 7
+        case .postShowRitual: return 3
+        case .afterShow: return 4
+        case .oneDayBefore: return 5
+        case .footprintArrival: return 6
+        case .threeDaysBefore: return 7
+        case .sevenDaysBefore: return 8
+        case .fourteenDaysBefore: return 9
+        case .addedFollowUp: return 10
         }
     }
 }
@@ -111,14 +138,21 @@ enum ShowFlavor {
 
 struct NotificationCopyContext {
     let showName: String
-    let flavor: ShowFlavor
+    /// 只有一位艺人时才说「去见」谁；多艺人或没有艺人时用现场本身。
+    let artistName: String?
+    let isFestival: Bool
     let place: String?
     let isMultiDay: Bool
     let startClock: String?
 
     init(show: Show, timeState: CurrentShowTimeState, calendar: Calendar) {
-        self.showName = show.name
-        self.flavor = ShowFlavor.inferred(from: show)
+        let name = show.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.showName = name.isEmpty ? BSLocalization.text("这场现场") : name
+        let artists = show.artistNames
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        self.artistName = artists.count == 1 ? artists[0] : nil
+        self.isFestival = ShowFlavor.inferred(from: show) == .festival
 
         let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -155,112 +189,9 @@ struct ScheduledShowNotification: Equatable {
     let title: String
     let body: String
     var showStartTime: Date? = nil
-}
-
-struct NotificationPortfolioPlan {
-    static let maximumScheduledRequests = 56
-
-    let scheduledRequests: [ScheduledShowNotification]
-    let retainedShowDayRequests: [ScheduledShowNotification]
-
-    var modelRequests: [ScheduledShowNotification] {
-        var byIdentifier = Dictionary(
-            uniqueKeysWithValues: scheduledRequests.map { ($0.requestIdentifier, $0) }
-        )
-        for request in retainedShowDayRequests where byIdentifier[request.requestIdentifier] == nil {
-            byIdentifier[request.requestIdentifier] = request
-        }
-        return Array(byIdentifier.values)
-    }
-}
-
-struct NotificationPortfolioPlanner {
-    let scheduler: LocalNotificationScheduler
-
-    init(calendar: Calendar = .current) {
-        self.scheduler = LocalNotificationScheduler(calendar: calendar)
-    }
-
-    func plan(
-        shows: [Show],
-        existingRecords: [ShowNotificationScheduleRecord],
-        now: Date = Date()
-    ) -> NotificationPortfolioPlan {
-        let eligibleShows = shows.filter(Self.isEligibleForPortfolio)
-
-        var naturalRequests: [ScheduledShowNotification] = []
-        var retainedShowDayRequests: [ScheduledShowNotification] = []
-        for show in eligibleShows {
-            if show.endedAt != nil {
-                if let afterShow = scheduler.afterShowRequest(for: show, now: now) {
-                    naturalRequests.append(afterShow)
-                }
-            } else {
-                let start = CurrentShowTimeState(show: show, calendar: scheduler.calendar, now: now).effectiveStartTime
-                let previous = existingRecords.filter {
-                    $0.showID == show.id && $0.milestone == .showDay && $0.isBackfill != true
-                        && $0.showStartTime != nil && $0.showStartTime == start
-                }.min { $0.fireDate < $1.fireDate }
-                let requests = scheduler.futureRequests(
-                    for: show, now: now, scheduledShowDayFireDate: previous?.fireDate
-                )
-                naturalRequests.append(contentsOf: requests)
-                if let reminder = requests.first(where: { $0.milestone == .showDay }) {
-                    retainedShowDayRequests.append(reminder)
-                } else if let previous, let start, now < start {
-                    // Keep a due reminder as a completion marker until opening so another
-                    // foreground reconciliation cannot mint a fresh now + 10 minute reminder.
-                    retainedShowDayRequests.append(ScheduledShowNotification(
-                        showID: show.id, milestone: .showDay, fireDate: previous.fireDate,
-                        title: previous.title ?? "", body: previous.body ?? "", showStartTime: start
-                    ))
-                }
-            }
-        }
-
-        naturalRequests = Self.deduplicated(naturalRequests)
-
-        let allCandidates = Self.sortedForScheduling(naturalRequests)
-        let scheduled = Array(allCandidates.prefix(NotificationPortfolioPlan.maximumScheduledRequests))
-
-        return NotificationPortfolioPlan(
-            scheduledRequests: scheduled,
-            retainedShowDayRequests: retainedShowDayRequests
-        )
-    }
-
-    private static func isEligibleForPortfolio(_ show: Show) -> Bool {
-        guard show.wasAddedAsHistorical != true,
-              show.changeStatus != .canceled else {
-            return false
-        }
-        if show.changeStatus == .postponed, show.postponedDate == nil {
-            return false
-        }
-        return true
-    }
-
-    private static func deduplicated(
-        _ requests: [ScheduledShowNotification]
-    ) -> [ScheduledShowNotification] {
-        var seen = Set<String>()
-        return requests.filter { seen.insert($0.requestIdentifier).inserted }
-    }
-
-    private static func sortedForScheduling(
-        _ requests: [ScheduledShowNotification]
-    ) -> [ScheduledShowNotification] {
-        requests.sorted { lhs, rhs in
-            if lhs.fireDate != rhs.fireDate { return lhs.fireDate < rhs.fireDate }
-            if lhs.milestone.portfolioPriority != rhs.milestone.portfolioPriority {
-                return lhs.milestone.portfolioPriority < rhs.milestone.portfolioPriority
-            }
-            if lhs.showID != rhs.showID {
-                return lhs.showID.uuidString < rhs.showID.uuidString
-            }
-            return lhs.requestIdentifier < rhs.requestIdentifier
-        }
-    }
+    var destination: NotificationDeepLink.Destination = .home
+    /// 推荐的功能；送达后计一次露出，用过后从通知中心撤掉。
+    var feature: RecommendedFeature? = nil
 }
 
 @Model
