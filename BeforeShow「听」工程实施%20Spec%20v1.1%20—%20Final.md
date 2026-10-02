@@ -83,10 +83,10 @@ Widget
     = Current Show
 
 Notifications
-    = 所有需要未来提醒的 Shows
+    = Current Show（开场前 3 小时提醒例外：所有有确定日期的 Shows；2026-10-01 起，ADR 0037）
 
 Live Activity
-    = 实际正在发生 / 最近即将发生的现场
+    = Current Show（正在进行或还没开场时；2026-10-02 起）
 ```
 
 禁止再次把它们合成一个：
@@ -1583,6 +1583,8 @@ selectionStore.select(showID:)
 
 # 46. 通知：彻底取消单焦点架构
 
+> 2026-10-01 起由 ADR 0037 取代：通知只给 Current Show 排，开场前 3 小时提醒每场都发。
+
 当前实现统一走：
 
 ```text
@@ -1682,6 +1684,8 @@ LocalNotificationScheduler.futureRequests(for:)
 - show day
 - opening memory
 - after show
+
+2026-10-01 起节点与推荐规则以 ADR 0037 与 `PRODUCT_DEFINITION_V2.1.md` §07 为准：通知只给 Current Show，开场前 3 小时提醒每场都发。
 
 `LocalNotificationScheduler.planFocusChange`：
 
@@ -1856,7 +1860,7 @@ cancel all
 
 注意：
 
-> Current Show 切换触发 reconcile 只是为了保持系统一致，不会改变 desired portfolio。
+> Current Show 切换会改变要排的通知：旧现场还没发的通知取消，为新现场重排（ADR 0037）。
 
 ---
 
@@ -1945,6 +1949,8 @@ CurrentShowSelection
 
 `MemoryFragmentsView` 已经接受显式 Show，因此不要求它成为 Current。
 
+2026-10-01 起落点以 ADR 0037 为准：Current 的通知直接打开对应功能（同行、时刻表、路线、新增记忆、散场仪式、足迹详情、小组件引导、添加现场）；非 Current 的通知（主要是开场前 3 小时那条）打开该场 `ShowDetailView`。不改变 Current。
+
 ---
 
 # 60. Widget
@@ -1965,6 +1971,8 @@ CurrentShowSelectionStore
 ---
 
 # 61. Live Activity
+
+> 2026-10-02 起只展示 Current Show：Current 正在进行或还没开场才有活动，不替其他现场开活动（ADR 0037）。以下排序作废。
 
 Live Activity 使用独立：
 

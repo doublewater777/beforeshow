@@ -8,6 +8,8 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
     case memory
     case memoryCreate
     case mapChooser
+    case widgetGuide
+    case footprint
 
     var id: String {
         switch self {
@@ -17,6 +19,8 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
         case .memory: return "memory"
         case .memoryCreate: return "memoryCreate"
         case .mapChooser: return "mapChooser"
+        case .widgetGuide: return "widgetGuide"
+        case .footprint: return "footprint"
         }
     }
 }

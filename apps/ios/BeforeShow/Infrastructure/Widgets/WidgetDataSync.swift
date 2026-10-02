@@ -3,9 +3,8 @@ import Foundation
 import WidgetKit
 
 // MARK: - Widget / Live Activity Sync
-// Widget follows the durable user-owned Current Show. Live Activity independently
-// follows an actually live or nearest upcoming show. Both surfaces share the cover
-// cache, so pruning keeps the union of their sources.
+// Widget and Live Activity both follow the durable user-owned Current Show.
+// Both surfaces share the cover cache, so pruning keeps the union of their sources.
 
 enum WidgetDataSync {
     static let widgetKind = BeforeShowWidgetKind.homeCountdown
@@ -101,7 +100,8 @@ enum WidgetDataSync {
     }
 }
 
-/// Live Activity is a time-sensitive surface, not another representation of Current Show.
+/// Live Activity 只展示当前现场：当前现场正在进行或还没开场时才有活动，
+/// 不会替其他现场开活动（ADR 0037）。
 struct LiveActivityShowResolver {
     let calendar: Calendar
 
@@ -114,47 +114,19 @@ struct LiveActivityShowResolver {
         currentShow: Show?,
         now: Date = Date()
     ) -> Show? {
-        let eligible = shows.filter { show in
-            guard show.wasAddedAsHistorical != true,
-                  show.changeStatus != .canceled,
-                  show.endedAt == nil else {
-                return false
-            }
-            if show.changeStatus == .postponed, show.postponedDate == nil {
-                return false
-            }
-            return true
+        guard let currentShow,
+              shows.contains(where: { $0.id == currentShow.id }),
+              currentShow.wasAddedAsHistorical != true,
+              currentShow.changeStatus != .canceled,
+              currentShow.endedAt == nil,
+              !(currentShow.changeStatus == .postponed && currentShow.postponedDate == nil) else {
+            return nil
         }
-
-        if let currentShow,
-           eligible.contains(where: { $0.id == currentShow.id }),
-           isActuallyLive(currentShow, now: now) {
+        if isActuallyLive(currentShow, now: now) {
             return currentShow
         }
-
-        let live = eligible
-            .filter { isActuallyLive($0, now: now) }
-            .sorted { lhs, rhs in
-                let lhsStart = startTime(for: lhs, now: now) ?? .distantPast
-                let rhsStart = startTime(for: rhs, now: now) ?? .distantPast
-                if lhsStart != rhsStart { return lhsStart > rhsStart }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-        if let show = live.first {
-            return show
-        }
-
-        return eligible
-            .compactMap { show -> (Show, Date)? in
-                guard let start = startTime(for: show, now: now), start > now else { return nil }
-                return (show, start)
-            }
-            .sorted { lhs, rhs in
-                if lhs.1 != rhs.1 { return lhs.1 < rhs.1 }
-                return lhs.0.id.uuidString < rhs.0.id.uuidString
-            }
-            .first?
-            .0
+        guard let start = startTime(for: currentShow, now: now), start > now else { return nil }
+        return currentShow
     }
 
     private func startTime(for show: Show, now: Date) -> Date? {

@@ -8,6 +8,9 @@ struct HomeCountdownLockup: View {
     var onMemoryFragments: (() -> Void)? = nil
     var onMemoryCreate: (() -> Void)? = nil
     var onOpenRoute: (() -> Void)? = nil
+    /// 当前阶段的功能推荐（由主卡 owner 每天定一次）。
+    var recommendation: RecommendedFeature? = nil
+    var onRecommendation: ((RecommendedFeature) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var languageController = AppLanguageController.shared
@@ -391,15 +394,7 @@ struct HomeCountdownLockup: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: Primary action:单一主行动随生命周期切换
-    // pre → 约人同行;开场记忆窗 → 记一段记忆;其余 live → 结束现场;
-    // ended(未确认) → 确认已结束。开场记忆窗内结束现场降到快捷区。
-
-    enum PrimaryAction: Equatable {
-        case end(live: Bool)
-        case memoryFragments
-        case memoryCreate
-    }
+    // MARK: Primary action（规则见 HomeCountdownPrimaryAction.swift）
 
     private func availablePrimaryAction(
         phase: HomeShowPhase,
@@ -409,60 +404,30 @@ struct HomeCountdownLockup: View {
             phase: phase,
             timeState: timeState,
             hasConfirmedEnd: show.endedAt != nil,
-            hasEndHandler: onEndShow != nil
+            hasEndHandler: onEndShow != nil,
+            hasRouteHandler: onOpenRoute != nil,
+            recommendation: onRecommendation == nil ? nil : recommendation
         )
     }
 
-    nonisolated static func primaryAction(
-        phase: HomeShowPhase,
-        timeState: CurrentShowTimeState,
-        hasConfirmedEnd: Bool,
-        hasEndHandler: Bool
-    ) -> PrimaryAction? {
-        guard !hasConfirmedEnd else { return nil }
-        switch phase {
-        case .pre:
-            return nil
-        case .live:
-            return .memoryCreate
-        case .ended:
-            if timeState.kind == .postShow || timeState.kind == .ended {
-                return hasEndHandler ? .end(live: false) : nil
-            }
-            return .memoryFragments
-        case .inactive:
-            return nil
-        }
-    }
-
     private func primaryActionButton(_ action: PrimaryAction) -> some View {
-        let title = primaryActionTitle(action)
-        let handler = primaryActionHandler(action)
-
-        return Button(action: handler) {
-            Text(title)
+        let tint = action.usesLiveTint ? BSColor.Stage.live : BSColor.Stage.accent
+        return Button(action: primaryActionHandler(action)) {
+            Text(action.title)
                 .font(.system(size: 13.5, weight: .semibold))
-                .foregroundColor(BSColor.Stage.liveTitle)
+                .foregroundColor(action.usesLiveTint ? BSColor.Stage.liveTitle : BSColor.Stage.accent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(BSColor.Stage.live.opacity(0.10))
+                .background(tint.opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(BSColor.Stage.live.opacity(0.32), lineWidth: 1)
+                        .stroke(tint.opacity(0.32), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityHint(accessibilityHint(for: action))
+        .accessibilityHint(action.accessibilityHint)
         .padding(.top, 8)
-    }
-
-    private func primaryActionTitle(_ action: PrimaryAction) -> String {
-        switch action {
-        case .end(live: true): return BSLocalization.text("结束现场")
-        case .end(live: false): return BSLocalization.text("确认已结束")
-        case .memoryFragments, .memoryCreate: return BSLocalization.text("记一段记忆")
-        }
     }
 
     private func primaryActionHandler(_ action: PrimaryAction) -> () -> Void {
@@ -470,33 +435,9 @@ struct HomeCountdownLockup: View {
         case .end: return { onEndShow?() }
         case .memoryFragments: return { onMemoryFragments?() }
         case .memoryCreate: return { (onMemoryCreate ?? onMemoryFragments)?() }
+        case .route: return { onOpenRoute?() }
+        case .recommendation(let feature): return { onRecommendation?(feature) }
         }
-    }
-
-    private func accessibilityHint(for action: PrimaryAction) -> String {
-        switch action {
-        case .end: return BSLocalization.text("打开结束现场确认")
-        case .memoryFragments: return BSLocalization.text("打开记忆碎片")
-        case .memoryCreate: return BSLocalization.text("打开新增记忆")
-        }
-    }
-
-    nonisolated static func endActionTitle(
-        phase: HomeShowPhase,
-        timeState: CurrentShowTimeState,
-        now: Date,
-        showStart: Date,
-        hasConfirmedEnd: Bool,
-        hasEndHandler: Bool
-    ) -> String? {
-        guard let action = primaryAction(
-            phase: phase,
-            timeState: timeState,
-            hasConfirmedEnd: hasConfirmedEnd,
-            hasEndHandler: hasEndHandler
-        ) else { return nil }
-        guard case let .end(live) = action else { return nil }
-        return live ? BSLocalization.text("结束现场") : BSLocalization.text("确认已结束")
     }
 
     // MARK: ended:冷静收束

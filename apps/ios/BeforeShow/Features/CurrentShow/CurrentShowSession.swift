@@ -73,13 +73,15 @@ struct CurrentShowSession {
 
 // MARK: - Notification-owned Current Show feature root
 
-/// Owns Current and memory notification destinations. Listening tab routes belong
-/// to the app root; explicit memory destinations may present a feature sheet.
-/// Notification routing never mutates the user's durable CurrentShowSelection.
+/// Owns Current notification destinations. Listening tab routes belong to the app
+/// root; destinations of the Current Show open in place on its home, other shows
+/// open their detail (ADR 0037). Routing never mutates CurrentShowSelection.
 struct CurrentShowFeatureRootView: View {
     var isPlaybackActive = true
 
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var selections: [CurrentShowSelection]
     @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @State private var notificationPresentation: CurrentShowNotificationPresentation?
     @State private var pendingMemoryCreate: PendingNotificationMemoryCreate?
@@ -99,11 +101,12 @@ struct CurrentShowFeatureRootView: View {
         .onChange(of: notificationRouter.featureRootDeepLink) { _, _ in
             consumeNotificationRouteIfNeeded()
         }
+        .onChange(of: notificationRouter.handledRecommendation, initial: true) { _, _ in
+            recordHandledRecommendation()
+        }
         .sheet(item: $notificationPresentation, onDismiss: notificationPresentationDidDismiss) { presentation in
             if let show = shows.first(where: { $0.id == presentation.showID }) {
                 switch presentation.destination {
-                case .home, .listen:
-                    EmptyView()
                 case .memoryFragments:
                     MemoryFragmentsSheet(show: show, pendingCreate: presentation.pendingCreate)
                 case .memoryCreate:
@@ -113,6 +116,12 @@ struct CurrentShowFeatureRootView: View {
                             option: option
                         )
                         notificationPresentation = nil
+                    }
+                case .addShow:
+                    AddShowCoordinatorSheet()
+                default:
+                    CurrentShowClosableSheet {
+                        ShowDetailView(show: show, onDetailVisibilityChange: { _ in })
                     }
                 }
             } else {
@@ -127,21 +136,58 @@ struct CurrentShowFeatureRootView: View {
               deepLink.destination != .listen else {
             return
         }
-        guard shows.contains(where: { $0.id == deepLink.showID }) else {
-            _ = notificationRouter.consumeFeatureRoot()
+        _ = notificationRouter.consumeFeatureRoot()
+        guard let target = shows.first(where: { $0.id == deepLink.showID }) else { return }
+        let currentShowID = CurrentShowSession().selectCurrentShow(
+            from: shows,
+            manualSelection: CurrentShowSelectionStore.canonical(in: selections)
+        )?.id
+
+        switch deepLink.destination {
+        case .home, .listen:
             return
+        case .memoryFragments, .memoryCreate, .addShow:
+            present(showID: target.id, destination: deepLink.destination)
+        case .nextShow:
+            if let next = FeatureRecommendationLedger.nextFutureShow(excluding: target.id, in: shows, now: Date()) {
+                present(showID: next.id, destination: .nextShow)
+            } else {
+                present(showID: target.id, destination: .addShow)
+            }
+        default:
+            if target.id == currentShowID {
+                notificationRouter.forwardToCurrentShow(deepLink)
+            } else {
+                present(showID: target.id, destination: deepLink.destination)
+            }
         }
-        guard deepLink.destination.requiresFeaturePresentation else {
-            _ = notificationRouter.consumeFeatureRoot()
-            return
-        }
+    }
+
+    private func present(showID: UUID, destination: NotificationDeepLink.Destination) {
         isNotificationPresentationActive = true
         notificationPresentation = CurrentShowNotificationPresentation(
-            showID: deepLink.showID,
-            destination: deepLink.destination,
+            showID: showID,
+            destination: destination,
             pendingCreate: nil
         )
-        _ = notificationRouter.consumeFeatureRoot()
+    }
+
+    /// 点过推荐通知即算处理过：记下来并重排，后续节点换下一个功能。
+    private func recordHandledRecommendation() {
+        guard let deepLink = notificationRouter.consumeHandledRecommendation(),
+              let feature = deepLink.feature else {
+            return
+        }
+        do {
+            try FeatureRecommendationLedger.markHandled(showID: deepLink.showID, feature: feature, in: modelContext)
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+        }
+        let container = modelContext.container
+        Task {
+            await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))
+        }
     }
 
     private func notificationPresentationDidDismiss() {

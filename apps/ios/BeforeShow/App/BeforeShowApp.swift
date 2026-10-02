@@ -119,6 +119,8 @@ struct BeforeShowApp: App {
                             appDelegate.deliverCompanionInviteURL(url)
                         } else if url.scheme == "beforeshow", url.host == "listen" || url.host == "listening" {
                             NotificationDeepLinkRouter.shared.route(to: NotificationDeepLink(showID: UUID(), destination: .listen))
+                        } else if let deepLink = NotificationDeepLink(url: url) {
+                            NotificationDeepLinkRouter.shared.route(to: deepLink)
                         }
                     }
                     .onAppear {

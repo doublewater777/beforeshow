@@ -26,12 +26,12 @@ struct CurrentShowManagementSection: View {
     var onCeremonyCommit: (_ rating: Int?, _ note: String?) async throws -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.modelContext) var modelContext
     @Environment(\.openURL) private var openURL
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Environment(\.scenePhase) private var scenePhase
-    @State private var presentedSheet: CurrentShowPresentedSheet?
-    @State private var pendingMemoryCreate: MemoryCreateSourceOption?
+    @State var presentedSheet: CurrentShowPresentedSheet?
+    @State var pendingMemoryCreate: MemoryCreateSourceOption?
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
@@ -41,7 +41,7 @@ struct CurrentShowManagementSection: View {
     /// Keep this raised until the corresponding onDismiss fires so a pending
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
-    @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
+    @ObservedObject var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
@@ -72,7 +72,7 @@ struct CurrentShowManagementSection: View {
         )
     }
 
-    private var isHeroPlaybackActive: Bool {
+    var isHeroPlaybackActive: Bool {
         CurrentShowPlaybackPolicy.isActive(
             baseIsActive: isPlaybackActive,
             sceneIsActive: scenePhase == .active,
@@ -148,6 +148,15 @@ struct CurrentShowManagementSection: View {
                         openMapApp(app)
                     }
                 )
+            case .widgetGuide:
+                CurrentShowClosableSheet { WidgetSettingsView() }
+            case .footprint:
+                CurrentShowClosableSheet {
+                    FootprintDetailView(
+                        show: show,
+                        archive: FootprintArchiveSnapshot.identityOnly(shows: candidateShows)
+                    )
+                }
             }
         }
         .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {
@@ -180,11 +189,13 @@ struct CurrentShowManagementSection: View {
         }
         .onAppear {
             installedMapApps = ExternalMapApp.installed
-            // 冷启动点通知：路由早于视图出现，onChange 收不到，这里补一次。
-            consumeNotificationDeepLink()
         }
-        .onChange(of: notificationRouter.pendingDeepLink) { _, _ in
-            consumeNotificationDeepLink()
+        // 通知转来的当前现场落点等首页真正可见再打开，不打断正在进行的编辑。
+        .onChange(of: notificationRouter.currentShowAction, initial: true) { _, _ in
+            consumeCurrentShowActionIfVisible()
+        }
+        .onChange(of: isHeroPlaybackActive) { _, _ in
+            consumeCurrentShowActionIfVisible()
         }
         .onChange(of: presentedSheet, initial: true) { oldSheet, newSheet in
             if newSheet != nil {
@@ -318,9 +329,12 @@ struct CurrentShowManagementSection: View {
                     .scaleEffect(homeArrivalFlags.hasArrivedHero ? 1 : 0.94)
                     .offset(y: homeArrivalFlags.hasArrivedHero ? 0 : 24)
 
-                    HomeCountdownLockup(
+                    CurrentShowCountdownCard(
                         show: show,
                         snapshot: snapshot,
+                        candidateShows: candidateShows,
+                        isVisible: isHeroPlaybackActive,
+                        onRecommendation: performRecommendation,
                         onEndShow: canRecordEnd
                             ? { presentedSheet = .endConfirmation }
                             : nil,
@@ -440,7 +454,7 @@ struct CurrentShowManagementSection: View {
         true
     }
 
-    private func openRouteChooser() {
+    func openRouteChooser() {
         installedMapApps = ExternalMapApp.installed
         presentedSheet = .mapChooser
     }
@@ -504,49 +518,8 @@ struct CurrentShowManagementSection: View {
         }
     }
 
-    /// 只处理指向当前现场的通知。指向别的现场时保持 pending 不消费也无意义
-    /// （用户已经看到的是另一场），直接丢弃，避免路由卡住后续通知。
-    private func consumeNotificationDeepLink() {
-        guard let deepLink = notificationRouter.pendingDeepLink else { return }
-        guard deepLink.showID == show.id else {
-            notificationRouter.consume()
-            return
-        }
-        notificationRouter.consume()
-
-        switch deepLink.destination {
-        case .home, .listen:
-            break
-        case .memoryFragments:
-            pendingMemoryCreate = nil
-            presentedSheet = .memory
-        case .memoryCreate:
-            pendingMemoryCreate = nil
-            presentedSheet = .memoryCreate
-        }
-    }
-
-    private func performQuickAction(_ action: CurrentShowQuickAction) {
-        switch action {
-        case .route:
-            openRouteChooser()
-        case .companion:
-            presentedSheet = .companion
-        case .ticket:
-            openAsset(.ticket)
-        case .timetable:
-            openAsset(.timetable)
-        case .memoryFragments:
-            pendingMemoryCreate = nil
-            presentedSheet = .memory
-        case .dispersal:
-            ceremonySheetShowID = show.id
-        case .endShow:
-            presentedSheet = .endConfirmation
-        }
-    }
-
     private func presentedSheetDidDismiss() {
+        reconcileNotificationsAfterFeatureUse()
         if let date = pendingConfirmedEndDate,
            let intent = pendingEndIntent {
             pendingConfirmedEndDate = nil
@@ -584,10 +557,6 @@ struct CurrentShowManagementSection: View {
             }
             isPresentationVisibilityLatched = false
         }
-    }
-
-    private func openAsset(_ kind: ShowAssetKind) {
-        presentedSheet = .asset(kind)
     }
 
     private func openMapApp(_ app: ExternalMapApp) {

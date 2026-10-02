@@ -403,7 +403,7 @@ struct CurrentShowHomeView: View {
 
     private func selectCurrentShow(_ target: Show) {
         guard session.isManuallySelectable(target) else {
-            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
+            presentToast(.neutral, message: BSLocalization.text("这场不能设为当前现场"))
             return
         }
 

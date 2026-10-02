@@ -8,16 +8,20 @@ import UserNotifications
 final class NotificationDeepLinkRouter: ObservableObject {
     static let shared = NotificationDeepLinkRouter()
 
-    /// Legacy property intentionally remains nil so the old CurrentShowManagementSection
-    /// observer is inert. Phase 1 moves ownership to CurrentShowFeatureRootView without
-    /// growing that legacy hotspot just to delete its old observer wiring.
-    @Published private(set) var pendingDeepLink: NotificationDeepLink?
     @Published private(set) var featureRootDeepLink: NotificationDeepLink?
+    /// The feature root forwards destinations that belong to the visible Current Show
+    /// home (companion, timetable, route…) so its owner presents them in place.
+    @Published private(set) var currentShowAction: NotificationDeepLink?
+    /// A tapped recommendation counts as handled; the feature root records it.
+    @Published private(set) var handledRecommendation: NotificationDeepLink?
 
     private init() {}
 
     func route(to deepLink: NotificationDeepLink) {
         featureRootDeepLink = deepLink
+        if deepLink.feature != nil {
+            handledRecommendation = deepLink
+        }
     }
 
     @discardableResult
@@ -27,12 +31,21 @@ final class NotificationDeepLinkRouter: ObservableObject {
         return deepLink
     }
 
-    /// Legacy no-op-compatible consumer. New notification delivery never populates
-    /// `pendingDeepLink`, so feature-level routing cannot be consumed by the old view.
+    func forwardToCurrentShow(_ deepLink: NotificationDeepLink) {
+        currentShowAction = deepLink
+    }
+
     @discardableResult
-    func consume() -> NotificationDeepLink? {
-        guard let deepLink = pendingDeepLink else { return nil }
-        pendingDeepLink = nil
+    func consumeCurrentShowAction() -> NotificationDeepLink? {
+        guard let deepLink = currentShowAction else { return nil }
+        currentShowAction = nil
+        return deepLink
+    }
+
+    @discardableResult
+    func consumeHandledRecommendation() -> NotificationDeepLink? {
+        guard let deepLink = handledRecommendation else { return nil }
+        handledRecommendation = nil
         return deepLink
     }
 }
@@ -54,10 +67,12 @@ final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDe
         let userInfo = response.notification.request.content.userInfo
         let showIDString = userInfo[NotificationUserInfoKey.showID] as? String
         let destinationString = userInfo[NotificationUserInfoKey.destination] as? String
+        let featureString = userInfo[NotificationUserInfoKey.feature] as? String
         Task { @MainActor in
             var parsed: [AnyHashable: Any] = [:]
             if let showIDString { parsed[NotificationUserInfoKey.showID] = showIDString }
             if let destinationString { parsed[NotificationUserInfoKey.destination] = destinationString }
+            if let featureString { parsed[NotificationUserInfoKey.feature] = featureString }
             if let deepLink = NotificationDeepLink(userInfo: parsed) {
                 NotificationDeepLinkRouter.shared.route(to: deepLink)
             }

@@ -702,7 +702,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
 
     private func selectCurrent() {
         guard session.isManuallySelectable(show) else {
-            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
+            presentToast(.neutral, message: BSLocalization.text("这场不能设为当前现场"))
             return
         }
 

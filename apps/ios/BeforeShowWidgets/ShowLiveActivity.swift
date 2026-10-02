@@ -24,7 +24,8 @@ struct ShowLiveActivity: Widget {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
             LiveActivityBannerView(
                 state: context.state,
-                isLive: LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
+                isLive: LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate),
+                showID: context.attributes.showID
             )
         } dynamicIsland: { context in
             let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
@@ -43,6 +44,35 @@ struct ShowLiveActivity: Widget {
             } minimal: {
                 LiveActivityAppIconMark(size: 14)
                     .accessibilityLabel(Text(context.state.showName))
+            }
+        }
+    }
+}
+
+// MARK: - 锁屏按钮
+// 开场前给「路线」，开场后给「记一段记忆」；点了打开 App 里这场的对应功能（ADR 0037）。
+
+private struct LiveActivityActionLink: View {
+    let showID: String
+    let isLive: Bool
+
+    var body: some View {
+        if let url = BeforeShowOpenURL.make(
+            showID: showID,
+            destination: isLive ? BeforeShowOpenURL.memoryCreateDestination : BeforeShowOpenURL.routeDestination
+        ) {
+            Link(destination: url) {
+                HStack(spacing: 4) {
+                    Image(systemName: isLive ? "camera" : "map")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(isLive ? BSLocalization.text("记一段记忆") : BSLocalization.text("路线"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(WidgetTheme.foreground)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color.white.opacity(0.12)))
             }
         }
     }
@@ -275,6 +305,7 @@ private struct LiveActivityExpandedDetails: View {
 private struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
     let isLive: Bool
+    let showID: String
 
     private var coverImage: UIImage? {
         guard let filename = state.coverImageFilename,
@@ -305,20 +336,26 @@ private struct LiveActivityBannerView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(LiveActivityCopy.detailLine(for: state))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(WidgetTheme.foreground)
-                    .lineLimit(1)
-
-                if let timeLine = LiveActivityCopy.timeLine(for: state, isLive: isLive) {
-                    Text(timeLine)
-                        .font(.system(size: 13))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.muted)
+            HStack(alignment: .bottom, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(LiveActivityCopy.detailLine(for: state))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(WidgetTheme.foreground)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+
+                    if let timeLine = LiveActivityCopy.timeLine(for: state, isLive: isLive) {
+                        Text(timeLine)
+                            .font(.system(size: 13))
+                            .monospacedDigit()
+                            .foregroundStyle(WidgetTheme.muted)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
                 }
+
+                Spacer(minLength: 0)
+
+                LiveActivityActionLink(showID: showID, isLive: isLive)
             }
         }
         .padding(.horizontal, 14)

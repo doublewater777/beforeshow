@@ -23,6 +23,10 @@ enum DebugSampleShowSeeder {
             seedUpcomingNear(in: modelContext)
             return
         }
+        if ProcessInfo.processInfo.arguments.contains("--seed-upcoming-half-day") {
+            seedUpcomingNear(in: modelContext, offset: 11 * 3_600 + 3 * 60)
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--seed-upcoming-soon") {
             seedUpcomingNear(in: modelContext, offset: 42 * 60 + 17)
             return

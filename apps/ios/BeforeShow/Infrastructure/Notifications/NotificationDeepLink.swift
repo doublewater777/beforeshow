@@ -5,42 +5,63 @@ import Foundation
 enum NotificationUserInfoKey {
     static let showID = "showID"
     static let destination = "destination"
+    static let feature = "feature"
 }
 
-/// Payload carried in each notification's `userInfo`. Tapping opens a tab or the
-/// target show's memory without changing the user's durable Current Show.
+/// Payload carried in each notification's `userInfo` (and Live Activity links).
+/// Tapping opens that show's feature without changing the user's durable Current Show.
 struct NotificationDeepLink: Equatable, Sendable {
     enum Destination: String, Codable, Equatable, CaseIterable, Sendable {
-        /// 当天 / 临场通知只负责把 App 带回「当前」，不额外打开详情页。
+        /// 只把 App 带回「当前」，不额外打开详情页。
         case home
-        /// 邀请听歌的期待期通知打开「听」，不改变当前现场。
+        /// 打开「听」，沿用当前现场。
         case listen
-        /// 散场后那条通知点进来直接开记忆碎片，否则回首页会落空。
         case memoryFragments
         /// 开场记忆通知点进来直接开统一记忆编辑器。
         case memoryCreate
+        case route
+        case timetable
+        case companion
+        case widgetGuide
+        /// 散场仪式；还没确认散场时先确认散场时间。
+        case dispersal
+        case footprint
+        case nextShow
+        case addShow
 
         var requiresFeaturePresentation: Bool {
             switch self {
-            case .home, .listen:
-                return false
             case .memoryFragments, .memoryCreate:
                 return true
+            default:
+                return false
             }
         }
     }
 
     let showID: UUID
     let destination: Destination
+    var feature: RecommendedFeature?
 
-    init(showID: UUID, destination: Destination) {
+    init(showID: UUID, destination: Destination, feature: RecommendedFeature? = nil) {
         self.showID = showID
         self.destination = destination
+        self.feature = feature
     }
 
     init?(userInfo: [AnyHashable: Any]) {
         guard let parsed = Self.parse(userInfo: userInfo) else { return nil }
         self = parsed
+    }
+
+    /// 实时活动按钮打开的地址，格式见 `BeforeShowOpenURL`。
+    init?(url: URL) {
+        guard let parsed = BeforeShowOpenURL.parse(url),
+              let showID = UUID(uuidString: parsed.showID),
+              let destination = Destination(rawValue: parsed.destination) else {
+            return nil
+        }
+        self.init(showID: showID, destination: destination)
     }
 
     static func parse(userInfo: [AnyHashable: Any]) -> NotificationDeepLink? {
@@ -50,28 +71,34 @@ struct NotificationDeepLink: Equatable, Sendable {
               let showID = UUID(uuidString: rawShowID) else {
             return nil
         }
-        return NotificationDeepLink(showID: showID, destination: destination)
+        let feature = (userInfo[NotificationUserInfoKey.feature] as? String).flatMap(RecommendedFeature.init(rawValue:))
+        return NotificationDeepLink(showID: showID, destination: destination, feature: feature)
     }
 
     var userInfo: [AnyHashable: Any] {
-        [
+        var info: [AnyHashable: Any] = [
             NotificationUserInfoKey.showID: showID.uuidString,
             NotificationUserInfoKey.destination: destination.rawValue
         ]
+        if let feature {
+            info[NotificationUserInfoKey.feature] = feature.rawValue
+        }
+        return info
     }
 }
 
-extension ShowNotificationMilestone {
-    var deepLinkDestination: NotificationDeepLink.Destination {
+extension RecommendedFeature {
+    var notificationDestination: NotificationDeepLink.Destination {
         switch self {
-        case .afterShow:
-            return .memoryFragments
-        case .openingMemory:
-            return .memoryCreate
-        case .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .oneDayBefore:
-            return .listen
-        case .showDayMorning, .showDay:
-            return .home
+        case .widget: return .widgetGuide
+        case .companion: return .companion
+        case .listen: return .listen
+        case .timetable: return .timetable
+        case .dispersal: return .dispersal
+        case .memoryFragments: return .memoryFragments
+        case .footprint: return .footprint
+        case .nextShow: return .nextShow
+        case .addShow: return .addShow
         }
     }
 }

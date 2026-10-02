@@ -118,3 +118,7 @@
 "听歌" = "Listen";
 "最近一场现场的歌，轻点接着听。" = "Songs for your next show, one tap to pick up where you left off.";
 "添加一场演出，开始听歌" = "Add a show to start listening";
+
+/* 实时活动按钮 */
+"路线" = "Directions";
+"记一段记忆" = "Add a Memory";
