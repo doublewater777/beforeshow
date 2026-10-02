@@ -31,7 +31,7 @@ struct NotificationCopy {
         case .timetable:
             return BSLocalization.text("时刻表准备好了，提前看看想去哪些舞台。")
         case .dispersal:
-            return BSLocalization.text("这场结束了，留下一点记忆。")
+            return BSLocalization.text("散场了。留一句此刻的感受。")
         case .memoryFragments:
             return BSLocalization.text("还有照片没留下？可以收进这场的记忆里。")
         case .footprint:
