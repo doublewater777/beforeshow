@@ -222,7 +222,7 @@ struct FootprintTopArtistCard: View {
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .trailing, spacing: 8) {
+            HStack(spacing: 4) {
                 Text(BSLocalization.text("最常看").uppercased())
                     .font(.system(size: 8.5, weight: .bold))
                     .tracking(1.4)
