@@ -102,11 +102,6 @@ struct FootprintKeepsakeTile: View {
                         url: location.rootDirectory.appendingPathComponent(asset.relativePath),
                         contentMode: .fill
                     )
-                    LinearGradient(
-                        colors: [.clear, FootprintDetailTokens.keepsakeScrim],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
                 } else {
                     LinearGradient(
                         colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
