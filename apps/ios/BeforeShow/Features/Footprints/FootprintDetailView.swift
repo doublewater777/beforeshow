@@ -183,11 +183,11 @@ struct FootprintDetailView: View {
             if !isDeleting {
                 ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button(BSLocalization.text("编辑"), systemImage: "square.and.pencil") {
+                    Button(BSLocalization.text("编辑现场"), systemImage: "square.and.pencil") {
                         isShowingEditor = true
                     }
                     if shareRoute != .none {
-                        Button(BSLocalization.text("分享这场回忆"), systemImage: "square.and.arrow.up") {
+                        Button(BSLocalization.text("分享现场"), systemImage: "square.and.arrow.up") {
                             openShare()
                         }
                     }
