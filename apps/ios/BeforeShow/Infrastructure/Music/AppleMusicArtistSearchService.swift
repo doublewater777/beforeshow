@@ -2,17 +2,14 @@ import Foundation
 import MusicKit
 import OSLog
 
-enum ArtistSearchAuthorizationStatus: Equatable, Sendable {
-    case authorized
-    case denied
-    case restricted
-    case notDetermined
+/// Internal source signal: public artist search does not require MusicKit access.
+enum ArtistCatalogSearchError: Error {
+    case accessUnavailable
 }
 
 enum ArtistSearchError: Error, Equatable, Sendable {
     case network
     case catalogUnavailable
-    case authorizationRequired(ArtistSearchAuthorizationStatus)
     case rateLimited
     case server(statusCode: Int)
     case invalidResponse(statusCode: Int?)
@@ -24,7 +21,6 @@ enum ArtistSearchError: Error, Equatable, Sendable {
 protocol ArtistSearchServicing: Sendable {
     func searchArtists(query: String) async throws -> [RecognizedArtist]
     func searchArtists(query: String, exactMatchRequired: Bool) async throws -> [RecognizedArtist]
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus
 }
 
 extension ArtistSearchServicing {
@@ -50,7 +46,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
 
     private let catalogSearch: ArtistSearchOperation
     private let fallbackSearch: ArtistSearchOperation
-    private var cachedAuthorization: ArtistSearchAuthorizationStatus?
+    private var cachedAuthorization: MusicAuthorization.Status?
     private var cache: [String: (expiresAt: ContinuousClock.Instant, candidates: [RecognizedArtist], isComplete: Bool)] = [:]
 
     init(limit: Int = 8, country: String = "CN", session: URLSession = .shared) {
@@ -82,12 +78,6 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         self.fallbackSearch = fallbackSearch
     }
 
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus {
-        let status = MusicAuthorization.currentStatus
-        if status != .notDetermined { return Self.authorizationStatus(from: status) }
-        return Self.authorizationStatus(from: await MusicAuthorization.request())
-    }
-
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         try await searchArtists(query: query, exactMatchRequired: false)
     }
@@ -96,7 +86,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         try Task.checkCancellation()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        let authorization = Self.authorizationStatus(from: MusicAuthorization.currentStatus)
+        let authorization = MusicAuthorization.currentStatus
         if cachedAuthorization != authorization {
             cache.removeAll()
             cachedAuthorization = authorization
@@ -107,7 +97,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         }
         let results = try await searchUncachedArtists(query: trimmed, exactMatchRequired: exactMatchRequired)
         try Task.checkCancellation()
-        if !results.isEmpty, Self.authorizationStatus(from: MusicAuthorization.currentStatus) == authorization {
+        if !results.isEmpty, MusicAuthorization.currentStatus == authorization {
             let now = ContinuousClock.now
             cache = cache.filter { $0.value.expiresAt > now }
             if cache.count >= 32, let oldest = cache.min(by: { $0.value.expiresAt < $1.value.expiresAt })?.key {
@@ -135,6 +125,8 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             }
         } catch is CancellationError {
             throw CancellationError()
+        } catch ArtistCatalogSearchError.accessUnavailable {
+            try Task.checkCancellation()
         } catch {
             try Task.checkCancellation()
             catalogFailure = error as? ArtistSearchError ?? (error is URLError ? .network : .catalogUnavailable)
@@ -163,6 +155,9 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
     }
 
     private static func searchMusicKitCatalog(query: String, limit: Int, exactMatchRequired: Bool) async throws -> [RecognizedArtist] {
+        guard MusicAuthorization.currentStatus == .authorized else {
+            throw ArtistCatalogSearchError.accessUnavailable
+        }
         var candidates: [RecognizedArtist] = []
         do {
             var request = MusicCatalogSearchRequest(term: query, types: [Artist.self, Song.self])
@@ -196,8 +191,9 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             if !candidates.isEmpty {
                 return mergedCandidates(primary: candidates, secondary: [], query: query, limit: limit)
             }
-            let status = authorizationStatus(from: MusicAuthorization.currentStatus)
-            if status != .authorized { throw ArtistSearchError.authorizationRequired(status) }
+            if MusicAuthorization.currentStatus != .authorized {
+                throw ArtistCatalogSearchError.accessUnavailable
+            }
             throw error
         }
     }
@@ -209,16 +205,6 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             avatarURL: artist.artwork?.url(width: 240, height: 240),
             appleMusicURL: artist.url
         )
-    }
-
-    private static func authorizationStatus(from status: MusicAuthorization.Status) -> ArtistSearchAuthorizationStatus {
-        switch status {
-        case .authorized: .authorized
-        case .denied: .denied
-        case .restricted: .restricted
-        case .notDetermined: .notDetermined
-        @unknown default: .restricted
-        }
     }
 
     private static func searchITunesFallback(

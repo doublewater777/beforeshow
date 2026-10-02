@@ -224,7 +224,6 @@ private final class CountingArtistSearchService: @unchecked Sendable, ArtistSear
         return result.map { [$0] } ?? []
     }
 
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
 }
 
 final class NavigationTests: XCTestCase {

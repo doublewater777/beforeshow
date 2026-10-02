@@ -194,9 +194,7 @@ import SwiftData
     }
 
     func testCatalogFailureWithEmptyFallbackPreservesRecoveryReason() async {
-        let failures: [ArtistSearchError] = [.catalogUnavailable,
-            .authorizationRequired(.notDetermined), .authorizationRequired(.denied),
-            .authorizationRequired(.restricted)]
+        let failures: [ArtistSearchError] = [.catalogUnavailable]
         for expected in failures {
             let service = AppleMusicArtistSearchService(
                 catalogSearch: { _, _, _ in throw expected },
@@ -210,6 +208,17 @@ import SwiftData
             } catch {
                 XCTFail("Unexpected error: \(error)")
             }
+        }
+    }
+
+    func testUnavailableCatalogAccessUsesPublicSearchWithoutAuthorization() async throws {
+        for candidates in [[], [candidate("public", "Artist")]] {
+            let service = AppleMusicArtistSearchService(
+                catalogSearch: { _, _, _ in throw ArtistCatalogSearchError.accessUnavailable },
+                fallbackSearch: { _, _, _ in candidates }
+            )
+            let results = try await service.searchArtists(query: "Artist")
+            XCTAssertEqual(results, candidates)
         }
     }
 
@@ -333,7 +342,6 @@ private actor AutoMatchSearchStub: ArtistSearchServicing {
     let delayed: Bool
     private(set) var queries: [String] = []
     init(candidates: [RecognizedArtist], delayed: Bool = false) { self.candidates = candidates; self.delayed = delayed }
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         queries.append(query)
         if delayed { try await Task.sleep(for: .milliseconds(80)) }

@@ -686,19 +686,13 @@ private final class ListeningChromeCatalogPipelineSpy: @unchecked Sendable, List
 private final class ListeningChromeArtistSearchSpy: @unchecked Sendable, ArtistSearchServicing {
     private let lock = NSLock()
     private var searches = 0
-    private var authorizationRequests = 0
 
     var searchCount: Int { locked { searches } }
-    var totalCallCount: Int { locked { searches + authorizationRequests } }
+    var totalCallCount: Int { locked { searches } }
 
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         locked { searches += 1 }
         return [RecognizedArtist(id: "lazy-artist", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
-    }
-
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus {
-        locked { authorizationRequests += 1 }
-        return .authorized
     }
 
     private func locked<T>(_ body: () -> T) -> T {

@@ -185,7 +185,6 @@ private final class ColdStartCatalog: ListeningMusicCatalogServicing, Sendable {
 private final class ColdStartSearch: ArtistSearchServicing, Sendable {
     let gate = ColdStartGate()
     let requests = ColdStartRequests()
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         requests.begin(query)
         defer { requests.end() }

@@ -154,8 +154,6 @@ private actor ArtworkArtistSearchStub: ArtistSearchServicing {
         self.candidates = candidates
     }
 
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
-
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         queries.append(query)
         return candidates

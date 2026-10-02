@@ -33,10 +33,8 @@ struct ArtistSearchPicker: View {
                     }
                     .foregroundStyle(BSColor.textTertiary)
                     Spacer()
-                    if let actionTitle = failure.actionTitle {
-                        Button(actionTitle, action: onRecovery)
-                            .foregroundStyle(BSColor.Stage.accent)
-                    }
+                    Button(failure.actionTitle, action: onRecovery)
+                        .foregroundStyle(BSColor.Stage.accent)
                 }
                 .font(BSFont.caption)
                 .padding(.horizontal, BSSpacing.xs)

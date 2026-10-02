@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import UIKit
 
 // MARK: - Draft Artist Fields
 
@@ -22,9 +21,6 @@ struct ArtistInputRow: View {
     @State private var failure: ArtistSearchFailureMessage?
     @State private var showsResults = false
     @State private var pickedName: String?
-    @State private var waitingForSettings = false
-    @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -87,33 +83,11 @@ struct ArtistInputRow: View {
             }
         }
         .onDisappear { searchTask?.cancel() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active, waitingForSettings {
-                waitingForSettings = false
-                scheduleSearch(for: name, debounce: false)
-            }
-        }
     }
 
     private func recoverSearch() {
-        guard let recovery = failure?.recovery else { return }
         focused = false
-        switch recovery {
-        case .retry:
-            scheduleSearch(for: name, debounce: false)
-        case .authorize:
-            isSearching = true
-            failure = nil
-            searchTask = Task { @MainActor in
-                _ = await artistSearch.requestAuthorizationIfNeeded()
-                guard !Task.isCancelled else { return }
-                scheduleSearch(for: name, debounce: false)
-            }
-        case .openSettings:
-            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-            waitingForSettings = true
-            openURL(url)
-        }
+        scheduleSearch(for: name, debounce: false)
     }
 
     @MainActor

@@ -736,8 +736,6 @@ private final class GatedArtistSearch: @unchecked Sendable, ArtistSearchServicin
         lock.withLock { released = true }
     }
 
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
-
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         lock.withLock { started = true }
         while !lock.withLock({ released }) {
@@ -826,7 +824,6 @@ private final class CatalogRaceArtistSearch: @unchecked Sendable, ArtistSearchSe
 
     var searchCount: Int { lock.withLock { searches } }
 
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         lock.withLock { searches += 1 }
         return []

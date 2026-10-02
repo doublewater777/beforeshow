@@ -11,10 +11,8 @@ struct ListeningArtistMatchSheet: View {
     @State private var confirming = false
     @State private var searchAttempt = 0
     @State private var debouncing = false
-    @State private var waitingForSettings = false
     @FocusState private var searchFocused: Bool
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.scenePhase) private var scenePhase
 
     private var sourceName: String {
         room.browseArtists.first { $0.slotIndex == slotIndex }?.name ?? ""
@@ -68,13 +66,6 @@ struct ListeningArtistMatchSheet: View {
                 BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("取消")) { dismiss() }
             }
             .task(id: "\(ArtistNameMatching.normalized(query))|\(searchAttempt)") { await search() }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active, waitingForSettings {
-                    waitingForSettings = false
-                    debouncing = false
-                    searchAttempt += 1
-                }
-            }
         }
         .tint(BSColor.Stage.foreground)
     }
@@ -160,22 +151,9 @@ struct ListeningArtistMatchSheet: View {
     }
 
     private func recoverSearch() {
-        guard let recovery = failure?.recovery else { return }
         searchFocused = false
         debouncing = false
-        switch recovery {
-        case .retry:
-            searchAttempt += 1
-        case .authorize:
-            searching = true
-            Task {
-                await room.authorize()
-                searchAttempt += 1
-            }
-        case .openSettings:
-            waitingForSettings = true
-            room.performListeningRecovery(.openSettings)
-        }
+        searchAttempt += 1
     }
 
     private func confirmSelection() {
