@@ -13,6 +13,28 @@ final class ArchitectureModuleTests: XCTestCase {
         XCTAssertFalse(DynamicCoverPlaybackPolicy.includes(mediaType: .audio))
     }
 
+    @MainActor
+    func testDynamicCoverPlaybackWaitsForSystemAudioIsolation() {
+        XCTAssertFalse(
+            DynamicCoverPlaybackPolicy.shouldStartPlayback(
+                systemAudioDisconnected: false,
+                isPlayingRequested: true
+            )
+        )
+        XCTAssertFalse(
+            DynamicCoverPlaybackPolicy.shouldStartPlayback(
+                systemAudioDisconnected: true,
+                isPlayingRequested: false
+            )
+        )
+        XCTAssertTrue(
+            DynamicCoverPlaybackPolicy.shouldStartPlayback(
+                systemAudioDisconnected: true,
+                isPlayingRequested: true
+            )
+        )
+    }
+
     func testForegroundMediaMaintenanceRunsInitiallyAndAfterThrottleWindow() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 
