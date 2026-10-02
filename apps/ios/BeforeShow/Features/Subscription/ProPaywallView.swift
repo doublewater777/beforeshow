@@ -1,4 +1,5 @@
 import PostHog
+import StoreKit
 import SwiftUI
 
 struct ProPaywallView: View {
@@ -15,6 +16,7 @@ struct ProPaywallView: View {
     /// 点「暂时不要」置 true：挽留 sheet 关闭时连带关闭 paywall；下拉收起则保留 paywall。
     @State private var winbackDeclined = false
     @State private var legalPage: BSInAppBrowserPage?
+    @State private var isShowingOfferCodeRedemption = false
 
     private let store: any ProSubscriptionStore
     private let showsCloseButton: Bool
@@ -94,6 +96,11 @@ struct ProPaywallView: View {
         }
         .sheet(item: $legalPage) { page in
             BSInAppBrowser(page: page)
+        }
+        .offerCodeRedemption(isPresented: $isShowingOfferCodeRedemption) { _ in
+            Task {
+                await ProEntitlementSyncDelegate.shared.refreshFromServer()
+            }
         }
         .sheet(
             isPresented: Binding(
@@ -210,6 +217,9 @@ struct ProPaywallView: View {
                 Task {
                     await restore()
                 }
+            },
+            onRedeemCode: {
+                isShowingOfferCodeRedemption = true
             },
             onPrivacy: {
                 legalPage = BSInAppBrowserPage(url: localizedSiteURL(ProPaywallCopy.privacyURL))

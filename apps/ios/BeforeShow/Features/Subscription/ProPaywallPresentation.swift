@@ -193,6 +193,7 @@ struct ProPaywallNote: View {
 struct ProPaywallLinksRow: View {
     let isDisabled: Bool
     let onRestore: () -> Void
+    let onRedeemCode: () -> Void
     let onPrivacy: () -> Void
     let onTerms: () -> Void
 
@@ -200,6 +201,7 @@ struct ProPaywallLinksRow: View {
         HStack(spacing: 16) {
             Spacer(minLength: 0)
             linkButton(BSLocalization.text("恢复购买"), action: onRestore)
+            linkButton(BSLocalization.text("兑换码"), action: onRedeemCode)
             linkButton(BSLocalization.text("隐私政策"), action: onPrivacy)
             linkButton(BSLocalization.text("用户协议"), action: onTerms)
             Spacer(minLength: 0)
