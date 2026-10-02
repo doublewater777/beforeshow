@@ -218,7 +218,7 @@ struct CurrentShowTimeState: Equatable {
     }
 
     /// 估算散场边界(start+默认时长 / 每日末场)已过,但用户尚未确认 endedAt。
-    /// 首页与 widget 共用:此时只说「待确认 / 已到预计结束时间」,不提前宣布「已落幕 / ENDED」。
+    /// 首页与 widget 共用:此时只说「待确认 / 散场待确认」,不提前宣布「已结束 / ENDED」。
     static func isUnconfirmedEstimatedEnd(kind: CurrentShowTimeKind, hasConfirmedEnd: Bool) -> Bool {
         !hasConfirmedEnd && (kind == .postShow || kind == .ended)
     }
@@ -440,6 +440,29 @@ struct CurrentShowTimeState: Equatable {
             let copy = BSLocalization.text("新的日期还没确定，倒计时先暂停。")
             return (copy, "-", BSLocalization.text("待定"), copy)
         case .before:
+            if let startTime {
+                let remaining = max(0, Int(startTime.timeIntervalSince(now)))
+                if let days = WidgetTimelinePlanner.dayCountHeroDays(
+                    remainingSeconds: remaining,
+                    dayDistance: dayDistance
+                ) {
+                    return (
+                        BSLocalization.format("还有 %lld 天", Int64(days)),
+                        "\(days)",
+                        BSLocalization.format("天（按天数）", Int64(days)),
+                        BSLocalization.text("慢慢进入状态")
+                    )
+                }
+
+                let parts = positiveTimeParts(from: now, to: startTime, calendar: calendar)
+                return (
+                    BSLocalization.format("还有 %lld %@", Int64(parts.value), parts.unit),
+                    "\(parts.value)",
+                    parts.unit,
+                    BSLocalization.text("出门之前，再确认一下")
+                )
+            }
+
             return (
                 BSLocalization.format("还有 %lld 天", Int64(dayDistance)),
                 "\(dayDistance)",
