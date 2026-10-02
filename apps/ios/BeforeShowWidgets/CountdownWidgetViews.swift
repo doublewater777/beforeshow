@@ -211,10 +211,14 @@ private func widgetCountdownRange(to start: Date, now: Date = .now) -> ClosedRan
     return start...start
 }
 
-private func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color) -> some View {
-    Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
-        .font(.system(size: fontSize, weight: .semibold))
+/// 10 小时以上计时是 `HH:MM:SS` 共 8 位，按原字号会超出小号小组件宽度被截断；
+/// Text(timerInterval:) 不吃 minimumScaleFactor，只能按剩余时长换字号。
+private func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color, now: Date = .now) -> some View {
+    let hasTwoDigitHours = start.timeIntervalSince(now) >= 10 * 3_600
+    return Text(timerInterval: widgetCountdownRange(to: start, now: now), countsDown: true)
+        .font(.system(size: hasTwoDigitHours ? fontSize * 0.78 : fontSize, weight: .semibold))
         .monospacedDigit()
+        .lineLimit(1)
         .foregroundStyle(color)
 }
 
