@@ -30,6 +30,7 @@ struct ShowDraft: Equatable {
     var venueAddress: String
     /// 多个艺人槽位,每行带自己的头像 URL(`nil` 表示未识别)。
     var artists: [ArtistSlot] = []
+    private var confirmedArtistNamesByID: [String: Set<String>] = [:]
     var coverImageURL: String
     var source: ShowDraftSource
     /// 识别导入成功写入的字段（仅 screenshotOCR / link 来源有意义，手动与编辑流为空）。
@@ -89,6 +90,36 @@ struct ShowDraft: Equatable {
             coverImageURL: show.coverImageURL ?? "",
             source: .manual
         )
+        for slot in artists {
+            if let id = AppleMusicArtistIdentity.artistID(for: slot) {
+                confirmedArtistNamesByID[id, default: []].insert(ArtistNameMatching.normalized(slot.name))
+            }
+        }
+    }
+
+    mutating func updateArtistName(_ name: String, at index: Int) {
+        guard artists.indices.contains(index), artists[index].name != name else { return }
+        artists[index].name = name
+        artists[index].avatarURL = nil
+        artists[index].appleMusicURL = nil
+        artists[index].appleMusicArtistID = nil
+        artists[index].albumArtworkURL = nil
+    }
+
+    mutating func attachArtistIdentity(_ artist: RecognizedArtist, at index: Int) {
+        guard artists.indices.contains(index),
+              ArtistNameMatching.normalized(artists[index].name) == ArtistNameMatching.normalized(artist.canonicalName) else { return }
+        if AppleMusicArtistIdentity.artistID(for: artists[index]) != artist.id {
+            artists[index].albumArtworkURL = nil
+        }
+        artists[index].appleMusicArtistID = artist.id
+        artists[index].appleMusicURL = artist.appleMusicURL?.absoluteString
+        confirmedArtistNamesByID[artist.id, default: []].insert(ArtistNameMatching.normalized(artists[index].name))
+    }
+
+    func hasConfirmedArtistIdentity(_ slot: ArtistSlot) -> Bool {
+        guard let id = AppleMusicArtistIdentity.artistID(for: slot) else { return false }
+        return confirmedArtistNamesByID[id]?.contains(ArtistNameMatching.normalized(slot.name)) == true
     }
 
     func makeShow() throws -> Show {
@@ -187,6 +218,7 @@ extension ShowDraft {
             // OCR / link 没识别出艺人时保留本地已有艺人数组,只在识别出艺人时整段覆盖。
             if !incoming.artists.isEmpty {
                 artists = incoming.artists
+                confirmedArtistNamesByID = incoming.confirmedArtistNamesByID
             }
         }
         // 时间字段不直接对应 ShowDraftField,跟着 startTime / date 走同样的开关。

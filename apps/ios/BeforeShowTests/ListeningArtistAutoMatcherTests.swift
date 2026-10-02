@@ -6,10 +6,13 @@ import SwiftData
     func testMatchesNamesWithoutOverwritingExistingIdentity() async throws {
         let search = AutoMatchSearchStub(candidates: [candidate("new", "  THE Band ")])
         let slots = [ArtistSlot(name: "the band", avatarURL: nil),
-                     ArtistSlot(name: "the band", avatarURL: nil, appleMusicArtistID: "existing")]
-        let result = try await ListeningArtistAutoMatcher(search: search).matches(for: slots)
+                     ArtistSlot(name: "the band", avatarURL: nil, appleMusicArtistID: "existing"),
+                     ArtistSlot(name: "THE   Band", avatarURL: nil),
+                     ArtistSlot(name: " \n ", avatarURL: nil)]
+        let result = try await ArtistIdentityMatcher(search: search).matches(for: slots)
         XCTAssertEqual(result[0]?.id, "new")
         XCTAssertNil(result[1])
+        XCTAssertEqual(result[2]?.id, "new")
         let queries = await search.queries
         XCTAssertEqual(queries, ["the band"])
     }
@@ -17,8 +20,17 @@ import SwiftData
     func testUsesExistingAppleMusicLinkWithoutSearch() async throws {
         let search = AutoMatchSearchStub(candidates: [])
         let slot = ArtistSlot(name: "Artist", avatarURL: nil, appleMusicURL: "https://music.apple.com/cn/artist/artist/12345")
-        let result = try await ListeningArtistAutoMatcher(search: search).matches(for: [slot])
+        let result = try await ArtistIdentityMatcher(search: search).matches(for: [slot])
         XCTAssertEqual(result[0]?.id, "12345")
+        let queries = await search.queries
+        XCTAssertTrue(queries.isEmpty)
+    }
+
+    func testImportedArtistsReuseConfirmedLinksWithoutSearch() async {
+        let search = AutoMatchSearchStub(candidates: [])
+        let slot = ArtistSlot(name: "庄达菲", avatarURL: nil, appleMusicURL: "https://music.apple.com/cn/artist/1483458284")
+        let result = await ShowDraftArtistAutoMatcher(search: search).matches(for: [slot])
+        XCTAssertEqual(result[0]?.id, "1483458284")
         let queries = await search.queries
         XCTAssertTrue(queries.isEmpty)
     }
@@ -27,42 +39,108 @@ import SwiftData
         let slots = [ArtistSlot(name: "Artist", avatarURL: nil)]
         let ambiguous = AutoMatchSearchStub(candidates: [candidate("one", "Artist"), candidate("two", "Artist")])
         let unrelated = AutoMatchSearchStub(candidates: [candidate("other", "Different Artist")])
-        let first = try await ListeningArtistAutoMatcher(search: ambiguous).matches(for: slots)
-        let second = try await ListeningArtistAutoMatcher(search: unrelated).matches(for: slots)
+        let first = try await ArtistIdentityMatcher(search: ambiguous).matches(for: slots)
+        let second = try await ArtistIdentityMatcher(search: unrelated).matches(for: slots)
         XCTAssertTrue(first.isEmpty)
         XCTAssertTrue(second.isEmpty)
     }
 
     func testInternalWhitespaceDifferenceDoesNotAutoMatch() async throws {
         let search = AutoMatchSearchStub(candidates: [candidate("wrong", "AB")])
-        let result = try await ListeningArtistAutoMatcher(search: search).matches(for: [ArtistSlot(name: "A B", avatarURL: nil)])
+        let result = try await ArtistIdentityMatcher(search: search).matches(for: [ArtistSlot(name: "A B", avatarURL: nil)])
         XCTAssertTrue(result.isEmpty)
     }
 
-    func testArtistSearchPrefersMusicKitCatalogForLongTailChineseArtist() async throws {
-        let service = AppleMusicArtistSearchService(
-            catalogSearch: { query, _ in
-                [RecognizedArtist(
-                    id: "1766242527",
-                    canonicalName: query,
-                    avatarURL: nil,
-                    appleMusicURL: URL(string: "https://music.apple.com/cn/artist/1766242527")
-                )]
-            },
-            fallbackSearch: { _, _ in
-                throw ArtistSearchPolicyTestError.unexpectedFallback
+    func testArtistSearchReturnsRelevantCatalogCandidatesWithoutWaitingForFallback() async throws {
+        for query in ["姜思达", "姜"] {
+            let fallback = AutoMatchSearchStub(candidates: [])
+            let service = AppleMusicArtistSearchService(
+                catalogSearch: { _, _, _ in
+                    [RecognizedArtist(id: "1766242527", canonicalName: "姜思达", avatarURL: nil,
+                                      appleMusicURL: URL(string: "https://music.apple.com/cn/artist/1766242527")),
+                     RecognizedArtist(id: "unrelated", canonicalName: "Sia", avatarURL: nil, appleMusicURL: nil)]
+                },
+                fallbackSearch: { query, _, _ in try await fallback.searchArtists(query: query) }
+            )
+            let results = try await service.searchArtists(query: query)
+            XCTAssertEqual(results.map(\.id), ["1766242527"])
+            let queries = await fallback.queries
+            XCTAssertTrue(queries.isEmpty)
+        }
+
+        let fallbackService = AppleMusicArtistSearchService(
+            catalogSearch: { _, _, _ in [] },
+            fallbackSearch: { _, _, _ in
+                [RecognizedArtist(id: "2715720", canonicalName: "Kanye West", avatarURL: nil, appleMusicURL: nil),
+                 RecognizedArtist(id: "unrelated", canonicalName: "Sia", avatarURL: nil, appleMusicURL: nil)]
             }
         )
+        let fallbackResults = try await fallbackService.searchArtists(query: "kanye")
+        XCTAssertEqual(fallbackResults.map(\.id), ["2715720"])
+    }
 
-        let results = try await service.searchArtists(query: "姜思达")
-        XCTAssertEqual(results.map(\.id), ["1766242527"])
-        XCTAssertEqual(results.map(\.canonicalName), ["姜思达"])
+    func testRepeatedSearchReusesSuccessfulResultsAcrossNameFormatting() async throws {
+        let catalog = AutoMatchSearchStub(candidates: [candidate("2715720", "Kanye West")])
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { query, _, _ in try await catalog.searchArtists(query: query) },
+            fallbackSearch: { _, _, _ in throw ArtistSearchPolicyTestError.unexpectedFallback }
+        )
+        let first = try await service.searchArtists(query: "kanye west")
+        let repeated = try await service.searchArtists(query: "  KANYE   WEST  ")
+        XCTAssertEqual(first.map(\.id), ["2715720"])
+        XCTAssertEqual(repeated, first)
+        let exact = try await service.searchArtists(query: "Kanye West", exactMatchRequired: true)
+        XCTAssertEqual(exact, first)
+        let queries = await catalog.queries
+        XCTAssertEqual(queries.count, 1)
+    }
+
+    func testFailedAndEmptySearchesRemainRetryable() async {
+        for fails in [false, true] {
+            let catalog = AutoMatchSearchStub(candidates: [])
+            let service = AppleMusicArtistSearchService(
+                catalogSearch: { query, _, _ in
+                    let results = try await catalog.searchArtists(query: query)
+                    if fails { throw ArtistSearchError.catalogUnavailable }
+                    return results
+                },
+                fallbackSearch: { _, _, _ in [] }
+            )
+            for _ in 0..<2 { _ = try? await service.searchArtists(query: "庄达菲") }
+            let queries = await catalog.queries
+            XCTAssertEqual(queries.count, 2)
+        }
+    }
+
+    func testCancelledSearchDoesNotStartFallbackAfterTransportCancellation() async throws {
+        let gate = ArtistSearchRequestGate()
+        let fallback = AutoMatchSearchStub(candidates: [candidate("unexpected", "Artist")])
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _, _ in
+                await gate.wait()
+                throw URLError(.cancelled)
+            },
+            fallbackSearch: { query, _, _ in try await fallback.searchArtists(query: query) }
+        )
+        let searching = Task { try await service.searchArtists(query: "Artist") }
+        while !(await gate.started) { await Task.yield() }
+        searching.cancel()
+        await gate.release()
+        do {
+            _ = try await searching.value
+            XCTFail("A superseded search must stop before its fallback request")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        let queries = await fallback.queries
+        XCTAssertTrue(queries.isEmpty)
     }
 
     func testArtistSearchFallsBackWhenCatalogReturnsNoResults() async throws {
         let service = AppleMusicArtistSearchService(
-            catalogSearch: { _, _ in [] },
-            fallbackSearch: { query, _ in
+            catalogSearch: { _, _, _ in [] },
+            fallbackSearch: { query, _, _ in
                 [RecognizedArtist(id: "legacy", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
             }
         )
@@ -71,25 +149,26 @@ import SwiftData
         XCTAssertEqual(results.map(\.id), ["legacy"])
     }
 
-    func testArtistSearchContinuesFallbackWhenCatalogCandidatesAreUnrelated() async throws {
-        let service = AppleMusicArtistSearchService(
-            catalogSearch: { _, _ in
-                [RecognizedArtist(id: "wrong", canonicalName: "Different Artist", avatarURL: nil, appleMusicURL: nil)]
-            },
-            fallbackSearch: { query, _ in
-                [RecognizedArtist(id: "target", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
-            }
-        )
-
-        let results = try await service.searchArtists(query: "姜思达")
-        XCTAssertEqual(results.first?.id, "target")
-        XCTAssertEqual(results.map(\.id), ["target", "wrong"])
+    func testAutomaticMatchingContinuesSearchPastUnrelatedAndSimilarNames() async throws {
+        for otherName in ["Different Artist", "姜思达工作室"] {
+            let service = AppleMusicArtistSearchService(
+                catalogSearch: { _, _, _ in
+                    [RecognizedArtist(id: "wrong", canonicalName: otherName, avatarURL: nil, appleMusicURL: nil)]
+                },
+                fallbackSearch: { query, _, _ in
+                    [RecognizedArtist(id: "target", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+                }
+            )
+            _ = try await service.searchArtists(query: "姜思达")
+            let matches = try await ArtistIdentityMatcher(search: service).matches(for: [ArtistSlot(name: "姜思达", avatarURL: nil)])
+            XCTAssertEqual(matches[0]?.id, "target")
+        }
     }
 
     func testArtistSearchFallsBackWhenCatalogFails() async throws {
         let service = AppleMusicArtistSearchService(
-            catalogSearch: { _, _ in throw ArtistSearchPolicyTestError.catalogUnavailable },
-            fallbackSearch: { query, _ in
+            catalogSearch: { _, _, _ in throw ArtistSearchPolicyTestError.catalogUnavailable },
+            fallbackSearch: { query, _, _ in
                 [RecognizedArtist(id: "fallback", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
             }
         )
@@ -100,8 +179,8 @@ import SwiftData
 
     func testArtistSearchSurfacesFallbackFailureInsteadOfPretendingNoResults() async {
         let service = AppleMusicArtistSearchService(
-            catalogSearch: { _, _ in throw ArtistSearchPolicyTestError.catalogUnavailable },
-            fallbackSearch: { _, _ in throw ArtistSearchError.rateLimited }
+            catalogSearch: { _, _, _ in throw ArtistSearchPolicyTestError.catalogUnavailable },
+            fallbackSearch: { _, _, _ in throw ArtistSearchError.rateLimited }
         )
 
         do {
@@ -112,6 +191,60 @@ import SwiftData
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testCatalogFailureWithEmptyFallbackPreservesRecoveryReason() async {
+        let failures: [ArtistSearchError] = [.catalogUnavailable,
+            .authorizationRequired(.notDetermined), .authorizationRequired(.denied),
+            .authorizationRequired(.restricted)]
+        for expected in failures {
+            let service = AppleMusicArtistSearchService(
+                catalogSearch: { _, _, _ in throw expected },
+                fallbackSearch: { _, _, _ in [] }
+            )
+            do {
+                _ = try await service.searchArtists(query: "庄达菲")
+                XCTFail("An unavailable catalog plus an empty iTunes index cannot confirm absence")
+            } catch let actual as ArtistSearchError {
+                XCTAssertEqual(actual, expected)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testEmptyCatalogWithFailedFallbackPreservesSearchFailure() async {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _, _ in [] },
+            fallbackSearch: { _, _, _ in throw ArtistSearchError.rateLimited }
+        )
+        do {
+            _ = try await service.searchArtists(query: "庄达菲")
+            XCTFail("An empty catalog must not hide a failed fallback")
+        } catch ArtistSearchError.rateLimited {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testSuccessfulEmptySourcesCanConfirmNoResults() async throws {
+        let service = AppleMusicArtistSearchService(catalogSearch: { _, _, _ in [] }, fallbackSearch: { _, _, _ in [] })
+        let results = try await service.searchArtists(query: "Unknown Artist")
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func testOneFailedArtistDoesNotDiscardOtherResolvedIdentities() async throws {
+        let search = AppleMusicArtistSearchService(
+            catalogSearch: { query, _, _ in
+                guard query != "Unavailable" else { throw ArtistSearchPolicyTestError.catalogUnavailable }
+                return [RecognizedArtist(id: "1483458284", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+            },
+            fallbackSearch: { _, _, _ in throw ArtistSearchError.network }
+        )
+        let slots = [ArtistSlot(name: "庄达菲", avatarURL: nil), ArtistSlot(name: "Unavailable", avatarURL: nil)]
+        let result = try await ArtistIdentityMatcher(search: search).matches(for: slots)
+        XCTAssertEqual(result[0]?.id, "1483458284")
+        XCTAssertNil(result[1])
     }
 
     func testLoadingAutomaticallyConnectsArtistsAndBuildsSeparateShelves() async throws {
@@ -220,4 +353,14 @@ private final class CountingListenCatalog: ListeningMusicCatalogServicing, @unch
         return .init(artistID: artistID, artistName: "Artist", artworkURL: nil, editorialText: nil, genreNames: [],
                      orderedSongIDs: ["song-1"], topSongIDs: ["song-1"], albumIDs: [], songs: [], albums: [], fetchedAt: fetchedAt)
     }
+}
+
+private actor ArtistSearchRequestGate {
+    private(set) var started = false
+    private var waiter: CheckedContinuation<Void, Never>?
+    func wait() async {
+        started = true
+        await withCheckedContinuation { waiter = $0 }
+    }
+    func release() { waiter?.resume(); waiter = nil }
 }

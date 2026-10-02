@@ -308,7 +308,7 @@ struct CurrentShowLibraryManagementView: View {
         let haystack = ([show.name] + show.artistNames
             + [show.city, show.venueName, show.venueAddress].compactMap { $0 })
             .joined(separator: " ")
-        return haystack.localizedCaseInsensitiveContains(query)
+        return ArtistNameMatching.contains(haystack, query: query)
     }
 
     private func count(for filter: CurrentShowLibraryFilter) -> Int {

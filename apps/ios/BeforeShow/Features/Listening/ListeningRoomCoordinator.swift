@@ -462,7 +462,7 @@ private let listeningCatalogFetchConcurrency = 4
         // Subscription lookup and artist identity lookup are independent. Publish
         // resolved access immediately so cached records can play during matching.
         let slots = show.artists
-        async let matching = ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)
+        async let matching = ArtistIdentityMatcher(search: artistSearchService).matches(for: slots)
         let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
@@ -763,7 +763,7 @@ private let listeningCatalogFetchConcurrency = 4
     private func matchUnconnectedArtistsAfterAuthorization() async {
         guard let show else { return }
         let slots = show.artists
-        let matches = (try? await ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
+        let matches = (try? await ArtistIdentityMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
         guard self.show?.id == show.id else { return }
         applyAutomaticArtistMatches(matches, originalSlots: slots, to: show)
     }

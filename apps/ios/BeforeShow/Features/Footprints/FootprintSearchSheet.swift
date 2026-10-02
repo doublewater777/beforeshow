@@ -24,7 +24,7 @@ struct FootprintSearchSheet: View {
                 + [show.city, show.venueName, String(show.timingCalendar().component(.year, from: show.effectiveDate))]
                     .compactMap { $0 })
                 .joined(separator: " ")
-            let matchesQuery = query.isEmpty || searchable.localizedCaseInsensitiveContains(query)
+            let matchesQuery = ArtistNameMatching.contains(searchable, query: query)
             let matchesFilter: Bool
             switch filter {
             case .all:

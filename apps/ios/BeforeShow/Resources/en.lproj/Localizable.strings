@@ -273,7 +273,7 @@
 "Pro 已启用" = "Pro Enabled";
 "Pro 已过期" = "Pro Expired";
 "Pro 状态测试" = "Pro Status Test";
-"iTunes 候选" = "iTunes Candidates";
+"Apple Music 候选" = "Apple Music Candidates";
 "三种方式任选，识别出的内容保存前都能改。" = "Pick any of the three methods; everything recognized can be edited before saving.";
 "今天结束了" = "Today is over";
 "今晚留下什么" = "What to leave tonight";
@@ -1670,3 +1670,18 @@ First show: %@";
 "打印待发通知" = "Print Pending Notifications";
 "输出当前现场已排程的本地通知到控制台" = "Output scheduled notifications for the current show to the console";
 
+"Apple Music 搜索暂不可用" = "Apple Music search is unavailable";
+"部分艺人可能无法搜到，请稍后再试。" = "Some artists may not appear. Please try again later.";
+"搜索过于频繁" = "Too many searches";
+"请稍后再试。" = "Please try again later.";
+"无法完成搜索" = "Search could not be completed";
+"请检查网络连接后重试。" = "Check your internet connection and try again.";
+"未找到匹配的艺人" = "No matching artists found";
+"试试艺人在 Apple Music 中的名称。" = "Try the artist’s name as it appears in Apple Music.";
+"授权 Apple Music" = "Authorize Apple Music";
+"允许访问 Apple Music" = "Allow Apple Music access";
+"授权后可搜索更多艺人。" = "Allow access to search for more artists.";
+"未允许访问 Apple Music" = "Apple Music access is off";
+"请在设置中允许访问，以搜索更多艺人。" = "Allow access in Settings to search for more artists.";
+"Apple Music 访问受限" = "Apple Music access is restricted";
+"请检查设备的访问限制。" = "Check your device’s access restrictions.";

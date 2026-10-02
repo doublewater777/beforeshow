@@ -7,6 +7,7 @@ import XCTest
 /// end policy without a separate phase arg, cover lifecycle is in
 /// `ShowCoverLifecycleTests`.
 final class ArchitectureModuleTests: XCTestCase {
+    @MainActor
     func testDynamicCoverPlaybackExcludesAudioTracks() {
         XCTAssertTrue(DynamicCoverPlaybackPolicy.includes(mediaType: .video))
         XCTAssertFalse(DynamicCoverPlaybackPolicy.includes(mediaType: .audio))

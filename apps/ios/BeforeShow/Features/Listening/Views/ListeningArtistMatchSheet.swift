@@ -7,11 +7,14 @@ struct ListeningArtistMatchSheet: View {
     @State private var candidates: [RecognizedArtist] = []
     @State private var selected: RecognizedArtist?
     @State private var searching = true
-    @State private var failed = false
+    @State private var failure: ArtistSearchFailureMessage?
     @State private var confirming = false
     @State private var searchAttempt = 0
+    @State private var debouncing = false
+    @State private var waitingForSettings = false
     @FocusState private var searchFocused: Bool
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     private var sourceName: String {
         room.browseArtists.first { $0.slotIndex == slotIndex }?.name ?? ""
@@ -64,7 +67,14 @@ struct ListeningArtistMatchSheet: View {
             .toolbar {
                 BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("取消")) { dismiss() }
             }
-            .task(id: "\(query)|\(searchAttempt)") { await search() }
+            .task(id: "\(ArtistNameMatching.normalized(query))|\(searchAttempt)") { await search() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active, waitingForSettings {
+                    waitingForSettings = false
+                    debouncing = false
+                    searchAttempt += 1
+                }
+            }
         }
         .tint(BSColor.Stage.foreground)
     }
@@ -75,11 +85,13 @@ struct ListeningArtistMatchSheet: View {
             ListeningStateMessage(icon: "magnifyingglass", title: BSLocalization.text("输入艺人名称进行搜索"))
         } else if searching {
             ListeningStateMessage(icon: "magnifyingglass", title: ListeningCopy.text("正在搜索艺人…"), isLoading: true)
-        } else if failed {
-            ListeningStateMessage(icon: "wifi.exclamationmark", title: BSLocalization.text("暂时无法搜索"),
-                                  actionTitle: ListeningCopy.text("重试"), action: { searchAttempt += 1 })
+        } else if let failure {
+            ListeningStateMessage(icon: failure.icon, title: BSLocalization.text(failure.title),
+                                  subtitle: BSLocalization.text(failure.detail),
+                                  actionTitle: failure.actionTitle, action: recoverSearch)
         } else if candidates.isEmpty {
-            ListeningStateMessage(icon: "person.crop.circle.badge.questionmark", title: BSLocalization.text("未找到艺人"),
+            ListeningStateMessage(icon: "person.crop.circle.badge.questionmark", title: BSLocalization.text("未找到匹配的艺人"),
+                                  subtitle: BSLocalization.text("试试艺人在 Apple Music 中的名称。"),
                                   actionTitle: ListeningCopy.text("换个名字搜索"), action: clearSearch)
         } else {
             LazyVStack(spacing: BSSpacing.sm) {
@@ -104,8 +116,21 @@ struct ListeningArtistMatchSheet: View {
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .focused($searchFocused)
-                .onSubmit { searchFocused = false; searchAttempt += 1 }
-                .onChange(of: query) { _, _ in selected = nil }
+                .onSubmit {
+                    searchFocused = false
+                    if debouncing || (!searching && candidates.isEmpty) {
+                        debouncing = false
+                        searchAttempt += 1
+                    }
+                }
+                .onChange(of: query) { old, new in
+                    guard ArtistNameMatching.normalized(old) != ArtistNameMatching.normalized(new) else { return }
+                    selected = nil
+                    candidates = []
+                    failure = nil
+                    searching = !new.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    debouncing = searching
+                }
                 .accessibilityIdentifier("listening.artistSearch")
             if !query.isEmpty {
                 Button(action: clearSearch) {
@@ -134,6 +159,25 @@ struct ListeningArtistMatchSheet: View {
         searchFocused = true
     }
 
+    private func recoverSearch() {
+        guard let recovery = failure?.recovery else { return }
+        searchFocused = false
+        debouncing = false
+        switch recovery {
+        case .retry:
+            searchAttempt += 1
+        case .authorize:
+            searching = true
+            Task {
+                await room.authorize()
+                searchAttempt += 1
+            }
+        case .openSettings:
+            waitingForSettings = true
+            room.performListeningRecovery(.openSettings)
+        }
+    }
+
     private func confirmSelection() {
         guard let selected, !confirming, !searching else { return }
         searchFocused = false
@@ -150,19 +194,22 @@ struct ListeningArtistMatchSheet: View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         selected = nil
         candidates = []
-        failed = false
+        failure = nil
         searching = !trimmed.isEmpty
         guard !trimmed.isEmpty else { return }
         do {
-            try await Task.sleep(for: .milliseconds(300))
+            if debouncing { try await Task.sleep(for: .milliseconds(300)) }
+            try Task.checkCancellation()
+            debouncing = false
             let result = try await room.searchArtists(query: trimmed)
             try Task.checkCancellation()
             candidates = result
             searching = false
         } catch {
             guard !Task.isCancelled else { return }
+            debouncing = false
             searching = false
-            failed = true
+            failure = ArtistSearchFailureMessage(error: error)
         }
     }
 }

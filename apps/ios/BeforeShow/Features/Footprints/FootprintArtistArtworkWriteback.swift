@@ -6,6 +6,7 @@ enum FootprintAlbumArtworkWriteback {
     static func persist(
         _ url: URL,
         artistName: String,
+        artistID: String? = nil,
         showIDs: [UUID],
         in shows: [Show]
     ) -> Bool {
@@ -13,7 +14,8 @@ enum FootprintAlbumArtworkWriteback {
         var changed = false
         for show in shows where showIDs.contains(show.id) {
             for index in show.artists.indices {
-                guard FootprintTextNormalizer.nonEmptyTrimmed(show.artists[index].name) == trimmed,
+                guard ArtistNameMatching.normalized(show.artists[index].name) == ArtistNameMatching.normalized(trimmed),
+                      AppleMusicArtistIdentity.artistID(for: show.artists[index]) == artistID,
                       show.artists[index].albumArtworkURL == nil else { continue }
                 show.artists[index].albumArtworkURL = url.absoluteString
                 changed = true

@@ -54,7 +54,7 @@ struct ShowDraftEditorView: View {
     @State private var statusToast: BSToastPayload?
     /// 编辑现场时无 import 流程,这个 binding 留空集合即可。
     @State private var userEditedFields: Set<ShowDraftField> = []
-    private let artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService()
+    @State private var artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService()
 
     init(
         title: String,

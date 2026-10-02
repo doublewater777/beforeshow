@@ -180,7 +180,7 @@ struct ShowDraftFormFields: View {
                                 get: { draft.artists[safe: index]?.name ?? "" },
                                 set: { newValue in
                                     ensureArtistSlot(at: index)
-                                    draft.artists[index].name = newValue
+                                    draft.updateArtistName(newValue, at: index)
                                 }
                             ),
                             avatar: Binding(
@@ -196,8 +196,7 @@ struct ShowDraftFormFields: View {
                                 ensureArtistSlot(at: index)
                                 draft.artists[index].name = recognition.canonicalName
                                 draft.artists[index].avatarURL = recognition.avatarURL?.absoluteString
-                                draft.artists[index].appleMusicURL = recognition.appleMusicURL?.absoluteString
-                                draft.artists[index].appleMusicArtistID = recognition.id
+                                draft.attachArtistIdentity(recognition, at: index)
                                 draft.recognizedFields.remove(.artist)
                             },
                             onDelete: { removeArtistRow(at: index) },
@@ -217,7 +216,6 @@ struct ShowDraftFormFields: View {
                     if draft.artists.isEmpty {
                         draft.artists = [ArtistSlot(name: "", avatarURL: nil)]
                     }
-                    Task { await artistSearch.requestAuthorizationIfNeeded() }
                 }
             }
 
@@ -348,14 +346,13 @@ struct ShowDraftFormFields: View {
             guard importedArtists.indices.contains(index),
                   draft.artists.indices.contains(index),
                   draft.artists[index].appleMusicArtistID == nil,
-                  ShowDraftArtistAutoMatcher.normalized(draft.artists[index].name)
-                    == ShowDraftArtistAutoMatcher.normalized(importedArtists[index].name) else {
+                  ArtistNameMatching.normalized(draft.artists[index].name)
+                    == ArtistNameMatching.normalized(importedArtists[index].name) else {
                 continue
             }
 
             // Identity enrichment must not rewrite the imported/user-visible name.
-            draft.artists[index].appleMusicArtistID = match.id
-            draft.artists[index].appleMusicURL = match.appleMusicURL?.absoluteString
+            draft.attachArtistIdentity(match, at: index)
             if draft.artists[index].avatarURL == nil {
                 draft.artists[index].avatarURL = match.avatarURL?.absoluteString
             }

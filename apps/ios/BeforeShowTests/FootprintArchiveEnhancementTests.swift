@@ -217,6 +217,17 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
 
         XCTAssertTrue(changed)
         XCTAssertEqual(show.artists.first?.albumArtworkURL, url.absoluteString)
+
+        // An identity selected while artwork was loading must reject the old writeback.
+        show.artists[0].albumArtworkURL = nil
+        show.artists[0].appleMusicArtistID = "123"
+        XCTAssertFalse(FootprintAlbumArtworkWriteback.persist(
+            url, artistName: "陈奕迅", showIDs: [show.id], in: [show]
+        ))
+        XCTAssertNil(show.artists.first?.albumArtworkURL)
+        XCTAssertTrue(FootprintAlbumArtworkWriteback.persist(
+            url, artistName: "陈奕迅", artistID: "123", showIDs: [show.id], in: [show]
+        ))
     }
 
     func testArtistArchiveBreaksCountTiesByLatestShow() throws {

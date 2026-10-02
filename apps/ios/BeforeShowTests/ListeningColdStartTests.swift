@@ -78,17 +78,23 @@ final class ListeningColdStartTests: XCTestCase {
     }
 
     func testArtistMatchingUsesBoundedConcurrencyAndPreservesSlotIdentity() async throws {
-        let search = ColdStartSearch()
-        let slots = (0..<7).map { ArtistSlot(name: "Artist \($0)", avatarURL: nil) }
-        let matching = Task { try await ListeningArtistAutoMatcher(search: search).matches(for: slots) }
-        defer { matching.cancel(); search.gate.release() }
-        try await wait { search.requests.started.count == 7 }
-        XCTAssertFalse(search.gate.isReleased)
-        XCTAssertLessThanOrEqual(search.requests.peakConcurrentRequests, 4)
-        search.gate.release()
-        let result = try await matching.value
-        XCTAssertEqual(result.count, slots.count)
-        for index in slots.indices { XCTAssertEqual(result[index]?.canonicalName, slots[index].name) }
+        for isImported in [false, true] {
+            let search = ColdStartSearch()
+            let slots = (0..<7).map { ArtistSlot(name: "Artist \($0)", avatarURL: nil) }
+            let matching = Task {
+                if isImported { return await ShowDraftArtistAutoMatcher(search: search).matches(for: slots) }
+                return try await ArtistIdentityMatcher(search: search).matches(for: slots)
+            }
+            defer { matching.cancel(); search.gate.release() }
+            try await wait { search.requests.started.count == 7 }
+            XCTAssertFalse(search.gate.isReleased)
+            XCTAssertGreaterThan(search.requests.peakConcurrentRequests, 1)
+            XCTAssertLessThanOrEqual(search.requests.peakConcurrentRequests, 4)
+            search.gate.release()
+            let result = try await matching.value
+            XCTAssertEqual(result.count, slots.count)
+            for index in slots.indices { XCTAssertEqual(result[index]?.canonicalName, slots[index].name) }
+        }
     }
 
     private func makeShow() throws -> (ModelContainer, Show) {
