@@ -25,12 +25,12 @@ struct FootprintDashboardView: View {
                 header
                 hero
                 if sections.visibility.showsTrend {
-                    sections.trendSection
+                    FootprintDashboardTrendSection(sections: sections)
                 }
-                sections.artistSection
-                sections.citySection
-                sections.venueSection
-                sections.timelineSection
+                FootprintDashboardArtistSection(sections: sections)
+                FootprintDashboardCitySection(sections: sections)
+                FootprintDashboardVenueSection(sections: sections)
+                FootprintDashboardTimelineSection(sections: sections)
             }
             .padding(.bottom, BSLayout.tabBarContentInset)
         }
@@ -106,5 +106,45 @@ struct FootprintDashboardView: View {
         .padding(.vertical, 14)
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(BSColor.Stage.border))
+    }
+}
+
+private struct FootprintDashboardTrendSection: View {
+    let sections: FootprintDashboardSections
+
+    var body: some View {
+        sections.trendSection
+    }
+}
+
+private struct FootprintDashboardArtistSection: View {
+    let sections: FootprintDashboardSections
+
+    var body: some View {
+        sections.artistSection
+    }
+}
+
+private struct FootprintDashboardCitySection: View {
+    let sections: FootprintDashboardSections
+
+    var body: some View {
+        sections.citySection
+    }
+}
+
+private struct FootprintDashboardVenueSection: View {
+    let sections: FootprintDashboardSections
+
+    var body: some View {
+        sections.venueSection
+    }
+}
+
+private struct FootprintDashboardTimelineSection: View {
+    let sections: FootprintDashboardSections
+
+    var body: some View {
+        sections.timelineSection
     }
 }

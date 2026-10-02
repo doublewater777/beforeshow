@@ -409,21 +409,9 @@ private let listeningCatalogFetchConcurrency = 4
         return completedCatalogKey != key
     }
 
-    func load(show: Show, force: Bool = false) async {
-        let generation = UUID()
-        catalogGeneration = generation
-        isLoadingShow = true
-        defer {
-            if generation == catalogGeneration {
-                isLoadingShow = false
-                // 目录到齐后未装碟时的默认唱片可能变化
-                syncWidgetListeningState()
-                if case let .artist(artistID) = browser.scope {
-                    scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
-                }
-            }
-        }
-
+    /// Prepare the fixed room and persisted records without requesting music access
+    /// or artist/catalog enrichment. The inactive root uses this before first entry.
+    func prepareForDisplay(show: Show) {
         let newKey = catalogKey(for: show)
         if self.show?.id != show.id {
             cancelFeaturedPlaylistTasks(clearLoaded: true)
@@ -457,6 +445,24 @@ private let listeningCatalogFetchConcurrency = 4
         // `initialLoaded` means the fixed room and any cached records are ready to
         // present. It deliberately does not wait for artist lookup or catalog IO.
         initialLoaded = true
+    }
+
+    func load(show: Show, force: Bool = false) async {
+        let generation = UUID()
+        catalogGeneration = generation
+        isLoadingShow = true
+        defer {
+            if generation == catalogGeneration {
+                isLoadingShow = false
+                // 目录到齐后未装碟时的默认唱片可能变化
+                syncWidgetListeningState()
+                if case let .artist(artistID) = browser.scope {
+                    scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+                }
+            }
+        }
+
+        prepareForDisplay(show: show)
         syncWidgetListeningState()
 
         // Subscription lookup and artist identity lookup are independent. Publish

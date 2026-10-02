@@ -308,8 +308,8 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertEqual(search.totalCallCount, 0, "Root bootstrap without a restored CD must not run artist matching")
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
 
-        // Simulate the normal Listen activation path: only now create/cache a room
-        // and execute its standard load pipeline.
+        // The inactive tab may prepare its local room, but only activation can
+        // begin music access, matching, or catalog enrichment.
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: catalog,
@@ -317,6 +317,17 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             playbackFactory: { _ in ListeningChromePlaybackSpy() }
         )
         ListeningRoomCache.shared = room
+        room.setActive(false)
+        room.prepareForDisplay(show: show)
+
+        XCTAssertEqual(room.show?.id, show.id)
+        XCTAssertTrue(room.initialLoaded)
+        XCTAssertTrue(room.shouldReloadCatalog(for: show), "Local preparation must not mark enrichment complete")
+        XCTAssertEqual(catalog.totalCallCount, catalog.authorizationStatusCount, "Inactive preparation may only read cached authorization status")
+        XCTAssertEqual(search.totalCallCount, 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+
+        room.setActive(true)
         await room.load(show: show)
 
         XCTAssertEqual(room.show?.id, show.id)

@@ -102,6 +102,13 @@ struct ListenRootView: View {
                 }
                 await activateRoomIfNeeded()
             } else {
+                if room == nil, let show {
+                    createRoomIfNeeded(for: show)
+                    room?.setActive(false)
+                    if room?.show?.id != show.id {
+                        room?.prepareForDisplay(show: show)
+                    }
+                }
                 room?.setActive(false)
             }
         }
@@ -122,6 +129,19 @@ struct ListenRootView: View {
             ListeningRoomCache.shared = nil
             return
         }
+        createRoomIfNeeded(for: show)
+        room?.setActive(true)
+        if catalogService.currentAuthorizationStatus() == .notDetermined {
+            await room?.authorize()
+            guard isActive, !Task.isCancelled else { return }
+        }
+        if room?.shouldReloadCatalog(for: show) == true {
+            await room?.load(show: show)
+        }
+    }
+
+    @MainActor
+    private func createRoomIfNeeded(for show: Show) {
         if room == nil {
             if let cached = ListeningRoomCache.shared, cached.show?.id == show.id {
                 room = cached
@@ -135,14 +155,6 @@ struct ListenRootView: View {
                 room = next
                 ListeningRoomCache.shared = next
             }
-        }
-        room?.setActive(true)
-        if catalogService.currentAuthorizationStatus() == .notDetermined {
-            await room?.authorize()
-            guard isActive, !Task.isCancelled else { return }
-        }
-        if room?.shouldReloadCatalog(for: show) == true {
-            await room?.load(show: show)
         }
     }
 

@@ -135,6 +135,7 @@
 		4D8F7B807BAD77369F2196FA /* MapGeocoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754027C8055C230B7D2482BE /* MapGeocoding.swift */; };
 		4E9873AB90E408EDEBDFEE88 /* HomeCountdownPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA31DC33AA630B74AACFEF37 /* HomeCountdownPresentation.swift */; };
 		4E9D09E2004E67F208AA55F1 /* HomeLivePulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = B892168266993245CFCD5F10 /* HomeLivePulse.swift */; };
+		5013514ADE8CFCE8610CB32A /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A3E74923C3782611546C27 /* RootTabView.swift */; };
 		501652722F0425EC919D6A4A /* CompanionShareControllerSaveHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43DA673322789B5C1D341EC5 /* CompanionShareControllerSaveHandler.swift */; };
 		5047974DDCBB0156A18AF094 /* CurrentShowLibraryPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9C841F2491749D5A9E528A /* CurrentShowLibraryPolicies.swift */; };
 		50483219A352833547A8F3EA /* CurrentShowQuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4910E3FA251055FDC76293 /* CurrentShowQuickActionsView.swift */; };
@@ -701,6 +702,7 @@
 		6F02863424C2BC905D82010A /* ListeningPlayer.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = ListeningPlayer.xcassets; sourceTree = "<group>"; };
 		6F990474B2216E8FB6002F19 /* ListeningRoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningRoomLifecycleTests.swift; sourceTree = "<group>"; };
 		709BBA6D0BD46772E2BB1F5D /* ListeningColdStartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningColdStartTests.swift; sourceTree = "<group>"; };
+		70A3E74923C3782611546C27 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		70E8F1F9DA6B60E261D78057 /* WidgetSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSettingsView.swift; sourceTree = "<group>"; };
 		70EA39AEEA47B90F87C8C06B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		711E15D7D9CF1B31D0EC3287 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -1724,6 +1726,7 @@
 				E79234388A98A7ED902D0CD7 /* CompanionAppDelegates.swift */,
 				110CA86A45FE96CC7A19FD5E /* ModelContainerFactory.swift */,
 				45AD647E3CA9C8468C488F85 /* ProductAnalyticsPreferences.swift */,
+				70A3E74923C3782611546C27 /* RootTabView.swift */,
 				AFDB274EC09643BE19466ED0 /* Migrations */,
 			);
 			path = App;
@@ -2201,6 +2204,7 @@
 				9E9ED143F93DBAE0DA797F1B /* RecognizedArtist.swift in Sources */,
 				989EE9B80A2C50E3D569F3B4 /* RecommendedFeature.swift in Sources */,
 				EA8E0CA17E4D70B8A15349F5 /* RevenueCatProSubscriptionStore.swift in Sources */,
+				5013514ADE8CFCE8610CB32A /* RootTabView.swift in Sources */,
 				F738A9FA230B8101EE2FCAC3 /* RootView.swift in Sources */,
 				E604632BD1EFEDCC9270E0BA /* ScheduledNotificationRequest.swift in Sources */,
 				2ABA824A7B30AB8E0C8F3A83 /* SettingsCatalog.swift in Sources */,

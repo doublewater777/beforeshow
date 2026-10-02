@@ -13,7 +13,6 @@ struct RootView: View {
     @State private var isShowingOnboarding = false
     @State private var invitedSnapshot: CompanionInviteSnapshot?
     @State private var selectedTab: BeforeShowTab = .current
-    @State private var mountedTabs: Set<BeforeShowTab> = [.current]
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
@@ -36,7 +35,7 @@ struct RootView: View {
                     )
                     .transition(.opacity)
                 } else {
-                    mainTabView
+                    RootTabView(selectedTab: $selectedTab)
                         .transition(.opacity)
                 }
             }
@@ -155,33 +154,5 @@ struct RootView: View {
                 isShowingOnboarding = false
             }
         }
-    }
-    private var mainTabView: some View {
-        ZStack {
-            CurrentShowFeatureRootView(isPlaybackActive: selectedTab == .current)
-                .opacity(selectedTab == .current ? 1 : 0)
-                .allowsHitTesting(selectedTab == .current)
-                .accessibilityHidden(selectedTab != .current)
-
-            if mountedTabs.contains(.listen) || selectedTab == .listen {
-                ListeningFeatureRootView(isActive: selectedTab == .listen)
-                    .opacity(selectedTab == .listen ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .listen)
-                    .accessibilityHidden(selectedTab != .listen)
-            }
-
-            if mountedTabs.contains(.footprints) || selectedTab == .footprints {
-                FootprintsView()
-                    .opacity(selectedTab == .footprints ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .footprints)
-                    .accessibilityHidden(selectedTab != .footprints)
-            }
-        }
-        .onChange(of: selectedTab) { _, tab in mountedTabs.insert(tab) }
-        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
-        .modifier(FeedbackShakeShortcutModifier())
-        // Keep system nav chrome neutral so tint does not leak into child controls.
-        .tint(BSColor.Stage.foreground)
-        .sensoryFeedback(.selection, trigger: selectedTab)
     }
 }
