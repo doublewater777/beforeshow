@@ -85,10 +85,8 @@ final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDe
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        if notification.request.content.sound == nil {
-            completionHandler([.banner])
-        } else {
-            completionHandler([.banner, .sound])
-        }
+        // Apple recommends handling foreground notifications in-app instead of
+        // presenting a duplicate system alert while the user is already here.
+        completionHandler([])
     }
 }
