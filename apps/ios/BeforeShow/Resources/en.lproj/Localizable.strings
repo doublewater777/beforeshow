@@ -148,7 +148,7 @@
 "演出信息" = "Show Information";
 "演出状态" = "Performance Status";
 "灯亮之前，先进入状态" = "Get into the mood before the lights come up";
-"点「设为当前」或左滑可切换当前现场" = "Tap Set as Current or swipe left to switch the current show";
+"左滑现场，可设为当前" = "Swipe left on a show to set it as current";
 "点击查看 · 拖动调整顺序" = "Click to view · Drag to adjust the order";
 "点击添加" = "Tap to Add";
 "照片、图库媒体或一段文字，都可以成为一条记忆。" = "A photo, stock media, or a piece of text can become a memory.";
@@ -1102,7 +1102,7 @@ First show: %@";
 "恢复正常" = "Restore";
 "恢复演出" = "Restore Show";
 "编辑新日期" = "Edit New Date";
-"设为当前展示" = "Set as Current";
+"设为当前" = "Set as Current";
 "图库" = "Library";
 "相机" = "Camera";
 "停留期还剩 %@" = "%@ left in this period";
