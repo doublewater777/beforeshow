@@ -86,7 +86,7 @@ Notifications
     = Current Show（开场前 3 小时提醒例外：所有有确定日期的 Shows；2026-10-01 起，ADR 0037）
 
 Live Activity
-    = 实际正在发生 / 最近即将发生的现场
+    = Current Show（正在进行或还没开场时；2026-10-02 起）
 ```
 
 禁止再次把它们合成一个：
@@ -1971,6 +1971,8 @@ CurrentShowSelectionStore
 ---
 
 # 61. Live Activity
+
+> 2026-10-02 起只展示 Current Show：Current 正在进行或还没开场才有活动，不替其他现场开活动（ADR 0037）。以下排序作废。
 
 Live Activity 使用独立：
 

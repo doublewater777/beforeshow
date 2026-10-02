@@ -413,9 +413,9 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertEqual(normalized.duplicates.map(\.id), [stale.id])
     }
 
-    // MARK: - Widget / Live Activity independence
+    // MARK: - Live Activity follows Current Show
 
-    func testLiveActivityUsesActuallyLiveShowWhenUserCurrentIsEnded() throws {
+    func testLiveActivityShowsNothingWhenCurrentIsEndedEvenIfAnotherShowIsLive() throws {
         let ended = try makeShow(name: "用户当前历史场", day: 1)
         ended.markEnded(at: makeDate(year: 2026, month: 6, day: 1, hour: 22))
         let live = try Show(
@@ -431,10 +431,10 @@ final class CurrentShowSessionTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(resolved?.id, live.id)
+        XCTAssertNil(resolved)
     }
 
-    func testLiveActivityUsesNearestUpcomingInsteadOfFartherUserCurrent() throws {
+    func testLiveActivityUsesCurrentEvenWhenAnotherShowIsNearer() throws {
         let nearer = try makeShow(name: "近场", day: 16)
         let current = try makeShow(name: "用户当前远场", day: 25)
 
@@ -444,7 +444,8 @@ final class CurrentShowSessionTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(resolved?.id, nearer.id)
+        XCTAssertEqual(resolved?.id, current.id)
+        XCTAssertNil(LiveActivityShowResolver(calendar: calendar).resolve(shows: [nearer], currentShow: nil, now: now))
     }
 
     func testLiveActivityKeepsUserCurrentWhenItIsActuallyLive() throws {
