@@ -99,24 +99,34 @@ struct LocalNotificationScheduler {
         var planned: [(ShowNotificationMilestone, Date?)] = []
         if show.endedAt == nil {
             let showStart = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
-            planned += [
-                (.addedFollowUp, followUpDate(for: show, timeState: timeState, calendar: calendar)),
-                (.fourteenDaysBefore, dayRelativeToShow(timeState, offset: -14, hour: 20, calendar: calendar)),
-                (.sevenDaysBefore, dayRelativeToShow(timeState, offset: -7, hour: 20, calendar: calendar)),
-                (.threeDaysBefore, dayRelativeToShow(timeState, offset: -3, hour: 20, calendar: calendar)),
-                (.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20, calendar: calendar)),
-                (.showDayMorning, morningDate(timeState, showStart: showStart, showDayDate: showDayDate, calendar: calendar)),
-                (.openingMemory, now < showStart ? showStart : nil)
-            ]
+            if let preparation = preparationReminder(
+                for: show,
+                timeState: timeState,
+                calendar: calendar
+            ) {
+                planned.append(preparation)
+            }
+            planned.append((.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20, calendar: calendar)))
+
+            // 普通演出当天只保留开场前 3 小时；音乐节额外保留早上的时刻表提醒。
+            if ShowFlavor.inferred(from: show) == .festival {
+                planned.append((
+                    .showDayMorning,
+                    morningDate(timeState, showStart: showStart, showDayDate: showDayDate, calendar: calendar)
+                ))
+            }
         }
 
-        // 散场时间只由用户确认；没确认时按预计散场排，点进去先确认散场时间。
-        if let end = show.endedAt ?? estimatedFinalEnd(for: show, calendar: calendar) {
-            if !show.hasCompletedDispersalCeremony {
-                planned.append((.postShowRitual, calendar.date(byAdding: .minute, value: 15, to: end)))
-                planned.append((.afterShow, afterShowReminderDate(for: timeState, calendar: calendar, confirmedEnd: show.endedAt)))
-            }
-            planned.append((.footprintArrival, dayAfter(end, days: 3, hour: 20, calendar: calendar)))
+        // 未确认散场时，只在预计散场后与次日各提醒一次；不再第 3 天继续催。
+        if let end = show.endedAt ?? estimatedFinalEnd(for: show, calendar: calendar),
+           !show.hasCompletedDispersalCeremony {
+            planned.append((.postShowRitual, calendar.date(byAdding: .minute, value: 15, to: end)))
+            planned.append((.afterShow, afterShowReminderDate(for: timeState, calendar: calendar, confirmedEnd: show.endedAt)))
+        }
+
+        // 第 3 天只在用户已经确认散场后提供足迹 / 下一场等新的价值。
+        if let confirmedEnd = show.endedAt {
+            planned.append((.footprintArrival, dayAfter(confirmedEnd, days: 3, hour: 20, calendar: calendar)))
         }
 
         return planned.compactMap { milestone, fireDate in
@@ -150,15 +160,23 @@ struct LocalNotificationScheduler {
         return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)
     }
 
-    /// 添加后次日 20:00；离开场不足 8 天、或正好落在 T-14 那天时不发。
-    private func followUpDate(for show: Show, timeState: CurrentShowTimeState, calendar: Calendar) -> Date? {
-        guard let fireDate = dayAfter(show.createdAt, days: 1, hour: 20, calendar: calendar) else { return nil }
-        let distance = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: fireDate),
-            to: calendar.startOfDay(for: timeState.effectiveDate)
-        ).day ?? 0
-        return distance >= 8 && distance != 14 ? fireDate : nil
+    /// 准备期最多一条：添加得早就固定在 T-7；T-7 后、T-3 前添加则固定在 T-3。
+    /// 选择由 createdAt 决定，后续重排不会从 T-7 再滑到 T-3。
+    private func preparationReminder(
+        for show: Show,
+        timeState: CurrentShowTimeState,
+        calendar: Calendar
+    ) -> (milestone: ShowNotificationMilestone, fireDate: Date)? {
+        let seven = dayRelativeToShow(timeState, offset: -7, hour: 20, calendar: calendar)
+        let three = dayRelativeToShow(timeState, offset: -3, hour: 20, calendar: calendar)
+
+        if let seven, show.createdAt < seven {
+            return (.sevenDaysBefore, seven)
+        }
+        if let three, show.createdAt < three {
+            return (.threeDaysBefore, three)
+        }
+        return nil
     }
 
     /// 当天 09:00；开场前 3 小时早于 10:00 时并入那一条，不再单发。
