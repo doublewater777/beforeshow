@@ -216,11 +216,6 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             startTime: makeDate(year: 2026, month: 7, day: 20, hour: 20)
         )
 
-        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
-            for: show,
-            now: makeDate(year: 2026, month: 7, day: 1)
-        )
-
         // 准备期最多一个推荐节点；时间节点打开此刻用得上的功能。
         show.createdAt = makeDate(year: 2026, month: 7, day: 1)
         let refreshed = LocalNotificationScheduler(calendar: calendar).futureRequests(
