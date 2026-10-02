@@ -1949,7 +1949,7 @@ CurrentShowSelection
 
 `MemoryFragmentsView` 已经接受显式 Show，因此不要求它成为 Current。
 
-2026-10-01 起落点以 ADR 0037 为准：每条通知打开通知里那一场的对应功能（同行、时刻表、路线、新增记忆、散场仪式、足迹详情、小组件引导、添加现场），不改变 Current。
+2026-10-01 起落点以 ADR 0037 为准：Current 的通知直接打开对应功能（同行、时刻表、路线、新增记忆、散场仪式、足迹详情、小组件引导、添加现场）；非 Current 的通知（主要是开场前 3 小时那条）打开该场 `ShowDetailView`。不改变 Current。
 
 ---
 
