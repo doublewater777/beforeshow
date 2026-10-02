@@ -128,18 +128,22 @@ struct ListeningDiscArtwork: View {
             }
         }
         .task(id: artworkTaskID) {
-            artwork = nil
             if let url = disc?.artworkURL {
-                artwork = ShowCoverImageCache.shared.memoryImage(for: url)
-                if artwork == nil {
-                    let loaded = await ShowCoverImageCache.shared.image(from: url)
-                    guard !Task.isCancelled else { return }
-                    artwork = loaded
+                if let cached = ShowCoverImageCache.shared.memoryImage(for: url) {
+                    artwork = cached
+                    return
                 }
+                artwork = nil
+                let loaded = await ShowCoverImageCache.shared.image(from: url)
+                guard !Task.isCancelled else { return }
+                artwork = loaded
             } else if let disc, !disc.tracks.isEmpty {
+                artwork = nil
                 let loaded = await Self.mosaic(for: disc)
                 guard !Task.isCancelled else { return }
                 artwork = loaded
+            } else {
+                artwork = nil
             }
         }
     }
