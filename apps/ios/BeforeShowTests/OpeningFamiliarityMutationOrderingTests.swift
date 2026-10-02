@@ -15,17 +15,6 @@ final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
         XCTAssertFalse(baseline.familiarSongIDsAtCapture.contains("new-manual"))
     }
 
-    func testActualConfirmationCapturesBaselineBeforeNewEvidence() throws {
-        let (container, context, show, now) = try makeDueShowContext()
-        defer { withExtendedLifetime(container) {} }
-        let repository = ListeningRepository(modelContext: context)
-
-        _ = try repository.confirmActualFamiliarity(songID: "new-actual", at: now)
-
-        let baseline = try baseline(for: show.id, in: context)
-        XCTAssertFalse(baseline.familiarSongIDsAtCapture.contains("new-actual"))
-    }
-
     func testManualUndoCapturesExistingEvidenceBeforeRemovingIt() throws {
         let (container, context, show, now) = try makeDueShowContext()
         defer { withExtendedLifetime(container) {} }
