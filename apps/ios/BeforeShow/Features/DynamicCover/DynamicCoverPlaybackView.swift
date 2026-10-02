@@ -2,49 +2,15 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
-/// Dynamic covers are visual decoration. Their player item must contain video
-/// only so starting a cover can never contend with Listening for audio output.
+/// Dynamic covers are decoration and never own audio playback.
 @MainActor
 enum DynamicCoverPlaybackPolicy {
     static func includes(mediaType: AVMediaType) -> Bool {
         mediaType == .video
     }
-
-    static func makeVideoOnlyItem(url: URL) async throws -> AVPlayerItem {
-        let asset = AVURLAsset(url: url)
-        let tracks = try await asset.load(.tracks)
-        guard let sourceVideoTrack = tracks.first(where: { includes(mediaType: $0.mediaType) }) else {
-            throw DynamicCoverPlaybackError.missingVideoTrack
-        }
-        let sourceTimeRange = try await sourceVideoTrack.load(.timeRange)
-
-        let composition = AVMutableComposition()
-        guard let videoTrack = composition.addMutableTrack(
-            withMediaType: .video,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-        ) else {
-            throw DynamicCoverPlaybackError.unableToCreateVideoTrack
-        }
-
-        try videoTrack.insertTimeRange(
-            sourceTimeRange,
-            of: sourceVideoTrack,
-            at: .zero
-        )
-        videoTrack.preferredTransform = try await sourceVideoTrack.load(.preferredTransform)
-        return AVPlayerItem(asset: composition)
-    }
 }
 
-private enum DynamicCoverPlaybackError: Error {
-    case missingVideoTrack
-    case unableToCreateVideoTrack
-}
-
-/// A borderless, always-muted AVPlayer surface used by dynamic covers.
-///
-/// Covers are decorative and must never compete with listening playback, so
-/// they have no sound control and leave the app-wide ambient audio policy alone.
+/// A video-frame surface that cannot activate or interrupt an audio session.
 struct DynamicCoverPlaybackView: View {
     let url: URL
     let isPlaying: Bool
@@ -78,20 +44,19 @@ private struct DynamicCoverPlayerSurface: UIViewRepresentable {
 
 @MainActor
 final class DynamicCoverPlayerView: UIView {
-    private let player = AVPlayer()
-    private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
-    private var endObserver: NSObjectProtocol?
+    private var displayLayer: AVSampleBufferDisplayLayer { layer as! AVSampleBufferDisplayLayer }
+    private var frameReader: DynamicCoverFrameReader?
+    private var displayLink: CADisplayLink?
     private var loadTask: Task<Void, Never>?
     private var loadedURL: URL?
+    private var isPlayingRequested = false
 
-    override class var layerClass: AnyClass { AVPlayerLayer.self }
+    override class var layerClass: AnyClass { AVSampleBufferDisplayLayer.self }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        // Keep mute as a second line of defense. The item itself is video-only.
-        player.isMuted = true
-        playerLayer.player = player
-        playerLayer.videoGravity = .resizeAspectFill
+        displayLayer.videoGravity = .resizeAspectFill
+        displayLayer.preventsDisplaySleepDuringVideoPlayback = false
         backgroundColor = .black
     }
 
@@ -99,31 +64,50 @@ final class DynamicCoverPlayerView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// Called from `updateUIView`. With `AVPlayer.isObservationEnabled`, any
-    /// player access here is tracked by SwiftUI, and the resulting state change
-    /// re-invalidates the view. Only touch the player when the request changes,
-    /// otherwise pause/play re-triggers updates forever and hangs the main thread.
     func configure(url: URL, isPlaying: Bool) {
-        let urlChanged = loadedURL != url
-        if urlChanged {
+        if loadedURL != url {
+            let previousReader = frameReader
+            stop()
             loadedURL = url
             isPlayingRequested = isPlaying
-            loadTask?.cancel()
-            removeEndObserver()
-            player.pause()
-            player.replaceCurrentItem(with: nil)
-
             loadTask = Task { @MainActor [weak self] in
                 do {
-                    let item = try await DynamicCoverPlaybackPolicy.makeVideoOnlyItem(url: url)
+                    await previousReader?.finishStopping()
                     try Task.checkCancellation()
-                    guard let self, self.loadedURL == url else { return }
-                    self.install(item)
-                } catch is CancellationError {
-                    return
+                    let asset = AVURLAsset(url: url)
+                    let tracks = try await asset.loadTracks(withMediaType: .video)
+                    guard let track = tracks.first(where: {
+                        DynamicCoverPlaybackPolicy.includes(mediaType: $0.mediaType)
+                    }) else { return }
+                    let duration = try await asset.load(.duration)
+                    let composition = try await AVVideoComposition.videoComposition(withPropertiesOf: asset)
+                    try Task.checkCancellation()
+                    guard let self, self.loadedURL == url,
+                          duration.isNumeric, duration.seconds > 0 else { return }
+                    var timebase: CMTimebase?
+                    guard CMTimebaseCreateWithSourceClock(
+                        allocator: kCFAllocatorDefault,
+                        sourceClock: CMClockGetHostTimeClock(),
+                        timebaseOut: &timebase
+                    ) == noErr, let timebase else { return }
+                    self.displayLayer.controlTimebase = timebase
+                    let reader = DynamicCoverFrameReader(
+                        asset: asset,
+                        track: track,
+                        composition: composition,
+                        renderer: self.displayLayer.sampleBufferRenderer,
+                        timebase: timebase,
+                        duration: duration
+                    )
+                    self.frameReader = reader
+                    reader.start(isPlaying: self.isPlayingRequested)
+                    let link = CADisplayLink(target: self, selector: #selector(self.checkLoop))
+                    link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 15, preferred: 15)
+                    link.isPaused = !self.isPlayingRequested
+                    link.add(to: .main, forMode: .common)
+                    self.displayLink = link
                 } catch {
-                    guard let self, self.loadedURL == url else { return }
-                    self.player.replaceCurrentItem(with: nil)
+                    // The static cover remains available if a video cannot load.
                 }
             }
             return
@@ -131,49 +115,22 @@ final class DynamicCoverPlayerView: UIView {
 
         guard isPlayingRequested != isPlaying else { return }
         isPlayingRequested = isPlaying
-        if isPlaying {
-            player.play()
-        } else {
-            player.pause()
-        }
+        frameReader?.setPlaying(isPlaying)
+        displayLink?.isPaused = !isPlaying
     }
 
     func stop() {
         isPlayingRequested = false
         loadTask?.cancel()
         loadTask = nil
-        player.pause()
-        removeEndObserver()
-        player.replaceCurrentItem(with: nil)
+        displayLink?.invalidate()
+        displayLink = nil
+        frameReader?.stop()
+        frameReader = nil
         loadedURL = nil
     }
 
-    private var isPlayingRequested = false
-
-    private func install(_ item: AVPlayerItem) {
-        removeEndObserver()
-        player.replaceCurrentItem(with: item)
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: item,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.player.seek(to: .zero)
-                if self?.isPlayingRequested == true {
-                    self?.player.play()
-                }
-            }
-        }
-        if isPlayingRequested {
-            player.play()
-        }
-    }
-
-    private func removeEndObserver() {
-        if let endObserver {
-            NotificationCenter.default.removeObserver(endObserver)
-            self.endObserver = nil
-        }
+    @objc private func checkLoop() {
+        frameReader?.loopIfNeeded()
     }
 }
