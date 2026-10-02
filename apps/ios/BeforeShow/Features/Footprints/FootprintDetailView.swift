@@ -27,11 +27,14 @@ struct FootprintDetailView: View {
     @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingShareComposer = false
     @State private var isShowingDispersalShare = false
+    @State private var isShowingEditor = false
+    @State private var isShowingMemoryPage = false
     @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
 
     private let formatter = ShowDisplayFormatter()
+    private let session = CurrentShowSession()
 
     init(
         show: Show,
@@ -89,9 +92,10 @@ struct FootprintDetailView: View {
     private var isDynamicCoverPlaybackActive: Bool {
         FootprintPlaybackPolicy.isActive(
             sceneIsActive: scenePhase == .active,
-            hasMemoryOverlay: memoryTarget != nil,
+            hasMemoryOverlay: memoryTarget != nil || isShowingMemoryPage,
             hasAssetOverlay: showingAssetKind != nil,
-            hasShareOverlay: isShowingShareComposer || isShowingDispersalShare
+            hasShareOverlay: isShowingShareComposer || isShowingDispersalShare,
+            hasEditorOverlay: isShowingEditor
         )
     }
 
@@ -179,6 +183,9 @@ struct FootprintDetailView: View {
             if !isDeleting {
                 ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button(BSLocalization.text("编辑"), systemImage: "square.and.pencil") {
+                        isShowingEditor = true
+                    }
                     if shareRoute != .none {
                         Button(BSLocalization.text("分享这场回忆"), systemImage: "square.and.arrow.up") {
                             openShare()
@@ -209,6 +216,20 @@ struct FootprintDetailView: View {
                 onDetailVisibilityChange: onDetailVisibilityChange,
                 keepsParentDetailHidden: true
             )
+        }
+        .sheet(isPresented: $isShowingMemoryPage) {
+            MemoryFragmentsSheet(show: show)
+        }
+        .sheet(isPresented: $isShowingEditor) {
+            ShowDraftEditorView(
+                title: BSLocalization.text("编辑现场"),
+                draft: ShowDraft(show: show),
+                saveTitle: BSLocalization.text("保存"),
+                statusPillText: session.phase(for: show, now: Date()).statusText,
+                isPostponed: show.changeStatus == .postponed
+            ) { draft in
+                try await apply(draft)
+            }
         }
         .fullScreenCover(isPresented: $isShowingShareComposer) {
             FootprintShareComposerView(
@@ -241,7 +262,7 @@ struct FootprintDetailView: View {
         } message: {
             Text(DangerConfirmation.deleteShow.message)
         }
-        .bsToastOverlay(toast, bottomPadding: BSSpacing.lg)
+        .bsToastOverlay(toast, bottomPadding: BSLayout.tabBarContentInset)
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
         .preferredColorScheme(.dark)
@@ -354,21 +375,37 @@ struct FootprintDetailView: View {
 
     private var memorySection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader(BSLocalization.text("记忆碎片"), trailing: BSLocalization.format("%lld 条", fragments.count))
-            if fragments.isEmpty {
-                VStack(spacing: BSSpacing.compact) {
-                    Image(systemName: "sparkles.rectangle.stack")
-                        .font(BSFont.title.weight(.light))
+            Button {
+                isShowingMemoryPage = true
+            } label: {
+                HStack(spacing: BSSpacing.xs) {
+                    sectionHeader(BSLocalization.text("记忆碎片"), trailing: BSLocalization.format("%lld 条", fragments.count))
+                    Image(systemName: "chevron.right")
+                        .font(BSFont.V3.caption.weight(.semibold))
                         .foregroundColor(BSColor.Stage.dim)
-                    Text(BSLocalization.text("这一晚还没有留下记忆碎片"))
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.muted)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: FootprintDetailTokens.emptyMemoryHeight)
-                .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-                .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
-                .accessibilityElement(children: .combine)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if fragments.isEmpty {
+                Button {
+                    isShowingMemoryPage = true
+                } label: {
+                    VStack(spacing: BSSpacing.compact) {
+                        Image(systemName: "sparkles.rectangle.stack")
+                            .font(BSFont.title.weight(.light))
+                            .foregroundColor(BSColor.Stage.dim)
+                        Text(BSLocalization.text("这一晚还没有留下记忆碎片"))
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: FootprintDetailTokens.emptyMemoryHeight)
+                    .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+                    .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
+                    .accessibilityElement(children: .combine)
+                }
+                .buttonStyle(.plain)
             } else {
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: BSSpacing.sm), GridItem(.flexible())],
@@ -595,12 +632,31 @@ struct FootprintDetailView: View {
         }
     }
 
+    @MainActor
+    private func apply(_ draft: ShowDraft) async throws {
+        let didSync = try await ShowMutationCoordinator.applyDraft(
+            draft,
+            to: show,
+            shows: shows,
+            selections: selections,
+            notificationStates: notificationStates,
+            in: modelContext,
+            session: session
+        )
+        presentToast(
+            didSync ? .success : .neutral,
+            message: didSync ? BSLocalization.text("现场信息已更新") : BSLocalization.text("信息已保存，同步暂未更新")
+        )
+    }
+
     private func beginDelete() {
         guard !isDeleting else { return }
         memoryTarget = nil
         showingAssetKind = nil
         isShowingShareComposer = false
         isShowingDispersalShare = false
+        isShowingEditor = false
+        isShowingMemoryPage = false
         isDeleting = true
         Task { @MainActor in
             await Task.yield()

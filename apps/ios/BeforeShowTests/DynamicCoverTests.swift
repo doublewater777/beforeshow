@@ -104,7 +104,8 @@ final class DynamicCoverTests: XCTestCase {
                 sceneIsActive: true,
                 hasMemoryOverlay: false,
                 hasAssetOverlay: false,
-                hasShareOverlay: false
+                hasShareOverlay: false,
+                hasEditorOverlay: false
             )
         )
         XCTAssertFalse(
@@ -112,7 +113,8 @@ final class DynamicCoverTests: XCTestCase {
                 sceneIsActive: false,
                 hasMemoryOverlay: false,
                 hasAssetOverlay: false,
-                hasShareOverlay: false
+                hasShareOverlay: false,
+                hasEditorOverlay: false
             )
         )
         XCTAssertFalse(
@@ -120,7 +122,8 @@ final class DynamicCoverTests: XCTestCase {
                 sceneIsActive: true,
                 hasMemoryOverlay: true,
                 hasAssetOverlay: false,
-                hasShareOverlay: false
+                hasShareOverlay: false,
+                hasEditorOverlay: false
             )
         )
         XCTAssertFalse(
@@ -128,7 +131,8 @@ final class DynamicCoverTests: XCTestCase {
                 sceneIsActive: true,
                 hasMemoryOverlay: false,
                 hasAssetOverlay: true,
-                hasShareOverlay: false
+                hasShareOverlay: false,
+                hasEditorOverlay: false
             )
         )
         XCTAssertFalse(
@@ -136,7 +140,17 @@ final class DynamicCoverTests: XCTestCase {
                 sceneIsActive: true,
                 hasMemoryOverlay: false,
                 hasAssetOverlay: false,
-                hasShareOverlay: true
+                hasShareOverlay: true,
+                hasEditorOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            FootprintPlaybackPolicy.isActive(
+                sceneIsActive: true,
+                hasMemoryOverlay: false,
+                hasAssetOverlay: false,
+                hasShareOverlay: false,
+                hasEditorOverlay: true
             )
         )
     }

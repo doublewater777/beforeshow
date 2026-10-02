@@ -44,8 +44,9 @@ enum FootprintPlaybackPolicy {
         sceneIsActive: Bool,
         hasMemoryOverlay: Bool,
         hasAssetOverlay: Bool,
-        hasShareOverlay: Bool
+        hasShareOverlay: Bool,
+        hasEditorOverlay: Bool
     ) -> Bool {
-        sceneIsActive && !hasMemoryOverlay && !hasAssetOverlay && !hasShareOverlay
+        sceneIsActive && !hasMemoryOverlay && !hasAssetOverlay && !hasShareOverlay && !hasEditorOverlay
     }
 }
