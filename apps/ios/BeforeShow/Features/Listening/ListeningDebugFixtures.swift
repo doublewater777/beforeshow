@@ -153,7 +153,6 @@ enum ListeningFixtureScenario: String, CaseIterable {
 
 struct ListeningFixtureArtistSearch: ArtistSearchServicing {
     var fails = false
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         if fails { throw URLError(.notConnectedToInternet) }
         guard let index = ["夜航", "海岸"].firstIndex(of: query) else { return [] }

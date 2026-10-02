@@ -224,7 +224,6 @@ private final class CountingArtistSearchService: @unchecked Sendable, ArtistSear
         return result.map { [$0] } ?? []
     }
 
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
 }
 
 final class NavigationTests: XCTestCase {
@@ -684,13 +683,13 @@ final class ListeningAccessibilityTests: XCTestCase {
         let exact = RecognizedArtist(id: "1", canonicalName: "Beyoncé", avatarURL: nil, appleMusicURL: nil)
         let fuzzy = RecognizedArtist(id: "2", canonicalName: "Beyoncé Live", avatarURL: nil, appleMusicURL: nil)
         XCTAssertEqual(
-            ShowDraftArtistAutoMatchPolicy.uniqueExactMatch(for: "  Beyonce ", among: [fuzzy, exact])?.id,
+            ArtistNameMatching.uniqueExactMatch(for: "  Beyonce ", among: [fuzzy, exact])?.id,
             "1"
         )
 
         let collision = RecognizedArtist(id: "3", canonicalName: "Beyonce", avatarURL: nil, appleMusicURL: nil)
         XCTAssertNil(
-            ShowDraftArtistAutoMatchPolicy.uniqueExactMatch(for: "Beyoncé", among: [exact, collision]),
+            ArtistNameMatching.uniqueExactMatch(for: "Beyoncé", among: [exact, collision]),
             "Same-name collisions must remain unresolved for manual confirmation"
         )
     }

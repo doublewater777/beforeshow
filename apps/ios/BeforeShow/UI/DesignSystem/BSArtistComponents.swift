@@ -28,11 +28,11 @@ struct ArtistAvatarThumb: View {
         .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1))
         .task(id: url) {
             guard let url else { image = nil; return }
+            image = ShowCoverImageCache.shared.memoryImage(for: url)
             if image == nil {
-                image = ShowCoverImageCache.shared.memoryImage(for: url)
-            }
-            if image == nil {
-                image = await ShowCoverImageCache.shared.image(from: url)
+                let loaded = await ShowCoverImageCache.shared.image(from: url)
+                guard !Task.isCancelled else { return }
+                image = loaded
             }
         }
     }

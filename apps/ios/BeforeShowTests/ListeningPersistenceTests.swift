@@ -145,6 +145,16 @@ final class ListeningPersistenceTests: XCTestCase {
         XCTAssertEqual(stored.artists.count, 1)
         XCTAssertNil(AppleMusicArtistIdentityMigration.artistID(from: "https://example.com/artist/123"))
         XCTAssertNil(AppleMusicArtistIdentityMigration.artistID(from: "https://music.apple.com/cn/artist/name/not-a-number"))
+        for url in [
+            "https://music.apple.com/cn/album/name/123456789?i=987654321",
+            "https://music.apple.com/cn/song/name/123456789",
+            "https://music.apple.com/cn/playlist/name/123456789",
+            "https://music.apple.com/album/artist/123456789",
+            "https://music.apple.com/cn/artist/name/１２３",
+            "https://music.apple.com/cn/artist/name/123456789/extra/987654321"
+        ] {
+            XCTAssertNil(AppleMusicArtistIdentity.artistID(from: url), url)
+        }
     }
 
     func testEditingArtistNameClearsCatalogIdentity() throws {
@@ -181,6 +191,43 @@ final class ListeningPersistenceTests: XCTestCase {
         XCTAssertNil(show.artists[0].appleMusicURL)
         XCTAssertNil(show.artists[0].appleMusicArtistID)
         XCTAssertNil(show.artists[0].albumArtworkURL)
+    }
+
+    func testSavingNewArtistSelectionPreservesConfirmedIdentity() throws {
+        let show = try Show(name: "Edit", date: .now, startTime: .now,
+                            artists: [ArtistSlot(name: "Old", avatarURL: nil, appleMusicArtistID: "123")])
+        var draft = ShowDraft(show: show)
+        draft.artists[0].name = "庄达菲"
+        draft.artists[0].avatarURL = "https://example.com/new.jpg"
+        draft.attachArtistIdentity(RecognizedArtist(
+            id: "1483458284", canonicalName: "庄达菲", avatarURL: nil,
+            appleMusicURL: URL(string: "https://music.apple.com/cn/artist/1483458284")
+        ), at: 0)
+        try show.apply(draft)
+        XCTAssertEqual(show.artists[0].appleMusicArtistID, "1483458284")
+        XCTAssertEqual(show.artists[0].avatarURL, "https://example.com/new.jpg")
+    }
+
+    func testTypingArtistNameClearsIdentityBeforeCreatingShow() throws {
+        var draft = ShowDraft(name: "New Show", date: .now, startTime: .now,
+                              artists: [ArtistSlot(name: "Old", avatarURL: "avatar", appleMusicURL: "https://music.apple.com/cn/artist/123", appleMusicArtistID: "123", albumArtworkURL: "album")])
+        draft.updateArtistName("New", at: 0)
+        let show = try draft.makeShow()
+        XCTAssertNil(show.artists[0].appleMusicArtistID)
+        XCTAssertNil(show.artists[0].avatarURL)
+        XCTAssertNil(show.artists[0].appleMusicURL)
+        XCTAssertNil(show.artists[0].albumArtworkURL)
+    }
+
+    func testDeletingPrecedingArtistKeepsRemainingIdentity() throws {
+        let show = try Show(name: "Edit", date: .now, startTime: .now, artists: [
+            ArtistSlot(name: "First", avatarURL: nil, appleMusicArtistID: "123"),
+            ArtistSlot(name: "Second", avatarURL: nil, appleMusicArtistID: "456")
+        ])
+        var draft = ShowDraft(show: show)
+        draft.artists.removeFirst()
+        try show.apply(draft)
+        XCTAssertEqual(show.artists.first?.appleMusicArtistID, "456")
     }
 
     func testFamiliarityResolverKeepsIndependentEvidence() {

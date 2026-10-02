@@ -588,7 +588,6 @@ private final class ListeningLayoutProbe {
 }
 
 private struct LoadingArtistSearch: ArtistSearchServicing {
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         try await Task.sleep(for: .seconds(5))
         return []
@@ -596,7 +595,6 @@ private struct LoadingArtistSearch: ArtistSearchServicing {
 }
 
 private struct EmptyArtistSearch: ArtistSearchServicing {
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
     func searchArtists(query: String) async throws -> [RecognizedArtist] { [] }
 }
 

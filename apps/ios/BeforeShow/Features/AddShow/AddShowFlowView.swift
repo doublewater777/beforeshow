@@ -50,7 +50,7 @@ struct AddShowFlowView: View {
     /// 防止 OCR / link 解析偷偷覆盖用户输入。import 完成后清空。
     @State private var userEditedFields: Set<ShowDraftField> = []
     /// Apple Music 艺人搜索;可注入 Stub 跑测试。
-    private let artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService()
+    @State private var artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService()
     /// 当前进行中的解析 / OCR 任务；关闭页面时取消，避免后台继续写回。
     @State private var importTask: Task<Void, Never>?
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。

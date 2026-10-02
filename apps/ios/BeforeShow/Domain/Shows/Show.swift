@@ -382,12 +382,12 @@ final class Show {
     /// `changeStatus` / `postponedDate` — those stay on mark* paths.
     func apply(_ draft: ShowDraft) throws {
         let prepared = try Self.prepared(from: draft)
-        // 按 index 比对,只清发生变化的 slot 的识别产物:换名后该 slot 让 form 重新识别,
-        // 未变 slot 的头像保留,新增 slot 的 avatar 仍由 draft 携带。
+        // Preserve confirmed name/ID pairs; clear stale identities left over from a rename.
         let oldSlots = self.artists
         var newSlots = prepared.artists
         let common = min(oldSlots.count, newSlots.count)
-        for index in 0..<common where oldSlots[index].name != newSlots[index].name {
+        for index in 0..<common where oldSlots[index].name != newSlots[index].name
+            && !draft.hasConfirmedArtistIdentity(newSlots[index]) {
             newSlots[index].avatarURL = nil
             newSlots[index].appleMusicURL = nil
             newSlots[index].appleMusicArtistID = nil

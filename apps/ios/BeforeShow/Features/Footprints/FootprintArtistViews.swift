@@ -77,11 +77,19 @@ private enum FootprintArtistAlbumArtworkLoader {
         modelContext: ModelContext
     ) async -> URL? {
         if let existingURL { return existingURL }
-        guard let url = await ArtistAlbumArtworkResolver.shared.artworkURL(forArtistName: name) else { return nil }
-        if FootprintAlbumArtworkWriteback.persist(url, artistName: name, showIDs: showIDs, in: shows) {
+        let identities = Set(shows.filter { showIDs.contains($0.id) }
+            .flatMap(\.artists)
+            .filter { ArtistNameMatching.normalized($0.name) == ArtistNameMatching.normalized(name) }
+            .compactMap { AppleMusicArtistIdentity.artistID(for: $0) })
+        guard identities.count <= 1 else { return nil }
+        let artistID = identities.first
+        guard let url = await ArtistAlbumArtworkResolver.shared.artworkURL(forArtistName: name, artistID: artistID),
+              !Task.isCancelled else { return nil }
+        if FootprintAlbumArtworkWriteback.persist(url, artistName: name, artistID: artistID, showIDs: showIDs, in: shows) {
             try? modelContext.save()
+            return url
         }
-        return url
+        return nil
     }
 }
 
