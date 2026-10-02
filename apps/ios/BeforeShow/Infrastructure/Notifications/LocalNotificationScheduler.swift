@@ -57,7 +57,7 @@ struct LocalNotificationScheduler {
         }
         if scope.includesAllMilestones {
             nodes += milestoneDates(
-                for: show, timeState: timeState, calendar: eventCalendar, now: now, showDayDate: showDayDate
+                for: show, timeState: timeState, calendar: eventCalendar, showDayDate: showDayDate
             )
         }
 
@@ -93,7 +93,6 @@ struct LocalNotificationScheduler {
         for show: Show,
         timeState: CurrentShowTimeState,
         calendar: Calendar,
-        now: Date,
         showDayDate: Date?
     ) -> [(milestone: ShowNotificationMilestone, fireDate: Date)] {
         var planned: [(ShowNotificationMilestone, Date?)] = []
