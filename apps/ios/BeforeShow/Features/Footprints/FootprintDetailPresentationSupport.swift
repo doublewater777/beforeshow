@@ -12,8 +12,6 @@ enum FootprintDetailTokens {
     static let infoTitleWidth: CGFloat = 36
     static let infoRowHeight: CGFloat = 58
     static let memoryTileHeight: CGFloat = 168
-    static let memoryMediaHeight: CGFloat = 132
-    static let memoryInfoHeight: CGFloat = 36
     static let keepsakeTileHeight: CGFloat = 156
     static let keepsakeMediaHeight: CGFloat = 96
     static let keepsakeInfoHeight: CGFloat = 60
@@ -24,7 +22,8 @@ enum FootprintDetailTokens {
     static let sectionFont = BSFont.headline
     static let memoryPlayFont = BSFont.heroTitle.weight(.semibold)
     static let memoryBadgeFont = BSFont.V3.caption.weight(.semibold)
-    static let memoryMetadataColor = Color.white.opacity(0.68)
+    static let captionColor = Color.white.opacity(0.88)
+    static let captionScrim = Color.black.opacity(0.28)
     static let memoryDurationColor = Color.white.opacity(0.74)
 
     static let backgroundGlow = BSColor.Stage.glowBlue.opacity(0.14)
@@ -34,8 +33,6 @@ enum FootprintDetailTokens {
     static let companionAccent = BSColor.Stage.accent.opacity(0.38)
     static let companionGlow = BSColor.Stage.glowBlue.opacity(0.32)
     static let infoIconFill = Color.white.opacity(0.05)
-    static let memoryScrim = Color.black.opacity(0.72)
-    static let keepsakeScrim = Color.black.opacity(0.74)
     static let savedKeepsakeText = Color.white.opacity(0.74)
 }
 
@@ -44,8 +41,9 @@ enum FootprintPlaybackPolicy {
         sceneIsActive: Bool,
         hasMemoryOverlay: Bool,
         hasAssetOverlay: Bool,
-        hasShareOverlay: Bool
+        hasShareOverlay: Bool,
+        hasEditorOverlay: Bool
     ) -> Bool {
-        sceneIsActive && !hasMemoryOverlay && !hasAssetOverlay && !hasShareOverlay
+        sceneIsActive && !hasMemoryOverlay && !hasAssetOverlay && !hasShareOverlay && !hasEditorOverlay
     }
 }

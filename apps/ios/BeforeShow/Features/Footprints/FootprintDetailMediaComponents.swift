@@ -10,44 +10,35 @@ struct FootprintMemoryTile: View {
     var body: some View {
         Group {
             if let media = firstMedia {
-                VStack(spacing: 0) {
-                    ZStack {
+                // 以瓦片尺寸为布局基准，避免竖图 fill 后撑高把右上角时长标签推出可视区。
+                Color.clear
+                    .overlay {
                         MemoryThumbnail(relativePath: media.thumbnailRelativePath ?? media.relativePath)
-                        LinearGradient(
-                            colors: [.clear, FootprintDetailTokens.memoryScrim],
-                            startPoint: .center,
-                            endPoint: .bottom
-                        )
+                    }
+                    .overlay {
                         if media.kind == .video {
                             Image(systemName: "play.circle.fill")
                                 .font(FootprintDetailTokens.memoryPlayFont)
                                 .foregroundColor(.white)
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if media.kind == .video {
                             Text(durationText(media.videoDuration))
                                 .font(FootprintDetailTokens.memoryBadgeFont)
                                 .foregroundColor(FootprintDetailTokens.memoryDurationColor)
                                 .padding(.horizontal, BSSpacing.sm)
                                 .padding(.vertical, BSSpacing.xs)
                                 .background(Color.black.opacity(0.34), in: Capsule())
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                                 .padding(BSSpacing.sm)
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: FootprintDetailTokens.memoryMediaHeight)
-                    .clipped()
-
-                    HStack(alignment: .bottom, spacing: BSSpacing.sm) {
-                        Text(media.kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片"))
-                        Spacer(minLength: 0)
-                        Text(timeText(fragment.createdAt))
+                    .overlay(alignment: .bottom) {
+                        FootprintTileCaption(
+                            title: media.kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片"),
+                            trailing: timeText(fragment.createdAt)
+                        )
                     }
-                    .font(FootprintDetailTokens.memoryBadgeFont)
-                    .foregroundColor(FootprintDetailTokens.memoryMetadataColor)
-                    .padding(.horizontal, BSSpacing.compact)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: FootprintDetailTokens.memoryInfoHeight, alignment: .center)
-                    .background(Color.black.opacity(0.18))
-                }
             } else {
                 VStack(alignment: .leading, spacing: BSSpacing.sm) {
                     Image(systemName: "quote.opening")
@@ -59,20 +50,17 @@ struct FootprintMemoryTile: View {
                         .lineLimit(5)
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
-                    HStack(alignment: .bottom) {
-                        Text(BSLocalization.text("文字"))
-                        Spacer(minLength: 0)
-                        Text(timeText(fragment.createdAt))
-                    }
-                    .font(FootprintDetailTokens.memoryBadgeFont)
-                    .foregroundColor(FootprintDetailTokens.memoryMetadataColor)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(BSSpacing.compact)
+                .overlay(alignment: .bottom) {
+                    FootprintTileCaption(title: BSLocalization.text("文字"), trailing: timeText(fragment.createdAt), showsScrim: false)
+                }
             }
         }
         .frame(maxWidth: .infinity)
         .frame(height: FootprintDetailTokens.memoryTileHeight)
+        .clipped()
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
@@ -89,57 +77,86 @@ struct FootprintMemoryTile: View {
     }
 }
 
+/// 贴底的纯文字说明：不占瓦片空间，只垫一层很淡的渐变保证可读。
+struct FootprintTileCaption: View {
+    let title: String
+    var trailing: String? = nil
+    var showsScrim = true
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: BSSpacing.sm) {
+            Text(title)
+            Spacer(minLength: 0)
+            if let trailing { Text(trailing) }
+        }
+        .font(FootprintDetailTokens.memoryBadgeFont)
+        .foregroundColor(FootprintDetailTokens.captionColor)
+        .shadow(color: .black.opacity(showsScrim ? 0.45 : 0), radius: 3, y: 1)
+        .padding(.horizontal, BSSpacing.compact)
+        .padding(.top, BSSpacing.lg)
+        .padding(.bottom, BSSpacing.sm)
+        .frame(maxWidth: .infinity)
+        .background {
+            if showsScrim {
+                LinearGradient(colors: [.clear, FootprintDetailTokens.captionScrim], startPoint: .top, endPoint: .bottom)
+            }
+        }
+    }
+}
+
 struct FootprintKeepsakeTile: View {
     let kind: ShowAssetKind
     let asset: ShowAsset?
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                if let asset,
-                   let location = try? ShowAssetMediaLocation.applicationSupport() {
-                    FootprintLocalImage(
-                        url: location.rootDirectory.appendingPathComponent(asset.relativePath),
-                        contentMode: .fill
-                    )
-                    LinearGradient(
-                        colors: [.clear, FootprintDetailTokens.keepsakeScrim],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
-                } else {
-                    LinearGradient(
-                        colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    Image(systemName: kind.iconName)
-                        .font(BSFont.title.weight(.light))
-                        .foregroundColor(BSColor.Stage.accent)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: FootprintDetailTokens.keepsakeMediaHeight)
+        Group {
+            if let asset,
+               let location = try? ShowAssetMediaLocation.applicationSupport() {
+                Color.clear
+                    .overlay {
+                        FootprintLocalImage(
+                            url: location.rootDirectory.appendingPathComponent(asset.relativePath),
+                            contentMode: .fill
+                        )
+                    }
+                    .overlay(alignment: .bottom) {
+                        FootprintTileCaption(title: kind.title)
+                    }
+            } else {
+                VStack(spacing: 0) {
+                    ZStack {
+                        LinearGradient(
+                            colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        Image(systemName: kind.iconName)
+                            .font(BSFont.title.weight(.light))
+                            .foregroundColor(BSColor.Stage.accent)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: FootprintDetailTokens.keepsakeMediaHeight)
 
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                Text(kind.title)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
-                if asset == nil {
-                    Text(BSLocalization.text("点击添加"))
-                        .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.muted)
+                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                        Text(kind.title)
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.Stage.foreground)
+                        Text(BSLocalization.text("点击添加"))
+                            .font(BSFont.V3.caption)
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, BSSpacing.compact)
+                    .padding(.vertical, BSSpacing.xs)
+                    .frame(height: FootprintDetailTokens.keepsakeInfoHeight, alignment: .leading)
+                    .background(BSColor.Stage.surfaceRaised)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, BSSpacing.compact)
-            .padding(.vertical, BSSpacing.xs)
-            .frame(height: FootprintDetailTokens.keepsakeInfoHeight, alignment: .leading)
-            .background(BSColor.Stage.surfaceRaised)
         }
         .frame(maxWidth: .infinity)
         .frame(height: FootprintDetailTokens.keepsakeTileHeight)
+        .clipped()
         .background(BSColor.Stage.surface)
         .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
