@@ -378,11 +378,19 @@ struct FootprintDetailView: View {
             Button {
                 isShowingMemoryPage = true
             } label: {
-                HStack(spacing: BSSpacing.xs) {
-                    sectionHeader(BSLocalization.text("记忆碎片"), trailing: BSLocalization.format("%lld 条", fragments.count))
-                    Image(systemName: "chevron.right")
-                        .font(BSFont.V3.caption.weight(.semibold))
-                        .foregroundColor(BSColor.Stage.dim)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(BSLocalization.text("记忆碎片"))
+                        .font(FootprintDetailTokens.sectionFont)
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Spacer()
+                    HStack(alignment: .firstTextBaseline, spacing: BSSpacing.xs) {
+                        Text(BSLocalization.format("%lld 条", fragments.count))
+                            .font(BSFont.V3.caption)
+                            .foregroundColor(BSColor.Stage.dim)
+                        Image(systemName: "chevron.right")
+                            .font(BSFont.V3.caption.weight(.semibold))
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
                 }
                 .contentShape(Rectangle())
             }
