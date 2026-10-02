@@ -61,10 +61,6 @@ final class ListeningCatalogStore {
     ) throws -> ArtistCatalogSnapshot {
         do {
             _ = try ListeningCatalogBatchWriter.persistCore([payload], in: modelContext)
-            try? OpeningFamiliarityCoordinator.resolveAvailableTiers(
-                in: modelContext,
-                now: payload.fetchedAt
-            )
             guard let snapshot = try cachedSnapshot(artistID: payload.artistID) else {
                 throw ListeningCatalogError.incompleteCatalog(payload.artistID)
             }
@@ -84,15 +80,6 @@ final class ListeningCatalogStore {
         guard !payloads.isEmpty else { return [] }
         let persistedArtistIDs = try await persistenceBoundary.persistCore(payloads)
 
-        // Opening tiers are derived presentation data and remain MainActor-owned.
-        // Resolve once after the batch instead of once per artist.
-        if let fetchedAt = payloads.map(\.fetchedAt).max() {
-            let resolutionContext = ModelContext(modelContext.container)
-            try? OpeningFamiliarityCoordinator.resolveAvailableTiers(
-                in: resolutionContext,
-                now: fetchedAt
-            )
-        }
         return persistedArtistIDs
     }
 

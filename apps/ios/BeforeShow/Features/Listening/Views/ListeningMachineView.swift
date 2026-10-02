@@ -494,16 +494,25 @@ private struct CDPlayerLCDView: View {
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
 
     var body: some View {
+        let displayTrack = room.playerDisplayTrack
         VStack(alignment: .leading, spacing: 1) {
-            Text(!player.hasDisc ? "NO DISC" : room.track?.title ?? "")
+            Text(!player.hasDisc ? "NO DISC" : displayTrack?.title ?? "")
                 .font(.system(size: 9, weight: .semibold, design: .monospaced)).lineLimit(1)
-            Text(player.hasDisc ? room.track?.artistName ?? "—" : "—")
+            Text(player.hasDisc ? displayTrack?.artistName ?? "—" : "—")
                 .font(.system(size: 7, weight: .medium, design: .monospaced)).lineLimit(1)
             HStack(spacing: 3) {
-                Text(player.hasDisc ? String(format: "TR %02d", room.trackIndex + 1) : "TR --")
+                if let displayTrackIndex = room.playerDisplayTrackIndex {
+                    Text(String(format: "TR %02d", displayTrackIndex + 1))
+                } else {
+                    Text("TR --")
+                }
                 Spacer(minLength: 0)
                 if player.hasDisc {
-                    Text(room.isPlaying ? "▶ \(room.timeText)" : "⏸ \(room.timeText)")
+                    if room.isPlayerDisplayPreparing {
+                        Text(room.playerDisplayTimeText)
+                    } else {
+                        Text(room.isPlaying ? "▶ \(room.playerDisplayTimeText)" : "⏸ \(room.playerDisplayTimeText)")
+                    }
                 }
             }
             .font(.system(size: 7, weight: .medium, design: .monospaced))
