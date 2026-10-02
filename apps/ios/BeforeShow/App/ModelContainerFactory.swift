@@ -26,6 +26,7 @@ enum ModelContainerFactory {
             ShowOpeningFamiliarityBaseline.self,
             ShowOpeningArtistTier.self,
             ShowSetlistMemory.self,
+            FeatureRecommendationRecord.self,
             configurations: configuration
         )
     }

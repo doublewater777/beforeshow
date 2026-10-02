@@ -1,5 +1,32 @@
 import Foundation
 
+/// 下一场的事实，只用于散场后第 3 天那条「下一场」文案。
+struct NotificationNextShow: Equatable {
+    let name: String
+    let daysUntil: Int
+
+    init(name: String, daysUntil: Int) {
+        self.name = name
+        self.daysUntil = daysUntil
+    }
+
+    init(show: Show, now: Date) {
+        let calendar = show.timingCalendar()
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: now)
+        self.init(name: show.name, daysUntil: max(0, state.dayDistance))
+    }
+}
+
+/// 当前现场排全部节点；其他现场只排开场前 3 小时（ADR 0037）。
+struct NotificationScheduleScope {
+    let includesAllMilestones: Bool
+    var recommendations = FeatureRecommendationContext()
+    var nextShow: NotificationNextShow?
+
+    static let all = NotificationScheduleScope(includesAllMilestones: true)
+    static let showDayOnly = NotificationScheduleScope(includesAllMilestones: false)
+}
+
 struct LocalNotificationScheduler {
     let calendar: Calendar
 
@@ -10,7 +37,8 @@ struct LocalNotificationScheduler {
     func futureRequests(
         for show: Show,
         now: Date = Date(),
-        scheduledShowDayFireDate: Date? = nil
+        scheduledShowDayFireDate: Date? = nil,
+        scope: NotificationScheduleScope = .all
     ) -> [ScheduledShowNotification] {
         let eventCalendar = show.timingCalendar(fallback: calendar)
         let timeState = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
@@ -18,63 +46,78 @@ struct LocalNotificationScheduler {
             return []
         }
 
-        let context = NotificationCopyContext(show: show, timeState: timeState, calendar: eventCalendar)
-        return milestoneDates(
-            for: timeState, show: show, calendar: eventCalendar, now: now,
-            scheduledShowDayFireDate: scheduledShowDayFireDate
+        let copy = NotificationCopy(
+            context: NotificationCopyContext(show: show, timeState: timeState, calendar: eventCalendar)
         )
-            .filter { $0.fireDate > now }
-            .map {
-                ScheduledShowNotification(
-                    showID: show.id,
-                    milestone: $0.milestone,
-                    fireDate: $0.fireDate,
-                    title: notificationTitle(for: $0.milestone, context: context),
-                    body: notificationBody(for: $0.milestone, context: context),
-                    showStartTime: $0.milestone == .showDay ? timeState.effectiveStartTime : nil
-                )
+        let showDayDate = scheduledShowDayFireDate
+            ?? showDayReminderDate(for: timeState, calendar: eventCalendar, now: now)
+        var nodes: [(milestone: ShowNotificationMilestone, fireDate: Date)] = []
+        if let showDayDate {
+            nodes.append((.showDay, showDayDate))
+        }
+        if scope.includesAllMilestones {
+            nodes += milestoneDates(
+                for: show, timeState: timeState, calendar: eventCalendar, now: now, showDayDate: showDayDate
+            )
+        }
+
+        var plannedExposures: [RecommendedFeature: Int] = [:]
+        var requests: [ScheduledShowNotification] = []
+        for node in nodes.filter({ $0.fireDate > now }).sorted(by: { $0.fireDate < $1.fireDate }) {
+            guard let content = content(
+                for: node.milestone, fireDate: node.fireDate, show: show, timeState: timeState,
+                calendar: eventCalendar, copy: copy, scope: scope, plannedExposures: plannedExposures
+            ) else {
+                continue
             }
+            if let feature = content.feature {
+                plannedExposures[feature, default: 0] += 1
+            }
+            requests.append(ScheduledShowNotification(
+                showID: show.id,
+                milestone: node.milestone,
+                fireDate: node.fireDate,
+                title: copy.title,
+                body: content.body,
+                showStartTime: node.milestone == .showDay ? timeState.effectiveStartTime : nil,
+                destination: content.destination,
+                feature: content.feature
+            ))
+        }
+        return requests
     }
 
-    /// 已确认散场（endedAt != nil）的现场的「次日回看」请求。
-    /// 只在未来触发时刻存在时返回；未确认散场的现场由 futureRequests 负责。
-    func afterShowRequest(for show: Show, now: Date = Date()) -> ScheduledShowNotification? {
-        guard show.endedAt != nil else { return nil }
-        let eventCalendar = show.timingCalendar(fallback: calendar)
-        let timeState = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
-        guard let fireDate = afterShowReminderDate(for: timeState, calendar: eventCalendar, confirmedEnd: show.endedAt),
-              fireDate > now else { return nil }
-        let context = NotificationCopyContext(show: show, timeState: timeState, calendar: eventCalendar)
-        return ScheduledShowNotification(
-            showID: show.id,
-            milestone: .afterShow,
-            fireDate: fireDate,
-            title: notificationTitle(for: .afterShow, context: context),
-            body: notificationBody(for: .afterShow, context: context)
-        )
-    }
+    // MARK: - Dates
 
     private func milestoneDates(
-        for timeState: CurrentShowTimeState,
-        show: Show,
+        for show: Show,
+        timeState: CurrentShowTimeState,
         calendar: Calendar,
         now: Date,
-        scheduledShowDayFireDate: Date? = nil
+        showDayDate: Date?
     ) -> [(milestone: ShowNotificationMilestone, fireDate: Date)] {
-        let showStart = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
-        let planned: [(ShowNotificationMilestone, Date?)] = [
-            (.fourteenDaysBefore, dayRelativeToShow(timeState, offset: -14, hour: 20, calendar: calendar)),
-            (.sevenDaysBefore, dayRelativeToShow(timeState, offset: -7, hour: 20, calendar: calendar)),
-            (.threeDaysBefore, dayRelativeToShow(timeState, offset: -3, hour: 20, calendar: calendar)),
-            (.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20, calendar: calendar)),
-            (.showDayMorning, dayRelativeToShow(timeState, offset: 0, hour: 9, calendar: calendar)),
-            (.showDay, scheduledShowDayFireDate ?? showDayReminderDate(for: timeState, calendar: calendar, now: now)),
-            (
-                .openingMemory,
-                (show.endedAt == nil && now < showStart) ? showStart : nil
-            ),
-            (.afterShow, afterShowReminderDate(for: timeState, calendar: calendar))
-        ]
+        var planned: [(ShowNotificationMilestone, Date?)] = []
+        if show.endedAt == nil {
+            let showStart = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+            planned += [
+                (.addedFollowUp, followUpDate(for: show, timeState: timeState, calendar: calendar)),
+                (.fourteenDaysBefore, dayRelativeToShow(timeState, offset: -14, hour: 20, calendar: calendar)),
+                (.sevenDaysBefore, dayRelativeToShow(timeState, offset: -7, hour: 20, calendar: calendar)),
+                (.threeDaysBefore, dayRelativeToShow(timeState, offset: -3, hour: 20, calendar: calendar)),
+                (.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20, calendar: calendar)),
+                (.showDayMorning, morningDate(timeState, showStart: showStart, showDayDate: showDayDate, calendar: calendar)),
+                (.openingMemory, now < showStart ? showStart : nil)
+            ]
+        }
+
+        // 散场时间只由用户确认；没确认时按预计散场排，点进去先确认散场时间。
+        if let end = show.endedAt ?? estimatedFinalEnd(for: show, calendar: calendar) {
+            if !show.hasCompletedDispersalCeremony {
+                planned.append((.postShowRitual, calendar.date(byAdding: .minute, value: 15, to: end)))
+                planned.append((.afterShow, afterShowReminderDate(for: timeState, calendar: calendar, confirmedEnd: show.endedAt)))
+            }
+            planned.append((.footprintArrival, dayAfter(end, days: 3, hour: 20, calendar: calendar)))
+        }
 
         return planned.compactMap { milestone, fireDate in
             fireDate.map { (milestone, $0) }
@@ -98,6 +141,43 @@ struct LocalNotificationScheduler {
             second: 0,
             of: targetDay
         )
+    }
+
+    private func dayAfter(_ date: Date, days: Int, hour: Int, calendar: Calendar) -> Date? {
+        guard let day = calendar.date(byAdding: .day, value: days, to: calendar.startOfDay(for: date)) else {
+            return nil
+        }
+        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)
+    }
+
+    /// 添加后次日 20:00；离开场不足 8 天、或正好落在 T-14 那天时不发。
+    private func followUpDate(for show: Show, timeState: CurrentShowTimeState, calendar: Calendar) -> Date? {
+        guard let fireDate = dayAfter(show.createdAt, days: 1, hour: 20, calendar: calendar) else { return nil }
+        let distance = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: fireDate),
+            to: calendar.startOfDay(for: timeState.effectiveDate)
+        ).day ?? 0
+        return distance >= 8 && distance != 14 ? fireDate : nil
+    }
+
+    /// 当天 09:00；开场前 3 小时早于 10:00 时并入那一条，不再单发。
+    private func morningDate(
+        _ timeState: CurrentShowTimeState,
+        showStart: Date,
+        showDayDate: Date?,
+        calendar: Calendar
+    ) -> Date? {
+        guard let morning = dayRelativeToShow(timeState, offset: 0, hour: 9, calendar: calendar),
+              morning < showStart else {
+            return nil
+        }
+        if let showDayDate,
+           let tenOClock = dayRelativeToShow(timeState, offset: 0, hour: 10, calendar: calendar),
+           showDayDate < tenOClock {
+            return nil
+        }
+        return morning
     }
 
     /// 开场前 3 小时。临时添加的现场（3 小时内开场）不能因为节点已过就静默，
@@ -142,78 +222,80 @@ struct LocalNotificationScheduler {
         return calendar.date(bySettingHour: 11, minute: 0, second: 0, of: nextDay)
     }
 
-    /// 情绪曲线：期待 → 想象 → 具体 → 收束 → 出门 → 紧迫 → 回看。
-    /// 有场馆 / 城市时说得更具体，缺字段时退回通用句，不出现空占位。
-    private func notificationBody(
-        for milestone: ShowNotificationMilestone,
-        context: NotificationCopyContext
-    ) -> String {
-        let name = context.showName
-
-        switch milestone {
-        case .fourteenDaysBefore:
-            return BSLocalization.format("%@，还有两周。先一起听几首，慢慢等。", name)
-
-        case .sevenDaysBefore:
-            return BSLocalization.format("再过一周，我们就去见 %@ 了。这几天，把歌先听起来。", name)
-
-        case .threeDaysBefore:
-            return BSLocalization.format("%@ 已经很近了。再听几首，我们现场见。", name)
-
-        case .oneDayBefore:
-            if context.isMultiDay {
-                return BSLocalization.format("%@ 明天开始。今晚再听一会儿，明天一起去。", name)
-            }
-            return BSLocalization.format("最后再听一晚。明天，我们去见 %@。", name)
-
-        case .showDayMorning:
-            if let place = context.place, let clock = context.startClock {
-                return BSLocalization.format("%1$@ · %2$@ · %3$@。今天，我们现场见。", name, clock, place)
-            }
-            if let clock = context.startClock {
-                return BSLocalization.format("%1$@ · %2$@。今天，我们现场见。", name, clock)
-            }
-            return BSLocalization.format("%@。今天，我们现场见。", name)
-
-        case .showDay:
-            if let place = context.place {
-                return BSLocalization.format("%1$@ · %2$@。只剩几个小时了，现场见。", name, place)
-            }
-            return BSLocalization.format("%@。只剩几个小时了，我们现场见。", name)
-
-        case .afterShow:
-            return BSLocalization.format("%@ 散场了。想记住的，我们慢慢留在这里。", name)
-
-        case .openingMemory:
-            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                return BSLocalization.text("开始了。想留下什么，我们就留一点下来。")
-            }
-            return BSLocalization.format("%@ 开始了。想留下什么，我们就留一点下来。", trimmed)
-        }
+    /// 整场（多日为最后一天）的预计散场。开场前的时间状态给出的就是整场边界。
+    private func estimatedFinalEnd(for show: Show, calendar: Calendar) -> Date? {
+        CurrentShowTimeState(show: show, calendar: calendar, now: .distantPast).endBoundary
     }
 
-    private func notificationTitle(
+    // MARK: - Content
+
+    private func content(
         for milestone: ShowNotificationMilestone,
-        context: NotificationCopyContext
-    ) -> String {
+        fireDate: Date,
+        show: Show,
+        timeState: CurrentShowTimeState,
+        calendar: Calendar,
+        copy: NotificationCopy,
+        scope: NotificationScheduleScope,
+        plannedExposures: [RecommendedFeature: Int]
+    ) -> NotificationNodeContent? {
+        func recommended(_ slot: FeatureRecommendationSlot) -> RecommendedFeature? {
+            FeatureRecommendationPolicy.candidate(
+                from: slot.chain(isFestival: copy.context.isFestival, hasFutureShow: scope.nextShow != nil),
+                context: scope.recommendations,
+                plannedExposures: plannedExposures
+            )
+        }
+
+        if let slot = milestone.recommendationSlot {
+            guard let feature = recommended(slot) else { return nil }
+            let daysLeft = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: fireDate),
+                to: calendar.startOfDay(for: timeState.effectiveDate)
+            ).day ?? 0
+            return NotificationNodeContent(
+                body: copy.recommendation(feature, daysLeft: daysLeft),
+                destination: feature.notificationDestination,
+                feature: feature
+            )
+        }
+
+        let isConfirmed = show.endedAt != nil
         switch milestone {
-        case .fourteenDaysBefore:
-            return BSLocalization.text("开场之前，先进入状态")
-        case .sevenDaysBefore:
-            return BSLocalization.text("又近了一点")
-        case .threeDaysBefore:
-            return BSLocalization.text("这周就见")
         case .oneDayBefore:
-            return BSLocalization.text("明天见")
+            return NotificationNodeContent(body: copy.oneDayBefore(), destination: .listen)
         case .showDayMorning:
-            return BSLocalization.text("就是今天")
+            let timetable = copy.context.isFestival
+            return NotificationNodeContent(
+                body: copy.morning(showsTimetable: timetable),
+                destination: timetable ? .timetable : .route
+            )
         case .showDay:
-            return BSLocalization.text("快开场了")
-        case .afterShow:
-            return BSLocalization.text("昨晚怎么样")
+            let remaining = timeState.effectiveStartTime.map { Int($0.timeIntervalSince(fireDate)) }
+            let isBackfill = remaining.map { $0 < 3 * 3_600 - 60 } ?? false
+            return NotificationNodeContent(
+                body: copy.showDay(remainingSeconds: isBackfill ? remaining : nil),
+                destination: .route
+            )
         case .openingMemory:
-            return BSLocalization.text("留下此刻")
+            return NotificationNodeContent(body: copy.opening, destination: .memoryCreate)
+        case .postShowRitual:
+            return NotificationNodeContent(body: copy.postShowRitual(isConfirmed: isConfirmed), destination: .dispersal)
+        case .afterShow:
+            return NotificationNodeContent(body: copy.afterShow(isConfirmed: isConfirmed), destination: .dispersal)
+        case .footprintArrival:
+            guard isConfirmed else {
+                return NotificationNodeContent(body: copy.confirmEndForFootprint, destination: .dispersal)
+            }
+            guard let feature = recommended(.footprintArrival) else { return nil }
+            return NotificationNodeContent(
+                body: copy.afterRetention(feature, nextShow: scope.nextShow),
+                destination: feature.notificationDestination,
+                feature: feature
+            )
+        case .addedFollowUp, .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore:
+            return nil
         }
     }
 }

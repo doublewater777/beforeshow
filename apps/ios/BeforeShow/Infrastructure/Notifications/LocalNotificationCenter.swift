@@ -96,21 +96,40 @@ final class LocalNotificationCenter {
         }
     }
 
-    /// Reconciles all eligible shows as one notification portfolio. Current Show is
-    /// intentionally absent from this API: notification timing is independent from
-    /// the user's durable Current Show focus.
+    /// 只给当前现场排全部节点，其他现场只排开场前 3 小时（ADR 0037）。
+    /// 先把已送达的推荐通知计为露出，再按此刻的推荐事实重排。
     @discardableResult
     func reconcilePortfolio(
         in context: ModelContext,
         now: Date = Date()
     ) async -> Bool {
+        let facts = await FeatureUsageEnvironment.refresh()
+        let authorization = await authorizationState()
         do {
             let shows = try context.fetch(FetchDescriptor<Show>())
             let records = try context.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())
+            let selection = CurrentShowSelectionStore.canonical(
+                in: try context.fetch(FetchDescriptor<CurrentShowSelection>())
+            )
+            let currentShowID = CurrentShowSession()
+                .selectCurrentShow(from: shows, manualSelection: selection, now: now)?.id
+
+            if authorization.allowsDelivery {
+                try Self.recordDeliveredRecommendations(records, now: now, in: context)
+            }
+            try FeatureRecommendationLedger.deleteOrphans(validShowIDs: Set(shows.map(\.id)), in: context)
+            let recommendations = FeatureRecommendationLedger.snapshot(
+                shows: shows,
+                records: try context.fetch(FetchDescriptor<FeatureRecommendationRecord>()),
+                facts: facts,
+                now: now
+            )
 
             let plan = planner.plan(
                 shows: shows,
                 existingRecords: records,
+                currentShowID: currentShowID,
+                recommendations: recommendations,
                 now: now
             )
             let normalization = NotificationPortfolioRecordStore.normalize(
@@ -186,6 +205,7 @@ final class LocalNotificationCenter {
             }
 
             try context.save()
+            await removeDeliveredRecommendationsAlreadyUsed(recommendations)
             return didScheduleEveryRequest
         } catch {
             context.rollback()
@@ -193,17 +213,51 @@ final class LocalNotificationCenter {
         }
     }
 
+    /// 推荐通知送达算一次露出：触发时刻已过的推荐节点按触发那天记一次。
+    private static func recordDeliveredRecommendations(
+        _ records: [ShowNotificationScheduleRecord],
+        now: Date,
+        in context: ModelContext
+    ) throws {
+        for record in records where record.fireDate <= now && record.isBackfill != true {
+            guard let feature = record.feature else { continue }
+            try FeatureRecommendationLedger.recordExposure(
+                showID: record.showID,
+                feature: feature,
+                dayKey: FeatureRecommendationDay.key(for: record.fireDate),
+                in: context
+            )
+        }
+    }
+
+    /// 用户已经用过或点过的功能，撤掉通知中心里还在推荐它的通知。
+    private func removeDeliveredRecommendationsAlreadyUsed(_ recommendations: FeatureRecommendationSnapshot) async {
+        let delivered = await center.deliveredNotifications()
+        let stale = delivered.compactMap { notification -> String? in
+            guard let link = NotificationDeepLink(userInfo: notification.request.content.userInfo),
+                  let feature = link.feature else {
+                return nil
+            }
+            let context = recommendations.context(for: link.showID)
+            let isDone = context.used.contains(feature) || context.records[feature]?.isHandled == true
+            return isDone ? notification.request.identifier : nil
+        }
+        if !stale.isEmpty {
+            center.removeDeliveredNotifications(withIdentifiers: stale)
+        }
+    }
+
     private static func makeRecord(
         from request: ScheduledShowNotification
     ) -> ShowNotificationScheduleRecord {
-        ShowNotificationScheduleRecord(
+        let record = ShowNotificationScheduleRecord(
             showID: request.showID,
             milestone: request.milestone,
             fireDate: request.fireDate,
-            title: request.title,
-            body: request.body,
             showStartTime: request.showStartTime
         )
+        record.apply(request)
+        return record
     }
 
     #if DEBUG

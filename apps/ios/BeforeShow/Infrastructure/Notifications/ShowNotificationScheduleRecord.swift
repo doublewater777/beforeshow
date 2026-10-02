@@ -11,10 +11,20 @@ final class ShowNotificationScheduleRecord {
     var title: String?
     var body: String?
     var showStartTime: Date?
+    var destinationRawValue: String?
+    var featureRawValue: String?
     var createdAt: Date
 
     var milestone: ShowNotificationMilestone {
         ShowNotificationMilestone(rawValue: milestoneRawValue) ?? .showDay
+    }
+
+    var destination: NotificationDeepLink.Destination? {
+        destinationRawValue.flatMap(NotificationDeepLink.Destination.init(rawValue:))
+    }
+
+    var feature: RecommendedFeature? {
+        featureRawValue.flatMap(RecommendedFeature.init(rawValue:))
     }
 
     init(
@@ -47,6 +57,8 @@ final class ShowNotificationScheduleRecord {
             && (title ?? "") == request.title
             && (body ?? "") == request.body
             && showStartTime == request.showStartTime
+            && destinationRawValue == request.destination.rawValue
+            && featureRawValue == request.feature?.rawValue
     }
 
     func apply(_ request: ScheduledShowNotification) {
@@ -57,5 +69,7 @@ final class ShowNotificationScheduleRecord {
         title = request.title
         body = request.body
         showStartTime = request.showStartTime
+        destinationRawValue = request.destination.rawValue
+        featureRawValue = request.feature?.rawValue
     }
 }

@@ -55,6 +55,17 @@ struct FootprintDetailView: View {
         )
     }
 
+    /// 打开过这场的足迹详情，「足迹」这个推荐就算用过了（ADR 0037）。
+    private func markFootprintRecommendationHandled() {
+        do {
+            if try FeatureRecommendationLedger.markHandled(showID: show.id, feature: .footprint, in: modelContext) {
+                try modelContext.save()
+            }
+        } catch {
+            modelContext.rollback()
+        }
+    }
+
     private var identity: FootprintDetailIdentity {
         FootprintDetailIdentityBuilder.make(show: show, archive: archive)
     }
@@ -128,6 +139,7 @@ struct FootprintDetailView: View {
     var body: some View {
         ZStack {
             footprintBackground
+                .task(id: show.id) { markFootprintRecommendationHandled() }
             if isDeleting {
                 ProgressView()
                     .tint(BSColor.Stage.foreground)

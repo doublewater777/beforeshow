@@ -52,6 +52,10 @@ enum ShowDeletionCoordinator {
             // Clean them once, before deleting the last Show carrying that business ID.
             if !hasRemainingSameBusinessID {
                 try ListeningShowDataCleaner.deleteShowScopedData(showID: showID, in: modelContext)
+                try FeatureRecommendationLedger.deleteOrphans(
+                    validShowIDs: Set(remainingShows.map(\.id)),
+                    in: modelContext
+                )
             }
 
             // Show owns fragments/assets/dynamic cover with cascade relationships.
