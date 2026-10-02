@@ -1705,6 +1705,13 @@ First show: %@";
 "添加下一场" = "Add Your Next Show";
 
 /* 通知文案（直白版） */
+"准备这场" = "Get ready";
+"明天开始" = "Starts tomorrow";
+"明天开场" = "Tomorrow";
+"快开场了" = "Starting soon";
+"开始了" = "It’s started";
+"散场后" = "After the show";
+"回看这场" = "Look back";
 "把小组件放到主屏幕。" = "Put the widget on your Home Screen.";
 "先听听 %@ 的歌。" = "Listen to some %@ songs.";
 "先听听这场的歌。" = "Listen to some songs from this show.";
