@@ -123,6 +123,7 @@ final class FeatureRecommendationTests: XCTestCase {
 
     func testRecommendationNodeIsSkippedWhenNothingIsLeftToRecommend() throws {
         let show = try makeShow(day: 30)
+        show.createdAt = makeDate(month: 6, day: 1)
         var context = FeatureRecommendationContext()
         context.used = [.listen, .companion]
         let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
@@ -131,50 +132,73 @@ final class FeatureRecommendationTests: XCTestCase {
             scope: NotificationScheduleScope(includesAllMilestones: true, recommendations: context)
         )
         let milestones = requests.map(\.milestone)
+        XCTAssertFalse(milestones.contains(.addedFollowUp))
         XCTAssertFalse(milestones.contains(.fourteenDaysBefore))
         XCTAssertFalse(milestones.contains(.sevenDaysBefore))
         XCTAssertFalse(milestones.contains(.threeDaysBefore))
         XCTAssertTrue(milestones.contains(.oneDayBefore))
     }
 
-    func testFestivalThreeDaysBeforeRecommendsTimetable() throws {
-        let show = try makeShow(day: 30, name: "草莓音乐节")
+    func testFestivalAddedBetweenT7AndT3UsesT3TimetableRecommendation() throws {
+        let show = try makeShow(day: 21, name: "草莓音乐节")
+        show.createdAt = makeDate(month: 6, day: 15, hour: 9)
         let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(for: show, now: now)
+
         let three = try XCTUnwrap(requests.first { $0.milestone == .threeDaysBefore })
         XCTAssertEqual(three.feature, .timetable)
         XCTAssertEqual(three.destination, .timetable)
+        XCTAssertFalse(requests.contains { $0.milestone == .sevenDaysBefore })
+
         let morning = try XCTUnwrap(requests.first { $0.milestone == .showDayMorning })
         XCTAssertEqual(morning.destination, .timetable)
     }
 
-    func testFollowUpTheDayAfterAddingNeedsAtLeastEightDaysAndSkipsTheFourteenDayMark() throws {
-        let show = try makeShow(day: 30)
+    func testPreparationReminderIsChosenOnceFromCreationTime() throws {
         let scheduler = LocalNotificationScheduler(calendar: calendar)
 
-        show.createdAt = makeDate(month: 6, day: 14, hour: 9)
-        let followUp = try XCTUnwrap(
-            scheduler.futureRequests(for: show, now: now).first { $0.milestone == .addedFollowUp }
-        )
-        XCTAssertEqual(followUp.fireDate, makeDate(month: 6, day: 15, hour: 20))
-        XCTAssertEqual(followUp.feature, .widget)
-        XCTAssertEqual(followUp.destination, .widgetGuide)
+        let early = try makeShow(day: 30)
+        early.createdAt = makeDate(month: 6, day: 1)
+        let earlyMilestones = scheduler.futureRequests(
+            for: early,
+            now: makeDate(month: 6, day: 15)
+        ).map(\.milestone)
+        XCTAssertTrue(earlyMilestones.contains(.sevenDaysBefore))
+        XCTAssertFalse(earlyMilestones.contains(.threeDaysBefore))
+        XCTAssertFalse(earlyMilestones.contains(.fourteenDaysBefore))
+        XCTAssertFalse(earlyMilestones.contains(.addedFollowUp))
 
-        // 次日正好是 T-14：交给 T-14 那条，不重复发。
-        show.createdAt = makeDate(month: 6, day: 15, hour: 9)
-        XCTAssertFalse(scheduler.futureRequests(for: show, now: now).contains { $0.milestone == .addedFollowUp })
+        let mid = try makeShow(day: 30)
+        mid.createdAt = makeDate(month: 6, day: 24, hour: 9)
+        let midMilestones = scheduler.futureRequests(
+            for: mid,
+            now: makeDate(month: 6, day: 24, hour: 10)
+        ).map(\.milestone)
+        XCTAssertFalse(midMilestones.contains(.sevenDaysBefore))
+        XCTAssertTrue(midMilestones.contains(.threeDaysBefore))
 
-        // 离开场不足 8 天：不发。
-        let soon = try makeShow(day: 21)
-        soon.createdAt = makeDate(month: 6, day: 14, hour: 9)
-        XCTAssertFalse(scheduler.futureRequests(for: soon, now: now).contains { $0.milestone == .addedFollowUp })
+        let late = try makeShow(day: 30)
+        late.createdAt = makeDate(month: 6, day: 28, hour: 9)
+        let lateMilestones = scheduler.futureRequests(
+            for: late,
+            now: makeDate(month: 6, day: 28, hour: 10)
+        ).map(\.milestone)
+        XCTAssertFalse(lateMilestones.contains(.sevenDaysBefore))
+        XCTAssertFalse(lateMilestones.contains(.threeDaysBefore))
     }
 
     func testMorningMergesIntoShowDayWhenOpeningIsBeforeOnePM() throws {
         let show = try Show(
-            name: "午间现场",
+            name: "午间音乐节",
             date: makeDate(month: 6, day: 20),
             startTime: makeDate(month: 6, day: 20, hour: 12)
         )
+        let milestones = LocalNotificationScheduler(calendar: calendar).futureRequests(for: show, now: now).map(\.milestone)
+        XCTAssertFalse(milestones.contains(.showDayMorning))
+        XCTAssertTrue(milestones.contains(.showDay))
+    }
+
+    func testOrdinaryShowDoesNotScheduleMorningReminder() throws {
+        let show = try makeShow(day: 20, name: "普通演唱会")
         let milestones = LocalNotificationScheduler(calendar: calendar).futureRequests(for: show, now: now).map(\.milestone)
         XCTAssertFalse(milestones.contains(.showDayMorning))
         XCTAssertTrue(milestones.contains(.showDay))
@@ -190,7 +214,7 @@ final class FeatureRecommendationTests: XCTestCase {
             LocalNotificationScheduler(calendar: calendar).futureRequests(for: show, now: now)
                 .first { $0.milestone == .showDay }
         )
-        XCTAssertTrue(reminder.body.hasPrefix(BSLocalization.format("%lld 分钟后开场", Int64(30))))
+        XCTAssertTrue(reminder.body.contains(BSLocalization.format("%lld 分钟后开场", Int64(30))))
     }
 
     // MARK: - Countdown card
