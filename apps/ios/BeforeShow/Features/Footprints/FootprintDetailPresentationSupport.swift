@@ -12,8 +12,6 @@ enum FootprintDetailTokens {
     static let infoTitleWidth: CGFloat = 36
     static let infoRowHeight: CGFloat = 58
     static let memoryTileHeight: CGFloat = 168
-    static let memoryMediaHeight: CGFloat = 132
-    static let memoryInfoHeight: CGFloat = 36
     static let keepsakeTileHeight: CGFloat = 156
     static let keepsakeMediaHeight: CGFloat = 96
     static let keepsakeInfoHeight: CGFloat = 60
@@ -24,7 +22,8 @@ enum FootprintDetailTokens {
     static let sectionFont = BSFont.headline
     static let memoryPlayFont = BSFont.heroTitle.weight(.semibold)
     static let memoryBadgeFont = BSFont.V3.caption.weight(.semibold)
-    static let memoryMetadataColor = Color.white.opacity(0.68)
+    static let captionColor = Color.white.opacity(0.88)
+    static let captionScrim = Color.black.opacity(0.28)
     static let memoryDurationColor = Color.white.opacity(0.74)
 
     static let backgroundGlow = BSColor.Stage.glowBlue.opacity(0.14)
