@@ -6,12 +6,36 @@ struct NotificationNodeContent {
     var feature: RecommendedFeature?
 }
 
-/// 标题是现场名，正文先说事实（还有几天、开场时刻、场馆），再说此刻可以顺手做的事。
+/// 系统通知标题保持为短状态；完整现场名进入正文第一行，让 iOS 自然换行。
+/// 正文继续先说事实（还有几天、开场时刻、场馆），再说此刻可以顺手做的事。
 /// 不写「试试」「新功能」「你还没」；散场后的文案不预设好坏（ADR 0037）。
 struct NotificationCopy {
     let context: NotificationCopyContext
 
-    var title: String { context.showName }
+    func displayTitle(for milestone: ShowNotificationMilestone) -> String {
+        switch milestone {
+        case .addedFollowUp, .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore:
+            return BSLocalization.text("准备这场")
+        case .oneDayBefore:
+            return context.isMultiDay
+                ? BSLocalization.text("明天开始")
+                : BSLocalization.text("明天开场")
+        case .showDayMorning:
+            return BSLocalization.text("今天开场")
+        case .showDay:
+            return BSLocalization.text("快开场了")
+        case .openingMemory:
+            return BSLocalization.text("现场开始了")
+        case .postShowRitual:
+            return BSLocalization.text("散场后")
+        case .afterShow, .footprintArrival:
+            return BSLocalization.text("回看这场")
+        }
+    }
+
+    func displayBody(_ message: String) -> String {
+        context.showName + "\n" + message
+    }
 
     func recommendation(_ feature: RecommendedFeature, daysLeft: Int) -> String {
         BSLocalization.format("还有 %lld 天。", Int64(max(0, daysLeft))) + recommendationLine(feature)
@@ -42,13 +66,15 @@ struct NotificationCopy {
     }
 
     func oneDayBefore() -> String {
+        let tail = context.artistName.map { BSLocalization.format("今晚可以再听听 %@ 的歌。", $0) }
+            ?? BSLocalization.text("今晚可以再听听这场的歌。")
         if context.isMultiDay {
-            return BSLocalization.text("明天开始。")
+            let lead = context.startClock.map { BSLocalization.format("明天 %@ 开始。", $0) }
+                ?? BSLocalization.text("明天开始。")
+            return lead + tail
         }
         let lead = context.startClock.map { BSLocalization.format("明天 %@ 开场。", $0) }
             ?? BSLocalization.text("明天开场。")
-        let tail = context.artistName.map { BSLocalization.format("今晚可以再听听 %@ 的歌。", $0) }
-            ?? BSLocalization.text("今晚可以再听听这场的歌。")
         return lead + tail
     }
 
@@ -81,7 +107,7 @@ struct NotificationCopy {
         let lead = remaining >= 3_600
             ? BSLocalization.format("%lld 小时后开场", Int64(remaining / 3_600))
             : BSLocalization.format("%lld 分钟后开场", Int64(remaining / 60))
-        return lead + placeSuffix + BSLocalization.text("。该出门了。")
+        return lead + placeSuffix + BSLocalization.text("。别错过开场。")
     }
 
     var opening: String {

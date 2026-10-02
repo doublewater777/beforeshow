@@ -1696,7 +1696,7 @@ First show: %@";
 "今天开场" = "Today";
 "%lld 小时后开场" = "Starts in %lld hr";
 "%lld 分钟后开场" = "Starts in %lld min";
-"。该出门了。" = ". Time to head out.";
+"。别错过开场。" = ". Don't miss the start.";
 "下一场是 %1$@，还有 %2$lld 天。" = "Next up: %1$@, in %2$lld days.";
 "这场现场" = "This show";
 "看路线" = "Directions";
@@ -1709,12 +1709,18 @@ First show: %@";
 "添加下一场" = "Add Your Next Show";
 
 /* 通知文案（直白版） */
+"准备这场" = "Get ready";
+"明天开始" = "Starts tomorrow";
+"明天开场" = "Tomorrow";
+"现场开始了" = "The show has started";
+"回看这场" = "Look back";
 "把小组件放到主屏幕。" = "Put the widget on your Home Screen.";
 "先听听 %@ 的歌。" = "Listen to some %@ songs.";
 "先听听这场的歌。" = "Listen to some songs from this show.";
 "已收进足迹，可以做一张回忆卡片。" = "It's in Footprints. You can make a memory card.";
 "添加下一场现场。" = "Add your next show.";
 "明天开始。" = "It starts tomorrow.";
+"明天 %@ 开始。" = "Starts tomorrow at %@.";
 "今晚可以再听听 %@ 的歌。" = " Listen to some %@ songs tonight.";
 "今晚可以再听听这场的歌。" = " Listen to some songs from the show tonight.";
 "出门前看一下路线。" = " Check directions before you go.";
