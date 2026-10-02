@@ -81,9 +81,9 @@ extension ShowNotificationMilestone {
         self == .showDay
     }
 
-    /// 开场与刚散场时不亮屏，留在通知中心。
+    /// 刚散场的轻提醒不主动亮屏，留在通知中心。
     var isPassive: Bool {
-        self == .openingMemory || self == .postShowRitual
+        self == .postShowRitual
     }
 
     /// 功能推荐节点：没有可推荐的功能就不发。
