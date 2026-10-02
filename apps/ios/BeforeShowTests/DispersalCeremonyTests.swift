@@ -216,6 +216,22 @@ final class DispersalCeremonyTests: XCTestCase {
         )
     }
 
+    func testDispersalCeremonySheetExplicitInitialStep() throws {
+        let show = try Self.makeShow()
+        try show.setClosingRitual(rating: 4, note: "棒", markCeremonyCompleted: true)
+        XCTAssertTrue(show.hasCompletedDispersalCeremony)
+
+        let identity = FootprintDetailIdentity(showOrdinal: 1, cityOrdinal: 1, companions: [])
+        let sheet = DispersalCeremonySheet(
+            show: show,
+            identity: identity,
+            initialStep: .combined,
+            headerTitle: "编辑散场评价",
+            onCommit: { _, _ in }
+        )
+        XCTAssertNotNil(sheet)
+    }
+
     // MARK: - DispersalCeremonyCardCopy
 
     func testCardEventLinesSplitsArtistPrefix() {

@@ -26,7 +26,7 @@ struct SettingsView: View {
                     )
                 }
                 .buttonStyle(SettingsPassPressStyle())
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                 .listRowBackground(Color.clear)
             }
 
@@ -338,7 +338,7 @@ private struct SettingsMembershipPassCard: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(
+                        .strokeBorder(
                             LinearGradient(
                                 colors: [
                                     BSColor.Stage.accent.opacity(0.38),

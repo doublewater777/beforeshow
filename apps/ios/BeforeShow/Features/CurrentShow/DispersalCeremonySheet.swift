@@ -21,16 +21,21 @@ struct DispersalCeremonySheet: View {
     @State private var commitError: String?
     @State private var cardCompletionFeedback = 0
     @Namespace private var cardNamespace
+    private let customHeaderTitle: String?
 
     init(
         show: Show,
         identity: FootprintDetailIdentity,
+        initialStep: Step? = nil,
+        headerTitle: String? = nil,
         onCommit: @escaping (_ rating: Int?, _ note: String?) async throws -> Void
     ) {
         self.show = show
         self.identity = identity
+        self.customHeaderTitle = headerTitle
         self.onCommit = onCommit
-        _step = State(initialValue: show.hasCompletedDispersalCeremony ? .share : .combined)
+        let defaultStep = show.hasCompletedDispersalCeremony ? Step.share : Step.combined
+        _step = State(initialValue: initialStep ?? defaultStep)
         _draftRating = State(initialValue: show.rating)
         _draftNote = State(initialValue: show.closingNote ?? "")
     }
@@ -42,6 +47,7 @@ struct DispersalCeremonySheet: View {
                 DispersalCombinedStep(
                     rating: $draftRating,
                     note: $draftNote,
+                    headerTitle: customHeaderTitle,
                     isSaving: saving,
                     commitError: commitError,
                     transitionNamespace: reduceMotion ? nil : cardNamespace,
@@ -147,6 +153,7 @@ struct DispersalCeremonySheet: View {
 struct DispersalCombinedStep: View {
     @Binding var rating: Int?
     @Binding var note: String
+    var headerTitle: String? = nil
     let isSaving: Bool
     var commitError: String? = nil
     let transitionNamespace: Namespace.ID?
@@ -224,7 +231,7 @@ struct DispersalCombinedStep: View {
                 action: onClose
             )
             Spacer()
-            Text(BSLocalization.text("散场了"))
+            Text(headerTitle ?? BSLocalization.text("散场了"))
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
             Spacer()

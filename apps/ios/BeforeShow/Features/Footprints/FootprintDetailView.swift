@@ -27,6 +27,7 @@ struct FootprintDetailView: View {
     @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingShareComposer = false
     @State private var isShowingDispersalShare = false
+    @State private var isShowingCeremonyEditor = false
     @State private var isShowingEditor = false
     @State private var isShowingMemoryPage = false
     @State private var isShowingDeleteConfirmation = false
@@ -95,7 +96,7 @@ struct FootprintDetailView: View {
             hasMemoryOverlay: memoryTarget != nil || isShowingMemoryPage,
             hasAssetOverlay: showingAssetKind != nil,
             hasShareOverlay: isShowingShareComposer || isShowingDispersalShare,
-            hasEditorOverlay: isShowingEditor
+            hasEditorOverlay: isShowingEditor || isShowingCeremonyEditor
         )
     }
 
@@ -155,9 +156,7 @@ struct FootprintDetailView: View {
                         show: show,
                         isPlaybackActive: isDynamicCoverPlaybackActive
                     )
-                    if show.rating != nil || (show.closingNote?.isEmpty == false) {
-                        dispersalRitualSection
-                    }
+                    dispersalRitualSection
                     FootprintListeningMemorySection(show: show)
                     memorySection
                     keepsakesSection
@@ -250,6 +249,21 @@ struct FootprintDetailView: View {
             .presentationDetents([.large])
             .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isShowingCeremonyEditor) {
+            DispersalCeremonySheet(
+                show: show,
+                identity: identity,
+                initialStep: .combined,
+                headerTitle: BSLocalization.text("散场评价"),
+                onCommit: { rating, note in
+                    try await commitCeremonyData(rating: rating, note: note)
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(BSColor.Stage.background)
+            .preferredColorScheme(.dark)
         }
         .alert(
             DangerConfirmation.deleteShow.title,
@@ -457,49 +471,215 @@ struct FootprintDetailView: View {
         }
     }
 
-    /// 散场评价区。仅在用户填了评分或散场文字时显示。
-    /// 由外层 `if` 控制可见性;这里不重复判空,直接 trust `show.rating` / `closingNote`。
-    /// 构图对齐 V2 mini-share:标题与评分同一行,下面只留原话。
+    /// 散场评价区。固定展示，支持直接添加、编辑与卡片分享。
     private var dispersalRitualSection: some View {
         let node = show.rating.flatMap(DispersalRating.from(rawValue:))
         let note = FootprintTextNormalizer.nonEmptyTrimmed(show.closingNote)
-        return VStack(alignment: .leading, spacing: BSSpacing.sm) {
+        let hasContent = node != nil || note != nil
+
+        return VStack(alignment: .leading, spacing: BSSpacing.compact) {
             HStack(alignment: .firstTextBaseline) {
                 Text(BSLocalization.text("散场评价"))
-                    .font(BSFont.caption)
+                    .font(FootprintDetailTokens.sectionFont)
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()
-                if let node {
-                    Text(DispersalCeremonyCardCopy.ratingTitle(node))
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(node.tint)
+                if hasContent {
+                    Menu {
+                        Button {
+                            isShowingCeremonyEditor = true
+                        } label: {
+                            Label(BSLocalization.text("编辑评价"), systemImage: "pencil")
+                        }
+                        Button {
+                            isShowingDispersalShare = true
+                        } label: {
+                            Label(BSLocalization.text("分享卡片"), systemImage: "square.and.arrow.up")
+                        }
+                        Button(role: .destructive) {
+                            Task { await clearCeremonyData() }
+                        } label: {
+                            Label(BSLocalization.text("清除评价"), systemImage: "trash")
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(BSLocalization.text("编辑"))
+                                .font(BSFont.V3.caption.weight(.medium))
+                            Image(systemName: "ellipsis")
+                                .font(BSFont.V3.caption)
+                        }
+                        .foregroundColor(BSColor.Stage.dim)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 4)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(BSLocalization.text("管理散场评价"))
                 }
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(
-                node.map(\.accessibilityLabel) ?? BSLocalization.text("散场评价")
-            )
+
+            if hasContent {
+                dispersalContentCard(node: node, note: note)
+            } else {
+                dispersalEmptyCard
+            }
+        }
+    }
+
+    private func dispersalContentCard(node: DispersalRating?, note: String?) -> some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            if let node {
+                HStack(alignment: .center, spacing: BSSpacing.compact) {
+                    Text(node.emoji)
+                        .font(.system(size: 28))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(node.label)
+                            .font(BSFont.headline.weight(.bold))
+                            .foregroundColor(node.tint)
+                        Text(node.sub)
+                            .font(BSFont.V3.caption)
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        isShowingDispersalShare = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "square.and.arrow.up")
+                            Text(BSLocalization.text("分享"))
+                        }
+                        .font(BSFont.V3.caption.weight(.medium))
+                        .foregroundColor(BSColor.Stage.dim)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                HStack {
+                    Label(BSLocalization.text("散场感想"), systemImage: "quote.bubble.fill")
+                        .font(BSFont.V3.caption.weight(.semibold))
+                        .foregroundColor(BSColor.Stage.muted)
+                    Spacer()
+                    Button {
+                        isShowingDispersalShare = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "square.and.arrow.up")
+                            Text(BSLocalization.text("分享"))
+                        }
+                        .font(BSFont.V3.caption.weight(.medium))
+                        .foregroundColor(BSColor.Stage.dim)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
 
             if let note {
-                Text("\u{201C}\(note)\u{201D}")
-                    .font(.custom("Songti SC", size: 14, relativeTo: .body))
-                    .foregroundColor(Color.white.opacity(0.78))
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
+                if node != nil {
+                    Divider()
+                        .overlay(Color.white.opacity(0.08))
+                        .padding(.vertical, 2)
+                }
+
+                HStack(alignment: .top, spacing: 8) {
+                    Text("“")
+                        .font(.system(size: 24, weight: .bold, design: .serif))
+                        .foregroundColor((node?.tint ?? BSColor.Stage.accent).opacity(0.5))
+                        .offset(y: -4)
+
+                    Text(note)
+                        .font(.custom("Songti SC", size: 14, relativeTo: .body))
+                        .foregroundColor(Color.white.opacity(0.85))
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 0)
+                }
             }
         }
         .padding(BSSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            BSColor.Stage.surface,
+            LinearGradient(
+                colors: [
+                    BSColor.Stage.surface,
+                    node?.tint.opacity(0.06) ?? FootprintDetailTokens.heroSecondarySurface
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
             in: RoundedRectangle(cornerRadius: 18)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18)
                 .stroke(
-                    node.map { $0.tint.opacity(0.22) } ?? BSColor.Stage.border
+                    node?.tint.opacity(0.24) ?? BSColor.Stage.border,
+                    lineWidth: 1
                 )
         )
+        .contentShape(RoundedRectangle(cornerRadius: 18))
+        .onTapGesture {
+            isShowingCeremonyEditor = true
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            [
+                node.map(\.accessibilityLabel),
+                note
+            ]
+            .compactMap { $0 }
+            .joined(separator: "，")
+        )
+        .accessibilityHint(BSLocalization.text("轻点编辑散场评价"))
+    }
+
+    private var dispersalEmptyCard: some View {
+        Button {
+            isShowingCeremonyEditor = true
+        } label: {
+            HStack(spacing: BSSpacing.md) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.06))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "plus.bubble")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(BSColor.Stage.accent)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(BSLocalization.text("添加散场评价"))
+                        .font(BSFont.body.weight(.medium))
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text(BSLocalization.text("记录这一场的评分与散场感受"))
+                        .font(BSFont.V3.caption)
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(BSFont.V3.caption.weight(.semibold))
+                    .foregroundColor(BSColor.Stage.dim)
+            }
+            .padding(BSSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(BSColor.Stage.border, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(BSLocalization.text("添加散场评价，记录这一场的评分与散场感受"))
     }
 
     private var companionSection: some View {
@@ -657,12 +837,54 @@ struct FootprintDetailView: View {
         )
     }
 
+    @MainActor
+    private func commitCeremonyData(rating: Int?, note: String?) async throws {
+        let didSync = try await ShowMutationCoordinator.commitClosingRitual(
+            rating: rating,
+            note: note,
+            show: show,
+            shows: shows,
+            selections: selections,
+            notificationStates: notificationStates,
+            in: modelContext,
+            session: session
+        )
+        presentToast(
+            didSync ? .success : .neutral,
+            message: didSync ? BSLocalization.text("散场评价已更新") : BSLocalization.text("信息已保存，同步暂未更新")
+        )
+    }
+
+    @MainActor
+    private func clearCeremonyData() async {
+        do {
+            let didSync = try await ShowMutationCoordinator.commitClosingRitual(
+                rating: nil,
+                note: nil,
+                show: show,
+                shows: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext,
+                session: session
+            )
+            presentToast(
+                didSync ? .success : .neutral,
+                message: didSync ? BSLocalization.text("散场评价已清除") : BSLocalization.text("评价已清除，同步暂未更新")
+            )
+        } catch {
+            modelContext.rollback()
+            presentToast(.failure, message: BSLocalization.text("清除失败，请重试"))
+        }
+    }
+
     private func beginDelete() {
         guard !isDeleting else { return }
         memoryTarget = nil
         showingAssetKind = nil
         isShowingShareComposer = false
         isShowingDispersalShare = false
+        isShowingCeremonyEditor = false
         isShowingEditor = false
         isShowingMemoryPage = false
         isDeleting = true
