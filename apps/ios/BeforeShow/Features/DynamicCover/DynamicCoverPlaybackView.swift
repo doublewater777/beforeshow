@@ -10,6 +10,13 @@ enum DynamicCoverPlaybackPolicy {
         mediaType == .video
     }
 
+    static func shouldStartPlayback(
+        systemAudioDisconnected: Bool,
+        isPlayingRequested: Bool
+    ) -> Bool {
+        systemAudioDisconnected && isPlayingRequested
+    }
+
     static func makeVideoOnlyItem(url: URL) async throws -> AVPlayerItem {
         let asset = AVURLAsset(url: url)
         let tracks = try await asset.load(.tracks)
@@ -83,11 +90,21 @@ final class DynamicCoverPlayerView: UIView {
     private var endObserver: NSObjectProtocol?
     private var loadTask: Task<Void, Never>?
     private var loadedURL: URL?
+    private var systemAudioDisconnected = false
 
     override class var layerClass: AnyClass { AVPlayerLayer.self }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        // Dynamic covers are visual-only. Disconnect before any play request so
+        // this AVPlayer never activates or coordinates the shared audio session.
+        player.setDisconnectedFromSystemAudio(true) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.systemAudioDisconnected = self.player.disconnectedFromSystemAudio
+                self.playIfReady()
+            }
+        }
         // Keep mute as a second line of defense. The item itself is video-only.
         player.isMuted = true
         playerLayer.player = player
@@ -132,7 +149,7 @@ final class DynamicCoverPlayerView: UIView {
         guard isPlayingRequested != isPlaying else { return }
         isPlayingRequested = isPlaying
         if isPlaying {
-            player.play()
+            playIfReady()
         } else {
             player.pause()
         }
@@ -160,14 +177,18 @@ final class DynamicCoverPlayerView: UIView {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.player.seek(to: .zero)
-                if self?.isPlayingRequested == true {
-                    self?.player.play()
-                }
+                self?.playIfReady()
             }
         }
-        if isPlayingRequested {
-            player.play()
-        }
+        playIfReady()
+    }
+
+    private func playIfReady() {
+        guard DynamicCoverPlaybackPolicy.shouldStartPlayback(
+            systemAudioDisconnected: systemAudioDisconnected,
+            isPlayingRequested: isPlayingRequested
+        ), player.currentItem != nil else { return }
+        player.play()
     }
 
     private func removeEndObserver() {
