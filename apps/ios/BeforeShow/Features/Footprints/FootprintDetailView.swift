@@ -23,7 +23,8 @@ struct FootprintDetailView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
-    @State private var memoryTarget: FootprintMemoryTarget?
+    @State private var mediaMemoryTarget: FootprintMemoryTarget?
+    @State private var textMemoryTarget: FootprintMemoryTarget?
     @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingShareComposer = false
     @State private var isShowingDispersalShare = false
@@ -93,7 +94,7 @@ struct FootprintDetailView: View {
     private var isDynamicCoverPlaybackActive: Bool {
         FootprintPlaybackPolicy.isActive(
             sceneIsActive: scenePhase == .active,
-            hasMemoryOverlay: memoryTarget != nil || isShowingMemoryPage,
+            hasMemoryOverlay: mediaMemoryTarget != nil || textMemoryTarget != nil || isShowingMemoryPage,
             hasAssetOverlay: showingAssetKind != nil,
             hasShareOverlay: isShowingShareComposer || isShowingDispersalShare,
             hasEditorOverlay: isShowingEditor || isShowingCeremonyEditor
@@ -200,12 +201,23 @@ struct FootprintDetailView: View {
                 }
             }
         }
-        .fullScreenCover(item: $memoryTarget) { target in
+        .fullScreenCover(item: $mediaMemoryTarget) { target in
             MemoryFragmentReviewView(
                 showID: show.id,
                 fragment: target.fragment,
                 initialIndex: target.initialIndex
             )
+        }
+        .sheet(item: $textMemoryTarget) { target in
+            MemoryFragmentReviewView(
+                showID: show.id,
+                fragment: target.fragment,
+                initialIndex: target.initialIndex
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(BSColor.Stage.background)
+            .preferredColorScheme(.dark)
         }
         .sheet(item: $showingAssetKind) { kind in
             ShowAssetSheet(
@@ -256,6 +268,7 @@ struct FootprintDetailView: View {
                 identity: identity,
                 initialStep: .combined,
                 headerTitle: BSLocalization.text("散场评价"),
+                presentsShareAfterCommit: false,
                 onCommit: { rating, note in
                     try await commitCeremonyData(rating: rating, note: note)
                 }
@@ -435,7 +448,7 @@ struct FootprintDetailView: View {
                 ) {
                     ForEach(Array(fragments.enumerated()), id: \.element.id) { index, fragment in
                         Button {
-                            memoryTarget = FootprintMemoryTarget(fragment: fragment, initialIndex: 0)
+                            openMemoryFragment(fragment)
                         } label: {
                             FootprintMemoryTile(fragment: fragment)
                         }
@@ -501,16 +514,12 @@ struct FootprintDetailView: View {
                             Label(BSLocalization.text("清除评价"), systemImage: "trash")
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Text(BSLocalization.text("编辑"))
-                                .font(BSFont.V3.caption.weight(.medium))
-                            Image(systemName: "ellipsis")
-                                .font(BSFont.V3.caption)
-                        }
-                        .foregroundColor(BSColor.Stage.dim)
-                        .padding(.vertical, 2)
-                        .padding(.horizontal, 4)
-                        .contentShape(Rectangle())
+                        Image(systemName: "ellipsis")
+                            .font(BSFont.V3.caption)
+                            .foregroundColor(BSColor.Stage.dim)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 4)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(BSLocalization.text("管理散场评价"))
@@ -541,44 +550,12 @@ struct FootprintDetailView: View {
                             .foregroundColor(BSColor.Stage.muted)
                     }
 
-                    Spacer()
-
-                    Button {
-                        isShowingDispersalShare = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "square.and.arrow.up")
-                            Text(BSLocalization.text("分享"))
-                        }
-                        .font(BSFont.V3.caption.weight(.medium))
-                        .foregroundColor(BSColor.Stage.dim)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.06), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
+                    Spacer(minLength: 0)
                 }
             } else {
-                HStack {
-                    Label(BSLocalization.text("散场感想"), systemImage: "quote.bubble.fill")
-                        .font(BSFont.V3.caption.weight(.semibold))
-                        .foregroundColor(BSColor.Stage.muted)
-                    Spacer()
-                    Button {
-                        isShowingDispersalShare = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "square.and.arrow.up")
-                            Text(BSLocalization.text("分享"))
-                        }
-                        .font(BSFont.V3.caption.weight(.medium))
-                        .foregroundColor(BSColor.Stage.dim)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.06), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
+                Label(BSLocalization.text("散场感想"), systemImage: "quote.bubble.fill")
+                    .font(BSFont.V3.caption.weight(.semibold))
+                    .foregroundColor(BSColor.Stage.muted)
             }
 
             if let note {
@@ -878,9 +855,19 @@ struct FootprintDetailView: View {
         }
     }
 
+    private func openMemoryFragment(_ fragment: MemoryFragment) {
+        let target = FootprintMemoryTarget(fragment: fragment, initialIndex: 0)
+        if fragment.orderedMediaItems.isEmpty {
+            textMemoryTarget = target
+        } else {
+            mediaMemoryTarget = target
+        }
+    }
+
     private func beginDelete() {
         guard !isDeleting else { return }
-        memoryTarget = nil
+        mediaMemoryTarget = nil
+        textMemoryTarget = nil
         showingAssetKind = nil
         isShowingShareComposer = false
         isShowingDispersalShare = false

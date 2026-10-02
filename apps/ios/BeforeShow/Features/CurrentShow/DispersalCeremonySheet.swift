@@ -11,6 +11,13 @@ struct DispersalCeremonySheet: View {
         case share
     }
 
+    /// 提交成功后的去向。足迹详情编辑只保存并关闭，不进入散场卡。
+    enum Destination: Equatable {
+        case combined
+        case share
+        case dismiss
+    }
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step: Step
@@ -22,17 +29,20 @@ struct DispersalCeremonySheet: View {
     @State private var cardCompletionFeedback = 0
     @Namespace private var cardNamespace
     private let customHeaderTitle: String?
+    private let presentsShareAfterCommit: Bool
 
     init(
         show: Show,
         identity: FootprintDetailIdentity,
         initialStep: Step? = nil,
         headerTitle: String? = nil,
+        presentsShareAfterCommit: Bool = true,
         onCommit: @escaping (_ rating: Int?, _ note: String?) async throws -> Void
     ) {
         self.show = show
         self.identity = identity
         self.customHeaderTitle = headerTitle
+        self.presentsShareAfterCommit = presentsShareAfterCommit
         self.onCommit = onCommit
         let defaultStep = show.hasCompletedDispersalCeremony ? Step.share : Step.combined
         _step = State(initialValue: initialStep ?? defaultStep)
@@ -48,6 +58,9 @@ struct DispersalCeremonySheet: View {
                     rating: $draftRating,
                     note: $draftNote,
                     headerTitle: customHeaderTitle,
+                    commitTitle: presentsShareAfterCommit
+                        ? BSLocalization.text("保存并查看")
+                        : BSLocalization.text("保存"),
                     isSaving: saving,
                     commitError: commitError,
                     transitionNamespace: reduceMotion ? nil : cardNamespace,
@@ -106,7 +119,18 @@ struct DispersalCeremonySheet: View {
                 "dispersal_ceremony_completed",
                 properties: properties
             )
-            transition(to: .share, producesCardFeedback: true)
+            switch Self.nextDestination(
+                after: .combined,
+                commitSucceeded: true,
+                presentsShareAfterCommit: presentsShareAfterCommit
+            ) {
+            case .share:
+                transition(to: .share, producesCardFeedback: true)
+            case .dismiss:
+                dismiss()
+            case .combined:
+                break
+            }
         } catch {
             commitError = BSLocalization.text("散场记录没有保存，请重试")
         }
@@ -135,13 +159,15 @@ struct DispersalCeremonySheet: View {
     }
 
     /// Pure navigation rule used by the feature tests.
-    nonisolated static func nextStep(
+    nonisolated static func nextDestination(
         after current: Step,
-        commitSucceeded: Bool = true
-    ) -> Step {
+        commitSucceeded: Bool = true,
+        presentsShareAfterCommit: Bool = true
+    ) -> Destination {
         switch current {
         case .combined:
-            return commitSucceeded ? .share : .combined
+            guard commitSucceeded else { return .combined }
+            return presentsShareAfterCommit ? .share : .dismiss
         case .share:
             return .share
         }
@@ -154,6 +180,7 @@ struct DispersalCombinedStep: View {
     @Binding var rating: Int?
     @Binding var note: String
     var headerTitle: String? = nil
+    var commitTitle: String = BSLocalization.text("保存并查看")
     let isSaving: Bool
     var commitError: String? = nil
     let transitionNamespace: Namespace.ID?
@@ -202,7 +229,7 @@ struct DispersalCombinedStep: View {
                             .controlSize(.small)
                             .tint(BSColor.Stage.background)
                     }
-                    Text(BSLocalization.text("保存并查看"))
+                    Text(commitTitle)
                 }
                 .frame(maxWidth: .infinity)
             }

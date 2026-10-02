@@ -121,58 +121,59 @@ private struct MemoryTextFragmentViewer: View {
             BSColor.Stage.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(BSFont.headline)
-                            .foregroundColor(BSColor.Stage.foreground)
-                            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                            .background(BSColor.Stage.surfaceRaised, in: Circle())
-                            .overlay(Circle().stroke(BSColor.Stage.border))
-                   }
-                   Spacer()
+                    BSChromeIconButton(
+                        systemName: "xmark",
+                        accessibilityLabel: BSLocalization.text("关闭"),
+                        action: { dismiss() }
+                    )
+                    Spacer()
                     Text(BSLocalization.text("记忆碎片"))
-                       .font(BSFont.headline)
-                       .foregroundColor(BSColor.Stage.foreground)
-                   Spacer()
-                   Menu {
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Spacer()
+                    Menu {
                         Button(BSLocalization.text("编辑记忆"), action: onEdit)
                         Button(BSLocalization.text("删除这条记忆"), role: .destructive, action: onDelete)
-                   } label: {
+                    } label: {
                         Image(systemName: "ellipsis")
-                            .font(BSFont.headline)
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .font(.system(size: BSLayout.chromeIconSize, weight: .semibold))
+                            .foregroundColor(BSColor.textPrimary)
+                            .frame(width: BSLayout.chromeButtonSize, height: BSLayout.chromeButtonSize)
+                            .background(Color.white.opacity(0.07), in: Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
                             .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                            .background(BSColor.Stage.surfaceRaised, in: Circle())
-                            .overlay(Circle().stroke(BSColor.Stage.border))
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("管理这条记忆")
                 }
                 .padding(.horizontal, BSSpacing.roomy)
                 .padding(.top, BSSpacing.sm)
 
-                VStack(alignment: .leading, spacing: BSSpacing.roomy) {
-                    Image(systemName: "quote.opening")
-                        .font(BSFont.V3.title2.weight(.light))
-                        .foregroundColor(BSColor.Stage.accent)
-                    Text(fragment.text ?? "")
-                        .font(BSFont.V3.title2.weight(.regular))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .lineSpacing(BSSpacing.sm)
-                    Text(fragment.createdAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.dim)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BSSpacing.roomy) {
+                        Image(systemName: "quote.opening")
+                            .font(BSFont.V3.title2.weight(.light))
+                            .foregroundColor(BSColor.Stage.accent)
+                        Text(fragment.text ?? "")
+                            .font(BSFont.V3.title2.weight(.regular))
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .lineSpacing(BSSpacing.sm)
+                        Text(fragment.createdAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(BSFont.V3.caption)
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(BSSpacing.roomy)
+                    .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.lg))
+                    .overlay(RoundedRectangle(cornerRadius: BSRadius.lg).stroke(BSColor.Stage.border))
+                    .padding(BSSpacing.roomy)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(BSSpacing.roomy)
-                .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.lg))
-                .overlay(RoundedRectangle(cornerRadius: BSRadius.lg).stroke(BSColor.Stage.border))
-                .padding(BSSpacing.roomy)
 
-                Spacer()
+                Spacer(minLength: 0)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
     }
 }
 

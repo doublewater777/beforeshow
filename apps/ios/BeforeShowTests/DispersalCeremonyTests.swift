@@ -200,19 +200,38 @@ final class DispersalCeremonyTests: XCTestCase {
 
     // MARK: - DispersalCeremonySheet navigation seam
 
-    func testSheetNextStepMovesDirectlyFromEmotionToCard() {
-        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .combined), .share)
-        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .share), .share)
+    func testSheetNextDestinationMovesDirectlyFromEmotionToCard() {
+        XCTAssertEqual(DispersalCeremonySheet.nextDestination(after: .combined), .share)
+        XCTAssertEqual(DispersalCeremonySheet.nextDestination(after: .share), .share)
     }
 
     func testSheetStaysOnCombinedWhenCommitFails() {
         XCTAssertEqual(
-            DispersalCeremonySheet.nextStep(after: .combined, commitSucceeded: false),
+            DispersalCeremonySheet.nextDestination(after: .combined, commitSucceeded: false),
             .combined
         )
         XCTAssertEqual(
-            DispersalCeremonySheet.nextStep(after: .combined, commitSucceeded: true),
+            DispersalCeremonySheet.nextDestination(after: .combined, commitSucceeded: true),
             .share
+        )
+    }
+
+    func testFootprintEditDismissesInsteadOfPresentingShare() {
+        XCTAssertEqual(
+            DispersalCeremonySheet.nextDestination(
+                after: .combined,
+                commitSucceeded: true,
+                presentsShareAfterCommit: false
+            ),
+            .dismiss
+        )
+        XCTAssertEqual(
+            DispersalCeremonySheet.nextDestination(
+                after: .combined,
+                commitSucceeded: false,
+                presentsShareAfterCommit: false
+            ),
+            .combined
         )
     }
 
@@ -227,6 +246,7 @@ final class DispersalCeremonyTests: XCTestCase {
             identity: identity,
             initialStep: .combined,
             headerTitle: "编辑散场评价",
+            presentsShareAfterCommit: false,
             onCommit: { _, _ in }
         )
         XCTAssertNotNil(sheet)
