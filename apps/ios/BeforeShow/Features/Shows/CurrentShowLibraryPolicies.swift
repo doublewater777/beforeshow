@@ -17,7 +17,7 @@ enum CurrentShowLibraryLayout: String {
 
 enum CurrentShowLibraryMenuAction: String, Hashable {
     case view = "查看详情"
-    case setCurrent = "设为当前展示"
+    case setCurrent = "设为当前"
     case edit = "编辑"
     case postpone = "延期"
     case editPostponedDate = "编辑新日期"
