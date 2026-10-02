@@ -13,11 +13,6 @@ struct FootprintMemoryTile: View {
                 VStack(spacing: 0) {
                     ZStack {
                         MemoryThumbnail(relativePath: media.thumbnailRelativePath ?? media.relativePath)
-                        LinearGradient(
-                            colors: [.clear, FootprintDetailTokens.memoryScrim],
-                            startPoint: .center,
-                            endPoint: .bottom
-                        )
                         if media.kind == .video {
                             Image(systemName: "play.circle.fill")
                                 .font(FootprintDetailTokens.memoryPlayFont)

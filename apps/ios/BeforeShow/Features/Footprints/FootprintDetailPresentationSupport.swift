@@ -34,7 +34,6 @@ enum FootprintDetailTokens {
     static let companionAccent = BSColor.Stage.accent.opacity(0.38)
     static let companionGlow = BSColor.Stage.glowBlue.opacity(0.32)
     static let infoIconFill = Color.white.opacity(0.05)
-    static let memoryScrim = Color.black.opacity(0.72)
     static let savedKeepsakeText = Color.white.opacity(0.74)
 }
 
