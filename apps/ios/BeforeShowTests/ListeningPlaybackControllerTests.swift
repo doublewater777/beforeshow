@@ -210,7 +210,6 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         try controller.pause(now: time(2))
         _ = try controller.refresh(now: time(2))
         XCTAssertFalse(controller.state.isPlaying)
-        XCTAssertFalse(controller.state.isPlaying)
 
         service.setPlayingExternally(true)
         service.emitCurrentTransport(observedAt: time(3))
