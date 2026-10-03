@@ -97,6 +97,38 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
         )
     }
 
+    func testSeekingAndInterruptionRemainDistinctTransportTruth() {
+        var machine = ListeningPlaybackStateMachine()
+        _ = machine.handle(.prepareStarted(source: .fullCatalog))
+        _ = machine.handle(.sample(sample(time: 5, isPlaying: true)))
+
+        let seeking = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 8,
+            duration: 100,
+            phase: .seeking,
+            observedAt: Date(timeIntervalSince1970: 8)
+        )
+        XCTAssertEqual(
+            machine.handle(.sample(seeking)),
+            .seeking(songID: "song-a", source: .fullCatalog, currentTime: 8, duration: 100)
+        )
+
+        let interrupted = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 8,
+            duration: 100,
+            phase: .interrupted,
+            observedAt: Date(timeIntervalSince1970: 9)
+        )
+        XCTAssertEqual(
+            machine.handle(.sample(interrupted)),
+            .interrupted(songID: "song-a", source: .fullCatalog, currentTime: 8, duration: 100)
+        )
+    }
+
     func testProgressSamplingUpdatesTimeWithoutChangingTransportPhase() {
         var machine = ListeningPlaybackStateMachine()
         _ = machine.handle(.prepareStarted(source: .fullCatalog))
