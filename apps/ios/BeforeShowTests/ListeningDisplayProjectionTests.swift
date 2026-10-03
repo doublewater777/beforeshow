@@ -239,6 +239,33 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertTrue(projection.player.shouldRotateDisc)
     }
 
+    func testContinuingPlayIntentKeepsInternalTransitionActive() {
+        let disc = ListeningDisc(
+            id: "transition",
+            title: "Transition",
+            artworkURL: nil,
+            tracks: [track("transition-song", preview: false)]
+        )
+        let projection = ListeningDisplayProjector.make(
+            page: .ready,
+            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: true),
+            isAuthorizing: false,
+            allDiscs: [disc],
+            libraryDiscs: [disc],
+            loadedDisc: disc,
+            isDiscSeated: true,
+            isLidClosed: true,
+            currentTrack: disc.tracks[0],
+            playbackState: .idle,
+            playbackIntent: .playing,
+            playbackError: nil
+        )
+
+        XCTAssertEqual(projection.player.phase, .waiting)
+        XCTAssertTrue(projection.player.isPlaybackActive)
+        XCTAssertTrue(projection.player.shouldRotateDisc)
+    }
+
     func testPendingPauseIntentStopsPresentationBeforeTransportAcknowledges() {
         let disc = ListeningDisc(
             id: "pausing",
