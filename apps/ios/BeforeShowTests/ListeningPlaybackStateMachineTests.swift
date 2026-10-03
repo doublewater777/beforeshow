@@ -53,23 +53,30 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
         )
     }
 
-    func testTransportTruthIsNotMutatedByPresentationIntent() {
-        var machine = ListeningPlaybackStateMachine()
-        _ = machine.handle(.prepareStarted(source: .fullCatalog))
-        _ = machine.handle(.sample(sample(time: 10, isPlaying: true)))
-
-        let truth = machine.state
-        let projected = truth.projecting(.paused)
-
-        XCTAssertEqual(
-            truth,
-            .playing(songID: "song-a", source: .fullCatalog, currentTime: 10, duration: 100)
+    func testTransportIntentAcknowledgementUsesObservedPhase() {
+        let playingIntent = ListeningPlaybackTransportTarget.playing
+        let pausedIntent = ListeningPlaybackTransportTarget.paused
+        let waiting = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 0,
+            duration: 100,
+            phase: .waiting,
+            observedAt: Date(timeIntervalSince1970: 0)
         )
-        XCTAssertEqual(
-            projected,
-            .paused(songID: "song-a", source: .fullCatalog, currentTime: 10, duration: 100)
+        let paused = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 10,
+            duration: 100,
+            phase: .paused,
+            observedAt: Date(timeIntervalSince1970: 10)
         )
-        XCTAssertEqual(machine.state, truth)
+
+        XCTAssertTrue(playingIntent.matches(waiting))
+        XCTAssertFalse(pausedIntent.matches(waiting))
+        XCTAssertTrue(pausedIntent.matches(paused))
+        XCTAssertFalse(playingIntent.matches(paused))
     }
 
     func testWaitingTransportRemainsPlaybackActiveInProductProjection() {
