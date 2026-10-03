@@ -36,15 +36,24 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
         )
     }
 
-    func testPlayingUsesPlayingChromeState() {
+    func testWaitingPlayingAndSeekingUsePlayingChromeState() {
+        XCTAssertTrue(
+            ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .waiting)
+        )
         XCTAssertTrue(
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .playing)
+        )
+        XCTAssertTrue(
+            ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .seeking)
         )
     }
 
     func testPausedAndTerminalStatesDoNotUsePlayingChromeState() {
         XCTAssertFalse(
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .paused)
+        )
+        XCTAssertFalse(
+            ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .interrupted)
         )
         XCTAssertFalse(
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .stopped)
