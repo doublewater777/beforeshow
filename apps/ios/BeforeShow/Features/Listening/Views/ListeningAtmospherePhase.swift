@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Light follows the mechanism and actual transport, including manual insertion.
+/// Light follows the mechanism and unified playback presentation, including startup waiting.
 enum ListeningAtmospherePhase: Equatable {
     case resting, placing, playing
 
@@ -9,7 +9,7 @@ enum ListeningAtmospherePhase: Equatable {
         if mechanism.isAutomatic || mechanism.position == .removed || mechanism.isOpen {
             self = .placing
         } else {
-            self = room.isPlaying ? .playing : .resting
+            self = room.display.player.isPlaybackActive ? .playing : .resting
         }
     }
 
