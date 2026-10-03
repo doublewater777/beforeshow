@@ -32,7 +32,7 @@ final class ListeningPlaybackController {
         switch pendingTransportIntent {
         case .playing: true
         case .paused: false
-        case nil: stateMachine.state.isPlaying
+        case nil: stateMachine.state.isPlaybackActive
         }
     }
 
