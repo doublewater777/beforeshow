@@ -8,43 +8,39 @@ enum ListeningPlaybackEvidenceFailureOrigin: Equatable, Sendable {
 
 @MainActor
 final class ListeningPlaybackController {
-    /// Intent grace is presentation-only. Transport truth is never overwritten by
-    /// the command; the pending intent merely gives the UI immediate feedback until
-    /// the observable transport acknowledges it or the grace period expires.
-    private static let transportAcknowledgementWindow: TimeInterval = 1.5
-
     private let service: ListeningPlaybackServicing
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
     private let stateDidChange: @MainActor (ListeningPlaybackState) -> Void
-    private let transportStateDidChange: @MainActor (ListeningPlaybackState) -> Void
+    private let intentDidChange: @MainActor (ListeningPlaybackTransportTarget?) -> Void
     private let transportSampleDidChange: @MainActor (ListeningPlaybackSample) -> Void
     private let evidenceDidChange: @MainActor () -> Void
     private let evidenceDidFail: @MainActor (ListeningPlaybackEvidenceFailureOrigin) -> Void
 
     private var stateMachine = ListeningPlaybackStateMachine()
-    private var pendingTransportIntent: ListeningPlaybackTransportIntent?
+    private var pendingTransportIntent: ListeningPlaybackTransportTarget?
     private var lastPublishedState: ListeningPlaybackState?
-    private var lastPublishedTransportState: ListeningPlaybackState?
 
     private var transportObservationTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
-    private var intentTimeoutTask: Task<Void, Never>?
     private var evidenceFlushTask: Task<Void, Never>?
 
-    /// Product/UI projection. The underlying transport fact remains in
-    /// `stateMachine.state` even while a command is awaiting acknowledgement.
-    var state: ListeningPlaybackState {
-        guard let pendingTransportIntent else { return stateMachine.state }
-        return stateMachine.state.projecting(pendingTransportIntent.target)
+    /// Authoritative transport truth. Pending user intent is published separately
+    /// and never mutates this state.
+    var state: ListeningPlaybackState { stateMachine.state }
+    var playbackIntent: ListeningPlaybackTransportTarget? { pendingTransportIntent }
+    var wantsPlayback: Bool {
+        switch pendingTransportIntent {
+        case .playing: true
+        case .paused: false
+        case nil: stateMachine.state.isPlaying
+        }
     }
-
-    var transportState: ListeningPlaybackState { stateMachine.state }
 
     init(
         service: ListeningPlaybackServicing,
         evidenceCoordinator: ListeningPlaybackEvidenceCoordinator,
         stateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
-        transportStateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
+        intentDidChange: @escaping @MainActor (ListeningPlaybackTransportTarget?) -> Void = { _ in },
         transportSampleDidChange: @escaping @MainActor (ListeningPlaybackSample) -> Void = { _ in },
         evidenceDidChange: @escaping @MainActor () -> Void = {},
         evidenceDidFail: @escaping @MainActor (ListeningPlaybackEvidenceFailureOrigin) -> Void = { _ in }
@@ -52,7 +48,7 @@ final class ListeningPlaybackController {
         self.service = service
         self.evidenceCoordinator = evidenceCoordinator
         self.stateDidChange = stateDidChange
-        self.transportStateDidChange = transportStateDidChange
+        self.intentDidChange = intentDidChange
         self.transportSampleDidChange = transportSampleDidChange
         self.evidenceDidChange = evidenceDidChange
         self.evidenceDidFail = evidenceDidFail
@@ -91,7 +87,7 @@ final class ListeningPlaybackController {
     }
 
     func play(now: Date = Date()) async throws {
-        beginIntent(.playing, now: now)
+        setPlaybackIntent(.playing)
         do {
             try await service.play()
             try sampleCommandAcknowledgement(now: now)
@@ -104,7 +100,7 @@ final class ListeningPlaybackController {
     }
 
     func pause(now: Date = Date()) throws {
-        beginIntent(.paused, now: now, publishImmediately: false)
+        setPlaybackIntent(.paused)
         service.pause()
         if try !sampleCommandAcknowledgement(now: now) {
             publishState()
@@ -152,7 +148,6 @@ final class ListeningPlaybackController {
     /// It updates the UI immediately but keeps evidence persistence deferred.
     @discardableResult
     func resynchronizeTransport(now: Date = Date()) throws -> ListeningPlaybackState {
-        clearPendingIntent()
         if service.failure != nil {
             clearPendingIntent()
             stateMachine.handle(.failed)
@@ -170,7 +165,6 @@ final class ListeningPlaybackController {
     /// synchronization is driven by `transportEvents()`, not by this method.
     @discardableResult
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
-        clearPendingIntent()
         if service.failure != nil {
             clearPendingIntent()
             stateMachine.handle(.failed)
@@ -201,7 +195,6 @@ final class ListeningPlaybackController {
             stateMachine.handle(.reset)
             publishState()
             lastPublishedState = nil
-            lastPublishedTransportState = nil
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
 
@@ -215,48 +208,19 @@ final class ListeningPlaybackController {
         try flushPendingEvidence()
     }
 
-    private func beginIntent(
-        _ target: ListeningPlaybackTransportTarget,
-        now: Date,
-        publishImmediately: Bool = true
-    ) {
-        let intent = ListeningPlaybackTransportIntent(target: target, issuedAt: now)
+    private func setPlaybackIntent(_ intent: ListeningPlaybackTransportTarget?) {
+        guard pendingTransportIntent != intent else { return }
         pendingTransportIntent = intent
-        if publishImmediately {
-            publishState()
-        }
-
-        intentTimeoutTask?.cancel()
-        intentTimeoutTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(for: .milliseconds(1_500))
-            } catch {
-                return
-            }
-            guard let self, self.pendingTransportIntent == intent else { return }
-            self.pendingTransportIntent = nil
-            self.publishState()
-        }
+        intentDidChange(intent)
     }
 
     private func clearPendingIntent() {
-        pendingTransportIntent = nil
-        intentTimeoutTask?.cancel()
-        intentTimeoutTask = nil
+        setPlaybackIntent(nil)
     }
 
     private func reconcilePendingIntent(with sample: ListeningPlaybackSample) {
-        guard let intent = pendingTransportIntent else { return }
-
-        if intent.target.matches(sample) {
-            clearPendingIntent()
-            return
-        }
-
-        let age = sample.observedAt.timeIntervalSince(intent.issuedAt)
-        if age < 0 || age > Self.transportAcknowledgementWindow {
-            clearPendingIntent()
-        }
+        guard let intent = pendingTransportIntent, intent.matches(sample) else { return }
+        clearPendingIntent()
     }
 
     private enum EvidenceHandling {
@@ -342,16 +306,10 @@ final class ListeningPlaybackController {
     }
 
     private func publishState() {
-        let truth = transportState
-        if lastPublishedTransportState != truth {
-            lastPublishedTransportState = truth
-            transportStateDidChange(truth)
-        }
-
-        let projected = state
-        if lastPublishedState != projected {
-            lastPublishedState = projected
-            stateDidChange(projected)
+        let truth = stateMachine.state
+        if lastPublishedState != truth {
+            lastPublishedState = truth
+            stateDidChange(truth)
         }
     }
 
@@ -368,10 +326,8 @@ final class ListeningPlaybackController {
                     continue
                 }
                 do {
-                    // Observable transport events are the authoritative ongoing truth.
-                    // A real external resume/pause must replace any still-pending
-                    // presentation intent from an earlier app command.
-                    self.clearPendingIntent()
+                    // Observable transport events are authoritative transport truth.
+                    // Pending intent clears only when that truth acknowledges the command.
                     try self.applyTransport(sample: sample, now: sample.observedAt, evidence: .deferred)
                 } catch {
                     self.evidenceDidFail(.deferred)
@@ -412,8 +368,6 @@ final class ListeningPlaybackController {
         transportObservationTask = nil
         progressTask?.cancel()
         progressTask = nil
-        intentTimeoutTask?.cancel()
-        intentTimeoutTask = nil
         evidenceFlushTask?.cancel()
         evidenceFlushTask = nil
     }
@@ -496,10 +450,9 @@ final class ListeningRemoteCommandBridge {
 
     private func togglePlayPause() {
         guard let controller else { return }
-        switch controller.state {
-        case .playing:
+        if controller.wantsPlayback {
             try? controller.pause()
-        default:
+        } else {
             Task { @MainActor in try? await controller.play() }
         }
     }
@@ -520,10 +473,9 @@ final class ListeningRemoteCommandBridge {
 
     func togglePlayPauseForTesting() async throws {
         guard let controller else { return }
-        switch controller.state {
-        case .playing:
+        if controller.wantsPlayback {
             try controller.pause()
-        default:
+        } else {
             try await controller.play()
         }
     }
