@@ -25,14 +25,6 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(show.companionNames, ["Alex"])
     }
 
-    func testNewInviteIsOnlyBlockedByMissingICloud() {
-        XCTAssertTrue(CompanionInviteGate.blocksNewInvite(.iCloudAccountUnavailable))
-        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(.networkFailure))
-        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(.sharePreparationFailed))
-        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(.conflict))
-        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(nil))
-    }
-
     func testQuickActionJoinsMultipleCompanionNames() {
         let presentation = CompanionQuickActionPresentation(
             status: .confirmed,

@@ -696,11 +696,6 @@ struct CurrentShowCompanionSheet: View {
             return
         }
         await coordinator.refreshAllLinkedShows(in: modelContext, refreshLinks: false)
-        if CompanionInviteGate.blocksNewInvite(coordinator.lastErrorKind) {
-            isPreparingInvite = false
-            errorMessage = coordinator.consumeLastErrorMessage()
-            return
-        }
         _ = coordinator.consumeLastErrorMessage()
         if show.companionShareLocator != nil {
             await resendInvitation(alreadyPreparing: true)

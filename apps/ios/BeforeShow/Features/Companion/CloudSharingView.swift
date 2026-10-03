@@ -11,13 +11,6 @@ enum CloudSharingControllerEvent: Equatable {
     case failedToSave
 }
 
-enum CompanionInviteGate {
-    /// Discovery / refresh errors must not block a brand-new invite, except missing iCloud.
-    static func blocksNewInvite(_ error: CompanionSharingError?) -> Bool {
-        error == .iCloudAccountUnavailable
-    }
-}
-
 enum CompanionInvitePreparingPresentation {
     static func actionTitle(hasExistingShare: Bool) -> String {
         hasExistingShare
