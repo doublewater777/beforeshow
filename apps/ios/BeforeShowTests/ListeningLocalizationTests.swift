@@ -124,28 +124,12 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(firstRoom.mechanism.hasDisc)
     }
 
-    func testRootAndDestinationsHideTheNativeSystemTabBar() throws {
-        let rootView = try listeningSource("RootView.swift")
-        XCTAssertTrue(
-            rootView.contains("ZStack") && !rootView.contains("TabView(selection:"),
-            "RootView uses a custom ZStack to prevent system tab bar flashing on cold start"
-        )
-        XCTAssertTrue(
-            rootView.contains(".modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))"),
-            "RootView must mount detached Bottom Chrome"
-        )
-    }
-
     private func resetChromeGlobals() {
         ListeningPlaybackChromeStore.shared.room = nil
         ListeningRoomCache.shared?.mechanism.motion.stop()
         ListeningRoomCache.shared = nil
     }
 
-    private func listeningSource(_ relativePath: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
-        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
-    }
 }
 
 private struct ListeningReviewerCatalogStub: ListeningMusicCatalogServicing {

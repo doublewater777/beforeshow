@@ -338,6 +338,35 @@ import SwiftData
         XCTAssertEqual(queries, ["Artist"])
     }
 
+    func testLoadingPreservesCurrentArtistLinkOverSameNamedHistoricalIdentity() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let previous = try Show(name: "Previous", date: .now, startTime: .now)
+        previous.artists = [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicArtistID: "12345")]
+        let current = try Show(name: "Current", date: .now, startTime: .now)
+        let currentURL = "https://music.apple.com/cn/artist/artist/67890"
+        current.artists = [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicURL: currentURL)]
+        context.insert(previous)
+        context.insert(current)
+        try context.save()
+
+        let search = AutoMatchSearchStub(candidates: [])
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: CountingListenCatalog(),
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer { room.stop(); room.mechanism.motion.stop() }
+
+        await room.load(show: current)
+
+        XCTAssertEqual(current.artists.first?.appleMusicArtistID, "67890")
+        XCTAssertEqual(current.artists.first?.appleMusicURL, currentURL)
+        let queries = await search.queries
+        XCTAssertTrue(queries.isEmpty)
+    }
+
     func testLateMatchCannotChangePreviousShowAfterSelectionChanges() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext

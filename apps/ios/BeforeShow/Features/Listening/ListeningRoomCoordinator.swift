@@ -496,7 +496,10 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private func reusableArtistMatches(for slots: [ArtistSlot]) -> [Int: RecognizedArtist] {
-        let unresolved = slots.enumerated().filter { $0.element.appleMusicArtistID == nil }
+        let unresolved = slots.enumerated().filter {
+            $0.element.appleMusicArtistID == nil
+                && AppleMusicArtistIdentity.artistID(from: $0.element.appleMusicURL) == nil
+        }
         guard !unresolved.isEmpty,
               let shows = try? context.fetch(FetchDescriptor<Show>()) else {
             return [:]
