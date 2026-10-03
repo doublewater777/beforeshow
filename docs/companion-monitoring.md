@@ -16,6 +16,10 @@
 阶段包括 `validation`、`local_pending`、`cloud_prepare`、`local_link`、`local_recovery`、`cloud_load`、`share_decode`、`presentation`、`system_completion`、`account_check`、`metadata_load`、`cloud_accept`、`local_import`。
 分类包括 iCloud 账号不可用、网络失败、权限不足、邀请不存在、数据无效、冲突、接受失败、本地持久化失败，以及系统分享无法打开等。
 
+明确操作中的 CloudKit 请求失败另发 `companion_cloud_request_failed`，使用相同 `attempt_id`、`source`，附 `operation`、请求 `stage`、数值 `cloudkit_error_code` 和去重后的 `cloudkit_partial_error_codes`。
+请求阶段包括账号检查、创建/读取 zone、保存邀请、读取 share、修改 share 权限、读取邀请 URL、读取 metadata、接受 share 和读取接受后的根记录。
+CloudKit operation 回调显式携带操作上下文；后台请求、已恢复的 zone/accept/root 请求和非必需的昵称保存不会产生此失败事件。
+
 已知会话后附 `session_id`：对随机 CloudKit session record name 加固定命名空间后取 SHA-256。双方使用相同值；不包含 owner identity、姓名、现场详情、邀请 URL/token 或原始错误文本。
 开始时尚未知会话的操作，其 `session_id` 只出现在结束事件中。
 
@@ -32,4 +36,44 @@
 接受前的返回用户链接加载/预览失败不属于 join attempt；首次引导点击加入后的账号与 metadata 加载失败包含在 join attempt 中。
 
 这是客户端事件采集，关闭分析、离线队列或未运行此版本都会影响覆盖率，不能作为完整云端成员审计。
-PostHog 仪表盘和自动告警需在服务端配置；本次没有建立仪表盘或告警规则。
+
+## 已配置的服务端监控
+
+[BeforeShow · 同行与稳定性监控](https://us.posthog.com/project/461647/dashboard/2165165)
+
+10 个看板指标：技术成功率、失败阶段/原因、最近失败明细、成功耗时、7 天邀请转化、15 分钟未结束操作、各构建埋点覆盖、最近一小时邀请失败/加入失败/崩溃。
+仅统计 bundle `com.doublewaterapps.beforeshow` 且 `$is_emulator=false`、`$is_sideloaded=false` 的真机 App Store / TestFlight 数据。
+
+已启用 3 个每小时检查的告警：邀请准备失败、加入失败、真机崩溃；最近一小时数量大于 0 时触发，订阅者为配置时登录的项目用户。
+告警已保存并启用，尚未验证实际通知送达。关闭分析、网络阻断或旧版本没有事件时，告警不能检测失败。
+SQL、指标与告警 ID 存在 [companion-posthog.json](observability/companion-posthog.json)，不包含访问凭证。
+
+## 崩溃符号
+
+Release 真机归档的最后一个 build phase 调用 PostHog SDK 官方 `upload-symbols.sh`，上传 dSYM 并关联 bundle/version/build；上传失败会阻止归档完成。
+安装 `posthog-cli` 后执行 `posthog-cli login`，选择 US 项目 461647 与 Error tracking 权限。凭证保存在本机 `~/.posthog/credentials.json`，不进 Git。CI 使用外部 secret `POSTHOG_CLI_API_KEY`。
+Debug 与模拟器构建跳过上传；不上传源代码片段。
+
+22、26 的 App 与 Widget dSYM 已补传，并核对了服务端 UUID 与上传状态。
+
+已有归档可手动补传，例如（在仓库外执行，避免 CLI 为历史归档附上当前 Git 提交）：
+
+```bash
+companion_archive="$PWD/.asc/artifacts/BeforeShow-1.0.2-26.xcarchive"
+(cd /tmp && POSTHOG_CLI_PROJECT_ID=461647 ~/.posthog/posthog-cli dsym upload \
+  --directory "$companion_archive/dSYMs" \
+  --info-plist "$companion_archive/Products/Applications/BeforeShow.app/Info.plist" \
+  --main-dsym BeforeShow.app.dSYM)
+```
+
+## TestFlight 覆盖限制
+
+2026-10-03 早上的 1.0.2（26）早于邀请重试修复与本页的同行事件，不能追溯它的邀请失败原因。
+开发签名用 CloudKit Development，TestFlight 用 Production；开发环境成功不能替代 Production schema 验证。
+同一台已登录 iCloud 的 iPhone 17 模拟器在 Production 签名下复现邀请保存失败，PostHog 服务端已收到 `invitation_save` 阶段的 CloudKit 错误码 12（`serverRejectedRequest`）。
+本地临时诊断确认具体原因：`Cannot create or modify field 'showSnapshotV1' in record 'CompanionSession' in production schema`。
+26 的代码也会保存此字段。正确修复是将 Development 的 `CompanionSession.showSnapshotV1` schema 发布到 Production，再用 Production 签名验证创建和重发；后台尚未完成登录，此 schema 修复尚未执行。
+发布 schema 可修复当前 26 的邀请；新客户端事件仍需下一次 TestFlight 更新才会覆盖真机。
+
+CloudKit 保存现已改用原生异步结果并逐条检查成功/失败，避免 operation 成功但记录失败时丢失底层错误。
+这次真机录像缺少初始 snapshot，播放器无法播放，因此邀请诊断以操作事件和错误码为主。

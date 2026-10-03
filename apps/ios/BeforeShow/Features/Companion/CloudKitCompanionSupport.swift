@@ -3,7 +3,13 @@ import Foundation
 
 extension CloudKitCompanionSharingService {
     func ensureAccountAvailable() async throws {
-        let status = try await container.accountStatus()
+        let status: CKAccountStatus
+        do {
+            status = try await container.accountStatus()
+        } catch {
+            CompanionCloudDiagnostics.report(error, stage: .accountCheck)
+            throw error
+        }
         CompanionDebugLog.write("iCloud account status: \(status.rawValue)")
         guard status == .available else {
             throw CompanionSharingError.iCloudAccountUnavailable
@@ -13,31 +19,33 @@ extension CloudKitCompanionSharingService {
     func modifyRecords(
         in database: CKDatabase,
         saving records: [CKRecord],
-        deleting recordIDs: [CKRecord.ID] = []
+        deleting recordIDs: [CKRecord.ID] = [],
+        diagnosticsStage: CompanionCloudDiagnostics.Stage? = nil
     ) async throws -> [CKRecord] {
-        try await withCheckedThrowingContinuation { continuation in
-            let operation = CKModifyRecordsOperation(
-                recordsToSave: records.isEmpty ? nil : records,
-                recordIDsToDelete: recordIDs.isEmpty ? nil : recordIDs
+        do {
+            let result = try await database.modifyRecords(
+                saving: records, deleting: recordIDs,
+                savePolicy: .ifServerRecordUnchanged, atomically: true
             )
-            operation.savePolicy = .ifServerRecordUnchanged
-            operation.qualityOfService = .userInitiated
-
+            // The operation can succeed while individual records fail. Unwrap every
+            // result so schema/permission errors cannot become a missing-share error.
             var saved: [CKRecord] = []
-            operation.perRecordSaveBlock = { _, result in
-                if case .success(let record) = result {
-                    saved.append(record)
+            for record in records {
+                guard let recordResult = result.saveResults[record.recordID] else {
+                    throw CompanionSharingError.sharePreparationFailed
                 }
+                saved.append(try recordResult.get())
             }
-            operation.modifyRecordsResultBlock = { result in
-                switch result {
-                case .success:
-                    continuation.resume(returning: saved)
-                case .failure(let error):
-                    continuation.resume(throwing: Self.mapError(error))
+            for recordID in recordIDs {
+                guard let deleteResult = result.deleteResults[recordID] else {
+                    throw CompanionSharingError.sharePreparationFailed
                 }
+                try deleteResult.get()
             }
-            database.add(operation)
+            return saved
+        } catch {
+            if let diagnosticsStage { CompanionCloudDiagnostics.report(error, stage: diagnosticsStage) }
+            throw Self.mapError(error)
         }
     }
 

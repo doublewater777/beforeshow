@@ -125,6 +125,62 @@ final class CompanionAnalyticsTests: XCTestCase {
         XCTAssertEqual(analytics.events.count, 2)
     }
 
+    func testCloudDiagnosticsKeepCodesAndAttemptAcrossCallbackWithoutPrivatePayload() async throws {
+        let analytics = CompanionAnalyticsRecorder()
+        defer { analytics.close() }
+        let privateValue = "private-owner-record-and-invitation-url"
+        let error = CKError(.partialFailure, userInfo: [
+            NSLocalizedDescriptionKey: privateValue,
+            CKPartialErrorsByItemIDKey: [
+                privateValue: CKError(.permissionFailure),
+                "another-private-record": CKError(.permissionFailure)
+            ]
+        ])
+        let container = try makeContainer()
+        for source in ["onboarding", "confirmation"] {
+            do {
+                _ = try await CompanionJoinOperation.run(
+                    source: source, in: container.mainContext, strategy: .automatic
+                ) { _ in
+                    // CloudKit callbacks run outside the caller's Swift task.
+                    let context = CompanionCloudDiagnostics.context
+                    await Task.detached {
+                        XCTAssertNil(CompanionCloudDiagnostics.context)
+                        context?.report(error, stage: .shareAccept)
+                    }.value
+                    throw CloudKitCompanionSharingService.mapError(error, fallback: .acceptFailed)
+                }
+                XCTFail("Expected accept failure")
+            } catch {
+                XCTAssertEqual(error as? CompanionSharingError, .permissionDenied)
+            }
+        }
+        let diagnostics = analytics.events.filter { $0.name == "companion_cloud_request_failed" }
+        let finished = analytics.events.filter { $0.name == "companion_join_finished" }
+        XCTAssertEqual(diagnostics.count, 2)
+        XCTAssertEqual(finished.count, 2)
+        for (diagnostic, finish) in zip(diagnostics, finished) {
+            XCTAssertEqual(diagnostic.properties["attempt_id"] as? String, finish.properties["attempt_id"] as? String)
+            XCTAssertEqual(diagnostic.properties["source"] as? String, finish.properties["source"] as? String)
+            XCTAssertEqual(diagnostic.properties["cloudkit_error_code"] as? Int, 2)
+            XCTAssertEqual(diagnostic.properties["cloudkit_partial_error_codes"] as? [Int], [10])
+            XCTAssertEqual(diagnostic.properties["stage"] as? String, "share_accept")
+            let json = try JSONSerialization.data(withJSONObject: diagnostic.properties)
+            XCTAssertFalse(String(decoding: json, as: UTF8.self).contains(privateValue))
+        }
+        XCTAssertNotEqual(diagnostics[0].properties["attempt_id"] as? String, diagnostics[1].properties["attempt_id"] as? String)
+        CompanionCloudDiagnostics.report(error, stage: .metadataLoad)
+        XCTAssertEqual(analytics.events.count, 6, "Background errors outside an action are suppressed")
+
+        PostHogSDK.shared.optOut()
+        let attempt = CompanionAnalyticsAttempt(.invitation, source: "create")
+        await attempt.withCloudDiagnostics {
+            CompanionCloudDiagnostics.report(error, stage: .invitationSave)
+        }
+        attempt.finish(.failed, error: error)
+        XCTAssertEqual(analytics.events.count, 6, "Diagnostics honor SDK opt-out")
+    }
+
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Show.self, CurrentShowSelection.self,

@@ -1,0 +1,272 @@
+{
+  "project_id": 461647,
+  "dashboard": {
+    "name": "BeforeShow · 同行与稳定性监控",
+    "description": "真机 App Store / TestFlight，排除模拟器和侧载。邀请、分享、加入、失败原因、耗时、跨设备转化与埋点版本覆盖。",
+    "pinned": true,
+    "tags": [
+      "companion",
+      "monitoring"
+    ],
+    "id": 2165165,
+    "url": "https://us.posthog.com/project/461647/dashboard/2165165"
+  },
+  "insights": [
+    {
+      "name": "同行 · 技术成功率（7 天）",
+      "description": "取消分享独立计数；技术成功率分母为成功+失败。创建、重发、分享、加入分别统计。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT event, properties.source AS source, countIf(properties.outcome = 'succeeded') AS succeeded, countIf(properties.outcome = 'failed') AS failed, countIf(properties.outcome = 'canceled') AS canceled, round(100.0 * succeeded / nullIf(succeeded + failed, 0), 1) AS success_percent FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND event IN ('companion_invitation_finished', 'companion_share_finished', 'companion_join_finished') GROUP BY event, source ORDER BY event, source"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "id": 12476733,
+      "short_id": "NXce1eNW"
+    },
+    {
+      "name": "同行 · 失败阶段与原因（7 天）",
+      "description": "包括邀请、系统分享、加入和 CloudKit 请求失败。错误代码无原始错误文本。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT event, properties.source AS source, properties.stage AS stage, properties.error_category AS error_category, properties.cloudkit_error_code AS cloudkit_error_code, count() AS failures FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND ((startsWith(event, 'companion_') AND properties.outcome = 'failed') OR event = 'companion_cloud_request_failed') GROUP BY event, source, stage, error_category, cloudkit_error_code ORDER BY failures DESC LIMIT 50"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "id": 12476734,
+      "short_id": "Afdp4EJ6"
+    },
+    {
+      "name": "同行 · 最近失败明细",
+      "description": "真机正式分发；按版本、构建号、阶段和 attempt_id 定位。无姓名、链接或 token。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT timestamp, event, properties.$app_version AS version, properties.$app_build AS build, properties.$is_testflight AS testflight, properties.$device_model AS device, properties.source AS source, properties.stage AS stage, properties.error_category AS error_category, properties.cloudkit_error_code AS cloudkit_error_code, properties.attempt_id AS attempt_id, properties.duration_ms AS duration_ms FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND ((startsWith(event, 'companion_') AND properties.outcome = 'failed') OR event = 'companion_cloud_request_failed') ORDER BY timestamp DESC LIMIT 50"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "id": 12476735,
+      "short_id": "qC2rg8rL"
+    },
+    {
+      "name": "同行 · 成功耗时 p50 / p95",
+      "description": "毫秒；仅成功结束事件，按操作及入口分组。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT event, properties.source AS source, count() AS samples, round(quantile(0.5)(toFloat(properties.duration_ms)), 0) AS p50_ms, round(quantile(0.95)(toFloat(properties.duration_ms)), 0) AS p95_ms FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND startsWith(event, 'companion_') AND properties.outcome = 'succeeded' AND properties.duration_ms IS NOT NULL GROUP BY event, source ORDER BY event, source"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "id": 12476736,
+      "short_id": "98Lw0yWK"
+    },
+    {
+      "name": "同行 · 7 天邀请转化（成熟队列）",
+      "description": "按匿名 session_id 跨设备关联。只统计已满 7 天的成功创建邀请；分享完成不等于朋友加入。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "WITH invited AS (SELECT properties.session_id AS session_id, min(timestamp) AS invited_at FROM events WHERE timestamp > now() - INTERVAL 30 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND event = 'companion_invitation_finished' AND properties.source = 'create' AND properties.outcome = 'succeeded' AND properties.session_id IS NOT NULL GROUP BY session_id), shared AS (SELECT properties.session_id AS session_id, min(timestamp) AS shared_at FROM events WHERE timestamp > now() - INTERVAL 30 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND event = 'companion_share_finished' AND properties.outcome = 'succeeded' GROUP BY session_id), joined AS (SELECT properties.session_id AS session_id, min(timestamp) AS joined_at FROM events WHERE timestamp > now() - INTERVAL 30 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND event = 'companion_join_finished' AND properties.outcome = 'succeeded' GROUP BY session_id) SELECT count() AS matured_invitations, countIf(shared.shared_at >= invited.invited_at AND shared.shared_at <= invited.invited_at + INTERVAL 7 DAY) AS shared_within_7d, countIf(joined.joined_at >= invited.invited_at AND joined.joined_at <= invited.invited_at + INTERVAL 7 DAY) AS joined_within_7d, round(100.0 * joined_within_7d / nullIf(matured_invitations, 0), 1) AS joined_percent FROM invited LEFT JOIN shared ON invited.session_id = shared.session_id LEFT JOIN joined ON invited.session_id = joined.session_id WHERE invited.invited_at <= now() - INTERVAL 7 DAY"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "id": 12476737,
+      "short_id": "0Zodze68"
+    },
+    {
+      "name": "同行 · 超过 15 分钟未结束的操作",
+      "description": "不是自动失败：退出、崩溃或停止分析可能缺少结束事件。按 attempt_id 查漏。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT min(timestamp) AS started_at, properties.attempt_id AS attempt_id, any(properties.source) AS source, any(properties.$app_build) AS build FROM events WHERE timestamp > now() - INTERVAL 1 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND startsWith(event, 'companion_') AND properties.attempt_id IS NOT NULL GROUP BY attempt_id HAVING countIf(endsWith(event, '_started')) > 0 AND countIf(endsWith(event, '_finished')) = 0 AND max(timestamp) < now() - INTERVAL 15 MINUTE ORDER BY started_at DESC LIMIT 50"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "id": 12476738,
+      "short_id": "nxmBGc2e"
+    },
+    {
+      "name": "同行 · 各构建的监控覆盖",
+      "description": "用于确认 TestFlight 新版已经接入。旧版没有业务埋点，不能从 0 次事件推断邀请没被使用。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT properties.$app_version AS version, properties.$app_build AS build, properties.$is_testflight AS testflight, countIf(event = 'Application Opened') AS opens, countIf(startsWith(event, 'companion_')) AS companion_events, max(timestamp) AS last_seen FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false GROUP BY version, build, testflight ORDER BY last_seen DESC LIMIT 20"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "id": 12476739,
+      "short_id": "RXbBfY5o"
+    },
+    {
+      "name": "同行 · 最近 1 小时邀请准备失败",
+      "description": "任一次真机正式分发失败即触发；每小时检查，订阅当前项目用户。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT count() AS failures FROM events WHERE timestamp > now() - INTERVAL 1 HOUR AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND event = 'companion_invitation_finished' AND properties.outcome = 'failed'"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "alert": {
+        "name": "同行 · 邀请准备失败",
+        "upper": 0,
+        "column": "failures"
+      },
+      "id": 12476740,
+      "short_id": "xQUDjNBn"
+    },
+    {
+      "name": "同行 · 最近 1 小时加入失败",
+      "description": "任一次真机正式分发失败即触发；每小时检查，订阅当前项目用户。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT count() AS failures FROM events WHERE timestamp > now() - INTERVAL 1 HOUR AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND event = 'companion_join_finished' AND properties.outcome = 'failed'"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "alert": {
+        "name": "同行 · 加入失败",
+        "upper": 0,
+        "column": "failures"
+      },
+      "id": 12476741,
+      "short_id": "pl7uflBp"
+    },
+    {
+      "name": "稳定性 · 最近 1 小时崩溃",
+      "description": "真机正式分发的 $exception；每小时检查，只订阅当前项目用户。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT count() AS crashes FROM events WHERE timestamp > now() - INTERVAL 1 HOUR AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND event = '$exception'"
+        }
+      },
+      "tags": [
+        "companion",
+        "monitoring"
+      ],
+      "alert": {
+        "name": "稳定性 · 真机崩溃",
+        "upper": 0,
+        "column": "crashes"
+      },
+      "id": 12476742,
+      "short_id": "4qdtVhLC"
+    }
+  ],
+  "alerts": [
+    {
+      "id": "01a0ffec-71d1-0000-562d-2956178e2e01",
+      "name": "同行 · 邀请准备失败",
+      "enabled": true,
+      "insight": 12476740,
+      "threshold": {
+        "configuration": {
+          "type": "absolute",
+          "bounds": {
+            "upper": 0
+          }
+        }
+      },
+      "condition": {
+        "type": "absolute_value"
+      },
+      "config": {
+        "type": "HogQLAlertConfig",
+        "column": "failures",
+        "evaluation": "first_row"
+      },
+      "calculation_interval": "hourly"
+    },
+    {
+      "id": "01a0ffec-760e-0000-bdd8-b68c87149e17",
+      "name": "同行 · 加入失败",
+      "enabled": true,
+      "insight": 12476741,
+      "threshold": {
+        "configuration": {
+          "type": "absolute",
+          "bounds": {
+            "upper": 0
+          }
+        }
+      },
+      "condition": {
+        "type": "absolute_value"
+      },
+      "config": {
+        "type": "HogQLAlertConfig",
+        "column": "failures",
+        "evaluation": "first_row"
+      },
+      "calculation_interval": "hourly"
+    },
+    {
+      "id": "01a0ffec-79f6-0000-86cb-6a272a51a3ec",
+      "name": "稳定性 · 真机崩溃",
+      "enabled": true,
+      "insight": 12476742,
+      "threshold": {
+        "configuration": {
+          "type": "absolute",
+          "bounds": {
+            "upper": 0
+          }
+        }
+      },
+      "condition": {
+        "type": "absolute_value"
+      },
+      "config": {
+        "type": "HogQLAlertConfig",
+        "column": "failures",
+        "evaluation": "first_row"
+      },
+      "calculation_interval": "hourly"
+    }
+  ]
+}

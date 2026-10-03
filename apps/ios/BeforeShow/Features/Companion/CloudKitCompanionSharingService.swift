@@ -86,6 +86,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                     return candidate
                 }
             } catch {
+                CompanionCloudDiagnostics.report(error, stage: .shareURL)
                 let mapped = Self.mapError(error)
                 CompanionDebugLog.write("Companion invite stage=share-url failed: \(mapped)")
                 throw mapped

@@ -68,6 +68,20 @@ targets:
         Release:
           CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.entitlements
           REVENUECAT_API_KEY: appl_FWKFhestdOkpZpYZCMTNHDpCfFZ
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+          ENABLE_USER_SCRIPT_SANDBOXING: false
+    postBuildScripts:
+      - name: Upload PostHog dSYMs
+        runOnlyWhenInstalling: true
+        inputFiles:
+          - $(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(EXECUTABLE_NAME)
+        script: |
+          if [ "$CONFIGURATION" != "Release" ] || [ "$PLATFORM_NAME" != "iphoneos" ]; then
+            exit 0
+          fi
+          export POSTHOG_CLI_HOST=https://us.posthog.com
+          export POSTHOG_CLI_PROJECT_ID=461647
+          "${BUILD_DIR%/Build/*}/SourcePackages/checkouts/posthog-ios/build-tools/upload-symbols.sh"
     scheme:
       testTargets:
         - BeforeShowTests

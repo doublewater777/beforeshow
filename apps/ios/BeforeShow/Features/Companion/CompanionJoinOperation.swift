@@ -12,7 +12,7 @@ enum CompanionJoinOperation {
         let attempt = CompanionAnalyticsAttempt(.join, source: source)
         attempt.stage = "cloud_accept"
         do {
-            let session = try await accept(attempt)
+            let session = try await attempt.withCloudDiagnostics { try await accept(attempt) }
             attempt.linkSession(session.recordName)
             attempt.stage = "local_import"
             let result = try CompanionAcceptedSessionImporter.apply(session, in: modelContext, strategy: strategy)

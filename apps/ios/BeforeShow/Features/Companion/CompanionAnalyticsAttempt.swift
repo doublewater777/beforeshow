@@ -38,6 +38,13 @@ final class CompanionAnalyticsAttempt {
             .map { String(format: "%02x", $0) }.joined()
     }
 
+    func withCloudDiagnostics<T>(_ body: () async throws -> T) async rethrows -> T {
+        let context = CompanionCloudDiagnostics.Context(
+            attemptID: attemptID, operation: operation.rawValue, source: source
+        )
+        return try await CompanionCloudDiagnostics.$context.withValue(context, operation: body)
+    }
+
     func finish(_ outcome: Outcome, error: Error? = nil, errorCategory: String? = nil) {
         guard !finished else { return }
         finished = true

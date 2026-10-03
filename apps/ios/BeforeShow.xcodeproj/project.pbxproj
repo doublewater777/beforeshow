@@ -289,6 +289,7 @@
 		9B4087BA0A5A57596B674FEA /* FootprintListeningPhase8Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C35E0348A48DAA24B7C48B1 /* FootprintListeningPhase8Tests.swift */; };
 		9B4C21FB94055E52785DB8A8 /* FootprintPageShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADDE3DF5FFF758DAC234BDA /* FootprintPageShareView.swift */; };
 		9B547050FAAC324191225E67 /* ListeningRemoteCommandBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F38DC8A3199CE5D9E39A9B /* ListeningRemoteCommandBridge.swift */; };
+		9D2A16CCD3A3B8974769F77C /* CompanionCloudDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59963276122E3B16D81CB88 /* CompanionCloudDiagnostics.swift */; };
 		9D4353AB34003B0F55115FEC /* CompanionAnalyticsAttempt.swift in Sources */ = {isa = PBXBuildFile; fileRef = A406624F3F5462815CE3882B /* CompanionAnalyticsAttempt.swift */; };
 		9D9EF975BB5AB5CC889C2152 /* ListeningArtistPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39E814B1905CD8EB8E813FA1 /* ListeningArtistPresentation.swift */; };
 		9E2409905292CAB80EB32409 /* ListeningRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AE26C2626EFC664DF38900D /* ListeningRepository.swift */; };
@@ -860,6 +861,7 @@
 		C384260FC7AA738C210909E6 /* CompanionInviteSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionInviteSnapshot.swift; sourceTree = "<group>"; };
 		C44BEEF212FB83909D3F65D1 /* DebugSampleShowSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSampleShowSeeder.swift; sourceTree = "<group>"; };
 		C58CF37142574F557DA41813 /* CloudKitCompanionShareMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionShareMetadata.swift; sourceTree = "<group>"; };
+		C59963276122E3B16D81CB88 /* CompanionCloudDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionCloudDiagnostics.swift; sourceTree = "<group>"; };
 		C59A0670159D0CB9138FD56D /* Show.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Show.swift; sourceTree = "<group>"; };
 		C5FCD7E536580A6F1574679B /* ListeningPeekingDisc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningPeekingDisc.swift; sourceTree = "<group>"; };
 		C629FBF89608A7346B7E60DC /* CloudKitCompanionSessionOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionSessionOperations.swift; sourceTree = "<group>"; };
@@ -1781,6 +1783,7 @@
 				AC928533830DBA74A15BAE91 /* CompanionAcceptedShareInbox.swift */,
 				C767A2E9637F278B504A23E3 /* CompanionAcceptedShowMapping.swift */,
 				A406624F3F5462815CE3882B /* CompanionAnalyticsAttempt.swift */,
+				C59963276122E3B16D81CB88 /* CompanionCloudDiagnostics.swift */,
 				0276B487D6C4F67AED69DD18 /* CompanionCloudSyncMarker.swift */,
 				C2DFA64D9D61B53101C4BCC2 /* CompanionDuplicateResolution.swift */,
 				671BADBA84FE87D2D9213398 /* CompanionFootprintShareView.swift */,
@@ -1815,6 +1818,7 @@
 				80D0BA9F7A5C886DD6A55BA0 /* Resources */,
 				42F0C3FBFC4ED9CF648E8EC0 /* Frameworks */,
 				E24301EC7CA95F8697ADA970 /* Embed Foundation Extensions */,
+				2BE77B8F3B441907A0926AE5 /* Upload PostHog dSYMs */,
 			);
 			buildRules = (
 			);
@@ -1949,6 +1953,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		2BE77B8F3B441907A0926AE5 /* Upload PostHog dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(EXECUTABLE_NAME)",
+			);
+			name = "Upload PostHog dSYMs";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" != \"Release\" ] || [ \"$PLATFORM_NAME\" != \"iphoneos\" ]; then\n  exit 0\nfi\nexport POSTHOG_CLI_HOST=https://us.posthog.com\nexport POSTHOG_CLI_PROJECT_ID=461647\n\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/posthog-ios/build-tools/upload-symbols.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		3298C49C2B7AE2CDC2DEE85A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -2009,6 +2035,7 @@
 				22A3F4D696BFC0316342388E /* CompanionAcceptedShowMapping.swift in Sources */,
 				9D4353AB34003B0F55115FEC /* CompanionAnalyticsAttempt.swift in Sources */,
 				694060CB5FF7FF511B5FD74F /* CompanionAppDelegates.swift in Sources */,
+				9D2A16CCD3A3B8974769F77C /* CompanionCloudDiagnostics.swift in Sources */,
 				BB02C58579FECD8E3790B2AB /* CompanionCloudSyncMarker.swift in Sources */,
 				E2FEC32B5944F9E67ACE57C6 /* CompanionDuplicateResolution.swift in Sources */,
 				863F7FE63C668E81A3AB2B41 /* CompanionFootprintShareView.swift in Sources */,
@@ -2729,7 +2756,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeforeShow/BeforeShow.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = BeforeShow/Supporting/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

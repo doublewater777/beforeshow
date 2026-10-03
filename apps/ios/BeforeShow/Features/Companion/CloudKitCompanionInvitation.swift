@@ -51,7 +51,9 @@ extension CloudKitCompanionSharingService {
 
         let saved: [CKRecord]
         do {
-            saved = try await modifyRecords(in: privateDB, saving: [session, share])
+            saved = try await modifyRecords(
+                in: privateDB, saving: [session, share], diagnosticsStage: .invitationSave
+            )
         } catch {
             CompanionDebugLog.write("Companion invite stage=share-save failed: \(error)")
             throw error
@@ -89,7 +91,13 @@ extension CloudKitCompanionSharingService {
 
     func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data {
         try await ensureAccountAvailable()
-        let record = try await privateDB.record(for: shareLocator.recordID)
+        let record: CKRecord
+        do {
+            record = try await privateDB.record(for: shareLocator.recordID)
+        } catch {
+            CompanionCloudDiagnostics.report(error, stage: .shareLoad)
+            throw error
+        }
         guard var share = record as? CKShare else {
             throw CompanionSharingError.sessionNotFound
         }
@@ -99,7 +107,9 @@ extension CloudKitCompanionSharingService {
         // them lazily when the owner taps “再次分享邀请 / 邀请更多”.
         if share.publicPermission != CompanionInviteAccessPolicy.publicPermission {
             share.publicPermission = CompanionInviteAccessPolicy.publicPermission
-            let saved = try await modifyRecords(in: privateDB, saving: [share])
+            let saved = try await modifyRecords(
+                in: privateDB, saving: [share], diagnosticsStage: .sharePermissionSave
+            )
             if let updatedShare = saved.compactMap({ $0 as? CKShare }).first {
                 share = updatedShare
             }
@@ -115,6 +125,7 @@ extension CloudKitCompanionSharingService {
             ownerName: CKCurrentUserDefaultName
         )
         let zone = CKRecordZone(zoneID: zoneID)
+        var creationError: Error?
         do {
             let result = try await privateDB.modifyRecordZones(saving: [zone], deleting: [])
             if let saved = result.saveResults[zoneID] {
@@ -122,6 +133,7 @@ extension CloudKitCompanionSharingService {
                 case .success(let zone):
                     return zone
                 case .failure(let error):
+                    creationError = error
                     CompanionDebugLog.write(
                         "Creating companion zone returned: \(error) userInfo=\((error as NSError).userInfo)"
                     )
@@ -135,6 +147,7 @@ extension CloudKitCompanionSharingService {
                 }
             }
         } catch {
+            creationError = error
             CompanionDebugLog.write("Creating companion zone failed: \(error)")
         }
 
@@ -144,10 +157,13 @@ extension CloudKitCompanionSharingService {
                 return existing
             }
         } catch {
+            if let creationError { CompanionCloudDiagnostics.report(creationError, stage: .zoneCreate) }
+            CompanionCloudDiagnostics.report(error, stage: .zoneFetch)
             CompanionDebugLog.write("Fetching companion zone failed: \(error)")
             throw Self.mapError(error)
         }
 
+        if let creationError { CompanionCloudDiagnostics.report(creationError, stage: .zoneCreate) }
         CompanionDebugLog.write("Companion zone is missing after create and fetch")
         throw CompanionSharingError.sharePreparationFailed
     }

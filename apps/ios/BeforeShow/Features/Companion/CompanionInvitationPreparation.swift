@@ -60,11 +60,13 @@ enum CompanionInvitationPreparation {
 
         do {
             attempt.stage = "cloud_prepare"
-            let prepared = try await service.prepareInvitation(
-                show: CompanionShowSnapshot(show: show),
-                ownerDisplayName: ownerDisplayName,
-                preferredParticipantName: preferredParticipantName
-            )
+            let prepared = try await attempt.withCloudDiagnostics {
+                try await service.prepareInvitation(
+                    show: CompanionShowSnapshot(show: show),
+                    ownerDisplayName: ownerDisplayName,
+                    preferredParticipantName: preferredParticipantName
+                )
+            }
             attempt.linkSession(prepared.session.recordName)
             attempt.stage = "local_link"
             show.applyCompanionSession(

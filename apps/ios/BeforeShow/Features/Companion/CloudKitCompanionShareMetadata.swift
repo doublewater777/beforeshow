@@ -25,7 +25,8 @@ extension CloudKitCompanionSharingService {
         for shareURL: URL,
         in container: CKContainer = CKContainer(identifier: defaultContainerIdentifier)
     ) async throws -> CKShare.Metadata {
-        try await withCheckedThrowingContinuation { continuation in
+        let diagnostics = CompanionCloudDiagnostics.context
+        return try await withCheckedThrowingContinuation { continuation in
             let completion = CompanionShareMetadataCompletion(continuation)
             let operation = CKFetchShareMetadataOperation(shareURLs: [shareURL])
             operation.shouldFetchRootRecord = true
@@ -33,14 +34,19 @@ extension CloudKitCompanionSharingService {
             operation.timeoutIntervalForRequest = 10
             operation.timeoutIntervalForResource = 15
             operation.perShareMetadataResultBlock = { _, result in
-                completion.finish(result.mapError { Self.mapError($0, fallback: .acceptFailed) })
+                if completion.finish(result.mapError { Self.mapError($0, fallback: .acceptFailed) }),
+                   case .failure(let error) = result {
+                    diagnostics?.report(error, stage: .metadataLoad)
+                }
             }
             operation.fetchShareMetadataResultBlock = { result in
                 switch result {
                 case .success:
                     completion.finish(.failure(CompanionSharingError.acceptFailed))
                 case .failure(let error):
-                    completion.finish(.failure(Self.mapError(error, fallback: .acceptFailed)))
+                    if completion.finish(.failure(Self.mapError(error, fallback: .acceptFailed))) {
+                        diagnostics?.report(error, stage: .metadataLoad)
+                    }
                 }
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + 20) {
@@ -104,6 +110,7 @@ extension CloudKitCompanionSharingService {
             } catch {
                 let errorCode = (error as? CKError)?.code
                 guard errorCode == .alreadyShared || errorCode == .serverRejectedRequest else {
+                    CompanionCloudDiagnostics.report(error, stage: .shareAccept)
                     throw Self.mapError(error, fallback: .acceptFailed)
                 }
 
@@ -117,6 +124,7 @@ extension CloudKitCompanionSharingService {
                     sharedDatabaseConfirmsAcceptedParticipant: confirmsAcceptedParticipant
                 ),
                 let existing else {
+                    CompanionCloudDiagnostics.report(error, stage: .shareAccept)
                     throw Self.mapError(error, fallback: .acceptFailed)
                 }
                 acceptedShare = existing
@@ -135,6 +143,7 @@ extension CloudKitCompanionSharingService {
                 if let preloaded = acceptedMetadata.rootRecord {
                     record = preloaded
                 } else {
+                    CompanionCloudDiagnostics.report(error, stage: .acceptedRootLoad)
                     throw Self.mapError(error, fallback: .acceptFailed)
                 }
             }
@@ -145,6 +154,7 @@ extension CloudKitCompanionSharingService {
                 // "accepted" state without proof of share membership.
                 record = try await sharedDB.record(for: rootID)
             } catch {
+                CompanionCloudDiagnostics.report(error, stage: .acceptedRootLoad)
                 throw Self.mapError(error, fallback: .statusSyncPending)
             }
         }

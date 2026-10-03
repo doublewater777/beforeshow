@@ -73,7 +73,9 @@ final class CompanionSharingCoordinator {
                 throw CompanionSharingError.sessionNotFound
             }
             attempt.stage = "cloud_load"
-            let data = try await service.loadShareSystemFields(shareLocator: shareLocator)
+            let data = try await attempt.withCloudDiagnostics {
+                try await service.loadShareSystemFields(shareLocator: shareLocator)
+            }
             attempt.finish(.succeeded)
             return data
         } catch {
