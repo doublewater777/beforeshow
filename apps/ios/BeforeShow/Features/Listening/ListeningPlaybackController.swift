@@ -234,8 +234,10 @@ final class ListeningPlaybackController {
         evidence: EvidenceHandling
     ) throws {
         stateMachine.handle(.sample(sample))
-        reconcilePendingIntent(with: sample)
+        // Publish acknowledged transport truth before clearing the command intent.
+        // This keeps presentation monotonic: waiting/playing never flashes back to stopped.
         publishState()
+        reconcilePendingIntent(with: sample)
         transportSampleDidChange(sample)
         ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
         try recordEvidence(sample, now: now, handling: evidence)
