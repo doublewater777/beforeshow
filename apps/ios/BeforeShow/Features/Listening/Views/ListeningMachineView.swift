@@ -92,7 +92,7 @@ struct ListeningMachineView: View {
             )
 
             Ellipse()
-                .fill(BSColor.Stage.accent.opacity(room.isPlaying ? 0.14 : 0.07))
+                .fill(BSColor.Stage.accent.opacity(room.display.player.isPlaybackActive ? 0.14 : 0.07))
                 .frame(width: geometry.body.width * 0.90, height: 110)
                 .position(x: geometry.body.midX, y: geometry.body.maxY - 20)
                 .blur(radius: 38)
@@ -102,7 +102,13 @@ struct ListeningMachineView: View {
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
             CDPlayerDiscWellView(player: player)
             CDPlayerBodyShellView(player: player)
-            CDPlayerDiscView(player: player, scale: scale, isPlaying: room.isPlaying)
+            CDPlayerDiscView(
+                player: player,
+                scale: scale,
+                isPlaying: room.display.player.shouldRotateDisc
+                    && player.position == .seated
+                    && player.isClosed
+            )
                 .zIndex(player.position == .seated ? 1 : 4)
             spindle.zIndex(2)
             CDPlayerLidView(player: player, scale: scale)
@@ -508,10 +514,13 @@ private struct CDPlayerLCDView: View {
                 }
                 Spacer(minLength: 0)
                 if player.hasDisc {
-                    if room.isPlayerDisplayPreparing {
+                    switch room.display.player.phase {
+                    case .preparing, .waiting:
                         Text(room.playerDisplayTimeText)
-                    } else {
-                        Text(room.isPlaying ? "▶ \(room.playerDisplayTimeText)" : "⏸ \(room.playerDisplayTimeText)")
+                    case .playing, .seeking:
+                        Text("▶ \(room.playerDisplayTimeText)")
+                    case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
+                        Text("⏸ \(room.playerDisplayTimeText)")
                     }
                 }
             }
