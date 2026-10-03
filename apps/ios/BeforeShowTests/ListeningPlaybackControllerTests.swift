@@ -151,6 +151,32 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         try controller.stop(now: time(14))
     }
 
+    func testAutoplayIntentSurvivesPrepareReadyBoundary() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        let item = ListeningPlaybackItem(songID: "prepare-autoplay", duration: 100, previewURL: nil)
+
+        try await controller.prepare(
+            items: [item],
+            source: .fullCatalog,
+            playbackIntent: .playing,
+            now: time(0)
+        )
+
+        XCTAssertEqual(
+            controller.state,
+            .ready(songID: "prepare-autoplay", source: .fullCatalog, currentTime: 0, duration: 100)
+        )
+        XCTAssertEqual(controller.playbackIntent, .playing)
+        XCTAssertTrue(controller.wantsPlayback)
+        try controller.stop(now: time(0))
+    }
+
     func testPlayIntentPersistsUntilTransportActuallyStarts() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -158,11 +184,18 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         service.playSnapshotLags = true
         var states: [ListeningPlaybackState] = []
         var intents: [ListeningPlaybackTransportTarget?] = []
+        var acknowledgementEvents: [String] = []
         let controller = ListeningPlaybackController(
             service: service,
             evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
-            stateDidChange: { states.append($0) },
-            intentDidChange: { intents.append($0) }
+            stateDidChange: {
+                states.append($0)
+                acknowledgementEvents.append("state")
+            },
+            intentDidChange: {
+                intents.append($0)
+                acknowledgementEvents.append($0 == nil ? "intent:nil" : "intent")
+            }
         )
         let item = ListeningPlaybackItem(songID: "laggy-play", duration: 100, previewURL: nil)
 
@@ -184,9 +217,11 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertEqual(controller.playbackIntent, .playing)
         XCTAssertTrue(controller.wantsPlayback)
 
+        acknowledgementEvents.removeAll()
         service.setPlayingExternally(true)
         _ = try controller.refresh(now: time(3))
 
+        XCTAssertEqual(acknowledgementEvents, ["state", "intent:nil"])
         XCTAssertNil(controller.playbackIntent)
         XCTAssertTrue(controller.state.isPlaying)
         try controller.stop(now: time(3))
