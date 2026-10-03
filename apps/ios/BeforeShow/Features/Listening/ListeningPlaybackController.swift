@@ -81,6 +81,7 @@ final class ListeningPlaybackController {
             startTransportObservation()
             startProgressClock()
         } catch {
+            clearPendingIntent()
             stateMachine.handle(.failed)
             publishState()
             throw error
