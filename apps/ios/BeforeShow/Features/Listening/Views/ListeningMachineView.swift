@@ -552,7 +552,7 @@ private struct CDPlayerControlsView: View {
                 }
                 .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
-                .accessibilityLabel(BSLocalization.text(control == .playPause ? (room.isPlaying ? "暂停" : "播放") : control.label))
+                .accessibilityLabel(BSLocalization.text(control == .playPause ? (playerPresentation.isPlaybackActive ? "暂停" : "播放") : control.label))
                 .accessibilityValue(control == .playPause ? playerPresentation.statusText : "")
                 .accessibilityHint(control == .playPause ? (playerPresentation.blockingReason ?? "") : "")
                 .accessibilityIdentifier(control.rawValue)
