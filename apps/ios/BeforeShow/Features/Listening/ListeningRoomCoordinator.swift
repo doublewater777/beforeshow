@@ -1256,7 +1256,8 @@ private let listeningCatalogFetchConcurrency = 4
             try await next.prepare(
                 items: queueTracks.map(\.playbackItem),
                 source: source,
-                startingAtSongID: track.id
+                startingAtSongID: track.id,
+                playbackIntent: .playing
             )
             try Task.checkCancellation()
             guard generation == playbackGeneration, mechanism.isClosed, mechanism.position == .seated else {
