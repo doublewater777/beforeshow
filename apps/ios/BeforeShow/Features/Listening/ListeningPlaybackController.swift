@@ -58,10 +58,11 @@ final class ListeningPlaybackController {
         items: [ListeningPlaybackItem],
         source: ListeningPlaybackSource,
         startingAtSongID: String? = nil,
+        playbackIntent: ListeningPlaybackTransportTarget? = nil,
         now: Date = Date()
     ) async throws {
         cancelRuntimeObservation()
-        clearPendingIntent()
+        setPlaybackIntent(playbackIntent)
         stateMachine.handle(.prepareStarted(source: source))
         publishState()
 
