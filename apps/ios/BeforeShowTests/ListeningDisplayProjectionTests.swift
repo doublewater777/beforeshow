@@ -207,9 +207,78 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertFalse(failed.player.canPlayPause)
     }
 
+    func testPendingPlayIntentProjectsWaitingUntilTransportStarts() {
+        let disc = ListeningDisc(
+            id: "waiting",
+            title: "Waiting",
+            artworkURL: nil,
+            tracks: [track("waiting-song", preview: false)]
+        )
+        let projection = ListeningDisplayProjector.make(
+            page: .ready,
+            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: true),
+            isAuthorizing: false,
+            allDiscs: [disc],
+            libraryDiscs: [disc],
+            loadedDisc: disc,
+            isDiscSeated: true,
+            isLidClosed: true,
+            currentTrack: disc.tracks[0],
+            playbackState: .ready(
+                songID: "waiting-song",
+                source: .fullCatalog,
+                currentTime: 0,
+                duration: 180
+            ),
+            playbackIntent: .playing,
+            transportPhase: .paused,
+            playbackError: nil
+        )
+
+        XCTAssertEqual(projection.player.phase, .waiting)
+        XCTAssertTrue(projection.player.isPlaybackActive)
+        XCTAssertTrue(projection.player.shouldRotateDisc)
+    }
+
+    func testPendingPauseIntentStopsPresentationBeforeTransportAcknowledges() {
+        let disc = ListeningDisc(
+            id: "pausing",
+            title: "Pausing",
+            artworkURL: nil,
+            tracks: [track("pausing-song", preview: false)]
+        )
+        let projection = ListeningDisplayProjector.make(
+            page: .ready,
+            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: true),
+            isAuthorizing: false,
+            allDiscs: [disc],
+            libraryDiscs: [disc],
+            loadedDisc: disc,
+            isDiscSeated: true,
+            isLidClosed: true,
+            currentTrack: disc.tracks[0],
+            playbackState: .playing(
+                songID: "pausing-song",
+                source: .fullCatalog,
+                currentTime: 42,
+                duration: 180
+            ),
+            playbackIntent: .paused,
+            transportPhase: .playing,
+            playbackError: nil
+        )
+
+        XCTAssertEqual(projection.player.phase, .paused)
+        XCTAssertFalse(projection.player.isPlaybackActive)
+        XCTAssertFalse(projection.player.shouldRotateDisc)
+    }
+
     func testDiscDetailCurrentTrackUsesTransportToggleWhenPlayingOrPaused() {
         let playing = player(phase: .playing, canPlayPause: true)
+        let waiting = player(phase: .waiting, canPlayPause: true)
+        let seeking = player(phase: .seeking, canPlayPause: true)
         let paused = player(phase: .paused, canPlayPause: true)
+        let interrupted = player(phase: .interrupted, canPlayPause: true)
 
         XCTAssertEqual(
             ListeningDiscDetailTrackAction.resolve(
@@ -223,7 +292,31 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             ListeningDiscDetailTrackAction.resolve(
                 isLoaded: true,
                 isCurrentTrack: true,
+                player: waiting
+            ),
+            .togglePlayback
+        )
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: true,
+                isCurrentTrack: true,
+                player: seeking
+            ),
+            .togglePlayback
+        )
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: true,
+                isCurrentTrack: true,
                 player: paused
+            ),
+            .togglePlayback
+        )
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: true,
+                isCurrentTrack: true,
+                player: interrupted
             ),
             .togglePlayback
         )
