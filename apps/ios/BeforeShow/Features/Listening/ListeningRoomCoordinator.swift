@@ -41,7 +41,6 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         playbackState = .idle
         playbackIntent = nil
-        playbackTransportPhase = .stopped
         trackBelongsToShow = true
     }
     #endif
@@ -54,16 +53,15 @@ private let listeningCatalogFetchConcurrency = 4
         didSet { updateTimeText() }
     }
     private(set) var playbackIntent: ListeningPlaybackTransportTarget?
-    private(set) var playbackTransportPhase: ListeningPlaybackTransportPhase = .stopped
-    var isPlaying: Bool { playbackTransportPhase.isPlaying }
+    var isPlaying: Bool { playbackState.isPlaying }
     var wantsPlayback: Bool {
         switch playbackIntent {
         case .playing: true
         case .paused: false
-        case nil: playbackState.isPlaying
+        case nil: playbackState.isPlaybackActive
         }
     }
-    private var transportIsPlaying: Bool { playbackTransportPhase.isPlaying }
+    private var transportIsPlaying: Bool { playbackState.isPlaying }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
     private(set) var persistedPlaybackTime: TimeInterval = 0 {
@@ -263,8 +261,7 @@ private let listeningCatalogFetchConcurrency = 4
                 : nil
             preparedSongID = nil
             playbackState = .idle
-                playbackTransportPhase = .stopped
-            trackBelongsToShow = true
+                    trackBelongsToShow = true
         } catch {}
     }
     private func persistLoadedDisc(currentTime: TimeInterval? = nil, force: Bool = false) {
@@ -381,9 +378,17 @@ private let listeningCatalogFetchConcurrency = 4
 
     var elapsed: TimeInterval {
         switch playbackState {
-        case let .ready(_, _, time, _), let .playing(_, _, time, _), let .paused(_, _, time, _): time
-        case let .finished(_, _, duration): duration ?? 0
-        default: persistedPlaybackTime
+        case let .ready(_, _, time, _),
+             let .waiting(_, _, time, _),
+             let .playing(_, _, time, _),
+             let .seeking(_, _, time, _),
+             let .paused(_, _, time, _),
+             let .interrupted(_, _, time, _):
+            time
+        case let .finished(_, _, duration):
+            duration ?? 0
+        case .idle, .preparing, .failed:
+            persistedPlaybackTime
         }
     }
     private func updateTimeText() {
@@ -1092,7 +1097,6 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         playbackState = .idle
         playbackIntent = nil
-        playbackTransportPhase = .stopped
         trackBelongsToShow = true
         persistLoadedDisc()
     }
@@ -1108,7 +1112,7 @@ private let listeningCatalogFetchConcurrency = 4
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             persistedPlaybackTime = 0
             pendingResumePosition = nil
-            preparedSongID = nil; playbackState = .idle playbackTransportPhase = .stopped; trackBelongsToShow = true
+            preparedSongID = nil; playbackState = .idle; playbackIntent = nil; trackBelongsToShow = true
             persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
         }
@@ -1395,7 +1399,6 @@ private let listeningCatalogFetchConcurrency = 4
         preparedCompilationDiscs = []
         playbackState = .idle
         playbackIntent = nil
-        playbackTransportPhase = .stopped
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
         updateTimeText()
@@ -1441,13 +1444,6 @@ private let listeningCatalogFetchConcurrency = 4
         playbackState = state
         syncTrackIndex(with: state)
 
-        switch state {
-        case .idle, .preparing, .failed, .finished:
-            playbackTransportPhase = .stopped
-        case .ready, .playing, .paused:
-            break
-        }
-
         if case .failed = state {
             pendingSleeveSongID = nil
             playbackError = BSLocalization.text("暂时无法播放")
@@ -1467,7 +1463,6 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private func applyTransportSample(_ sample: ListeningPlaybackSample) {
-        playbackTransportPhase = sample.phase
         persistedPlaybackTime = max(0, sample.currentTime)
         persistLoadedDisc(currentTime: sample.currentTime, force: !sample.isPlaying)
         completeSleevePlaybackIfNeeded()
@@ -1584,7 +1579,13 @@ private let listeningCatalogFetchConcurrency = 4
     private func syncTrackIndex(with state: ListeningPlaybackState) {
         let songID: String?
         switch state {
-        case let .ready(id, _, _, _), let .playing(id, _, _, _), let .paused(id, _, _, _), let .finished(id, _, _):
+        case let .ready(id, _, _, _),
+             let .waiting(id, _, _, _),
+             let .playing(id, _, _, _),
+             let .seeking(id, _, _, _),
+             let .paused(id, _, _, _),
+             let .interrupted(id, _, _, _),
+             let .finished(id, _, _):
             songID = id
         case .idle, .preparing, .failed:
             songID = nil
