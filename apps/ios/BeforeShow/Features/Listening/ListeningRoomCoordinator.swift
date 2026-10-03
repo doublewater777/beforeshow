@@ -1157,7 +1157,9 @@ private let listeningCatalogFetchConcurrency = 4
         mechanism.updateContents(disc)
         let resume = autoplay || wantsPlayback
         run { [self] in
-            resetPlaybackForTransition(); trackIndex = nextIndex; trackBelongsToShow = true
+            resetPlaybackForTransition(continuingPlayback: resume)
+            trackIndex = nextIndex
+            trackBelongsToShow = true
             persistedPlaybackTime = 0
             pendingResumePosition = nil
             persistLoadedDisc()
@@ -1360,7 +1362,8 @@ private let listeningCatalogFetchConcurrency = 4
         guard disc.tracks.indices.contains(nextIndex) else { return }
         let resume = wantsPlayback
         run { [self] in
-            resetPlaybackForTransition(); trackIndex = nextIndex
+            resetPlaybackForTransition(continuingPlayback: resume)
+            trackIndex = nextIndex
             persistedPlaybackTime = 0
             pendingResumePosition = nil
             persistLoadedDisc()
@@ -1374,11 +1377,17 @@ private let listeningCatalogFetchConcurrency = 4
         persistLoadedDisc(force: true)
     }
 
-    private func resetPlaybackForTransition() {
-        endPlaybackSession(resetTrackSelection: true)
+    private func resetPlaybackForTransition(continuingPlayback: Bool = false) {
+        endPlaybackSession(
+            resetTrackSelection: true,
+            continuingPlayback: continuingPlayback
+        )
     }
 
-    private func endPlaybackSession(resetTrackSelection: Bool) {
+    private func endPlaybackSession(
+        resetTrackSelection: Bool,
+        continuingPlayback: Bool = false
+    ) {
         recordedPlayingSongID = nil
         do {
             try controller?.stop()
@@ -1398,8 +1407,11 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         preparedSource = nil
         preparedCompilationDiscs = []
+        // A same-disc transition keeps the user's Play intent alive while the
+        // old transport is torn down, so physical playback presentation never
+        // depends on same-run-loop update coalescing.
+        playbackIntent = continuingPlayback ? .playing : nil
         playbackState = .idle
-        playbackIntent = nil
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
         updateTimeText()
