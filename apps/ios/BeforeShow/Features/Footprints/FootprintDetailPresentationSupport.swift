@@ -35,15 +35,3 @@ enum FootprintDetailTokens {
     static let infoIconFill = Color.white.opacity(0.05)
     static let savedKeepsakeText = Color.white.opacity(0.74)
 }
-
-enum FootprintPlaybackPolicy {
-    static func isActive(
-        sceneIsActive: Bool,
-        hasMemoryOverlay: Bool,
-        hasAssetOverlay: Bool,
-        hasShareOverlay: Bool,
-        hasEditorOverlay: Bool
-    ) -> Bool {
-        sceneIsActive && !hasMemoryOverlay && !hasAssetOverlay && !hasShareOverlay && !hasEditorOverlay
-    }
-}

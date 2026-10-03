@@ -148,63 +148,6 @@ final class DynamicCoverTests: XCTestCase {
         )
     }
 
-    func testFootprintPlaybackPolicyStopsForAnyOverlayOrInactiveScene() {
-        XCTAssertTrue(
-            FootprintPlaybackPolicy.isActive(
-                sceneIsActive: true,
-                hasMemoryOverlay: false,
-                hasAssetOverlay: false,
-                hasShareOverlay: false,
-                hasEditorOverlay: false
-            )
-        )
-        XCTAssertFalse(
-            FootprintPlaybackPolicy.isActive(
-                sceneIsActive: false,
-                hasMemoryOverlay: false,
-                hasAssetOverlay: false,
-                hasShareOverlay: false,
-                hasEditorOverlay: false
-            )
-        )
-        XCTAssertFalse(
-            FootprintPlaybackPolicy.isActive(
-                sceneIsActive: true,
-                hasMemoryOverlay: true,
-                hasAssetOverlay: false,
-                hasShareOverlay: false,
-                hasEditorOverlay: false
-            )
-        )
-        XCTAssertFalse(
-            FootprintPlaybackPolicy.isActive(
-                sceneIsActive: true,
-                hasMemoryOverlay: false,
-                hasAssetOverlay: true,
-                hasShareOverlay: false,
-                hasEditorOverlay: false
-            )
-        )
-        XCTAssertFalse(
-            FootprintPlaybackPolicy.isActive(
-                sceneIsActive: true,
-                hasMemoryOverlay: false,
-                hasAssetOverlay: false,
-                hasShareOverlay: true,
-                hasEditorOverlay: false
-            )
-        )
-        XCTAssertFalse(
-            FootprintPlaybackPolicy.isActive(
-                sceneIsActive: true,
-                hasMemoryOverlay: false,
-                hasAssetOverlay: false,
-                hasShareOverlay: false,
-                hasEditorOverlay: true
-            )
-        )
-    }
-
     func testCurrentShowPlaybackPolicyRequiresForegroundWithoutOverlay() {
         XCTAssertTrue(
             CurrentShowPlaybackPolicy.isActive(

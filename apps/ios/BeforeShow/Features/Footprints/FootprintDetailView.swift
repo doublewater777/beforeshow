@@ -3,13 +3,6 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-private struct FootprintMemoryTarget: Identifiable {
-    let fragment: MemoryFragment
-    let initialIndex: Int
-
-    var id: UUID { fragment.id }
-}
-
 struct FootprintDetailView: View {
     let show: Show
     let archive: FootprintArchiveSnapshot
@@ -23,15 +16,7 @@ struct FootprintDetailView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
-    @State private var mediaMemoryTarget: FootprintMemoryTarget?
-    @State private var textMemoryTarget: FootprintMemoryTarget?
-    @State private var showingAssetKind: ShowAssetKind?
-    @State private var isShowingShareComposer = false
-    @State private var isShowingDispersalShare = false
-    @State private var isShowingCeremonyEditor = false
-    @State private var isShowingEditor = false
-    @State private var isShowingMemoryPage = false
-    @State private var isShowingDeleteConfirmation = false
+    @State private var presentation = FootprintDetailPresentation()
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
 
@@ -92,13 +77,7 @@ struct FootprintDetailView: View {
     }
 
     private var isDynamicCoverPlaybackActive: Bool {
-        FootprintPlaybackPolicy.isActive(
-            sceneIsActive: scenePhase == .active,
-            hasMemoryOverlay: mediaMemoryTarget != nil || textMemoryTarget != nil || isShowingMemoryPage,
-            hasAssetOverlay: showingAssetKind != nil,
-            hasShareOverlay: isShowingShareComposer || isShowingDispersalShare,
-            hasEditorOverlay: isShowingEditor || isShowingCeremonyEditor
-        )
+        presentation.isPlaybackActive(sceneIsActive: scenePhase == .active)
     }
 
     private var shareRoute: FootprintDetailShareRoute {
@@ -184,15 +163,15 @@ struct FootprintDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button(BSLocalization.text("编辑现场"), systemImage: "square.and.pencil") {
-                        isShowingEditor = true
+                        presentation.present(.editor)
                     }
                     if shareRoute != .none {
                         Button(BSLocalization.text("分享现场"), systemImage: "square.and.arrow.up") {
-                            openShare()
+                            presentation.openShare(shareRoute)
                         }
                     }
                     Button(BSLocalization.text("删除现场"), systemImage: "trash", role: .destructive) {
-                        isShowingDeleteConfirmation = true
+                        presentation.present(.deleteConfirmation)
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -201,94 +180,17 @@ struct FootprintDetailView: View {
                 }
             }
         }
-        .fullScreenCover(item: $mediaMemoryTarget) { target in
-            MemoryFragmentReviewView(
-                showID: show.id,
-                fragment: target.fragment,
-                initialIndex: target.initialIndex
-            )
-        }
-        .sheet(item: $textMemoryTarget) { target in
-            MemoryFragmentReviewView(
-                showID: show.id,
-                fragment: target.fragment,
-                initialIndex: target.initialIndex
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(BSColor.Stage.background)
-            .preferredColorScheme(.dark)
-        }
-        .sheet(item: $showingAssetKind) { kind in
-            ShowAssetSheet(
-                showID: show.id,
-                showName: show.name,
-                kind: kind,
-                onDetailVisibilityChange: onDetailVisibilityChange,
-                keepsParentDetailHidden: true
-            )
-        }
-        .sheet(isPresented: $isShowingMemoryPage) {
-            MemoryFragmentsSheet(show: show)
-        }
-        .sheet(isPresented: $isShowingEditor) {
-            ShowDraftEditorView(
-                title: BSLocalization.text("编辑现场"),
-                draft: ShowDraft(show: show),
-                saveTitle: BSLocalization.text("保存"),
-                statusPillText: session.phase(for: show, now: Date()).statusText,
-                isPostponed: show.changeStatus == .postponed
-            ) { draft in
-                try await apply(draft)
-            }
-        }
-        .fullScreenCover(isPresented: $isShowingShareComposer) {
-            FootprintShareComposerView(
-                show: show,
-                identity: identity,
-                materials: shareMaterials,
-                onClose: { isShowingShareComposer = false }
-            )
-        }
-        .sheet(isPresented: $isShowingDispersalShare) {
-            DispersalCeremonyShareSheet(
-                show: show,
-                identity: identity,
-                rating: show.rating,
-                note: show.closingNote ?? "",
-                onSaved: { presentToast(.success, message: BSLocalization.text("足迹图片已保存")) }
-            )
-            .presentationDetents([.large])
-            .presentationCornerRadius(26)
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $isShowingCeremonyEditor) {
-            DispersalCeremonySheet(
-                show: show,
-                identity: identity,
-                initialStep: .combined,
-                headerTitle: BSLocalization.text("散场评价"),
-                presentsShareAfterCommit: false,
-                onCommit: { rating, note in
-                    try await commitCeremonyData(rating: rating, note: note)
-                }
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(BSColor.Stage.background)
-            .preferredColorScheme(.dark)
-        }
-        .alert(
-            DangerConfirmation.deleteShow.title,
-            isPresented: $isShowingDeleteConfirmation
-        ) {
-            Button(DangerConfirmation.deleteShow.confirmTitle, role: .destructive) {
-                beginDelete()
-            }
-            Button(BSLocalization.text("取消"), role: .cancel) {}
-        } message: {
-            Text(DangerConfirmation.deleteShow.message)
-        }
+        .modifier(FootprintDetailPresentations(
+            presentation: presentation,
+            show: show,
+            identity: { identity },
+            shareMaterials: { shareMaterials },
+            onDetailVisibilityChange: onDetailVisibilityChange,
+            onApplyDraft: apply,
+            onCommitCeremony: commitCeremonyData,
+            onShareSaved: { presentToast(.success, message: BSLocalization.text("足迹图片已保存")) },
+            onDelete: beginDelete
+        ))
         .bsToastOverlay(toast, bottomPadding: BSLayout.tabBarContentInset)
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
@@ -403,7 +305,7 @@ struct FootprintDetailView: View {
     private var memorySection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
             Button {
-                isShowingMemoryPage = true
+                presentation.present(.memoryPage)
             } label: {
                 HStack(alignment: .firstTextBaseline) {
                     Text(BSLocalization.text("记忆碎片"))
@@ -424,7 +326,7 @@ struct FootprintDetailView: View {
             .buttonStyle(.plain)
             if fragments.isEmpty {
                 Button {
-                    isShowingMemoryPage = true
+                    presentation.present(.memoryPage)
                 } label: {
                     VStack(spacing: BSSpacing.compact) {
                         Image(systemName: "sparkles.rectangle.stack")
@@ -448,7 +350,7 @@ struct FootprintDetailView: View {
                 ) {
                     ForEach(Array(fragments.enumerated()), id: \.element.id) { index, fragment in
                         Button {
-                            openMemoryFragment(fragment)
+                            presentation.openMemory(fragment)
                         } label: {
                             FootprintMemoryTile(fragment: fragment)
                         }
@@ -473,7 +375,7 @@ struct FootprintDetailView: View {
             HStack(spacing: BSSpacing.sm) {
                 ForEach(ShowAssetKind.allCases) { kind in
                     Button {
-                        showingAssetKind = kind
+                        presentation.present(.asset(kind))
                     } label: {
                         FootprintKeepsakeTile(kind: kind, asset: asset(for: kind))
                     }
@@ -499,12 +401,12 @@ struct FootprintDetailView: View {
                 if hasContent {
                     Menu {
                         Button {
-                            isShowingCeremonyEditor = true
+                            presentation.present(.ceremonyEditor)
                         } label: {
                             Label(BSLocalization.text("编辑评价"), systemImage: "pencil")
                         }
                         Button {
-                            isShowingDispersalShare = true
+                            presentation.present(.dispersalShare)
                         } label: {
                             Label(BSLocalization.text("分享卡片"), systemImage: "square.and.arrow.up")
                         }
@@ -603,7 +505,7 @@ struct FootprintDetailView: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 18))
         .onTapGesture {
-            isShowingCeremonyEditor = true
+            presentation.present(.ceremonyEditor)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -619,7 +521,7 @@ struct FootprintDetailView: View {
 
     private var dispersalEmptyCard: some View {
         Button {
-            isShowingCeremonyEditor = true
+            presentation.present(.ceremonyEditor)
         } label: {
             HStack(spacing: BSSpacing.md) {
                 ZStack {
@@ -786,17 +688,6 @@ struct FootprintDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func openShare() {
-        switch shareRoute {
-        case .composer:
-            isShowingShareComposer = true
-        case .dispersalCard:
-            isShowingDispersalShare = true
-        case .none:
-            break
-        }
-    }
-
     @MainActor
     private func apply(_ draft: ShowDraft) async throws {
         let didSync = try await ShowMutationCoordinator.applyDraft(
@@ -855,25 +746,9 @@ struct FootprintDetailView: View {
         }
     }
 
-    private func openMemoryFragment(_ fragment: MemoryFragment) {
-        let target = FootprintMemoryTarget(fragment: fragment, initialIndex: 0)
-        if fragment.orderedMediaItems.isEmpty {
-            textMemoryTarget = target
-        } else {
-            mediaMemoryTarget = target
-        }
-    }
-
     private func beginDelete() {
         guard !isDeleting else { return }
-        mediaMemoryTarget = nil
-        textMemoryTarget = nil
-        showingAssetKind = nil
-        isShowingShareComposer = false
-        isShowingDispersalShare = false
-        isShowingCeremonyEditor = false
-        isShowingEditor = false
-        isShowingMemoryPage = false
+        presentation.dismiss()
         isDeleting = true
         Task { @MainActor in
             await Task.yield()

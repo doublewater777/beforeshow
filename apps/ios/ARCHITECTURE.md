@@ -95,6 +95,8 @@ App -> Shared
 
 `Footprints` 的 archive 计算、城市映射、封面解析、可见性策略和艺人媒体回写分别保持独立 owner；不要重新聚合成单个 archive helper 大文件。
 
+`FootprintDetailPresentation` 统一拥有足迹详情的单个 destination、记忆/分享路由与播放暂停规则；`FootprintDetailPresentations` 负责 sheet、fullScreenCover 和删除确认的展示。页面只发起操作，业务 mutation 仍由现有 Coordinator 处理。
+
 `CompanionSharingCoordinator` 只拥有邀请、接受、取消和刷新流程时序；接受邀请的 durable inbox、云同步 opt-in 标记、本地 Show 导入匹配和用户错误文案保持独立 owner。
 
 `Subscription` 的 offer 路由、产品目录、entitlement 编解码、store contract、Mock、RevenueCat 适配、免费容量纯 policy、月度基准持久化/协调和限额文案分别保持独立 owner；不要重新聚合成 `ProSubscription.swift`。
