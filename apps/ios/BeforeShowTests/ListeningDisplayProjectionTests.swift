@@ -231,7 +231,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
                 duration: 180
             ),
             playbackIntent: .playing,
-            transportPhase: .paused,
             playbackError: nil
         )
 
@@ -264,7 +263,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
                 duration: 180
             ),
             playbackIntent: .paused,
-            transportPhase: .playing,
             playbackError: nil
         )
 
