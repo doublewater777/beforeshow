@@ -276,11 +276,7 @@ struct ListeningRoomView: View {
     @ViewBuilder
     private var catalogStatus: some View {
         if room.isAuthorizing {
-            if room.access.authorizationStatus == .authorized && room.libraryDiscs.isEmpty {
-                ListeningShelfSkeleton()
-            } else {
-                ListeningCatalogStatusView(title: ListeningCopy.text("正在准备…"), isLoading: true)
-            }
+            ListeningShelfSkeleton()
         } else if !room.accessResolved {
             ListeningShelfSkeleton()
         } else if room.access.authorizationStatus != .authorized && room.discs.isEmpty {
