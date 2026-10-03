@@ -1,22 +1,22 @@
 import SwiftUI
 
-/// Chrome-only playback intent. `preparing` is treated as active so the compact
-/// playback control never flashes a paused state while a user-initiated track loads.
+/// Chrome renders the unified playback projection instead of guessing from
+/// transport truth or a command timeout.
 enum ListeningMiniPlayerPlaybackAppearance {
     static func showsPlayingState(for phase: ListeningPlayerPhase) -> Bool {
         switch phase {
-        case .preparing, .playing:
+        case .preparing, .waiting, .playing, .seeking:
             return true
-        case .noDisc, .paused, .stopped, .finished, .failed:
+        case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
             return false
         }
     }
 
     static func statusText(for player: ListeningPlayerPresentation) -> String {
         switch player.phase {
-        case .preparing, .playing:
+        case .preparing, .waiting, .playing, .seeking:
             return BSLocalization.text("播放中")
-        case .paused:
+        case .paused, .interrupted:
             return BSLocalization.text("暂停")
         case .noDisc, .stopped, .finished, .failed:
             return player.statusText
@@ -339,12 +339,9 @@ private struct ListeningCompactPlaybackControl: View {
     private let spinDegreesPerSecond = 128.0
 
     private var showsPlayingState: Bool {
-        switch room.playbackState {
-        case .preparing, .playing:
-            return true
-        default:
-            return false
-        }
+        ListeningMiniPlayerPlaybackAppearance.showsPlayingState(
+            for: room.display.player.phase
+        )
     }
     private var artworkURL: URL? {
         ListeningMiniPlayerArtworkSource.resolve(
