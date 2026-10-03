@@ -99,8 +99,11 @@ struct ListeningDiscPresentation: Equatable {
 enum ListeningPlayerPhase: Equatable {
     case noDisc
     case preparing
+    case waiting
     case playing
+    case seeking
     case paused
+    case interrupted
     case stopped
     case finished
     case failed
@@ -116,20 +119,31 @@ struct ListeningPlayerPresentation: Equatable {
     let errorText: String?
     let noDiscMessage: String?
 
+    var isPlaybackActive: Bool {
+        switch phase {
+        case .preparing, .waiting, .playing, .seeking:
+            true
+        case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
+            false
+        }
+    }
+
+    var shouldRotateDisc: Bool { isPlaybackActive }
+
     var statusText: String {
         if let errorText, phase == .failed { return errorText }
         if let blockingReason, phase == .stopped { return blockingReason }
         switch phase {
         case .noDisc:
             return noDiscMessage ?? ListeningCopy.text("暂不可播放")
-        case .preparing:
+        case .preparing, .waiting:
             return ListeningCopy.text("载入中…")
-        case .playing:
+        case .playing, .seeking:
             if source == .preview, let previewRemaining {
                 return ListeningCopy.format("试听中 · 剩余 %d 秒", Int(ceil(max(0, previewRemaining))))
             }
             return ListeningCopy.text("播放中")
-        case .paused:
+        case .paused, .interrupted:
             if source == .preview, let previewRemaining {
                 return ListeningCopy.format("试听暂停 · 剩余 %d 秒", Int(ceil(max(0, previewRemaining))))
             }
@@ -184,6 +198,8 @@ enum ListeningDisplayProjector {
         isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
         playbackState: ListeningPlaybackState,
+        playbackIntent: ListeningPlaybackTransportTarget? = nil,
+        transportPhase: ListeningPlaybackTransportPhase? = nil,
         playbackError: String?
     ) -> ListeningDisplayProjection {
         let hasAnyTracks = allDiscs.contains(where: { !$0.tracks.isEmpty })
@@ -206,6 +222,8 @@ enum ListeningDisplayProjector {
             currentTrack: currentTrack,
             trackPresentation: currentTrackState,
             playbackState: playbackState,
+            playbackIntent: playbackIntent,
+            transportPhase: transportPhase,
             playbackError: playbackError
         )
 
@@ -424,6 +442,8 @@ enum ListeningDisplayProjector {
         currentTrack: ListeningDiscTrack?,
         trackPresentation: ListeningTrackPresentation?,
         playbackState: ListeningPlaybackState,
+        playbackIntent: ListeningPlaybackTransportTarget?,
+        transportPhase: ListeningPlaybackTransportPhase?,
         playbackError: String?
     ) -> ListeningPlayerPresentation {
         guard loadedDisc != nil, isDiscSeated, currentTrack != nil, let trackPresentation else {
@@ -482,20 +502,46 @@ enum ListeningDisplayProjector {
             )
         }
 
+        let observedPhase = transportPhase ?? inferredTransportPhase(from: playbackState)
         let phase: ListeningPlayerPhase
-        switch playbackState {
-        case .preparing:
+        if case .preparing = playbackState {
             phase = .preparing
-        case .playing:
-            phase = .playing
-        case .paused:
+        } else if playbackIntent == .paused {
+            // Pause is an immediate user command. Keep transport truth separate,
+            // but let controls and physical presentation stop in the same turn.
             phase = .paused
-        case .finished:
-            phase = .finished
-        case .idle, .ready:
-            phase = .stopped
-        case .failed:
-            phase = .failed
+        } else {
+            switch observedPhase {
+            case .waiting:
+                phase = .waiting
+            case .seeking:
+                phase = .seeking
+            case .interrupted:
+                phase = .interrupted
+            case .playing:
+                phase = .playing
+            case .paused:
+                phase = playbackIntent == .playing ? .waiting : .paused
+            case .stopped:
+                if playbackIntent == .playing {
+                    phase = .waiting
+                } else {
+                    switch playbackState {
+                    case .finished:
+                        phase = .finished
+                    case .paused:
+                        phase = .paused
+                    case .playing:
+                        phase = .playing
+                    case .idle, .ready:
+                        phase = .stopped
+                    case .preparing:
+                        phase = .preparing
+                    case .failed:
+                        phase = .failed
+                    }
+                }
+            }
         }
 
         let lidReason = isLidClosed ? nil : ListeningCopy.text("请先合上播放器上盖")
@@ -509,6 +555,19 @@ enum ListeningDisplayProjector {
             errorText: nil,
             noDiscMessage: nil
         )
+    }
+
+    private static func inferredTransportPhase(
+        from state: ListeningPlaybackState
+    ) -> ListeningPlaybackTransportPhase {
+        switch state {
+        case .playing:
+            .playing
+        case .paused:
+            .paused
+        case .idle, .preparing, .ready, .finished, .failed:
+            .stopped
+        }
     }
 
     private static func noDiscMessage(for mode: ListeningRoomPlaybackMode) -> String {
@@ -574,6 +633,8 @@ extension ListeningRoomCoordinator {
             isLidClosed: mechanism.isClosed,
             currentTrack: track,
             playbackState: playbackState,
+            playbackIntent: playbackIntent,
+            transportPhase: playbackTransportPhase,
             playbackError: playbackError
         )
     }
