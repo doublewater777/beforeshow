@@ -106,17 +106,20 @@ final class CompanionInviteClipboardDetector {
         userDefaults: UserDefaults = .standard
     ) async -> (success: Bool, errorMessage: String?) {
         do {
-            try await CloudKitCompanionSharingService().ensureAccountAvailable()
-            let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: snapshot.shareURL)
-            let session = try await CloudKitCompanionSharingService().acceptShare(
-                metadata: metadata,
-                participantDisplayName: CompanionUserProfile.nickname
-            )
-            try CompanionAcceptedSessionImporter.apply(
-                session,
-                in: modelContext,
-                strategy: .automatic
-            )
+            _ = try await CompanionJoinOperation.run(
+                source: "onboarding", in: modelContext, strategy: .automatic
+            ) { attempt in
+                attempt.stage = "account_check"
+                try await CloudKitCompanionSharingService().ensureAccountAvailable()
+                attempt.stage = "metadata_load"
+                let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: snapshot.shareURL)
+                attempt.linkSession(metadata.hierarchicalRootRecordID?.recordName)
+                attempt.stage = "cloud_accept"
+                return try await CloudKitCompanionSharingService().acceptShare(
+                    metadata: metadata,
+                    participantDisplayName: CompanionUserProfile.nickname
+                )
+            }
             CompanionCloudSyncMarker.enable(in: userDefaults, usesKeychain: true)
             markTokenProcessed(snapshot.token, userDefaults: userDefaults)
             OnboardingCompletionStore.markCompleted(in: userDefaults)

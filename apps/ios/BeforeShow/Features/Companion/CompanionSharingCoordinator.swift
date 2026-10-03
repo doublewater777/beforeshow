@@ -51,60 +51,35 @@ final class CompanionSharingCoordinator {
         in modelContext: ModelContext
     ) async throws -> CompanionPreparedShare {
         enableCloudSync()
-        let snapshotBefore = show.companionStateSnapshot()
-        let cloudBefore = show.companionCloudLinkageSnapshot()
-
-        if show.companionStatus == .canceled, show.companionShareLocator != nil {
-            throw CompanionSharingError.conflict
-        }
-
         do {
-            switch show.companionStatus {
-            case .none, .canceled:
-                try show.markCompanionInvitationSent(name: preferredParticipantName)
-            case .pending:
-                show.applyCompanionState(status: .pending, name: preferredParticipantName)
-            case .confirmed:
-                throw ShowCompanionMutationError.invalidTransition(from: .confirmed, to: .pending)
-            }
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            throw error
-        }
-
-        do {
-            let prepared = try await service.prepareInvitation(
-                show: CompanionShowSnapshot(show: show),
+            return try await CompanionInvitationPreparation.run(
+                service: service, show: show,
+                preferredParticipantName: preferredParticipantName,
                 ownerDisplayName: ownerDisplayName,
-                preferredParticipantName: preferredParticipantName
-            )
-            show.applyCompanionSession(
-                prepared.session,
-                isOwner: true,
-                preferredName: preferredParticipantName
-            )
-            try modelContext.save()
-            return prepared
-        } catch {
-            let failure = try CompanionInvitePreparationRecovery.resolve(
-                error,
-                show: show,
-                preferredName: preferredParticipantName,
-                previousState: snapshotBefore,
-                previousLinkage: cloudBefore,
                 in: modelContext
             )
-            recordError(failure)
-            throw failure
+        } catch {
+            recordError(error)
+            throw error
         }
     }
 
     func shareSystemFieldsForResend(show: Show) async throws -> Data {
-        guard let shareLocator = show.companionShareLocator else {
-            throw CompanionSharingError.sessionNotFound
+        let attempt = CompanionAnalyticsAttempt(
+            .invitation, source: "resend", sessionRecordName: show.companionCloudRecordName
+        )
+        do {
+            guard let shareLocator = show.companionShareLocator else {
+                throw CompanionSharingError.sessionNotFound
+            }
+            attempt.stage = "cloud_load"
+            let data = try await service.loadShareSystemFields(shareLocator: shareLocator)
+            attempt.finish(.succeeded)
+            return data
+        } catch {
+            attempt.finish(.failed, error: error)
+            throw error
         }
-        return try await service.loadShareSystemFields(shareLocator: shareLocator)
     }
 
     func handleAcceptedShare(
@@ -115,15 +90,15 @@ final class CompanionSharingCoordinator {
     ) async {
         enableCloudSync()
         do {
-            let session = try await service.acceptShare(
-                metadata: metadata,
-                participantDisplayName: participantDisplayName
-            )
-            let importResult = try CompanionAcceptedSessionImporter.apply(
-                session,
-                in: modelContext,
-                strategy: importStrategy
-            )
+            let (session, importResult) = try await CompanionJoinOperation.run(
+                source: "confirmation", in: modelContext, strategy: importStrategy
+            ) { attempt in
+                attempt.linkSession(metadata.hierarchicalRootRecordID?.recordName)
+                return try await service.acceptShare(
+                    metadata: metadata,
+                    participantDisplayName: participantDisplayName
+                )
+            }
             pendingAcceptResult = importResult
             pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
                 ownerDisplayName: session.ownerDisplayName,

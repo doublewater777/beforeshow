@@ -10,6 +10,8 @@ final class CompanionJoinGateTests: XCTestCase {
     }
 
     func testPendingSharedSessionIsNotImportedBeforeJoinConfirmation() async throws {
+        let analytics = CompanionAnalyticsRecorder()
+        defer { analytics.close() }
         let suiteName = "CompanionJoinGateTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -59,6 +61,7 @@ final class CompanionJoinGateTests: XCTestCase {
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<Show>()).isEmpty)
         XCTAssertNil(coordinator.pendingAcceptResult)
         XCTAssertNil(coordinator.pendingAcceptMessage)
+        XCTAssertTrue(analytics.events.isEmpty, "Background discovery must not count as an explicit join")
     }
 
     func testLiveAcceptedShowOffersCurrentSwitchWhenAnotherShowIsCurrent() throws {

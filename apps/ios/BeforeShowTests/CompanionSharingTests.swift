@@ -512,6 +512,8 @@ final class CompanionSharingTests: XCTestCase {
 
     @MainActor
     func testCoordinatorPrepareInvitationUsesServiceAndRollsBackOnFailure() async throws {
+        let analytics = CompanionAnalyticsRecorder()
+        defer { analytics.close() }
         let service = MockCompanionSharingService()
         service.prepareError = CompanionSharingError.networkFailure
         let coordinator = makeCoordinator(service: service)
@@ -540,6 +542,32 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertNil(show.companionName)
         XCTAssertNil(show.companionCloudRecordName)
         XCTAssertNil(show.companionCloudZoneName)
+        let failed = try XCTUnwrap(analytics.events.last)
+        XCTAssertEqual(failed.name, "companion_invitation_finished")
+        XCTAssertEqual(failed.properties["outcome"] as? String, "failed")
+        XCTAssertEqual(failed.properties["error_category"] as? String, "network_failure")
+        XCTAssertEqual(failed.properties["stage"] as? String, "cloud_prepare")
+
+        service.prepareError = nil
+        _ = try await coordinator.prepareInvitation(
+            for: show, preferredParticipantName: "林嘉", ownerDisplayName: "Alex", in: context
+        )
+        XCTAssertEqual(analytics.events.map(\.name), [
+            "companion_invitation_started", "companion_invitation_finished",
+            "companion_invitation_started", "companion_invitation_finished"
+        ])
+        let succeeded = try XCTUnwrap(analytics.events.last)
+        XCTAssertEqual(succeeded.properties["outcome"] as? String, "succeeded")
+        XCTAssertEqual(succeeded.properties["stage"] as? String, "local_link")
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(succeeded.properties["duration_ms"] as? Double), 0)
+        XCTAssertEqual(analytics.events[0].properties["attempt_id"] as? String, failed.properties["attempt_id"] as? String)
+        XCTAssertEqual(analytics.events[2].properties["attempt_id"] as? String, succeeded.properties["attempt_id"] as? String)
+        XCTAssertNotEqual(failed.properties["attempt_id"] as? String, succeeded.properties["attempt_id"] as? String)
+        let properties = try JSONSerialization.data(withJSONObject: succeeded.properties)
+        let payload = String(decoding: properties, as: UTF8.self)
+        for privateValue in ["林嘉", "Alex", show.name, show.id.uuidString, try XCTUnwrap(show.companionCloudRecordName)] {
+            XCTAssertFalse(payload.contains(privateValue))
+        }
     }
 
     @MainActor
@@ -581,6 +609,8 @@ final class CompanionSharingTests: XCTestCase {
 
     @MainActor
     func testCoordinatorKeepsPersistedShareLinkageWhenURLPreparationFails() async throws {
+        let analytics = CompanionAnalyticsRecorder()
+        defer { analytics.close() }
         let service = MockCompanionSharingService()
         let coordinator = makeCoordinator(service: service)
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -628,6 +658,13 @@ final class CompanionSharingTests: XCTestCase {
         let resend = try await coordinator.shareSystemFieldsForResend(show: show)
         XCTAssertEqual(resend, Data([0x01, 0x02]))
         XCTAssertEqual(service.prepareCallCount, 1, "Retry should reuse the persisted share")
+        let completed = analytics.events.filter { $0.name == "companion_invitation_finished" }
+        XCTAssertEqual(completed.count, 2)
+        XCTAssertEqual(completed[0].properties["outcome"] as? String, "failed")
+        XCTAssertEqual(completed[1].properties["outcome"] as? String, "succeeded")
+        XCTAssertEqual(completed[1].properties["source"] as? String, "resend")
+        XCTAssertEqual(completed[0].properties["session_id"] as? String, completed[1].properties["session_id"] as? String)
+        XCTAssertEqual((completed[0].properties["session_id"] as? String)?.count, 64)
     }
 
     @MainActor

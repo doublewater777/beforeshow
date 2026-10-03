@@ -249,20 +249,23 @@ enum SystemCloudSharePresenter {
     static func present(
         shareData: Data,
         show: CompanionShowSnapshot,
-        containerIdentifier: String,
+        sessionRecordName: String? = nil,
         coverImage: UIImage? = nil,
         onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
         onDismiss: @escaping (_ completed: Bool) -> Void,
         onPresented: (() -> Void)? = nil
     ) -> Bool {
+        let attempt = CompanionAnalyticsAttempt(.share, source: "system_sheet", sessionRecordName: sessionRecordName)
+        attempt.stage = "share_decode"
         guard let share = try? CloudKitCompanionSharingService.unarchiveShare(from: shareData) else {
             CompanionDebugLog.write("CompanionShare: unarchive share failed (bytes=\(shareData.count))")
+            attempt.finish(.failed, error: CompanionSharingError.invalidPayload)
             return false
         }
         return present(
             share: share,
             show: show,
-            container: CKContainer(identifier: containerIdentifier),
+            attempt: attempt,
             coverImage: coverImage,
             onEvent: onEvent,
             onDismiss: onDismiss,
@@ -270,22 +273,24 @@ enum SystemCloudSharePresenter {
         )
     }
 
-    @discardableResult
-    static func present(
+    private static func present(
         share: CKShare,
         show: CompanionShowSnapshot,
-        container _: CKContainer,
-        coverImage: UIImage? = nil,
+        attempt: CompanionAnalyticsAttempt,
+        coverImage: UIImage?,
         onEvent _: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
         onDismiss: @escaping (_ completed: Bool) -> Void,
-        onPresented: (() -> Void)? = nil
+        onPresented: (() -> Void)?
     ) -> Bool {
+        attempt.stage = "presentation"
         guard let invitationURL = share.url,
               let presenter = SystemPNGSharePresenter.topViewController() else {
             CompanionDebugLog.write("CompanionShare: missing invitationURL or topViewController")
+            attempt.finish(.failed, errorCategory: share.url == nil ? "missing_share_url" : "presentation_unavailable")
             return false
         }
         if presenter is UIActivityViewController {
+            attempt.finish(.failed, errorCategory: "presentation_busy")
             return false
         }
 
@@ -298,6 +303,7 @@ enum SystemCloudSharePresenter {
             ownerName: ownerName
         ) else {
             CompanionDebugLog.write("CompanionShare: CompanionInviteWebLink.make failed for url=\(invitationURL)")
+            attempt.finish(.failed, error: CompanionSharingError.invalidPayload)
             return false
         }
         let title = BSLocalization.format("一起去 %@", show.showName)
@@ -312,9 +318,10 @@ enum SystemCloudSharePresenter {
             activityItems: [CompanionInviteActivityItemSource(url: webURL, title: title, coverImage: resolvedCoverImage)],
             applicationActivities: nil
         )
-        controller.completionWithItemsHandler = { _, completed, _, _ in
+        controller.completionWithItemsHandler = { _, completed, _, error in
             Task { @MainActor in
-                onDismiss(completed)
+                attempt.finishSystemShare(completed: completed, error: error)
+                onDismiss(completed && error == nil)
             }
         }
         if let popover = controller.popoverPresentationController {

@@ -759,7 +759,7 @@ struct CurrentShowCompanionSheet: View {
         let presented = SystemCloudSharePresenter.present(
             shareData: data,
             show: CompanionShowSnapshot(show: show),
-            containerIdentifier: CloudKitCompanionSharingService.defaultContainerIdentifier,
+            sessionRecordName: show.companionCloudRecordName,
             coverImage: coverImage,
             onEvent: { event, share, error in
                 Task { @MainActor in
