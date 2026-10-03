@@ -15,7 +15,7 @@ enum ListeningRoomPlaybackMode: Equatable {
 
     var title: String {
         switch self {
-        case .connecting: ListeningCopy.text("连接中…")
+        case .connecting: ListeningCopy.text("正在准备…")
         case .fullPlayback: ListeningCopy.text("完整播放")
         case .preview: ListeningCopy.text("试听模式")
         case .metadataOnly: ListeningCopy.text("仅歌曲信息")
@@ -520,7 +520,7 @@ enum ListeningDisplayProjector {
         case .unavailable:
             ListeningCopy.text("当前暂不可播放")
         case .connecting:
-            ListeningCopy.text("连接中…")
+            ListeningCopy.text("正在准备…")
         }
     }
 

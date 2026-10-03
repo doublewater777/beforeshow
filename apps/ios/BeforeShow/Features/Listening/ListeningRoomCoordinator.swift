@@ -414,6 +414,10 @@ private let listeningCatalogFetchConcurrency = 4
     func prepareForDisplay(show: Show) {
         let newKey = catalogKey(for: show)
         if self.show?.id != show.id {
+            // Visible failures belong to the room the user just left. Retry work,
+            // including playback-evidence persistence, continues independently.
+            errorText = nil
+            playbackError = nil
             cancelFeaturedPlaylistTasks(clearLoaded: true)
             initialLoaded = false
             browser = ListeningBrowseState()

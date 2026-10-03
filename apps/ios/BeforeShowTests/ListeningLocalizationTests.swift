@@ -27,7 +27,7 @@ final class ListeningLocalizationTests: XCTestCase {
     func testListeningCapabilityProjectionCopyExistsInThreeLanguages() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
         let keys: Set<String> = [
-            "连接中…", "完整播放", "试听模式", "仅歌曲信息", "暂不可播放",
+            "正在准备…", "完整播放", "试听模式", "仅歌曲信息", "暂不可播放",
             "立即授权", "打开设置", "重试", "试听", "部分曲目可试听", "30 秒试听",
             "载入中…", "试听中 · 剩余 %d 秒", "播放中", "试听暂停 · 剩余 %d 秒",
             "暂停", "停止", "播放结束", "暂时无法播放", "选择一张唱片开始播放",
@@ -64,6 +64,10 @@ final class ListeningLocalizationTests: XCTestCase {
 
 @MainActor
 final class ListeningReviewerRegressionTests: XCTestCase {
+    func testConnectingCopyDescribesPreparation() {
+        XCTAssertEqual(ListeningRoomPlaybackMode.connecting.title, ListeningCopy.text("正在准备…"))
+    }
+
     func testCurrentShowChangeClearsOldChromeAndLoadedDisc() async throws {
         resetChromeGlobals()
         defer { resetChromeGlobals() }

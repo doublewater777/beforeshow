@@ -279,7 +279,7 @@ struct ListeningRoomView: View {
             if room.access.authorizationStatus == .authorized && room.libraryDiscs.isEmpty {
                 ListeningShelfSkeleton()
             } else {
-                ListeningCatalogStatusView(title: ListeningCopy.text("连接中…"), isLoading: true)
+                ListeningCatalogStatusView(title: ListeningCopy.text("正在准备…"), isLoading: true)
             }
         } else if !room.accessResolved {
             ListeningShelfSkeleton()
