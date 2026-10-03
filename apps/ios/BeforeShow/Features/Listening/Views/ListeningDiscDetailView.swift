@@ -82,7 +82,7 @@ struct ListeningDiscDetailView: View {
                     ListeningDiscDetailHero(
                         disc: disc, show: room.show, artists: artistsSummary,
                         metadata: metadataSummary, isLoaded: isLoaded,
-                        isPlaying: isLoaded && room.isPlaying,
+                        isPlaying: isLoaded && room.display.player.isPlaybackActive,
                         containsHeardSongs: room.containsHeardSongs(disc)
                     )
 
