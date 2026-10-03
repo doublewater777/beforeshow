@@ -131,6 +131,29 @@ final class ListeningWidgetTests: XCTestCase {
         XCTAssertFalse(fallback?.isPlaying ?? true)
     }
 
+    func testWidgetOptimisticToggleUsesDesiredPlaybackAction() {
+        XCTAssertFalse(
+            ListeningWidgetPlaybackProjection.optimisticIsPlaying(
+                action: .pause,
+                currentDesiredPlayback: true
+            ),
+            "pending Play/waiting must flip immediately to Play when the user requests Pause"
+        )
+        XCTAssertTrue(
+            ListeningWidgetPlaybackProjection.optimisticIsPlaying(
+                action: .play,
+                currentDesiredPlayback: false
+            ),
+            "pending Pause/paused must flip immediately to Pause when the user requests Play"
+        )
+        XCTAssertTrue(
+            ListeningWidgetPlaybackProjection.optimisticIsPlaying(
+                action: .disabled,
+                currentDesiredPlayback: true
+            )
+        )
+    }
+
     @MainActor
     func testListeningIntentBridgeInvocation() async throws {
         final class MockIntentHandler: ListeningIntentHandling {
@@ -146,6 +169,7 @@ final class ListeningWidgetTests: XCTestCase {
         await ListeningIntentBridge.performTogglePlayPause()
         XCTAssertEqual(mock.toggleCallCount, 1)
     }
+
 
     func testListeningWidgetKindsRegistered() {
         XCTAssertTrue(BeforeShowWidgetKind.all.contains(BeforeShowWidgetKind.homeListening))

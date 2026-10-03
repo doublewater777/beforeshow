@@ -199,8 +199,8 @@ struct ListeningRoomView: View {
                                 }
                             )
                             .padding(.horizontal, -BSSpacing.roomy)
-                            .opacity(room.isPlaying ? BSListeningTokens.selectionRestingOpacity : 1)
-                            .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: room.isPlaying)
+                            .opacity(room.display.player.isPlaybackActive ? BSListeningTokens.selectionRestingOpacity : 1)
+                            .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: room.display.player.isPlaybackActive)
                         }
 
                         let geometry = room.mechanism.configuration.geometry
@@ -208,8 +208,8 @@ struct ListeningRoomView: View {
                         ListeningCabinetView(room: room, scale: scale, showAll: { showsCabinet = true }, showDetails: { room.browser.open($0) }) {
                             catalogStatus
                         }
-                        .opacity(room.isPlaying ? BSListeningTokens.selectionRestingOpacity : 1)
-                        .animation(reduceMotion ? nil : BSListeningTokens.selectionAnimation, value: room.isPlaying)
+                        .opacity(room.display.player.isPlaybackActive ? BSListeningTokens.selectionRestingOpacity : 1)
+                        .animation(reduceMotion ? nil : BSListeningTokens.selectionAnimation, value: room.display.player.isPlaybackActive)
 
                         ListeningMachineView(room: room, scale: scale, showDetails: { room.browser.open($0) })
                             .coordinateSpace(name: "playerStage")

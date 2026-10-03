@@ -620,35 +620,44 @@ import SwiftData
     }
 
     func testFailedPlaybackRetryRebuildsTransport() async throws {
-        let (container, show) = try ListenTestData.make()
-        var services: [RetryPlaybackService] = []
-        let room = ListeningRoomCoordinator(
-            context: container.mainContext,
-            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
-            artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in
-                let service = RetryPlaybackService()
-                services.append(service)
-                return service
+        for openLidBeforeRetry in [false, true] {
+            let (container, show) = try ListenTestData.make()
+            var services: [RetryPlaybackService] = []
+            let room = ListeningRoomCoordinator(
+                context: container.mainContext,
+                catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+                artistSearchService: ListeningFixtureArtistSearch(),
+                playbackFactory: { _ in
+                    let service = RetryPlaybackService()
+                    services.append(service)
+                    return service
+                }
+            )
+            await room.load(show: show)
+            let disc = try XCTUnwrap(room.discs.first)
+            room.restoreDisc(disc)
+            try await ListenTestData.settle(room) { room.track != nil && !room.busy }
+            room.playPause()
+            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            XCTAssertEqual(services.count, 1)
+            services[0].failure = .songUnavailable(try XCTUnwrap(room.track?.id))
+            room.tick()
+            XCTAssertEqual(room.playbackState, .failed)
+            XCTAssertNotNil(room.playbackError)
+            services[0].failure = nil
+            if openLidBeforeRetry {
+                room.mechanism.setLid(open: true)
+                try await ListenTestData.settle(room) { room.mechanism.isOpen }
+                room.tickMechanism()
             }
-        )
-        await room.load(show: show)
-        let disc = try XCTUnwrap(room.discs.first)
-        room.restoreDisc(disc)
-        try await ListenTestData.settle(room) { room.track != nil && !room.busy }
-        room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        XCTAssertEqual(services.count, 1)
-        services[0].failure = .songUnavailable(try XCTUnwrap(room.track?.id))
-        room.tick()
-        XCTAssertEqual(room.playbackState, .failed)
-        XCTAssertNotNil(room.playbackError)
-        services[0].failure = nil
-        room.retryCurrentPlayback()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        XCTAssertEqual(services.count, 2)
-        XCTAssertEqual(services[1].prepareCount, 1)
-        room.stop(); room.mechanism.motion.stop()
+            room.retryCurrentPlayback()
+            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            XCTAssertEqual(services.count, 2)
+            let replacement = try XCTUnwrap(services.dropFirst().first)
+            XCTAssertEqual(replacement.prepareCount, 1)
+            XCTAssertTrue(room.mechanism.isClosed)
+            room.stop(); room.mechanism.motion.stop()
+        }
     }
 
     private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async throws {

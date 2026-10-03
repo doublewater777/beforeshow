@@ -39,9 +39,7 @@ private let listeningCatalogFetchConcurrency = 4
         opensWithoutStopping = true
         trackIndex = 0
         preparedSongID = nil
-        playbackState = .idle
-        transportPlaybackState = .idle
-        transportPlaybackPhase = .stopped
+        playback = ListeningPlaybackSnapshot()
         trackBelongsToShow = true
     }
     #endif
@@ -49,15 +47,16 @@ private let listeningCatalogFetchConcurrency = 4
     private(set) var access = ListeningMusicAccess(authorizationStatus: .notDetermined, canPlayCatalogContent: false)
     private(set) var isAuthorizing = false
     private(set) var isCatalogEnriching = false
-    /// Presentation state may optimistically reflect a pending user command.
-    /// Domain side effects must use `transportPlaybackState` instead.
-    private(set) var playbackState: ListeningPlaybackState = .idle {
+    /// Transport and intent change together, so the UI cannot observe a half-updated session.
+    private(set) var playback = ListeningPlaybackSnapshot() {
         didSet { updateTimeText() }
     }
-    @ObservationIgnored private var transportPlaybackState: ListeningPlaybackState = .idle
-    @ObservationIgnored private var transportPlaybackPhase: ListeningPlaybackTransportPhase = .stopped
+    var playbackState: ListeningPlaybackState { playback.state }
+    var playbackIntent: ListeningPlaybackTransportTarget? { playback.intent }
     var isPlaying: Bool { playbackState.isPlaying }
-    private var transportIsPlaying: Bool { transportPlaybackPhase.isPlaying }
+    var wantsPlayback: Bool { playback.wantsPlayback }
+    var playPauseAction: ListeningPlayPauseAction { display.player.playPauseAction }
+    private var transportIsPlaying: Bool { playbackState.isPlaying }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
     private(set) var persistedPlaybackTime: TimeInterval = 0 {
@@ -256,9 +255,7 @@ private let listeningCatalogFetchConcurrency = 4
                 ? state.songID.map { ($0, persistedPlaybackTime) }
                 : nil
             preparedSongID = nil
-            playbackState = .idle
-            transportPlaybackState = .idle
-            transportPlaybackPhase = .stopped
+            playback = ListeningPlaybackSnapshot()
             trackBelongsToShow = true
         } catch {}
     }
@@ -308,7 +305,7 @@ private let listeningCatalogFetchConcurrency = 4
     var defaultDisc: ListeningDisc? {
         compilationDiscs.first ?? discs.first
     }
-    /// - Parameter isPlayingOverride: 小组件按键的乐观状态，真实播放落定前先写入
+    /// - Parameter isPlayingOverride: Optional widget-local command projection.
     func syncWidgetListeningState(isPlayingOverride: Bool? = nil) {
         // 未装碟时展示播放键将要装入的唱片；封面只用唱片封面，现场海报留给倒计时小组件
         let disc = mechanism.disc ?? defaultDisc
@@ -323,7 +320,7 @@ private let listeningCatalogFetchConcurrency = 4
             trackTitle: currentTrack?.title,
             coverImageURL: artwork,
             trackCount: disc?.tracks.count,
-            isPlaying: isPlayingOverride ?? isPlaying,
+            isPlaying: isPlayingOverride ?? wantsPlayback,
             generatedAt: Date()
         )
         let previous = WidgetListeningStore.read()
@@ -376,9 +373,17 @@ private let listeningCatalogFetchConcurrency = 4
 
     var elapsed: TimeInterval {
         switch playbackState {
-        case let .ready(_, _, time, _), let .playing(_, _, time, _), let .paused(_, _, time, _): time
-        case let .finished(_, _, duration): duration ?? 0
-        default: persistedPlaybackTime
+        case let .ready(_, _, time, _),
+             let .waiting(_, _, time, _),
+             let .playing(_, _, time, _),
+             let .seeking(_, _, time, _),
+             let .paused(_, _, time, _),
+             let .interrupted(_, _, time, _):
+            time
+        case let .finished(_, _, duration):
+            duration ?? 0
+        case .idle, .preparing, .failed:
+            persistedPlaybackTime
         }
     }
     private func updateTimeText() {
@@ -390,6 +395,39 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func capability(for track: ListeningDiscTrack?) -> ListeningMusicCapability {
         ListeningMusicCapabilityResolver.resolve(access: access, hasPreviewAsset: track?.previewURL != nil, hasCatalogMetadata: track != nil)
+    }
+
+    func canReuseEstablishedFullCatalogTransport(for track: ListeningDiscTrack) -> Bool {
+        guard controller != nil,
+              preparedSource == .fullCatalog,
+              preparedSongID != nil,
+              !playbackState.isFinished,
+              access.authorizationStatus == .authorized,
+              access.catalogPlaybackAccess == .accessCheckFailed,
+              mechanism.position == .seated,
+              mechanism.disc?.tracks.contains(where: { $0.id == track.id }) == true else {
+            return false
+        }
+        return true
+    }
+
+    private func moveWithinEstablishedFullCatalogTransport(
+        by delta: Int,
+        autoplay: Bool
+    ) {
+        guard delta != 0, let controller else { return }
+        run { [self] in
+            for _ in 0..<abs(delta) {
+                if delta > 0 {
+                    try await controller.skipToNext()
+                } else {
+                    try await controller.skipToPrevious()
+                }
+            }
+            if autoplay, !controller.wantsPlayback {
+                try await controller.play()
+            }
+        }
     }
     var capabilityTitle: String {
         switch capability(for: track) {
@@ -1085,7 +1123,11 @@ private let listeningCatalogFetchConcurrency = 4
     }
     var shelfDiscs: [ListeningDisc] { display.shelfDiscs }
     func isPlayingDisc(_ disc: ListeningDisc) -> Bool {
-        guard isPlaying, mechanism.hasDisc, mechanism.disc?.id == disc.id else { return false }
+        guard display.player.isPlaybackActive,
+              mechanism.hasDisc,
+              mechanism.disc?.id == disc.id else {
+            return false
+        }
         return libraryDiscs.contains { $0.id == disc.id }
     }
     func excludeArtist(_ artistID: String, excluded: Bool) {
@@ -1139,9 +1181,7 @@ private let listeningCatalogFetchConcurrency = 4
         pendingResumePosition = nil
         preparedDiscID = nil
         preparedSongID = nil
-        playbackState = .idle
-        transportPlaybackState = .idle
-        transportPlaybackPhase = .stopped
+        playback = ListeningPlaybackSnapshot()
         trackBelongsToShow = true
         persistLoadedDisc()
     }
@@ -1157,7 +1197,7 @@ private let listeningCatalogFetchConcurrency = 4
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             persistedPlaybackTime = 0
             pendingResumePosition = nil
-            preparedSongID = nil; playbackState = .idle; transportPlaybackState = .idle; transportPlaybackPhase = .stopped; trackBelongsToShow = true
+            preparedSongID = nil; playback = ListeningPlaybackSnapshot(); trackBelongsToShow = true
             persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
         }
@@ -1167,12 +1207,13 @@ private let listeningCatalogFetchConcurrency = 4
         sleevePlaybackSongID = nil
         guard discs.contains(where: { $0.id == disc.id }),
               let selectedTrack = disc.tracks.first(where: { $0.id == songID }),
-              ListeningPlaybackSourceResolver.resolve(capability: capability(for: selectedTrack)) != nil else {
+              ListeningPlaybackSourceResolver.resolve(capability: capability(for: selectedTrack)) != nil
+                || canReuseEstablishedFullCatalogTransport(for: selectedTrack) else {
             playbackError = BSLocalization.text("暂不可播放")
             return
         }
         playbackError = nil
-        if mechanism.disc == disc, track?.id == songID, isPlaying {
+        if mechanism.disc == disc, track?.id == songID, wantsPlayback {
             sleevePlaybackSongID = songID
             return
         }
@@ -1196,17 +1237,35 @@ private let listeningCatalogFetchConcurrency = 4
         let nextIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
         guard disc.tracks.indices.contains(nextIndex) else { return }
         if disc.id == mechanism.disc?.id, nextIndex == trackIndex {
-            if autoplay, !isPlaying { playPause() }
+            if autoplay, !wantsPlayback { playPause() }
             return
         }
+
+        let targetTrack = disc.tracks[nextIndex]
+        if canReuseEstablishedFullCatalogTransport(for: targetTrack) {
+            moveWithinEstablishedFullCatalogTransport(
+                by: nextIndex - trackIndex,
+                autoplay: autoplay
+            )
+            return
+        }
+
         mechanism.updateContents(disc)
-        let resume = autoplay || isPlaying
+        let shouldContinuePlayback =
+            (autoplay || wantsPlayback)
+            && ListeningPlaybackSourceResolver.resolve(
+                capability: capability(for: targetTrack)
+            ) != nil
         run { [self] in
-            resetPlaybackForTransition(); trackIndex = nextIndex; trackBelongsToShow = true
+            resetPlaybackForTransition(continuingPlayback: shouldContinuePlayback)
+            trackIndex = nextIndex
+            trackBelongsToShow = true
             persistedPlaybackTime = 0
             pendingResumePosition = nil
             persistLoadedDisc()
-            if resume { try await playCurrentTrack() }
+            if shouldContinuePlayback, wantsPlayback {
+                try await playCurrentTrack()
+            }
         }
     }
     func manualDiscChanged() {
@@ -1221,42 +1280,71 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func playPause() {
         guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
-        if !mechanism.isClosed {
-            run { [self] in
-                try await mechanism.closeForPlayback()
-                try await playCurrentTrack()
-            }
-            return
-        }
 
-        // Pause is a synchronous transport command and should update playback
-        // presentation in the same interaction turn. Do not route it through the
-        // generic async operation queue: that would toggle `busy`, disable chrome,
-        // and defer the visible pause state behind Task scheduling.
-        if isPlaying {
+        switch playPauseAction {
+        case .pause:
             visibility.userPause()
-            do {
-                try controller?.pause()
-            } catch {
-                playbackError = BSLocalization.text("暂时无法播放")
+            if let controller {
+                do {
+                    try controller.pause()
+                } catch {
+                    playbackError = BSLocalization.text("暂时无法播放")
+                }
+            } else {
+                // A transition can briefly own a Play intent before its next
+                // controller exists. Cancel the intent without aborting the
+                // track-selection transition itself.
+                playback = ListeningPlaybackSnapshot()
+                syncWidgetListeningState()
             }
+
+        case .play:
+            startPlayback()
+
+        case .disabled:
             return
         }
+    }
+    func retryCurrentPlayback() {
+        guard mechanism.position == .seated, !mechanism.isAutomatic,
+              display.player.recoveryAction == .retryPlayback else { return }
+        startPlayback()
+    }
 
+    private func startPlayback() {
         run { [self] in
+            if !mechanism.isClosed {
+                try await mechanism.closeForPlayback()
+            }
             visibility.userPlay()
             try await playCurrentTrack()
         }
     }
+
     private func playCurrentTrack() async throws {
-        guard let track, let disc = mechanism.disc,
-              let source = ListeningPlaybackSourceResolver.resolve(capability: capability(for: track)) else {
+        guard let track, let disc = mechanism.disc else {
             pendingSleeveSongID = nil
+            endPlaybackSession(resetTrackSelection: false)
+            syncWidgetListeningState()
+            return
+        }
+        let establishedSource = controller != nil && preparedSongID == track.id && !playbackState.isFinished
+            ? playback.source : nil
+        guard let source = ListeningPlaybackSourceResolver.resolve(
+            capability: capability(for: track),
+            access: access,
+            establishedSource: establishedSource
+        ) else {
+            // A continuing Play intent only exists while a target transport can
+            // actually be established. An unavailable target terminates it.
+            pendingSleeveSongID = nil
+            endPlaybackSession(resetTrackSelection: false)
+            syncWidgetListeningState()
             return
         }
         playbackError = nil
         let generation = playbackGeneration
-        if preparedSongID != track.id || preparedSource != source || controller == nil || transportPlaybackState == .failed || transportPlaybackState.isFinished {
+        if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
             try controller?.stop()
             let service = playbackFactory(source)
             let evidence = try playbackEvidenceCoordinatorForUse()
@@ -1265,24 +1353,20 @@ private let listeningCatalogFetchConcurrency = 4
             let next = ListeningPlaybackController(
                 service: service,
                 evidenceCoordinator: evidence,
-                stateDidChange: { [weak self] state in
+                playbackDidChange: { [weak self] playback in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
-                    self.applyPlaybackState(state)
-                },
-                transportStateDidChange: { [weak self] state in
-                    guard let self, self.playbackGeneration == stateGeneration else { return }
-                    self.applyTransportPlaybackState(state)
+                    self.applyPlayback(playback)
                 },
                 transportSampleDidChange: { [weak self] sample in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.applyTransportSample(sample)
                 },
                 evidenceDidChange: { [weak self] in
-                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    guard let self else { return }
                     self.refreshPlaybackEvidenceProjection()
                 },
                 evidenceDidFail: { [weak self] origin in
-                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    guard let self else { return }
                     self.handlePlaybackEvidenceFailure(
                         representDismissedAlert: origin == .immediate
                     )
@@ -1301,7 +1385,8 @@ private let listeningCatalogFetchConcurrency = 4
             try await next.prepare(
                 items: queueTracks.map(\.playbackItem),
                 source: source,
-                startingAtSongID: track.id
+                startingAtSongID: track.id,
+                playbackIntent: .playing
             )
             try Task.checkCancellation()
             guard generation == playbackGeneration, mechanism.isClosed, mechanism.position == .seated else {
@@ -1402,13 +1487,27 @@ private let listeningCatalogFetchConcurrency = 4
 
         let nextIndex = trackIndex + delta
         guard disc.tracks.indices.contains(nextIndex) else { return }
-        let resume = isPlaying
+        let targetTrack = disc.tracks[nextIndex]
+
+        if canReuseEstablishedFullCatalogTransport(for: targetTrack) {
+            moveWithinEstablishedFullCatalogTransport(by: delta, autoplay: false)
+            return
+        }
+
+        let shouldContinuePlayback =
+            wantsPlayback
+            && ListeningPlaybackSourceResolver.resolve(
+                capability: capability(for: targetTrack)
+            ) != nil
         run { [self] in
-            resetPlaybackForTransition(); trackIndex = nextIndex
+            resetPlaybackForTransition(continuingPlayback: shouldContinuePlayback)
+            trackIndex = nextIndex
             persistedPlaybackTime = 0
             pendingResumePosition = nil
             persistLoadedDisc()
-            if resume { try await playCurrentTrack() }
+            if shouldContinuePlayback, wantsPlayback {
+                try await playCurrentTrack()
+            }
         }
     }
     func stop() {
@@ -1418,19 +1517,28 @@ private let listeningCatalogFetchConcurrency = 4
         persistLoadedDisc(force: true)
     }
 
-    private func resetPlaybackForTransition() {
-        endPlaybackSession(resetTrackSelection: true)
+    private func resetPlaybackForTransition(continuingPlayback: Bool = false) {
+        endPlaybackSession(
+            resetTrackSelection: true,
+            continuingPlayback: continuingPlayback
+        )
     }
 
-    private func endPlaybackSession(resetTrackSelection: Bool) {
+    private func endPlaybackSession(
+        resetTrackSelection: Bool,
+        continuingPlayback: Bool = false
+    ) {
         recordedPlayingSongID = nil
+        let endingController = controller
+        controller = nil
+        // Retire transport callbacks before Stop publishes idle. Evidence belongs
+        // to the room and can still drain across this transport boundary.
+        playbackGeneration = UUID()
         do {
-            try controller?.stop()
+            try endingController?.stop()
         } catch {
             handlePlaybackEvidenceFailure()
         }
-        controller = nil
-        playbackGeneration = UUID()
         retryPendingPlaybackEvidence()
         if resetTrackSelection {
             trackIndex = 0
@@ -1442,9 +1550,10 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         preparedSource = nil
         preparedCompilationDiscs = []
-        playbackState = .idle
-        transportPlaybackState = .idle
-        transportPlaybackPhase = .stopped
+        // A same-disc transition keeps the user's Play intent alive while the
+        // old transport is torn down, so physical playback presentation never
+        // depends on same-run-loop update coalescing.
+        playback = ListeningPlaybackSnapshot(intent: continuingPlayback ? .playing : nil)
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
         updateTimeText()
@@ -1486,26 +1595,14 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
 
-    private func applyPlaybackState(_ state: ListeningPlaybackState) {
-        playbackState = state
-        syncWidgetListeningState()
-    }
-
-    private func applyTransportPlaybackState(_ state: ListeningPlaybackState) {
-        transportPlaybackState = state
+    private func applyPlayback(_ snapshot: ListeningPlaybackSnapshot) {
+        playback = snapshot
+        let state = snapshot.state
         syncTrackIndex(with: state)
-
-        switch state {
-        case .idle, .preparing, .failed, .finished:
-            transportPlaybackPhase = .stopped
-            case .ready, .playing, .paused:
-            break
-        }
 
         if case .failed = state {
             pendingSleeveSongID = nil
             playbackError = BSLocalization.text("暂时无法播放")
-            return
         }
 
         if case let .finished(songID, _, _) = state {
@@ -1513,10 +1610,10 @@ private let listeningCatalogFetchConcurrency = 4
         } else {
             finishedSongID = nil
         }
+        syncWidgetListeningState()
     }
 
     private func applyTransportSample(_ sample: ListeningPlaybackSample) {
-        transportPlaybackPhase = sample.phase
         persistedPlaybackTime = max(0, sample.currentTime)
         persistLoadedDisc(currentTime: sample.currentTime, force: !sample.isPlaying)
         completeSleevePlaybackIfNeeded()
@@ -1633,7 +1730,13 @@ private let listeningCatalogFetchConcurrency = 4
     private func syncTrackIndex(with state: ListeningPlaybackState) {
         let songID: String?
         switch state {
-        case let .ready(id, _, _, _), let .playing(id, _, _, _), let .paused(id, _, _, _), let .finished(id, _, _):
+        case let .ready(id, _, _, _),
+             let .waiting(id, _, _, _),
+             let .playing(id, _, _, _),
+             let .seeking(id, _, _, _),
+             let .paused(id, _, _, _),
+             let .interrupted(id, _, _, _),
+             let .finished(id, _, _):
             songID = id
         case .idle, .preparing, .failed:
             songID = nil
@@ -1708,7 +1811,7 @@ private let listeningCatalogFetchConcurrency = 4
     private func updateVisibility() {
         let source = preparedSource ?? ListeningPlaybackSourceResolver.resolve(capability: capability(for: track))
         if ListeningVisibilityPolicy.mustPause(tabVisible: active, foreground: foreground, source: source) {
-            visibility.interrupt(wasPlaying: isPlaying)
+            visibility.interrupt(wasPlaying: wantsPlayback)
             do { try controller?.pause() }
             catch { playbackError = BSLocalization.text("暂时无法播放") }
         } else if visibility.resumeIfAllowed() {
