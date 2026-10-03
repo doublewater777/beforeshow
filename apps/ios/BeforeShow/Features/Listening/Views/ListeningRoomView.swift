@@ -63,6 +63,7 @@ struct ListenRootView: View {
         ZStack {
             if let room, let show, room.show?.id == show.id {
                 ListeningRoomView(room: room, show: show)
+                    .id(show.id)
             } else if show == nil {
                 ListeningEmptyView(
                     hasShows: !shows.isEmpty,
