@@ -99,22 +99,61 @@ struct ListeningDiscPresentation: Equatable {
 enum ListeningPlayerPhase: Equatable {
     case noDisc
     case preparing
+    case waiting
     case playing
+    case seeking
     case paused
+    case interrupted
     case stopped
     case finished
     case failed
+
+    init(playback: ListeningPlaybackSnapshot) {
+        self = switch playback.state {
+        case .idle, .ready: .stopped
+        case .preparing: .preparing
+        case .waiting: .waiting
+        case .playing: .playing
+        case .seeking: .seeking
+        case .paused: .paused
+        case .interrupted: .interrupted
+        case .finished: .finished
+        case .failed: .failed
+        }
+        guard self != .preparing, self != .failed else { return }
+
+        if playback.intent == .paused {
+            self = .paused
+        } else if playback.intent == .playing,
+                  self == .stopped || self == .paused || self == .finished {
+            self = .waiting
+        }
+    }
+
+    var isPlaybackActive: Bool {
+        switch self {
+        case .preparing, .waiting, .playing, .seeking: true
+        case .noDisc, .paused, .interrupted, .stopped, .finished, .failed: false
+        }
+    }
 }
 
 struct ListeningPlayerPresentation: Equatable {
     let phase: ListeningPlayerPhase
     let source: ListeningPlaybackSource?
     let previewRemaining: TimeInterval?
-    let canPlayPause: Bool
+    let playPauseAction: ListeningPlayPauseAction
     let blockingReason: String?
     let recoveryAction: ListeningRecoveryAction?
     let errorText: String?
     let noDiscMessage: String?
+
+    var canPlayPause: Bool { playPauseAction != .disabled }
+    var showsPauseControl: Bool { playPauseAction == .pause }
+
+    var isPlaybackActive: Bool { phase.isPlaybackActive }
+
+    var shouldRotateDisc: Bool { isPlaybackActive }
 
     var statusText: String {
         if let errorText, phase == .failed { return errorText }
@@ -122,14 +161,14 @@ struct ListeningPlayerPresentation: Equatable {
         switch phase {
         case .noDisc:
             return noDiscMessage ?? ListeningCopy.text("暂不可播放")
-        case .preparing:
+        case .preparing, .waiting:
             return ListeningCopy.text("载入中…")
-        case .playing:
+        case .playing, .seeking:
             if source == .preview, let previewRemaining {
                 return ListeningCopy.format("试听中 · 剩余 %d 秒", Int(ceil(max(0, previewRemaining))))
             }
             return ListeningCopy.text("播放中")
-        case .paused:
+        case .paused, .interrupted:
             if source == .preview, let previewRemaining {
                 return ListeningCopy.format("试听暂停 · 剩余 %d 秒", Int(ceil(max(0, previewRemaining))))
             }
@@ -183,7 +222,7 @@ enum ListeningDisplayProjector {
         isDiscSeated: Bool,
         isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
-        playbackState: ListeningPlaybackState,
+        playback: ListeningPlaybackSnapshot,
         playbackError: String?
     ) -> ListeningDisplayProjection {
         let hasAnyTracks = allDiscs.contains(where: { !$0.tracks.isEmpty })
@@ -191,7 +230,7 @@ enum ListeningDisplayProjector {
             access: access,
             isAuthorizing: isAuthorizing || (!hasAnyTracks && (page == .loading || page == .loadingCatalog)),
             allDiscs: allDiscs,
-            playbackState: playbackState
+            playback: playback
         )
         let modeNotice = headerNotice(mode: mode, access: access)
         let recovery = recoveryAction(page: page, access: access, isAuthorizing: isAuthorizing)
@@ -205,7 +244,7 @@ enum ListeningDisplayProjector {
             isLidClosed: isLidClosed,
             currentTrack: currentTrack,
             trackPresentation: currentTrackState,
-            playbackState: playbackState,
+            playback: playback,
             playbackError: playbackError
         )
 
@@ -279,17 +318,17 @@ enum ListeningDisplayProjector {
         access: ListeningMusicAccess,
         isAuthorizing: Bool,
         allDiscs: [ListeningDisc],
-        playbackState: ListeningPlaybackState
+        playback: ListeningPlaybackSnapshot
     ) -> ListeningRoomPlaybackMode {
         if isAuthorizing { return .connecting }
         // An established transport is the truth for what is playing now. Access
         // changes describe whether a future transport may be prepared; they must not
         // relabel an already-running preview or a full-catalog session whose access
         // check merely became temporarily inconclusive.
-        if source(from: playbackState) == .preview {
+        if playback.source == .preview {
             return .preview
         }
-        if source(from: playbackState) == .fullCatalog {
+        if playback.source == .fullCatalog {
             return .fullPlayback
         }
         guard allDiscs.contains(where: { !$0.tracks.isEmpty }) else { return .unavailable }
@@ -423,7 +462,7 @@ enum ListeningDisplayProjector {
         isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
         trackPresentation: ListeningTrackPresentation?,
-        playbackState: ListeningPlaybackState,
+        playback: ListeningPlaybackSnapshot,
         playbackError: String?
     ) -> ListeningPlayerPresentation {
         guard loadedDisc != nil, isDiscSeated, currentTrack != nil, let trackPresentation else {
@@ -431,7 +470,7 @@ enum ListeningDisplayProjector {
                 phase: .noDisc,
                 source: nil,
                 previewRemaining: nil,
-                canPlayPause: false,
+                playPauseAction: .disabled,
                 blockingReason: nil,
                 recoveryAction: nil,
                 errorText: nil,
@@ -440,16 +479,17 @@ enum ListeningDisplayProjector {
         }
 
         let accessRecovery = recoveryAction(page: page, access: access, isAuthorizing: false)
-        let keepsEstablishedFullCatalogSession =
-            source(from: playbackState) == .fullCatalog
-            && access.authorizationStatus == .authorized
-            && access.catalogPlaybackAccess == .accessCheckFailed
+        let keepsEstablishedFullCatalogSession = ListeningPlaybackSourceResolver.resolve(
+            capability: trackPresentation.capability,
+            access: access,
+            establishedSource: playback.state.isFinished ? nil : playback.source
+        ) == .fullCatalog
         if !trackPresentation.isPlayable && !keepsEstablishedFullCatalogSession {
             return ListeningPlayerPresentation(
                 phase: .stopped,
                 source: nil,
                 previewRemaining: nil,
-                canPlayPause: false,
+                playPauseAction: .disabled,
                 blockingReason: trackPresentation.statusText,
                 recoveryAction: accessRecovery,
                 errorText: nil,
@@ -460,21 +500,21 @@ enum ListeningDisplayProjector {
         if let playbackError {
             return ListeningPlayerPresentation(
                 phase: .failed,
-                source: source(from: playbackState),
-                previewRemaining: previewRemaining(from: playbackState),
-                canPlayPause: false,
+                source: playback.source,
+                previewRemaining: previewRemaining(from: playback.state),
+                playPauseAction: .disabled,
                 blockingReason: playbackError,
                 recoveryAction: .retryPlayback,
                 errorText: playbackError,
                 noDiscMessage: nil
             )
         }
-        if case .failed = playbackState {
+        if case .failed = playback.state {
             return ListeningPlayerPresentation(
                 phase: .failed,
                 source: nil,
                 previewRemaining: nil,
-                canPlayPause: false,
+                playPauseAction: .disabled,
                 blockingReason: ListeningCopy.text("暂时无法播放"),
                 recoveryAction: .retryPlayback,
                 errorText: ListeningCopy.text("暂时无法播放"),
@@ -482,28 +522,16 @@ enum ListeningDisplayProjector {
             )
         }
 
-        let phase: ListeningPlayerPhase
-        switch playbackState {
-        case .preparing:
-            phase = .preparing
-        case .playing:
-            phase = .playing
-        case .paused:
-            phase = .paused
-        case .finished:
-            phase = .finished
-        case .idle, .ready:
-            phase = .stopped
-        case .failed:
-            phase = .failed
-        }
-
         let lidReason = isLidClosed ? nil : ListeningCopy.text("请先合上播放器上盖")
         return ListeningPlayerPresentation(
-            phase: phase,
-            source: source(from: playbackState),
-            previewRemaining: previewRemaining(from: playbackState),
-            canPlayPause: phase != .preparing,
+            phase: ListeningPlayerPhase(playback: playback),
+            source: playback.source,
+            previewRemaining: previewRemaining(from: playback.state),
+            playPauseAction: ListeningPlayPauseAction.resolve(
+                state: playback.state,
+                intent: playback.intent,
+                canInitiatePlayback: trackPresentation.isPlayable || keepsEstablishedFullCatalogSession
+            ),
             blockingReason: lidReason,
             recoveryAction: nil,
             errorText: nil,
@@ -524,22 +552,14 @@ enum ListeningDisplayProjector {
         }
     }
 
-    private static func source(from state: ListeningPlaybackState) -> ListeningPlaybackSource? {
-        switch state {
-        case let .preparing(source): source
-        case let .ready(_, source, _, _),
-             let .playing(_, source, _, _),
-             let .paused(_, source, _, _),
-             let .finished(_, source, _): source
-        case .idle, .failed: nil
-        }
-    }
-
     private static func previewRemaining(from state: ListeningPlaybackState) -> TimeInterval? {
         switch state {
         case let .ready(_, source, current, duration),
+             let .waiting(_, source, current, duration),
              let .playing(_, source, current, duration),
-             let .paused(_, source, current, duration):
+             let .seeking(_, source, current, duration),
+             let .paused(_, source, current, duration),
+             let .interrupted(_, source, current, duration):
             guard source == .preview, let duration else { return nil }
             return max(0, duration - current)
         case .idle, .preparing, .finished, .failed:
@@ -573,7 +593,7 @@ extension ListeningRoomCoordinator {
             isDiscSeated: mechanism.position == .seated,
             isLidClosed: mechanism.isClosed,
             currentTrack: track,
-            playbackState: playbackState,
+            playback: playback,
             playbackError: playbackError
         )
     }
@@ -583,7 +603,10 @@ extension ListeningRoomCoordinator {
     }
 
     func trackPresentation(for track: ListeningDiscTrack) -> ListeningTrackPresentation {
-        ListeningDisplayProjector.trackPresentation(for: track, access: access)
+        if canReuseEstablishedFullCatalogTransport(for: track) {
+            return ListeningTrackPresentation(capability: .fullPlayback)
+        }
+        return ListeningDisplayProjector.trackPresentation(for: track, access: access)
     }
 
     func loadPlayableDisc(_ disc: ListeningDisc, songID: String? = nil) {
@@ -643,12 +666,6 @@ extension ListeningRoomCoordinator {
               let disc = mechanism.disc,
               let songID = discPresentation(for: disc).defaultPlayableTrackID else { return }
         playFromSleeve(disc, songID: songID)
-    }
-
-    func retryCurrentPlayback() {
-        guard display.player.recoveryAction == .retryPlayback else { return }
-        playbackError = nil
-        playPause()
     }
 
     func performListeningRecovery(_ action: ListeningRecoveryAction) {

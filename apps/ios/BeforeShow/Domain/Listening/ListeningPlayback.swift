@@ -6,6 +6,19 @@ enum ListeningPlaybackSource: Equatable, Sendable {
 }
 
 enum ListeningPlaybackSourceResolver {
+    static func resolve(
+        capability: ListeningMusicCapability,
+        access: ListeningMusicAccess,
+        establishedSource: ListeningPlaybackSource?
+    ) -> ListeningPlaybackSource? {
+        if establishedSource == .fullCatalog,
+           access.authorizationStatus == .authorized,
+           access.catalogPlaybackAccess == .accessCheckFailed {
+            return .fullCatalog
+        }
+        return resolve(capability: capability)
+    }
+
     static func resolve(capability: ListeningMusicCapability) -> ListeningPlaybackSource? {
         switch capability {
         case .fullPlayback:
@@ -63,9 +76,9 @@ enum ListeningPlaybackTransportPhase: Equatable, Sendable {
 
     var satisfiesPauseIntent: Bool {
         switch self {
-        case .stopped, .paused, .interrupted:
+        case .stopped, .paused:
             true
-        case .playing, .waiting, .seeking:
+        case .playing, .waiting, .interrupted, .seeking:
             false
         }
     }
@@ -154,13 +167,31 @@ enum ListeningPlaybackState: Equatable, Sendable {
         currentTime: TimeInterval,
         duration: TimeInterval?
     )
+    case waiting(
+        songID: String,
+        source: ListeningPlaybackSource,
+        currentTime: TimeInterval,
+        duration: TimeInterval?
+    )
     case playing(
         songID: String,
         source: ListeningPlaybackSource,
         currentTime: TimeInterval,
         duration: TimeInterval?
     )
+    case seeking(
+        songID: String,
+        source: ListeningPlaybackSource,
+        currentTime: TimeInterval,
+        duration: TimeInterval?
+    )
     case paused(
+        songID: String,
+        source: ListeningPlaybackSource,
+        currentTime: TimeInterval,
+        duration: TimeInterval?
+    )
+    case interrupted(
         songID: String,
         source: ListeningPlaybackSource,
         currentTime: TimeInterval,
@@ -174,46 +205,56 @@ enum ListeningPlaybackState: Equatable, Sendable {
         return false
     }
 
+    var isPlaybackActive: Bool {
+        switch self {
+        case .waiting, .playing, .seeking:
+            true
+        case .idle, .preparing, .ready, .paused, .interrupted, .finished, .failed:
+            false
+        }
+    }
+
     var isFinished: Bool {
         if case .finished = self { return true }
         return false
     }
+}
 
-    func projecting(_ target: ListeningPlaybackTransportTarget) -> ListeningPlaybackState {
-        switch target {
+enum ListeningPlayPauseAction: Equatable, Sendable {
+    case play
+    case pause
+    case disabled
+
+    static func resolve(
+        state: ListeningPlaybackState,
+        intent: ListeningPlaybackTransportTarget?,
+        canInitiatePlayback: Bool
+    ) -> Self {
+        if case .preparing = state { return .disabled }
+        if case .failed = state { return .disabled }
+
+        let hasTransportContext: Bool
+        switch state {
+        case .ready, .waiting, .playing, .seeking, .paused, .interrupted:
+            hasTransportContext = true
+        case .idle, .preparing, .finished, .failed:
+            hasTransportContext = false
+        }
+        let canPlay = canInitiatePlayback || hasTransportContext
+
+        switch intent {
         case .playing:
-            switch self {
-            case let .ready(songID, source, currentTime, duration),
-                 let .playing(songID, source, currentTime, duration),
-                 let .paused(songID, source, currentTime, duration):
-                return .playing(
-                    songID: songID,
-                    source: source,
-                    currentTime: currentTime,
-                    duration: duration
-                )
-            case let .finished(songID, source, duration):
-                return .playing(
-                    songID: songID,
-                    source: source,
-                    currentTime: 0,
-                    duration: duration
-                )
-            case .idle, .preparing, .failed:
-                return self
-            }
+            return canPlay ? .pause : .disabled
         case .paused:
-            switch self {
-            case let .playing(songID, source, currentTime, duration),
-                 let .paused(songID, source, currentTime, duration):
-                return .paused(
-                    songID: songID,
-                    source: source,
-                    currentTime: currentTime,
-                    duration: duration
-                )
-            case .idle, .preparing, .ready, .finished, .failed:
-                return self
+            return canPlay ? .play : .disabled
+        case nil:
+            switch state {
+            case .waiting, .playing, .seeking:
+                return .pause
+            case .idle, .ready, .paused, .interrupted, .finished:
+                return canPlay ? .play : .disabled
+            case .preparing, .failed:
+                return .disabled
             }
         }
     }
@@ -231,11 +272,6 @@ enum ListeningPlaybackTransportTarget: Equatable, Sendable {
             sample.phase.satisfiesPauseIntent
         }
     }
-}
-
-struct ListeningPlaybackTransportIntent: Equatable, Sendable {
-    let target: ListeningPlaybackTransportTarget
-    let issuedAt: Date
 }
 
 enum ListeningPlaybackEvent: Equatable, Sendable {
@@ -276,62 +312,82 @@ struct ListeningPlaybackStateMachine {
             return .finished(songID: sample.songID, source: sample.source, duration: sample.duration)
         }
 
+        let values = (
+            songID: sample.songID,
+            source: sample.source,
+            currentTime: sample.currentTime,
+            duration: sample.duration
+        )
+
         switch sample.phase {
-        case .playing, .waiting, .seeking:
+        case .playing:
             return .playing(
-                songID: sample.songID,
-                source: sample.source,
-                currentTime: sample.currentTime,
-                duration: sample.duration
+                songID: values.songID,
+                source: values.source,
+                currentTime: values.currentTime,
+                duration: values.duration
             )
-        case .paused, .interrupted, .stopped:
+        case .waiting:
+            return .waiting(
+                songID: values.songID,
+                source: values.source,
+                currentTime: values.currentTime,
+                duration: values.duration
+            )
+        case .seeking:
+            return .seeking(
+                songID: values.songID,
+                source: values.source,
+                currentTime: values.currentTime,
+                duration: values.duration
+            )
+        case .interrupted:
+            return .interrupted(
+                songID: values.songID,
+                source: values.source,
+                currentTime: values.currentTime,
+                duration: values.duration
+            )
+        case .paused, .stopped:
             if currentTrack?.songID == sample.songID {
                 switch state {
-                case .playing, .paused:
+                case .waiting, .playing, .seeking, .paused, .interrupted:
                     return .paused(
-                        songID: sample.songID,
-                        source: sample.source,
-                        currentTime: sample.currentTime,
-                        duration: sample.duration
+                        songID: values.songID,
+                        source: values.source,
+                        currentTime: values.currentTime,
+                        duration: values.duration
                     )
-                default:
+                case .idle, .preparing, .ready, .finished, .failed:
                     break
                 }
             }
             return .ready(
-                songID: sample.songID,
-                source: sample.source,
-                currentTime: sample.currentTime,
-                duration: sample.duration
+                songID: values.songID,
+                source: values.source,
+                currentTime: values.currentTime,
+                duration: values.duration
             )
         }
     }
 
     private func progressedState(for sample: ListeningPlaybackSample) -> ListeningPlaybackState {
         guard currentTrack?.songID == sample.songID else { return state }
+        let duration = sample.duration ?? currentTrack?.duration
 
         switch state {
-        case let .ready(songID, source, _, duration):
-            return .ready(
-                songID: songID,
-                source: source,
-                currentTime: sample.currentTime,
-                duration: sample.duration ?? duration
-            )
-        case let .playing(songID, source, _, duration):
-            return .playing(
-                songID: songID,
-                source: source,
-                currentTime: sample.currentTime,
-                duration: sample.duration ?? duration
-            )
-        case let .paused(songID, source, _, duration):
-            return .paused(
-                songID: songID,
-                source: source,
-                currentTime: sample.currentTime,
-                duration: sample.duration ?? duration
-            )
+        case let .ready(songID, source, _, _):
+            return .ready(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
+        case let .waiting(songID, source, _, _):
+            return .waiting(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
+        case let .playing(songID, source, _, _):
+            return .playing(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
+        case let .seeking(songID, source, _, _):
+            return .seeking(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
+        case let .paused(songID, source, _, _):
+            return .paused(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
+        case let .interrupted(songID, source, _, _):
+            return .interrupted(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
         case .idle, .preparing, .finished, .failed:
             return state
         }
@@ -344,8 +400,11 @@ struct ListeningPlaybackStateMachine {
     )? {
         switch state {
         case let .ready(songID, source, _, duration),
+             let .waiting(songID, source, _, duration),
              let .playing(songID, source, _, duration),
+             let .seeking(songID, source, _, duration),
              let .paused(songID, source, _, duration),
+             let .interrupted(songID, source, _, duration),
              let .finished(songID, source, duration):
             (songID, source, duration)
         case .idle, .preparing, .failed:

@@ -14,13 +14,19 @@ import SwiftData
         )
         await room.load(show: show)
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
+        room.selectScope(.artist("a"))
         service.delaysPlayback = true
         room.playFromSleeve(album, songID: "a1")
         try await Task.sleep(for: .milliseconds(10))
         try await ListenTestData.settle(room) { !room.busy }
-        XCTAssertTrue(
+        XCTAssertFalse(
             room.isPlaying,
-            "presentation may optimistically reflect the pending play command"
+            "transport truth must remain non-playing until the service actually starts"
+        )
+        XCTAssertEqual(room.display.player.phase, .waiting)
+        XCTAssertTrue(
+            room.isPlayingDisc(album),
+            "cabinet playback marking must follow the shared active presentation during waiting"
         )
         XCTAssertNil(
             room.sleevePlaybackSongID,
@@ -39,6 +45,42 @@ import SwiftData
         room.playFromSleeve(album, songID: "a2")
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
         XCTAssertEqual(room.sleevePlaybackSongID, "a2")
+        room.stop()
+    }
+
+    func testSkippingFromPlayingToUnavailablePreviewTerminatesContinuingIntent() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let songs = try context.fetch(FetchDescriptor<CatalogSong>())
+        let playable = try XCTUnwrap(songs.first { $0.appleMusicSongID == "a2" })
+        playable.previewURL = "https://example.invalid/a2.m4a"
+        try context.save()
+
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .previewOnly),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in SleevePlaybackService() }
+        )
+        await room.load(show: show)
+        room.selectScope(.artist("a"))
+        let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
+        XCTAssertEqual(album.tracks.map(\.id), ["a2", "a1"])
+        XCTAssertTrue(room.trackPresentation(for: album.tracks[0]).isPlayable)
+        XCTAssertFalse(room.trackPresentation(for: album.tracks[1]).isPlayable)
+
+        room.loadDisc(album, songID: "a2")
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        room.skip(1)
+        await room.settlePendingOperation()
+
+        XCTAssertEqual(room.track?.id, "a1")
+        XCTAssertNil(room.playbackIntent)
+        XCTAssertEqual(room.playbackState, .idle)
+        XCTAssertEqual(room.display.player.phase, .stopped)
+        XCTAssertEqual(room.display.player.playPauseAction, .disabled)
+        XCTAssertFalse(room.display.player.shouldRotateDisc)
         room.stop()
     }
 

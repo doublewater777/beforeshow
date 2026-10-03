@@ -82,7 +82,7 @@ struct ListeningDiscDetailView: View {
                     ListeningDiscDetailHero(
                         disc: disc, show: room.show, artists: artistsSummary,
                         metadata: metadataSummary, isLoaded: isLoaded,
-                        isPlaying: isLoaded && room.isPlaying,
+                        isPlaying: isLoaded && room.display.player.isPlaybackActive,
                         containsHeardSongs: room.containsHeardSongs(disc)
                     )
 
@@ -187,8 +187,10 @@ struct ListeningDiscDetailView: View {
                 .disabled(room.busy)
         } else if player.canPlayPause {
             Button { room.perform(.playPause) } label: {
-                Label(BSLocalization.text(room.isPlaying ? "暂停" : "播放"),
-                      systemImage: room.isPlaying ? "pause.fill" : "play.fill")
+                Label(
+                    BSLocalization.text(player.showsPauseControl ? "暂停" : "播放"),
+                    systemImage: player.showsPauseControl ? "pause.fill" : "play.fill"
+                )
             }
             .buttonStyle(BSListeningActionStyle())
             .disabled(room.busy || room.mechanism.isAutomatic)
@@ -308,7 +310,7 @@ struct ListeningDiscDetailView: View {
             track: track,
             state: state,
             isMultiArtist: isMultiArtist,
-            showsPlaybackToggle: action == .togglePlayback
+            playPauseAction: action == .togglePlayback ? player.playPauseAction : nil
         )
 
         if trackPresentation.isPlayable {
@@ -344,11 +346,11 @@ struct ListeningDiscDetailView: View {
         guard isCurrent else { return .normal }
 
         switch playerPhase {
-        case .preparing:
+        case .preparing, .waiting:
             return .preparing
-        case .playing:
+        case .playing, .seeking:
             return .playing
-        case .paused:
+        case .paused, .interrupted:
             return .paused
         case .noDisc, .stopped, .finished, .failed:
             return .paused
@@ -382,7 +384,7 @@ struct ListeningDiscDetailView: View {
               !room.mechanism.isAutomatic else { return }
 
         let sameDisc = isLoaded
-        if sameDisc, room.track?.id == track.id, room.isPlaying {
+        if sameDisc, room.track?.id == track.id, room.wantsPlayback {
             return
         }
 

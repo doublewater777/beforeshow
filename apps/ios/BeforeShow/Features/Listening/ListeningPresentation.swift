@@ -38,7 +38,7 @@ enum ListeningDiscDetailTrackAction: Equatable {
         }
 
         switch player.phase {
-        case .playing, .paused:
+        case .waiting, .playing, .seeking, .paused, .interrupted:
             return .togglePlayback
         case .noDisc, .preparing, .stopped, .finished, .failed:
             return .selectTrack
