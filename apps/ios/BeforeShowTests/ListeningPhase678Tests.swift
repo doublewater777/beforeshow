@@ -417,43 +417,102 @@ final class ListeningAccessibilityTests: XCTestCase {
     }
 
     func testForegroundAccessCheckFailureKeepsEstablishedFullPlaybackAndWarnsForFuturePlayback() async throws {
-        let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
-        let context = fixture.container.mainContext
-        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
-        let catalog = AuthorizationTransitionCatalog(
-            status: .authorized,
-            playbackAccess: .available
-        )
-        let room = ListeningRoomCoordinator(
-            context: context,
-            catalogService: catalog,
-            artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
-        )
-        defer {
-            room.stop()
-            room.mechanism.motion.stop()
+        for scenario: ListeningFixtureScenario in [.singleFull, .previewOnly] {
+            let fixture = try ListeningDebugFixtures(scenario: scenario)
+            let context = fixture.container.mainContext
+            let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+            let catalog = AuthorizationTransitionCatalog(
+                status: .authorized,
+                playbackAccess: .available
+            )
+            var playbackServices: [ListeningFixturePlayer] = []
+            let room = ListeningRoomCoordinator(
+                context: context,
+                catalogService: catalog,
+                artistSearchService: ListeningFixtureArtistSearch(),
+                playbackFactory: { _ in
+                    let service = ListeningFixturePlayer()
+                    playbackServices.append(service)
+                    return service
+                }
+            )
+            defer {
+                room.stop()
+                room.mechanism.motion.stop()
+            }
+
+            await room.load(show: show)
+            let disc = try XCTUnwrap(room.discs.first { !$0.tracks.isEmpty })
+            room.restoreDisc(disc)
+            room.playPause()
+            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            XCTAssertEqual(room.display.player.source, .fullCatalog)
+
+            catalog.setPlaybackAccessForTesting(.accessCheckFailed)
+            await room.refreshMusicAccessAfterForeground()
+
+            XCTAssertTrue(room.isPlaying)
+            XCTAssertEqual(room.access.catalogPlaybackAccess, .accessCheckFailed)
+            XCTAssertEqual(room.display.player.source, .fullCatalog)
+            XCTAssertEqual(room.display.roomMode, .fullPlayback)
+            XCTAssertEqual(room.display.headerNotice?.recoveryAction, .retryAccess)
+            XCTAssertEqual(
+                room.display.headerNotice?.message,
+                ListeningCopy.text("暂时无法确认之后的完整播放权限。")
+            )
+
+            room.playPause()
+            room.seek(42)
+            XCTAssertEqual(room.display.player.phase, .paused)
+            XCTAssertEqual(room.display.player.playPauseAction, .play)
+            room.playPause()
+            await room.settlePendingOperation()
+            XCTAssertTrue(room.isPlaying, "temporary access uncertainty must allow the established session to resume")
+            XCTAssertEqual(room.display.player.source, .fullCatalog)
+            XCTAssertEqual(room.elapsed, 42, accuracy: 0.5)
+            XCTAssertEqual(playbackServices.count, 1)
+
+            guard disc.tracks.count > 2 else {
+                XCTFail("fixture must provide at least three album tracks")
+                continue
+            }
+            let nextTrack = disc.tracks[1]
+            if scenario == .singleFull {
+                XCTAssertNil(nextTrack.previewURL, "regression must cover a target with no preview fallback")
+            }
+            XCTAssertEqual(
+                room.trackPresentation(for: nextTrack).capability,
+                .fullPlayback,
+                "tracks on the loaded disc should inherit the established full-catalog session while access is inconclusive"
+            )
+
+            room.skip(1)
+            await room.settlePendingOperation()
+
+            XCTAssertEqual(room.track?.id, nextTrack.id)
+            XCTAssertTrue(room.isPlaying)
+            XCTAssertTrue(room.wantsPlayback)
+            XCTAssertEqual(room.display.player.source, .fullCatalog)
+            XCTAssertTrue(room.display.player.shouldRotateDisc)
+            XCTAssertEqual(
+                playbackServices.count,
+                1,
+                "same-disc skip must reuse the established full-catalog transport instead of rebuilding or downgrading"
+            )
+
+            let selectedTrack = disc.tracks[2]
+            room.loadDisc(disc, songID: selectedTrack.id)
+            await room.settlePendingOperation()
+
+            XCTAssertEqual(room.track?.id, selectedTrack.id)
+            XCTAssertTrue(room.isPlaying)
+            XCTAssertEqual(room.display.player.source, .fullCatalog)
+            XCTAssertEqual(
+                playbackServices.count,
+                1,
+                "explicit same-disc selection must also stay on the established transport"
+            )
         }
-
-        await room.load(show: show)
-        let disc = try XCTUnwrap(room.discs.first { !$0.tracks.isEmpty })
-        room.restoreDisc(disc)
-        room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        XCTAssertEqual(room.display.player.source, .fullCatalog)
-
-        catalog.setPlaybackAccessForTesting(.accessCheckFailed)
-        await room.refreshMusicAccessAfterForeground()
-
-        XCTAssertTrue(room.isPlaying)
-        XCTAssertEqual(room.access.catalogPlaybackAccess, .accessCheckFailed)
-        XCTAssertEqual(room.display.player.source, .fullCatalog)
-        XCTAssertEqual(room.display.roomMode, .fullPlayback)
-        XCTAssertEqual(room.display.headerNotice?.recoveryAction, .retryAccess)
-        XCTAssertEqual(
-            room.display.headerNotice?.message,
-            ListeningCopy.text("暂时无法确认之后的完整播放权限。")
-        )
     }
 
     func testForegroundRevocationDoesNotInterruptRunningPreview() async throws {

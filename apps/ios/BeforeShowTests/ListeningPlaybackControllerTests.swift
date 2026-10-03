@@ -44,7 +44,9 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         let controller = ListeningPlaybackController(
             service: service,
             evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: context),
-            stateDidChange: { projectedStates.append($0) },
+            playbackDidChange: {
+                if projectedStates.last != $0.state { projectedStates.append($0.state) }
+            },
             evidenceDidChange: {
                 evidenceCallbackSawPersistedRecord = (try? context.fetch(FetchDescriptor<SongFamiliarityRecord>())
                     .contains { $0.songID == "threshold-song" && $0.actualListeningAt != nil }) == true
@@ -77,7 +79,7 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         _ = try controller.refresh(now: time(2))
 
         XCTAssertEqual(
-            controller.transportState,
+            controller.state,
             .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
         )
         XCTAssertTrue(evidenceCallbackSawPersistedRecord)
@@ -86,48 +88,50 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertNotNil(record.actualListeningAt)
     }
 
-    func testPendingPauseChangesPresentationWithoutPublishingFalseTransportTruth() async throws {
+    func testPendingPauseDoesNotMutateTransportTruth() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let service = PlaybackServiceStub()
         service.pauseSnapshotLags = true
-        var presentationStates: [ListeningPlaybackState] = []
-        var transportStates: [ListeningPlaybackState] = []
+        var states: [ListeningPlaybackState] = []
+        var intents: [ListeningPlaybackTransportTarget?] = []
         let controller = ListeningPlaybackController(
             service: service,
             evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
-            stateDidChange: { presentationStates.append($0) },
-            transportStateDidChange: { transportStates.append($0) }
+            playbackDidChange: {
+                if states.last != $0.state { states.append($0.state) }
+                intents.append($0.intent)
+            }
         )
         let item = ListeningPlaybackItem(songID: "truth-separation", duration: 100, previewURL: nil)
 
         try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
         try await controller.play(now: time(0))
         _ = try controller.refresh(now: time(1))
-        let transportCountBeforePause = transportStates.count
+        let stateCountBeforePause = states.count
 
         try controller.pause(now: time(2))
 
         XCTAssertEqual(
             controller.state,
-            .paused(songID: "truth-separation", source: .fullCatalog, currentTime: 0, duration: 100)
+            .playing(songID: "truth-separation", source: .fullCatalog, currentTime: 0, duration: 100)
         )
-        XCTAssertTrue(controller.transportState.isPlaying)
-        XCTAssertEqual(transportStates.count, transportCountBeforePause)
-        XCTAssertEqual(presentationStates.last, controller.state)
+        XCTAssertEqual(controller.playbackIntent, .paused)
+        XCTAssertEqual(controller.pendingPlaybackIntent, .paused)
+        XCTAssertFalse(controller.wantsPlayback)
+        XCTAssertEqual(states.count, stateCountBeforePause)
+        XCTAssertEqual(intents.last!, .paused)
         try controller.stop(now: time(2))
     }
 
-    func testPausePublishesPausedIntentWhenTransportSnapshotLags() async throws {
+    func testPausedIntentClearsOnlyAfterTransportAcknowledgesPause() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let service = PlaybackServiceStub()
         service.pauseSnapshotLags = true
-        var projectedStates: [ListeningPlaybackState] = []
         let controller = ListeningPlaybackController(
             service: service,
-            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
-            stateDidChange: { projectedStates.append($0) }
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
         )
         let item = ListeningPlaybackItem(songID: "laggy-pause", duration: 100, previewURL: nil)
 
@@ -135,57 +139,185 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         try await controller.play(now: time(0))
         service.currentTime = 12
         _ = try controller.refresh(now: time(12))
-        XCTAssertEqual(
-            controller.state,
-            .playing(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
-        )
 
-        let stateCountBeforePause = projectedStates.count
         try controller.pause(now: time(13))
+        XCTAssertEqual(controller.playbackIntent, .paused)
+        XCTAssertEqual(controller.pendingPlaybackIntent, .paused)
+        XCTAssertTrue(controller.state.isPlaying)
 
+        service.setPlayingExternally(false)
+        _ = try controller.refresh(now: time(14))
+
+        XCTAssertEqual(controller.playbackIntent, .paused)
+        XCTAssertNil(controller.pendingPlaybackIntent)
+        XCTAssertFalse(controller.state.isPlaying)
         XCTAssertEqual(
             controller.state,
             .paused(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
         )
-        XCTAssertEqual(projectedStates.count, stateCountBeforePause + 1)
-        XCTAssertEqual(projectedStates.last, controller.state)
-        XCTAssertEqual(
-            controller.transportState,
-            .playing(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
-        )
-        XCTAssertTrue(service.snapshot(observedAt: time(13))?.isPlaying == true)
-        try controller.stop(now: time(13))
+        try controller.stop(now: time(14))
     }
 
-    func testPlayPublishesPlayingIntentWhenTransportSnapshotLags() async throws {
+    func testAutoplayStaysActiveThroughPreparationAndSlowTransportAcknowledgement() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let service = PlaybackServiceStub()
         service.playSnapshotLags = true
-        var projectedStates: [ListeningPlaybackState] = []
+        var publications: [ListeningPlaybackSnapshot] = []
         let controller = ListeningPlaybackController(
             service: service,
             evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
-            stateDidChange: { projectedStates.append($0) }
+            playbackDidChange: { publications.append($0) }
         )
-        let item = ListeningPlaybackItem(songID: "laggy-play", duration: 100, previewURL: nil)
+        let item = ListeningPlaybackItem(songID: "slow-autoplay", duration: 100, previewURL: nil)
+
+        try await controller.prepare(
+            items: [item], source: .fullCatalog, playbackIntent: .playing, now: time(0)
+        )
+        XCTAssertEqual(controller.state, .ready(songID: "slow-autoplay", source: .fullCatalog, currentTime: 0, duration: 100))
+        try await controller.play(now: time(1))
+
+        // A slow transport must not create an arbitrary stopped frame.
+        try await Task.sleep(for: .seconds(1.7))
+        XCTAssertFalse(controller.state.isPlaying)
+        XCTAssertEqual(controller.pendingPlaybackIntent, .playing)
+        XCTAssertTrue(controller.wantsPlayback)
+
+        service.setPlayingExternally(true)
+        _ = try controller.refresh(now: time(3))
+        XCTAssertEqual(
+            publications.map { ListeningPlayerPhase(playback: $0) },
+            [.preparing, .waiting, .playing]
+        )
+        XCTAssertTrue(publications.allSatisfy { ListeningPlayerPhase(playback: $0).isPlaybackActive })
+        let acknowledgement = try XCTUnwrap(publications.last)
+        XCTAssertTrue(acknowledgement.state.isPlaying)
+        XCTAssertEqual(acknowledgement.intent, .playing)
+        XCTAssertNil(acknowledgement.pendingIntent)
+        try controller.stop(now: time(3))
+    }
+
+    func testInterruptionPreservesResumeDesireAndUserPauseCancelsAutoResume() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        var transportSamples: [ListeningPlaybackSample] = []
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
+            transportSampleDidChange: { transportSamples.append($0) }
+        )
+        let item = ListeningPlaybackItem(songID: "interruption", duration: 100, previewURL: nil)
 
         try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
-        let stateCountBeforePlay = projectedStates.count
         try await controller.play(now: time(1))
+        _ = try controller.refresh(now: time(2))
+        XCTAssertTrue(controller.state.isPlaying)
+        XCTAssertEqual(controller.playbackIntent, .playing)
+        XCTAssertNil(controller.pendingPlaybackIntent)
+
+        service.setTransportPhaseForTesting(.interrupted)
+        _ = try controller.refresh(now: time(3))
 
         XCTAssertEqual(
             controller.state,
-            .playing(songID: "laggy-play", source: .fullCatalog, currentTime: 0, duration: 100)
+            .interrupted(
+                songID: "interruption",
+                source: .fullCatalog,
+                currentTime: 0,
+                duration: 100
+            )
         )
-        XCTAssertEqual(projectedStates.count, stateCountBeforePlay + 1)
-        XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertEqual(controller.playbackIntent, .playing)
+        XCTAssertNil(controller.pendingPlaybackIntent)
+        XCTAssertTrue(controller.wantsPlayback)
+
+        try controller.pause(now: time(4))
+        XCTAssertEqual(controller.playbackIntent, .paused)
+        XCTAssertEqual(controller.pendingPlaybackIntent, .paused)
+        XCTAssertFalse(controller.wantsPlayback)
+
+        let pauseCallsBeforeResume = service.pauseCallCount
+        transportSamples.removeAll()
+        service.setTransportPhaseForTesting(.playing)
+        _ = try controller.refresh(now: time(5))
+
+        XCTAssertGreaterThan(service.pauseCallCount, pauseCallsBeforeResume)
         XCTAssertEqual(
-            controller.transportState,
-            .ready(songID: "laggy-play", source: .fullCatalog, currentTime: 0, duration: 100)
+            transportSamples.map(\.phase),
+            [.paused],
+            "cancelled auto-resume must not leak a stale playing sample to downstream side effects"
         )
-        XCTAssertTrue(service.snapshot(observedAt: time(1))?.isPlaying == false)
-        try controller.stop(now: time(1))
+        XCTAssertEqual(controller.playbackIntent, .paused)
+        XCTAssertNil(controller.pendingPlaybackIntent)
+        XCTAssertEqual(
+            controller.state,
+            .paused(
+                songID: "interruption",
+                source: .fullCatalog,
+                currentTime: 0,
+                duration: 100
+            )
+        )
+        try controller.stop(now: time(5))
+    }
+
+    func testInterruptionEndingPausedDoesNotForceAutoplay() async throws {
+        for delayedStart in [false, true] {
+            let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+            defer { withExtendedLifetime(container) {} }
+            let service = PlaybackServiceStub()
+            service.playSnapshotLags = delayedStart
+            let controller = ListeningPlaybackController(
+                service: service,
+                evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+            )
+            let item = ListeningPlaybackItem(songID: "no-forced-resume", duration: 100, previewURL: nil)
+
+            try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+            try await controller.play(now: time(1))
+            service.setTransportPhaseForTesting(.interrupted)
+            _ = try controller.refresh(now: time(2))
+            XCTAssertEqual(controller.playbackIntent, .playing)
+            XCTAssertEqual(controller.pendingPlaybackIntent, delayedStart ? .playing : nil)
+
+            service.setTransportPhaseForTesting(.paused)
+            _ = try controller.refresh(now: time(3))
+
+            XCTAssertFalse(controller.wantsPlayback)
+            XCTAssertEqual(controller.playbackIntent, .paused)
+            XCTAssertNil(controller.pendingPlaybackIntent)
+            XCTAssertEqual(
+                controller.state,
+                .paused(
+                    songID: "no-forced-resume",
+                    source: .fullCatalog,
+                    currentTime: 0,
+                    duration: 100
+                )
+            )
+            XCTAssertEqual(service.playCallCount, 1, "interruption end must not manufacture autoplay")
+
+            // A new user Play during interruption must survive the ending paused
+            // sample while the transport is still acknowledging that command.
+            service.setTransportPhaseForTesting(.interrupted)
+            _ = try controller.refresh(now: time(4))
+            service.playSnapshotLags = true
+            try await controller.play(now: time(5))
+            service.setTransportPhaseForTesting(.paused)
+            _ = try controller.refresh(now: time(6))
+            XCTAssertTrue(controller.wantsPlayback)
+            XCTAssertEqual(controller.playbackIntent, .playing)
+            XCTAssertEqual(controller.pendingPlaybackIntent, .playing)
+            XCTAssertEqual(ListeningPlayerPhase(playback: controller.playback), .waiting)
+
+            service.setTransportPhaseForTesting(.playing)
+            _ = try controller.refresh(now: time(7))
+            XCTAssertTrue(controller.state.isPlaying)
+            XCTAssertNil(controller.pendingPlaybackIntent)
+            XCTAssertEqual(service.playCallCount, 2)
+            try controller.stop(now: time(7))
+        }
     }
 
     func testObservableTransportResumeOverridesPausedAppProjection() async throws {
@@ -206,20 +338,18 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         try controller.pause(now: time(2))
         _ = try controller.refresh(now: time(2))
         XCTAssertFalse(controller.state.isPlaying)
-        XCTAssertFalse(controller.transportState.isPlaying)
 
         service.setPlayingExternally(true)
         service.emitCurrentTransport(observedAt: time(3))
         for _ in 0..<100 {
-            if controller.transportState.isPlaying { break }
+            if controller.state.isPlaying { break }
             try await Task.sleep(for: .milliseconds(5))
         }
 
         XCTAssertEqual(
-            controller.transportState,
+            controller.state,
             .playing(songID: "external-resume", source: .fullCatalog, currentTime: 0, duration: 100)
         )
-        XCTAssertEqual(controller.state, controller.transportState)
         try controller.stop(now: time(3))
     }
 
@@ -247,7 +377,9 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         let controller = ListeningPlaybackController(
             service: service,
             evidenceCoordinator: evidence,
-            stateDidChange: { projectedStates.append($0) },
+            playbackDidChange: {
+                if projectedStates.last != $0.state { projectedStates.append($0.state) }
+            },
             evidenceDidChange: { evidenceChangeCount += 1 },
             evidenceDidFail: { _ in evidenceFailureCount += 1 }
         )
@@ -676,19 +808,20 @@ final class ListeningPlaybackControllerTests: XCTestCase {
             controller.state,
             .finished(songID: "song-2", source: .preview, duration: 30)
         )
+        XCTAssertNil(controller.playbackIntent)
+        XCTAssertNil(controller.pendingPlaybackIntent)
+        XCTAssertFalse(controller.wantsPlayback)
 
         // Invoke lock-screen / Control Center remote play
         try await ListeningRemoteCommandBridge.shared.playForTesting()
-        XCTAssertEqual(
-            controller.state,
-            .playing(songID: "song-2", source: .preview, currentTime: 0, duration: 30)
-        )
+        XCTAssertEqual(controller.playbackIntent, .playing)
+        XCTAssertTrue(controller.state.isPlaybackActive)
         XCTAssertNotNil(player.currentItem)
 
         try controller.stop()
     }
 
-    func testPreviewResumeKeepsTransportAndProgressAliveAfterIntentExpires() async throws {
+    func testPreviewResumeKeepsTransportAndProgressAliveAfterAcknowledgement() async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".caf")
         defer { try? FileManager.default.removeItem(at: url) }
         let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 8_000, channels: 1))
@@ -717,10 +850,9 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         try await controller.play()
         try await Task.sleep(for: .seconds(2))
         XCTAssertEqual(player.timeControlStatus, .playing)
-        XCTAssertTrue(controller.transportState.isPlaying)
         XCTAssertTrue(controller.state.isPlaying)
         guard case let .playing(_, _, resumedTime, _) = controller.state else {
-            return XCTFail("Resume must remain playing after intent timeout")
+            return XCTFail("Resume must remain playing after transport acknowledgement")
         }
         try await Task.sleep(for: .seconds(1.2))
         guard case let .playing(_, _, laterTime, _) = controller.state else {
@@ -745,7 +877,10 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     var currentTime: TimeInterval = 0
     var playSnapshotLags = false
     var pauseSnapshotLags = false
+    private(set) var pauseCallCount = 0
+    private(set) var playCallCount = 0
     private var isPlaying = false
+    private var transportPhaseOverride: ListeningPlaybackTransportPhase?
     private var transportContinuation: AsyncStream<ListeningPlaybackSample>.Continuation?
     private var bufferedTransportSamples: [ListeningPlaybackSample] = []
 
@@ -763,17 +898,26 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         self.source = source
         currentTime = 0
         isPlaying = false
+        transportPhaseOverride = nil
     }
 
     func play() async throws {
+        playCallCount += 1
         if !playSnapshotLags {
             isPlaying = true
+            if transportPhaseOverride != .interrupted {
+                transportPhaseOverride = nil
+            }
         }
     }
 
     func pause() {
+        pauseCallCount += 1
         if !pauseSnapshotLags {
             isPlaying = false
+            if transportPhaseOverride != .interrupted {
+                transportPhaseOverride = nil
+            }
         }
     }
 
@@ -786,7 +930,13 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     }
 
     func setPlayingExternally(_ value: Bool) {
+        transportPhaseOverride = nil
         isPlaying = value
+    }
+
+    func setTransportPhaseForTesting(_ phase: ListeningPlaybackTransportPhase) {
+        transportPhaseOverride = phase
+        isPlaying = phase == .playing
     }
 
     func emitCurrentTransport(observedAt: Date) {
@@ -817,7 +967,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
             source: source,
             currentTime: currentTime,
             duration: item.duration,
-            isPlaying: isPlaying,
+            phase: transportPhaseOverride ?? (isPlaying ? .playing : .paused),
             observedAt: observedAt
         )
     }
@@ -826,6 +976,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         didStop = true
         item = nil
         isPlaying = false
+        transportPhaseOverride = nil
         transportContinuation?.finish()
         transportContinuation = nil
         bufferedTransportSamples.removeAll()

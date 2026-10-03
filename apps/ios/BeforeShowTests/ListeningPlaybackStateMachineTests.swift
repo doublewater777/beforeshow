@@ -53,26 +53,33 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
         )
     }
 
-    func testTransportTruthIsNotMutatedByPresentationIntent() {
-        var machine = ListeningPlaybackStateMachine()
-        _ = machine.handle(.prepareStarted(source: .fullCatalog))
-        _ = machine.handle(.sample(sample(time: 10, isPlaying: true)))
-
-        let truth = machine.state
-        let projected = truth.projecting(.paused)
-
-        XCTAssertEqual(
-            truth,
-            .playing(songID: "song-a", source: .fullCatalog, currentTime: 10, duration: 100)
+    func testTransportIntentAcknowledgementUsesObservedPhase() {
+        let playingIntent = ListeningPlaybackTransportTarget.playing
+        let pausedIntent = ListeningPlaybackTransportTarget.paused
+        let waiting = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 0,
+            duration: 100,
+            phase: .waiting,
+            observedAt: Date(timeIntervalSince1970: 0)
         )
-        XCTAssertEqual(
-            projected,
-            .paused(songID: "song-a", source: .fullCatalog, currentTime: 10, duration: 100)
+        let paused = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 10,
+            duration: 100,
+            phase: .paused,
+            observedAt: Date(timeIntervalSince1970: 10)
         )
-        XCTAssertEqual(machine.state, truth)
+
+        XCTAssertTrue(playingIntent.matches(waiting))
+        XCTAssertFalse(pausedIntent.matches(waiting))
+        XCTAssertTrue(pausedIntent.matches(paused))
+        XCTAssertFalse(playingIntent.matches(paused))
     }
 
-    func testWaitingTransportRemainsPlaybackActiveInProductProjection() {
+    func testWaitingTransportRemainsDistinctFromPlayingTruth() {
         var machine = ListeningPlaybackStateMachine()
         _ = machine.handle(.prepareStarted(source: .preview))
         let waiting = ListeningPlaybackSample(
@@ -86,7 +93,82 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
 
         XCTAssertEqual(
             machine.handle(.sample(waiting)),
-            .playing(songID: "song-a", source: .preview, currentTime: 4, duration: 30)
+            .waiting(songID: "song-a", source: .preview, currentTime: 4, duration: 30)
+        )
+    }
+
+    func testInterruptionDoesNotAcknowledgePauseIntent() {
+        let interrupted = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 12,
+            duration: 100,
+            phase: .interrupted,
+            observedAt: Date(timeIntervalSince1970: 12)
+        )
+
+        XCTAssertFalse(ListeningPlaybackTransportTarget.paused.matches(interrupted))
+        XCTAssertFalse(interrupted.phase.satisfiesPauseIntent)
+    }
+
+    func testInterruptedPendingPlayKeepsPauseAsTheNextControlAction() {
+        let state = ListeningPlaybackState.interrupted(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 12,
+            duration: 100
+        )
+
+        XCTAssertEqual(
+            ListeningPlayPauseAction.resolve(
+                state: state,
+                intent: .playing,
+                canInitiatePlayback: true
+            ),
+            .pause
+        )
+    }
+
+    func testOrphanedUnplayablePlayIntentIsNotExposedAsPauseControl() {
+        XCTAssertEqual(
+            ListeningPlayPauseAction.resolve(
+                state: .idle,
+                intent: .playing,
+                canInitiatePlayback: false
+            ),
+            .disabled
+        )
+    }
+
+    func testSeekingAndInterruptionRemainDistinctTransportTruth() {
+        var machine = ListeningPlaybackStateMachine()
+        _ = machine.handle(.prepareStarted(source: .fullCatalog))
+        _ = machine.handle(.sample(sample(time: 5, isPlaying: true)))
+
+        let seeking = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 8,
+            duration: 100,
+            phase: .seeking,
+            observedAt: Date(timeIntervalSince1970: 8)
+        )
+        XCTAssertEqual(
+            machine.handle(.sample(seeking)),
+            .seeking(songID: "song-a", source: .fullCatalog, currentTime: 8, duration: 100)
+        )
+
+        let interrupted = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 8,
+            duration: 100,
+            phase: .interrupted,
+            observedAt: Date(timeIntervalSince1970: 9)
+        )
+        XCTAssertEqual(
+            machine.handle(.sample(interrupted)),
+            .interrupted(songID: "song-a", source: .fullCatalog, currentTime: 8, duration: 100)
         )
     }
 

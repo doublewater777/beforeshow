@@ -92,7 +92,7 @@ struct ListeningMachineView: View {
             )
 
             Ellipse()
-                .fill(BSColor.Stage.accent.opacity(room.isPlaying ? 0.14 : 0.07))
+                .fill(BSColor.Stage.accent.opacity(room.display.player.isPlaybackActive ? 0.14 : 0.07))
                 .frame(width: geometry.body.width * 0.90, height: 110)
                 .position(x: geometry.body.midX, y: geometry.body.maxY - 20)
                 .blur(radius: 38)
@@ -102,7 +102,13 @@ struct ListeningMachineView: View {
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
             CDPlayerDiscWellView(player: player)
             CDPlayerBodyShellView(player: player)
-            CDPlayerDiscView(player: player, scale: scale, isPlaying: room.isPlaying)
+            CDPlayerDiscView(
+                player: player,
+                scale: scale,
+                isRotating: room.display.player.shouldRotateDisc
+                    && player.position == .seated
+                    && player.isClosed
+            )
                 .zIndex(player.position == .seated ? 1 : 4)
             spindle.zIndex(2)
             CDPlayerLidView(player: player, scale: scale)
@@ -240,7 +246,7 @@ private struct CDPlayerBodyShellView: View {
 private struct CDPlayerDiscView: View {
     let player: CDMechanism
     let scale: CGFloat
-    let isPlaying: Bool
+    let isRotating: Bool
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
     private var motion: CDMotionDriver { player.motion }
     private var rotationIdentity: String {
@@ -250,7 +256,7 @@ private struct CDPlayerDiscView: View {
     var body: some View {
         CDContinuousRotationLayer(
             identity: rotationIdentity,
-            isRotating: isPlaying && !motion.reducedMotion,
+            isRotating: isRotating && !motion.reducedMotion,
             revolutionsPerMinute: BSListeningTokens.discRotationRPM
         ) {
             ListeningDiscArtwork(disc: player.disc, image: player.configuration.assets.disc)
@@ -508,10 +514,13 @@ private struct CDPlayerLCDView: View {
                 }
                 Spacer(minLength: 0)
                 if player.hasDisc {
-                    if room.isPlayerDisplayPreparing {
+                    switch room.display.player.phase {
+                    case .preparing, .waiting:
                         Text(room.playerDisplayTimeText)
-                    } else {
-                        Text(room.isPlaying ? "▶ \(room.playerDisplayTimeText)" : "⏸ \(room.playerDisplayTimeText)")
+                    case .playing, .seeking:
+                        Text("▶ \(room.playerDisplayTimeText)")
+                    case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
+                        Text("⏸ \(room.playerDisplayTimeText)")
                     }
                 }
             }
@@ -543,7 +552,11 @@ private struct CDPlayerControlsView: View {
                 }
                 .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
-                .accessibilityLabel(BSLocalization.text(control == .playPause ? (room.isPlaying ? "暂停" : "播放") : control.label))
+                .accessibilityLabel(BSLocalization.text(
+                    control == .playPause
+                        ? (playerPresentation.showsPauseControl ? "暂停" : "播放")
+                        : control.label
+                ))
                 .accessibilityValue(control == .playPause ? playerPresentation.statusText : "")
                 .accessibilityHint(control == .playPause ? (playerPresentation.blockingReason ?? "") : "")
                 .accessibilityIdentifier(control.rawValue)

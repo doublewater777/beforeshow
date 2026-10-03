@@ -4,6 +4,23 @@ import SwiftData
 // MARK: - Listening Intent Handler
 // 在主 App 进程中执行小组件 AudioPlaybackIntent 请求。
 
+enum ListeningWidgetPlaybackProjection {
+    static func optimisticIsPlaying(
+        action: ListeningPlayPauseAction,
+        currentDesiredPlayback: Bool
+    ) -> Bool {
+        switch action {
+        case .play:
+            true
+        case .pause:
+            false
+        case .disabled:
+            currentDesiredPlayback
+        }
+    }
+}
+
+
 @MainActor
 final class ListeningIntentHandler: ListeningIntentHandling {
     static let shared = ListeningIntentHandler()
@@ -20,7 +37,12 @@ final class ListeningIntentHandler: ListeningIntentHandling {
     /// 真实播放在后台完成（App 有后台音频权限），失败或未生效时再按真实状态回写。
     func togglePlayPause() async {
         if let cached = ListeningRoomCache.shared, cached.mechanism.hasDisc {
-            cached.syncWidgetListeningState(isPlayingOverride: !cached.isPlaying)
+            cached.syncWidgetListeningState(
+                isPlayingOverride: ListeningWidgetPlaybackProjection.optimisticIsPlaying(
+                    action: cached.playPauseAction,
+                    currentDesiredPlayback: cached.wantsPlayback
+                )
+            )
         } else {
             WidgetListeningStore.setPlaying(!(WidgetListeningStore.read()?.isPlaying ?? false))
         }

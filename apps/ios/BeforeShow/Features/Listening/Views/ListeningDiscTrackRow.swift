@@ -5,7 +5,7 @@ struct ListeningDiscTrackRow: View {
     let track: ListeningDiscTrack
     let state: ListeningDiscTrackRowState
     let isMultiArtist: Bool
-    let showsPlaybackToggle: Bool
+    let playPauseAction: ListeningPlayPauseAction?
 
     var body: some View {
         HStack(alignment: .center, spacing: BSSpacing.compact) {
@@ -33,8 +33,8 @@ struct ListeningDiscTrackRow: View {
                     .foregroundStyle(BSColor.Stage.muted)
             }
 
-            if showsPlaybackToggle {
-                playbackControl
+            if let playPauseAction {
+                playbackControl(playPauseAction)
             }
         }
         .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
@@ -69,13 +69,13 @@ struct ListeningDiscTrackRow: View {
     }
 
     @ViewBuilder
-    private var playbackControl: some View {
-        switch state {
-        case .playing:
+    private func playbackControl(_ action: ListeningPlayPauseAction) -> some View {
+        switch action {
+        case .pause:
             playbackControlIcon("pause.fill")
-        case .paused:
+        case .play:
             playbackControlIcon("play.fill")
-        case .normal, .preparing, .unavailable:
+        case .disabled:
             EmptyView()
         }
     }
