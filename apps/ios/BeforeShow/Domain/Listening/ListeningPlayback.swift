@@ -179,44 +179,7 @@ enum ListeningPlaybackState: Equatable, Sendable {
         return false
     }
 
-    func projecting(_ target: ListeningPlaybackTransportTarget) -> ListeningPlaybackState {
-        switch target {
-        case .playing:
-            switch self {
-            case let .ready(songID, source, currentTime, duration),
-                 let .playing(songID, source, currentTime, duration),
-                 let .paused(songID, source, currentTime, duration):
-                return .playing(
-                    songID: songID,
-                    source: source,
-                    currentTime: currentTime,
-                    duration: duration
-                )
-            case let .finished(songID, source, duration):
-                return .playing(
-                    songID: songID,
-                    source: source,
-                    currentTime: 0,
-                    duration: duration
-                )
-            case .idle, .preparing, .failed:
-                return self
-            }
-        case .paused:
-            switch self {
-            case let .playing(songID, source, currentTime, duration),
-                 let .paused(songID, source, currentTime, duration):
-                return .paused(
-                    songID: songID,
-                    source: source,
-                    currentTime: currentTime,
-                    duration: duration
-                )
-            case .idle, .preparing, .ready, .finished, .failed:
-                return self
-            }
-        }
-    }
+
 }
 
 enum ListeningPlaybackTransportTarget: Equatable, Sendable {
@@ -233,10 +196,6 @@ enum ListeningPlaybackTransportTarget: Equatable, Sendable {
     }
 }
 
-struct ListeningPlaybackTransportIntent: Equatable, Sendable {
-    let target: ListeningPlaybackTransportTarget
-    let issuedAt: Date
-}
 
 enum ListeningPlaybackEvent: Equatable, Sendable {
     case prepareStarted(source: ListeningPlaybackSource)
