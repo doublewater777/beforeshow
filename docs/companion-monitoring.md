@@ -68,12 +68,30 @@ companion_archive="$PWD/.asc/artifacts/BeforeShow-1.0.2-26.xcarchive"
 
 ## TestFlight 覆盖限制
 
-2026-10-03 早上的 1.0.2（26）早于邀请重试修复与本页的同行事件，不能追溯它的邀请失败原因。
+2026-10-03 早上的 1.0.2（26）早于邀请重试修复与本页的同行事件，不能通过新事件追溯它之前的邀请失败。
 开发签名用 CloudKit Development，TestFlight 用 Production；开发环境成功不能替代 Production schema 验证。
 同一台已登录 iCloud 的 iPhone 17 模拟器在 Production 签名下复现邀请保存失败，PostHog 服务端已收到 `invitation_save` 阶段的 CloudKit 错误码 12（`serverRejectedRequest`）。
 本地临时诊断确认具体原因：`Cannot create or modify field 'showSnapshotV1' in record 'CompanionSession' in production schema`。
-26 的代码也会保存此字段。正确修复是将 Development 的 `CompanionSession.showSnapshotV1` schema 发布到 Production，再用 Production 签名验证创建和重发；后台尚未完成登录，此 schema 修复尚未执行。
-发布 schema 可修复当前 26 的邀请；新客户端事件仍需下一次 TestFlight 更新才会覆盖真机。
+26 的代码也会保存此字段。2026-10-03 13:03（Asia/Taipei）已将 Development 的同行字段与 11 个新增索引发布到 Production，控制台返回 `Changes Deployed`：
+
+| 字段 | 类型 | 索引 |
+| --- | --- | --- |
+| `showSnapshotV1` | Bytes | Queryable、Sortable |
+| `ownerDisplayName` | String | Queryable、Searchable、Sortable |
+| `participantDisplayName` | String | Queryable、Searchable、Sortable |
+| `participantNicknamesJSON` | String | Queryable、Searchable、Sortable |
+
+撤销实测还发现状态时间字段未定义。13:09 补充发布 `acceptedAt`、`canceledAt`（Date/Time，无索引）；两次发布均只新增同行字段，不修改安全角色或删除数据。
+
+同一台 iPhone 17 使用 Release 构建、Production iCloud entitlements 验证：
+
+- 13:04 创建邀请成功，系统分享面板正常打开，复制链接成功。
+- 13:05 再次分享成功，重新读取云端邀请后打开系统分享面板，复制链接成功。
+- PostHog 收到两次 `companion_invitation_finished`（`create` / `resend`）和两次 `companion_share_finished`，均为 `outcome=succeeded`。
+- 补齐时间字段后撤销测试邀请成功，页面回到「添加同行」；未向他人发送邀请。
+
+当前 26 的 schema 保存阻碍已解除，可以直接重试邀请。上述运行验证使用本地最新客户端；尚未在用户的真机 26 或第二个 iCloud 账号上验证加入。
+新客户端事件仍需下一次 TestFlight 更新才会覆盖真机；本次模拟器事件被生产看板过滤，不会触发真机告警。
 
 CloudKit 保存现已改用原生异步结果并逐条检查成功/失败，避免 operation 成功但记录失败时丢失底层错误。
 这次真机录像缺少初始 snapshot，播放器无法播放，因此邀请诊断以操作事件和错误码为主。
