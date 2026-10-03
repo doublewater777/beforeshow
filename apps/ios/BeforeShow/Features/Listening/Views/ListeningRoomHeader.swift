@@ -116,9 +116,11 @@ struct ListeningRoomHeader: View {
             }
             .frame(width: BSListeningTokens.statusIcon, height: BSListeningTokens.statusIcon)
 
-            Text(mode.title)
-                .font(BSListeningTokens.captionMedium)
-                .lineLimit(1)
+            if mode != .connecting {
+                Text(mode.title)
+                    .font(BSListeningTokens.captionMedium)
+                    .lineLimit(1)
+            }
         }
         .foregroundStyle(BSColor.Stage.muted)
         .padding(.horizontal, BSSpacing.compact)

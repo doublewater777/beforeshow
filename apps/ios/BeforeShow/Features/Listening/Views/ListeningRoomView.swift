@@ -63,6 +63,7 @@ struct ListenRootView: View {
         ZStack {
             if let room, let show, room.show?.id == show.id {
                 ListeningRoomView(room: room, show: show)
+                    .id(show.id)
             } else if show == nil {
                 ListeningEmptyView(
                     hasShows: !shows.isEmpty,
@@ -275,11 +276,7 @@ struct ListeningRoomView: View {
     @ViewBuilder
     private var catalogStatus: some View {
         if room.isAuthorizing {
-            if room.access.authorizationStatus == .authorized && room.libraryDiscs.isEmpty {
-                ListeningShelfSkeleton()
-            } else {
-                ListeningCatalogStatusView(title: ListeningCopy.text("连接中…"), isLoading: true)
-            }
+            ListeningShelfSkeleton()
         } else if !room.accessResolved {
             ListeningShelfSkeleton()
         } else if room.access.authorizationStatus != .authorized && room.discs.isEmpty {

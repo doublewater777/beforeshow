@@ -279,6 +279,32 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertEqual(persistedState.songID, song.appleMusicSongID)
     }
 
+    func testPreparingDifferentShowClearsVisibleErrorsFromPreviousShow() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let first = try Show(name: "First", date: .now, startTime: .now)
+        let second = try Show(name: "Second", date: .now, startTime: .now)
+        context.insert(first)
+        context.insert(second)
+        try context.save()
+
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in ListeningChromePlaybackSpy() }
+        )
+        room.prepareForDisplay(show: first)
+        room.errorText = BSLocalization.text("保存失败，请重试")
+        room.playbackError = BSLocalization.text("暂时无法播放")
+
+        room.prepareForDisplay(show: second)
+
+        XCTAssertNil(room.errorText)
+        XCTAssertNil(room.playbackError)
+        room.stop()
+        room.mechanism.motion.stop()
+    }
+
     func testRootBootstrapWithoutRestoredDiscStaysLazyUntilListenActivation() async throws {
         resetChromeGlobals()
         defer { resetChromeGlobals() }

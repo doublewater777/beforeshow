@@ -273,6 +273,100 @@ import SwiftData
         XCTAssertFalse(room.discs.isEmpty)
     }
 
+    func testLoadingReusesKnownArtistIdentityAcrossShowsWithoutSearch() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let previous = try Show(name: "Previous", date: .now, startTime: .now)
+        previous.artists = [
+            ArtistSlot(
+                name: "  THE Band ",
+                avatarURL: "https://example.com/artist.jpg",
+                appleMusicURL: "https://music.apple.com/cn/artist/the-band/12345",
+                appleMusicArtistID: "12345"
+            )
+        ]
+        let current = try Show(name: "Current", date: .now, startTime: .now)
+        current.artists = [ArtistSlot(name: "the band", avatarURL: nil)]
+        context.insert(previous)
+        context.insert(current)
+        try context.save()
+
+        let search = AutoMatchSearchStub(candidates: [])
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: CountingListenCatalog(),
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer { room.stop(); room.mechanism.motion.stop() }
+
+        await room.load(show: current)
+
+        XCTAssertEqual(current.artists.first?.appleMusicArtistID, "12345")
+        XCTAssertEqual(current.artists.first?.appleMusicURL, "https://music.apple.com/cn/artist/the-band/12345")
+        XCTAssertEqual(current.artists.first?.avatarURL, "https://example.com/artist.jpg")
+        let queries = await search.queries
+        XCTAssertTrue(queries.isEmpty)
+    }
+
+    func testLoadingDoesNotReuseConflictingArtistIdentitiesAcrossShows() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        for (name, id) in [("First", "one"), ("Second", "two")] {
+            let show = try Show(name: name, date: .now, startTime: .now)
+            show.artists = [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicArtistID: id)]
+            context.insert(show)
+        }
+        let current = try Show(name: "Current", date: .now, startTime: .now)
+        current.artists = [ArtistSlot(name: "Artist", avatarURL: nil)]
+        context.insert(current)
+        try context.save()
+
+        let search = AutoMatchSearchStub(candidates: [])
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: CountingListenCatalog(),
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer { room.stop(); room.mechanism.motion.stop() }
+
+        await room.load(show: current)
+
+        XCTAssertNil(current.artists.first?.appleMusicArtistID)
+        let queries = await search.queries
+        XCTAssertEqual(queries, ["Artist"])
+    }
+
+    func testLoadingPreservesCurrentArtistLinkOverSameNamedHistoricalIdentity() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let previous = try Show(name: "Previous", date: .now, startTime: .now)
+        previous.artists = [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicArtistID: "12345")]
+        let current = try Show(name: "Current", date: .now, startTime: .now)
+        let currentURL = "https://music.apple.com/cn/artist/artist/67890"
+        current.artists = [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicURL: currentURL)]
+        context.insert(previous)
+        context.insert(current)
+        try context.save()
+
+        let search = AutoMatchSearchStub(candidates: [])
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: CountingListenCatalog(),
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer { room.stop(); room.mechanism.motion.stop() }
+
+        await room.load(show: current)
+
+        XCTAssertEqual(current.artists.first?.appleMusicArtistID, "67890")
+        XCTAssertEqual(current.artists.first?.appleMusicURL, currentURL)
+        let queries = await search.queries
+        XCTAssertTrue(queries.isEmpty)
+    }
+
     func testLateMatchCannotChangePreviousShowAfterSelectionChanges() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
