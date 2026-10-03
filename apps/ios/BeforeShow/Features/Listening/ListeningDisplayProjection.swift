@@ -199,7 +199,6 @@ enum ListeningDisplayProjector {
         currentTrack: ListeningDiscTrack?,
         playbackState: ListeningPlaybackState,
         playbackIntent: ListeningPlaybackTransportTarget? = nil,
-        transportPhase: ListeningPlaybackTransportPhase? = nil,
         playbackError: String?
     ) -> ListeningDisplayProjection {
         let hasAnyTracks = allDiscs.contains(where: { !$0.tracks.isEmpty })
@@ -223,7 +222,6 @@ enum ListeningDisplayProjector {
             trackPresentation: currentTrackState,
             playbackState: playbackState,
             playbackIntent: playbackIntent,
-            transportPhase: transportPhase,
             playbackError: playbackError
         )
 
@@ -443,7 +441,6 @@ enum ListeningDisplayProjector {
         trackPresentation: ListeningTrackPresentation?,
         playbackState: ListeningPlaybackState,
         playbackIntent: ListeningPlaybackTransportTarget?,
-        transportPhase: ListeningPlaybackTransportPhase?,
         playbackError: String?
     ) -> ListeningPlayerPresentation {
         guard loadedDisc != nil, isDiscSeated, currentTrack != nil, let trackPresentation else {
@@ -502,48 +499,52 @@ enum ListeningDisplayProjector {
             )
         }
 
-        let observedPhase = transportPhase ?? inferredTransportPhase(from: playbackState)
         let phase: ListeningPlayerPhase
         if case .preparing = playbackState {
             phase = .preparing
         } else if playbackIntent == .paused {
-            // Pause is an immediate user command. Keep transport truth separate,
-            // but let controls and physical presentation stop in the same turn.
+            // A pause command stops controls and physical playback presentation
+            // immediately, while transport truth catches up independently.
             phase = .paused
-        } else {
-            switch observedPhase {
+        } else if playbackIntent == .playing {
+            switch playbackState {
             case .waiting:
                 phase = .waiting
+            case .playing:
+                phase = .playing
             case .seeking:
                 phase = .seeking
             case .interrupted:
                 phase = .interrupted
+            case .idle, .ready, .paused, .finished:
+                phase = .waiting
+            case .preparing:
+                phase = .preparing
+            case .failed:
+                phase = .failed
+            }
+        } else {
+            switch playbackState {
+            case .idle, .ready:
+                phase = .stopped
+            case .preparing:
+                phase = .preparing
+            case .waiting:
+                phase = .waiting
             case .playing:
                 phase = .playing
+            case .seeking:
+                phase = .seeking
             case .paused:
-                phase = playbackIntent == .playing ? .waiting : .paused
-            case .stopped:
-                if playbackIntent == .playing {
-                    phase = .waiting
-                } else {
-                    switch playbackState {
-                    case .finished:
-                        phase = .finished
-                    case .paused:
-                        phase = .paused
-                    case .playing:
-                        phase = .playing
-                    case .idle, .ready:
-                        phase = .stopped
-                    case .preparing:
-                        phase = .preparing
-                    case .failed:
-                        phase = .failed
-                    }
-                }
+                phase = .paused
+            case .interrupted:
+                phase = .interrupted
+            case .finished:
+                phase = .finished
+            case .failed:
+                phase = .failed
             }
         }
-
         let lidReason = isLidClosed ? nil : ListeningCopy.text("请先合上播放器上盖")
         return ListeningPlayerPresentation(
             phase: phase,
@@ -555,19 +556,6 @@ enum ListeningDisplayProjector {
             errorText: nil,
             noDiscMessage: nil
         )
-    }
-
-    private static func inferredTransportPhase(
-        from state: ListeningPlaybackState
-    ) -> ListeningPlaybackTransportPhase {
-        switch state {
-        case .playing:
-            .playing
-        case .paused:
-            .paused
-        case .idle, .preparing, .ready, .finished, .failed:
-            .stopped
-        }
     }
 
     private static func noDiscMessage(for mode: ListeningRoomPlaybackMode) -> String {
@@ -587,18 +575,26 @@ enum ListeningDisplayProjector {
         switch state {
         case let .preparing(source): source
         case let .ready(_, source, _, _),
+             let .waiting(_, source, _, _),
              let .playing(_, source, _, _),
+             let .seeking(_, source, _, _),
              let .paused(_, source, _, _),
-             let .finished(_, source, _): source
-        case .idle, .failed: nil
+             let .interrupted(_, source, _, _),
+             let .finished(_, source, _):
+            source
+        case .idle, .failed:
+            nil
         }
     }
 
     private static func previewRemaining(from state: ListeningPlaybackState) -> TimeInterval? {
         switch state {
         case let .ready(_, source, current, duration),
+             let .waiting(_, source, current, duration),
              let .playing(_, source, current, duration),
-             let .paused(_, source, current, duration):
+             let .seeking(_, source, current, duration),
+             let .paused(_, source, current, duration),
+             let .interrupted(_, source, current, duration):
             guard source == .preview, let duration else { return nil }
             return max(0, duration - current)
         case .idle, .preparing, .finished, .failed:
@@ -634,7 +630,6 @@ extension ListeningRoomCoordinator {
             currentTrack: track,
             playbackState: playbackState,
             playbackIntent: playbackIntent,
-            transportPhase: playbackTransportPhase,
             playbackError: playbackError
         )
     }
