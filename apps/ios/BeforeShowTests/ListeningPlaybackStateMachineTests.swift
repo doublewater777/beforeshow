@@ -79,7 +79,7 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
         XCTAssertFalse(playingIntent.matches(paused))
     }
 
-    func testWaitingTransportRemainsPlaybackActiveInProductProjection() {
+    func testWaitingTransportRemainsDistinctFromPlayingTruth() {
         var machine = ListeningPlaybackStateMachine()
         _ = machine.handle(.prepareStarted(source: .preview))
         let waiting = ListeningPlaybackSample(
@@ -93,7 +93,7 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
 
         XCTAssertEqual(
             machine.handle(.sample(waiting)),
-            .playing(songID: "song-a", source: .preview, currentTime: 4, duration: 30)
+            .waiting(songID: "song-a", source: .preview, currentTime: 4, duration: 30)
         )
     }
 
