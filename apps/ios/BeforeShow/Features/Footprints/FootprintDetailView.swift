@@ -17,7 +17,6 @@ struct FootprintDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
@@ -91,16 +90,6 @@ struct FootprintDetailView: View {
         return ShowDurationFormatter.single(totalMinutes: minutes)
     }
 
-    private var isDynamicCoverPlaybackActive: Bool {
-        FootprintPlaybackPolicy.isActive(
-            sceneIsActive: scenePhase == .active,
-            hasMemoryOverlay: mediaMemoryTarget != nil || textMemoryTarget != nil || isShowingMemoryPage,
-            hasAssetOverlay: showingAssetKind != nil,
-            hasShareOverlay: isShowingShareComposer || isShowingDispersalShare,
-            hasEditorOverlay: isShowingEditor || isShowingCeremonyEditor
-        )
-    }
-
     private var shareRoute: FootprintDetailShareRoute {
         FootprintDetailShareRoute.resolve(
             hasShareMaterials: !shareMaterials.isEmpty,
@@ -153,10 +142,6 @@ struct FootprintDetailView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                     hero
-                    FootprintDynamicCoverSection(
-                        show: show,
-                        isPlaybackActive: isDynamicCoverPlaybackActive
-                    )
                     FootprintDispersalRitualSection(
                         rating: show.rating,
                         note: show.closingNote,

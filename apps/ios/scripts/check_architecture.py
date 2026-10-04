@@ -73,7 +73,6 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/DynamicCover/DynamicCoverPlaybackView.swift": 14_000,
     "BeforeShow/Features/CurrentShow/DynamicCoverManagementSection.swift": 16_000,
     "BeforeShow/Features/CurrentShow/DynamicCoverImportCoordinator.swift": 11_000,
-    "BeforeShow/Features/Footprints/FootprintDynamicCoverSection.swift": 8_000,
     "BeforeShow/Features/Memory/MemoryViewerVideoPage.swift": 7_000,
     "BeforeShow/Infrastructure/Media/AppAudioSession.swift": 5_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverAudioTrackProbe.swift": 4_000,
@@ -299,10 +298,11 @@ FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS = (
 
 FOOTPRINT_DETAIL_VIEW_FORBIDDEN_TOKENS = (
     "enum FootprintDetailTokens",
-    "enum FootprintPlaybackPolicy",
     "struct FootprintMemoryTile",
     "struct FootprintKeepsakeTile",
     "struct FootprintLocalImage",
+    "struct FootprintDynamicCoverSection",
+    "DynamicCoverVideoPreviewView",
 )
 
 DISPERSAL_CEREMONY_SHEET_FORBIDDEN_TOKENS = (
@@ -651,7 +651,6 @@ DYNAMIC_COVER_MEDIA_TYPES_FORBIDDEN_TOKENS = (
 DYNAMIC_COVER_PRESENTATION_FORBIDDEN_TOKENS = (
     "struct DynamicCoverManagementSection",
     "enum DynamicCoverImportCoordinator",
-    "struct FootprintDynamicCoverSection",
     "struct MemoryViewerVideoPage",
     "enum AppAudioSession",
     "enum DynamicCoverAudioTrackProbe",
@@ -665,7 +664,6 @@ DYNAMIC_COVER_PLAYBACK_FORBIDDEN_TOKENS = (
 
 DYNAMIC_COVER_MANAGEMENT_FORBIDDEN_TOKENS = (
     "enum DynamicCoverImportCoordinator",
-    "struct FootprintDynamicCoverSection",
     "struct DynamicCoverFlipView",
     "struct MemoryViewerVideoPage",
 )

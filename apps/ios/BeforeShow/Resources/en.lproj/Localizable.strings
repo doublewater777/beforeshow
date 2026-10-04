@@ -404,7 +404,6 @@
 "撤销" = "Undo";
 "撤销结束" = "Undo End";
 "播放中" = "Playing";
-"播放动态封面" = "Play Dynamic Cover";
 "放弃修改" = "Discard Changes";
 "放弃修改？" = "Discard Changes?";
 "散场之后，回味还在" = "After the show, the afterglow lingers";
@@ -442,7 +441,6 @@
 "时间待定 · %@" = "Date TBD · %@";
 "时间范围无效" = "Invalid Time Range";
 "时间范围无效，结束时间需要晚于开始时间" = "Invalid time range; end time must be after start time";
-"暂停动态封面" = "Pause Dynamic Cover";
 "暂无匹配，可直接保存手输名字" = "No match yet; you can save the typed name directly";
 "暂时没能读出完整信息。可以重试，或改用手动填写。" = "Couldn't read the full info for now. You can retry, or fill it in manually.";
 "更换视频" = "Change Video";
