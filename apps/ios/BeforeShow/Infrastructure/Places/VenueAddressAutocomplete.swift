@@ -273,10 +273,6 @@ struct BSVenueField: View {
                 )
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isFocused = false
-        }
     }
 
     private func scheduleSearch(for query: String) {
