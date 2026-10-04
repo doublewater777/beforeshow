@@ -238,10 +238,6 @@ struct DispersalCombinedStep: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isNoteFocused = false
-        }
         .onAppear {
             raw = Double(rating ?? 3)
         }
