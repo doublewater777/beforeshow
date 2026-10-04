@@ -285,6 +285,16 @@ final class DispersalCeremonyTests: XCTestCase {
         )
     }
 
+    func testCardEventLinesOmitsArtistsForMultiArtistShow() {
+        XCTAssertEqual(
+            DispersalCeremonyCardCopy.eventLines(
+                name: "草莓音乐节 · 上海站",
+                artistNames: ["草东没有派对", "陈绮贞"]
+            ),
+            ["草莓音乐节 · 上海站"]
+        )
+    }
+
     func testCardFooterPrefersCompanionOverOrdinal() {
         let withCompanion = FootprintDetailIdentity(
             showOrdinal: 12,

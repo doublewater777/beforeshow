@@ -8,8 +8,7 @@ i18n
 
 不要有非必要的解释性文字
 
-use iphone 17 simulator，如果模拟器正在被占用，不要争抢，用另外的模拟器
-
+use iphone 17 simulator
 ## iOS 命令行构建（重要）
 
 命令行构建必须显式带上开发团队，否则 xcodebuild 找不到项目里配置的 `"iPhone Developer"` 签名身份（钥匙串里只有 `"Apple Development"` 证书），会退回 "Sign to Run Locally" ad-hoc 签名，把 iCloud 容器 / App Groups / WeatherKit 等受限 entitlements 全部剥掉。后果：App 启动即闪退，`BeforeShowApp.init()` → `CKContainer(identifier:)` SIGTRAP（见 `CompanionSharing.swift` 的 `CloudKitCompanionSharingService.live()`）。

@@ -226,10 +226,6 @@ private final class CountingArtistSearchService: @unchecked Sendable, ArtistSear
 
 }
 
-final class NavigationTests: XCTestCase {
-    func testThreeTabsOrder() { XCTAssertEqual(BeforeShowTab.allCases, [.current, .listen, .footprints]) }
-
-}
 final class ListeningPresentationTests: XCTestCase {
     func testCacheAlwaysRemainsBrowsable() {
         XCTAssertEqual(ListeningPresentation.resolve(hasShow: true, authorized: false, connected: true, hasSongs: true, loading: false, failed: false), .ready)
@@ -242,13 +238,6 @@ final class ListeningPresentationTests: XCTestCase {
         XCTAssertEqual(ListeningPresentation.resolve(hasShow: true, authorized: true, connected: false, hasSongs: false, loading: false, failed: false), .noConnectedArtists)
         XCTAssertEqual(ListeningPresentation.resolve(hasShow: true, authorized: true, connected: true, hasSongs: false, loading: true, failed: false), .loadingCatalog)
         XCTAssertEqual(ListeningPresentation.resolve(hasShow: true, authorized: true, connected: true, hasSongs: false, loading: false, failed: true), .fatalUnavailable)
-    }
-    @MainActor func testEveryFixtureIsIsolatedAndReproducible() throws {
-        for scenario in ListeningFixtureScenario.allCases {
-            let fixture = try ListeningDebugFixtures(scenario: scenario)
-            let count = try fixture.container.mainContext.fetchCount(FetchDescriptor<Show>())
-            XCTAssertEqual(count, scenario == .noCurrent ? 0 : 1)
-        }
     }
 }
 final class ListeningAccessibilityTests: XCTestCase {

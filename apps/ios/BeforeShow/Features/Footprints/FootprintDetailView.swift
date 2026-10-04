@@ -246,12 +246,12 @@ struct FootprintDetailView: View {
                 show: show,
                 identity: identity,
                 rating: show.rating,
-                note: show.closingNote ?? "",
-                onSaved: { presentToast(.success, message: BSLocalization.text("足迹图片已保存")) }
+                note: show.closingNote ?? ""
             )
             .presentationDetents([.large])
-            .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
+            .presentationBackground(BSColor.Stage.background)
+            .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $isShowingCeremonyEditor) {
             DispersalCeremonySheet(

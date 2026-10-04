@@ -1,77 +1,33 @@
 import SwiftUI
 import UIKit
 
+/// 足迹详情里的散场卡分享，与散场仪式的分享步共用同一视图，保证预览与导出一致。
 struct DispersalCeremonyShareSheet: View {
     let show: Show
     let identity: FootprintDetailIdentity
     let rating: Int?
     let note: String
-    let onSaved: () -> Void
 
-    @State private var ambientColor: Color?
-    @State private var hasResolvedAmbientColor = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var isBusy = false
 
     var body: some View {
-        Group {
-            if hasResolvedAmbientColor {
-                FootprintShareActionSheet(
-            title: BSLocalization.text("分享记录"),
-            subtitle: "",
-            previewHeight: 368,
-            exportSize: DispersalCeremonyShareExport.renderSize,
-            exportScale: DispersalCeremonyShareExport.renderScale,
-            beforeExport: {
-                await prepareAmbientColorForExport()
-            },
-            flexiblePreviewHeight: true,
-            preview: {
-                DispersalCeremonyShareCard(
-                    show: show,
-                    identity: identity,
-                    rating: rating,
-                    note: note,
-                    ambientColor: ambientColor
-                )
-                .aspectRatio(
-                    DispersalCeremonyShareExport.renderSize.width
-                        / DispersalCeremonyShareExport.renderSize.height,
-                    contentMode: .fit
-                )
-            },
-            exportContent: {
-                DispersalCeremonyShareCard(
-                    show: show,
-                    identity: identity,
-                    rating: rating,
-                    note: note,
-                    ambientColor: ambientColor
-                )
-                .frame(
-                    width: DispersalCeremonyShareExport.renderSize.width,
-                    height: DispersalCeremonyShareExport.renderSize.height
-                )
-            },
-                    onSaved: onSaved
-                )
-            } else {
-                ProgressView()
-                    .tint(BSColor.Stage.foreground)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(BSColor.Stage.background)
-            }
+        NavigationStack {
+            DispersalShareStep(
+                show: show,
+                identity: identity,
+                rating: rating,
+                note: note,
+                transitionNamespace: nil,
+                onBack: nil,
+                onDone: { dismiss() },
+                onBusyChange: { isBusy = $0 }
+            )
+            .navigationBarTitleDisplayMode(.inline)
+            .background(BSColor.Stage.background.ignoresSafeArea())
         }
-        .task(id: show.coverImageURL) {
-            hasResolvedAmbientColor = false
-            await prepareAmbientColorForExport()
-            hasResolvedAmbientColor = true
-        }
-    }
-
-    @MainActor
-    private func prepareAmbientColorForExport() async {
-        ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
-            for: show.coverImageURL
-        )
+        .tint(BSColor.Stage.foreground)
+        .interactiveDismissDisabled(isBusy)
     }
 }
 
@@ -81,7 +37,8 @@ struct DispersalShareStep: View {
     let rating: Int?
     let note: String
     let transitionNamespace: Namespace.ID?
-    let onBack: () -> Void
+    /// nil 时没有上一步，左上角为关闭。
+    let onBack: (() -> Void)?
     let onDone: () -> Void
     let onBusyChange: (Bool) -> Void
 
@@ -96,8 +53,6 @@ struct DispersalShareStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-
             cardPreview
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -107,14 +62,16 @@ struct DispersalShareStep: View {
             HStack(spacing: 9) {
                 exportButton(
                     title: BSLocalization.text("保存图片"),
-                    isLoading: isSaving
+                    isLoading: isSaving,
+                    isPrimary: false
                 ) {
                     Task { await saveToPhotos() }
                 }
 
                 exportButton(
                     title: BSLocalization.text("分享图片"),
-                    isLoading: isSharing
+                    isLoading: isSharing,
+                    isPrimary: true
                 ) {
                     Task { await shareImage() }
                 }
@@ -122,13 +79,17 @@ struct DispersalShareStep: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
+        .navigationTitle(BSLocalization.text("散场记录"))
+        .toolbar { toolbarContent }
         .bsToastOverlay(toast, bottomPadding: 24)
-        .background(
-            BSNavigationBackSwipeRestorer {
-                guard !isBusy else { return }
-                onBack()
+        .background {
+            if let onBack {
+                BSNavigationBackSwipeRestorer {
+                    guard !isBusy else { return }
+                    onBack()
+                }
             }
-        )
+        }
         .task(id: show.coverImageURL) {
             ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
                 for: show.coverImageURL
@@ -136,39 +97,26 @@ struct DispersalShareStep: View {
         }
     }
 
-    private var header: some View {
-        HStack {
-            BSChromeIconButton(
-                systemName: "chevron.left",
-                accessibilityLabel: "回到散场记录"
-            ) {
-                guard !isBusy else { return }
-                onBack()
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if let onBack {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(isBusy)
+                .accessibilityLabel("回到散场记录")
             }
-            .disabled(isBusy)
-
-            Spacer()
-
-            Text(BSLocalization.text("散场记录"))
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-
-            Spacer()
-
-            Button(action: onDone) {
-                Text(BSLocalization.text("完成"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(
-                        minWidth: BSLayout.minTouchTarget,
-                        minHeight: BSLayout.minTouchTarget
-                    )
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: onDone) {
+                    Image(systemName: "checkmark")
+                }
+                .disabled(isBusy)
+                .accessibilityLabel(BSLocalization.text("完成"))
             }
-            .buttonStyle(.plain)
-            .disabled(isBusy)
+        } else {
+            BSChromeToolbarCloseButton(action: onDone)
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
     }
 
     private var cardPreview: some View {
@@ -196,20 +144,28 @@ struct DispersalShareStep: View {
     private func exportButton(
         title: String,
         isLoading: Bool,
+        isPrimary: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HStack(spacing: BSSpacing.sm) {
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(BSColor.Stage.foreground)
-                }
-                Text(title)
+        let label = HStack(spacing: BSSpacing.sm) {
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(isPrimary ? BSColor.Stage.background : BSColor.Stage.foreground)
             }
-            .frame(maxWidth: .infinity)
+            Text(title)
         }
-        .buttonStyle(BSSecondaryButtonStyle())
+        .frame(maxWidth: .infinity)
+
+        return Group {
+            if isPrimary {
+                Button(action: action) { label }
+                    .buttonStyle(BSPrimaryButtonStyle())
+            } else {
+                Button(action: action) { label }
+                    .buttonStyle(BSSecondaryButtonStyle())
+            }
+        }
         .disabled(isBusy)
     }
 

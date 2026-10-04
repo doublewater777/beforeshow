@@ -51,6 +51,17 @@ struct DispersalCeremonySheet: View {
     }
 
     var body: some View {
+        NavigationStack {
+            stepContent
+                .navigationBarTitleDisplayMode(.inline)
+                .background(BSColor.Stage.background.ignoresSafeArea())
+        }
+        .tint(BSColor.Stage.foreground)
+        .interactiveDismissDisabled(saving || exportBusy)
+        .sensoryFeedback(.impact(weight: .light), trigger: cardCompletionFeedback)
+    }
+
+    private var stepContent: some View {
         Group {
             switch step {
             case .combined:
@@ -85,8 +96,6 @@ struct DispersalCeremonySheet: View {
                 .transition(.opacity)
             }
         }
-        .interactiveDismissDisabled(saving || exportBusy)
-        .sensoryFeedback(.impact(weight: .light), trigger: cardCompletionFeedback)
     }
 
     private func closeWithoutSaving() {
@@ -194,8 +203,6 @@ struct DispersalCombinedStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(BSLocalization.text("这一场怎么样？"))
@@ -238,34 +245,16 @@ struct DispersalCombinedStep: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
+        .navigationTitle(headerTitle ?? BSLocalization.text("散场了"))
+        .toolbar {
+            BSChromeToolbarCloseButton(accessibilityLabel: "关闭散场仪式", action: onClose)
+        }
         .onAppear {
             raw = Double(rating ?? 3)
         }
         .onChange(of: rating) { _, _ in
             bumpEmoji()
         }
-    }
-
-    private var header: some View {
-        HStack {
-            BSChromeIconButton(
-                systemName: "xmark",
-                accessibilityLabel: "关闭散场仪式",
-                action: onClose
-            )
-            Spacer()
-            Text(headerTitle ?? BSLocalization.text("散场了"))
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-            Spacer()
-            Color.clear
-                .frame(
-                    width: BSLayout.minTouchTarget,
-                    height: BSLayout.minTouchTarget
-                )
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
     }
 
     private var ratingHero: some View {
@@ -442,7 +431,7 @@ struct DispersalCombinedStep: View {
                 text: $note,
                 axis: .vertical
             )
-            .lineLimit(4...10)
+            .lineLimit(10...16)
             .font(BSFont.body)
             .foregroundColor(BSColor.Stage.foreground)
             .tint(BSColor.Stage.accent)
@@ -456,9 +445,7 @@ struct DispersalCombinedStep: View {
             }
             .dispersalMatchedGeometry(
                 id: "dispersal.note",
-                namespace: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? nil
-                    : transitionNamespace
+                namespace: transitionNamespace
             )
             .accessibilityLabel("散场文字")
         }

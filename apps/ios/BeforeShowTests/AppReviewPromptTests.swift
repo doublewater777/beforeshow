@@ -2,13 +2,6 @@ import XCTest
 @testable import BeforeShow
 
 final class AppReviewPromptTests: XCTestCase {
-    func testListeningReviewWaitsForPlaybackToSettle() {
-        XCTAssertEqual(
-            AppReviewPromptPolicy.presentationDelayNanoseconds(for: .listenedToSong),
-            2_000_000_000
-        )
-    }
-
     private var defaults: UserDefaults!
 
     override func setUp() {

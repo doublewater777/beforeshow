@@ -139,10 +139,10 @@ enum DispersalCeremonyCardCopy {
     static func eventLines(name: String, artistNames: [String]) -> [String] {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        guard let artist = artistNames
-            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
-            .first(where: { !$0.isEmpty })
-        else {
+        let artists = artistNames
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard artists.count == 1, let artist = artists.first else {
             return [trimmed]
         }
         if trimmed == artist { return [trimmed] }

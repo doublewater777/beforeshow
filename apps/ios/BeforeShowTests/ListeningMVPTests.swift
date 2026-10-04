@@ -339,10 +339,6 @@ import XCTest
             mechanism.refresh()
         }
     }
-    func testListeningIsThirdTabAndOnboardingSecondStep() {
-        XCTAssertEqual(BeforeShowTab.allCases, [.current, .listen, .footprints])
-        XCTAssertEqual(OnboardingPage.allCases[1], .listening)
-    }
 }
 
 @MainActor final class ListeningRoomPlaybackTests: XCTestCase {

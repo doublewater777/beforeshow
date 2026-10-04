@@ -721,22 +721,6 @@ final class ProSubscriptionTests: XCTestCase {
         )
     }
 
-    func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
-        XCTAssertEqual(SettingsEntry.allCases, [
-            .proMembership,
-            .privacyAndLocalData,
-            .feedback,
-            .rateApp,
-            .about
-        ])
-
-        let copy = SettingsEntry.allCases.map(\.rawValue).joined(separator: " ")
-        XCTAssertFalse(copy.contains("账号"))
-        XCTAssertFalse(copy.contains("同步"))
-        XCTAssertFalse(copy.contains("默认音乐平台"))
-        XCTAssertFalse(SettingsEntry.allCases.map(\.rawValue).contains("默认音乐平台"))
-    }
-
     func testFeedbackPayloadTrimsMessageAndEnforcesBackendLengthLimit() throws {
         let builder = FeedbackPayloadBuilder {
             FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test")

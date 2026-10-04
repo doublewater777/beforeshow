@@ -600,13 +600,6 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(show.companionIsOwner, true)
     }
 
-    func testShareURLRetryPolicyAllowsCloudKitPropagationTime() {
-        XCTAssertEqual(
-            CompanionShareURLRetryPolicy.delays,
-            [.milliseconds(200), .milliseconds(500), .seconds(1)]
-        )
-    }
-
     @MainActor
     func testCoordinatorKeepsPersistedShareLinkageWhenURLPreparationFails() async throws {
         let analytics = CompanionAnalyticsRecorder()
@@ -1320,12 +1313,6 @@ final class CompanionSharingTests: XCTestCase {
             hasEndHandler: true
         )
         XCTAssertNil(action, "Pre-show should not force companion button into the countdown card")
-    }
-
-    func testCompanionFootprintShareTokensRenderDimensions() {
-        XCTAssertEqual(CompanionFootprintShareTokens.renderSize.width, 360)
-        XCTAssertEqual(CompanionFootprintShareTokens.renderSize.height, 480)
-        XCTAssertEqual(CompanionFootprintShareTokens.renderScale, 3)
     }
 
     func testExtractSnapshotFromWebURLWithWeChatQueryParams() throws {

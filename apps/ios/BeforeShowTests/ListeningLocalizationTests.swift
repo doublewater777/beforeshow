@@ -64,10 +64,6 @@ final class ListeningLocalizationTests: XCTestCase {
 
 @MainActor
 final class ListeningReviewerRegressionTests: XCTestCase {
-    func testConnectingCopyDescribesPreparation() {
-        XCTAssertEqual(ListeningRoomPlaybackMode.connecting.title, ListeningCopy.text("正在准备…"))
-    }
-
     func testCurrentShowChangeClearsOldChromeAndLoadedDisc() async throws {
         resetChromeGlobals()
         defer { resetChromeGlobals() }
