@@ -69,10 +69,6 @@ struct FeedbackView: View {
                             )
                     }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isMessageFocused = false
-                }
             }
 
             Button {
@@ -114,6 +110,7 @@ struct FeedbackView: View {
                 EmptyView()
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle(BSLocalization.text("意见反馈"))
         .navigationBarTitleDisplayMode(.inline)
     }
