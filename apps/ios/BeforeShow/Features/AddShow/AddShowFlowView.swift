@@ -138,7 +138,6 @@ struct AddShowFlowView: View {
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled(isSaving)
         .preferredColorScheme(.dark)
-        .environment(\.locale, AppLanguageManager.persisted.locale)
         .onChange(of: selectedScreenshotItem) { _, newItem in
             guard let newItem else { return }
             beginImportTask {

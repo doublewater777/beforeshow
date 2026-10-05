@@ -56,7 +56,7 @@ enum HomeShowIdentityPresentation {
         for show: Show,
         timeState: CurrentShowTimeState,
         calendar: Calendar = .current,
-        locale: Locale = AppLanguageManager.persisted.locale
+        locale: Locale = .autoupdatingCurrent
     ) -> String? {
         guard timeState.hasKnownEffectiveDate else { return nil }
         let calendar = show.timingCalendar(fallback: calendar)

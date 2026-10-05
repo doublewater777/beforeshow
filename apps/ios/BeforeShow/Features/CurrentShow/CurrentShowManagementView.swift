@@ -42,7 +42,6 @@ struct CurrentShowManagementSection: View {
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
     @ObservedObject var notificationRouter = NotificationDeepLinkRouter.shared
-    @ObservedObject private var languageController = AppLanguageController.shared
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20

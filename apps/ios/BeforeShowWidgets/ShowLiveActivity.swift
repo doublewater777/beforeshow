@@ -227,17 +227,12 @@ private enum LiveActivityCopy {
         isStale || now >= startDate
     }
 
-    /// locale-aware 短时间,套用活动自己的时区;语言跟随 App Group 同步的
-    /// 语言选择(与 WidgetLanguage 同一来源),未选择时随系统。
+    /// 短时间格式跟随系统，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .none
         formatter.timeStyle = .short
         formatter.timeZone = calendar.timeZone
-        if let code = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)?
-            .string(forKey: "appLanguage"), !code.isEmpty {
-            formatter.locale = Locale(identifier: code)
-        }
         return formatter.string(from: date)
     }
 }

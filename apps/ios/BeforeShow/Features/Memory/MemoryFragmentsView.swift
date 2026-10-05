@@ -549,7 +549,7 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
         media: [MemoryDraftMedia],
         caption: String
     ) async throws {
-        _ = try await MemoryFragmentEditCoordinator.create(
+        _ = try await MemoryFragmentCreationCoordinator.create(
             showID: show.id,
             draftID: draftID,
             media: media,

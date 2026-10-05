@@ -806,64 +806,6 @@ final class ProSubscriptionTests: XCTestCase {
         }
     }
 
-    func testFollowingSystemLanguageDropsManualOverrideImmediately() {
-        let originalAppLanguage = UserDefaults.standard.string(forKey: AppLanguageManager.storageKey)
-        let originalAppleLanguages = UserDefaults.standard.array(forKey: "AppleLanguages")
-        // apply() 会把语言选择同步到 App Group(供组件进程读取),同样要还原,
-        // 否则测试残留会让模拟器上的 widget 一直按最后一次 apply 的语言渲染。
-        let groupDefaults = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)
-        let originalGroupLanguage = groupDefaults?.string(forKey: AppLanguageManager.storageKey)
-        defer {
-            if let originalAppleLanguages {
-                UserDefaults.standard.set(originalAppleLanguages, forKey: "AppleLanguages")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
-            }
-            if let originalAppLanguage {
-                UserDefaults.standard.set(originalAppLanguage, forKey: AppLanguageManager.storageKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: AppLanguageManager.storageKey)
-            }
-            if let originalGroupLanguage {
-                groupDefaults?.set(originalGroupLanguage, forKey: AppLanguageManager.storageKey)
-            } else {
-                groupDefaults?.removeObject(forKey: AppLanguageManager.storageKey)
-            }
-        }
-
-        AppLanguageManager.apply(.zhHant)
-        XCTAssertEqual(BSLocalization.text("跟随系统"), "跟隨系統")
-
-        AppLanguageManager.apply(.en)
-        XCTAssertEqual(BSLocalization.text("跟随系统"), "Follow System")
-
-        // 切回「跟随系统」后应实时落到系统语言，而不是继续停留在手动语言。
-        AppLanguageManager.apply(.system)
-        XCTAssertNotEqual(BSLocalization.text("跟随系统"), "跟隨系統")
-        XCTAssertEqual(
-            BSLocalization.text("跟随系统"),
-            AppLanguage.systemBundle()?.localizedString(forKey: "跟随系统", value: nil, table: nil)
-        )
-    }
-
-    func testEnglishDayCountsPluralizeByAppLanguage() {
-        let original = AppLanguageManager.persisted
-        defer { AppLanguageManager.apply(original) }
-
-        // 中文系统下手动选 English：复数要按所选语言，而不是系统语言。
-        AppLanguageManager.apply(.en)
-        XCTAssertEqual(BSLocalization.format("还有 %lld 天", 1), "1 day remaining")
-        XCTAssertEqual(BSLocalization.format("还有 %lld 天", 2), "2 days remaining")
-        XCTAssertEqual(BSLocalization.format("天（按天数）", 1), "day")
-        XCTAssertEqual(BSLocalization.format("天（按天数）", 56), "days")
-    }
-
-    func testSystemLanguageResolvesToASupportedLocalizationBundle() {
-        XCTAssertNotNil(AppLanguage.system.bundle)
-        let resolved = AppLanguage.system.bundle?.preferredLocalizations.first
-        XCTAssertTrue(["zh-Hans", "zh-Hant", "en"].contains(resolved), "resolved \(resolved ?? "nil")")
-    }
-
     private func temporaryQuotaDefaults() -> UserDefaults {
         let suite = "ProSubscriptionTests.FreeShowCapacity.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

@@ -13,7 +13,6 @@ struct HomeCountdownLockup: View {
     var onRecommendation: ((RecommendedFeature) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ObservedObject private var languageController = AppLanguageController.shared
 
     // The countdown is the visual hero. Respect the user's Dynamic Type
     // setting so accessibility readers get the same weight, but cap at

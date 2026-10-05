@@ -40,7 +40,6 @@ struct ListeningTimelineProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ListeningEntry) -> Void) {
-        WidgetLanguage.applyAppLanguageSelection()
         let snapshot = WidgetListeningStore.read()
         let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
         completion(ListeningEntry(
@@ -52,7 +51,6 @@ struct ListeningTimelineProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ListeningEntry>) -> Void) {
-        WidgetLanguage.applyAppLanguageSelection()
         let snapshot = WidgetListeningStore.read()
         let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
         let ambient = ambientColor(from: coverPath)

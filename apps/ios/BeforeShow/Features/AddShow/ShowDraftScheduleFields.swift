@@ -69,7 +69,7 @@ private struct AddShowConstrainedDatePicker: View {
 
     private var displayText: String {
         let formatter = DateFormatter()
-        formatter.locale = AppLanguageManager.persisted.locale
+        formatter.locale = .autoupdatingCurrent
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
         if displayedComponents == .hourAndMinute {
@@ -204,7 +204,7 @@ private struct AddShowStartTimeField: View {
     /// 确认按钮直接亮出所选时间，点之前就知道在确认什么。
     private var confirmTitle: String {
         let formatter = DateFormatter()
-        formatter.locale = AppLanguageManager.persisted.locale
+        formatter.locale = .autoupdatingCurrent
         formatter.dateFormat = "HH:mm"
         formatter.timeZone = calendar.timeZone
         return BSLocalization.format("确认 %@ 开场", formatter.string(from: startTime))
