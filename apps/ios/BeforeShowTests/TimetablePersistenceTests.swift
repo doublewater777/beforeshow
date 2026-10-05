@@ -93,6 +93,20 @@ final class TimetablePersistenceTests: XCTestCase {
         XCTAssertEqual(try afterDelete.fetchCount(FetchDescriptor<ShowAsset>()), 0)
     }
 
+    func testBulkShowDeletionReclaimsTimetableRecords() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let show = try makeShow()
+        show.timetable = try makeTimetable(dayCount: 2)
+        context.insert(show)
+        try context.save()
+
+        // Settings clears all local data through this bulk-delete API.
+        try context.delete(model: Show.self)
+        try context.save()
+        try assertNoTimetableRecords(in: ModelContext(container))
+    }
+
     func testInvalidRecognitionDataCannotCreateStructuredTimetable() throws {
         for end in [date(10), date(9)] {
             XCTAssertThrowsError(try TimetablePerformance(artistName: "Artist", startsAt: date(10), endsAt: end)) {
