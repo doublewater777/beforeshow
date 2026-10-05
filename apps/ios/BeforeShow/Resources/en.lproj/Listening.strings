@@ -25,8 +25,6 @@
 "仅提供歌曲信息" = "Song information only";
 "授权后载入唱片" = "Allow access to load records.";
 "放置唱片中…" = "Placing the disc…";
-"选一场现场，听听即将相遇的音乐。" = "Choose a show. Get to know the music.";
-"添加一场想去的现场，唱片就从这里开始。" = "Add a show to start your record collection.";
 "选择对应的 Apple Music 艺人" = "Choose the matching artist on Apple Music";
 "连接 %@" = "Connect %@";
 "正在搜索艺人…" = "Searching for artists…";
@@ -50,3 +48,7 @@
 "Apple Music 访问受到系统限制，当前使用歌曲试听片段。" = "Apple Music access is restricted by the system, so preview clips are used.";
 "Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。" = "Apple Music access is restricted by the system, and these songs have no available preview clips.";
 "Apple Music 访问受到系统限制，无法在此更改。" = "Apple Music access is restricted by the system and cannot be changed here.";
+"选一场现场，" = "Choose a show.";
+"听听即将相遇的音乐。" = "Get to know the music.";
+"添加一场想去的现场，" = "Add a show to start";
+"唱片就从这里开始。" = "your record collection.";

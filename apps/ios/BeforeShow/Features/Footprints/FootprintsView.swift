@@ -40,8 +40,7 @@ struct FootprintsView: View {
     ) -> some View {
         let archive = prepared.archive
         let covers = prepared.covers
-        return ZStack {
-            FootprintBackground()
+        return Group {
             if archive.shows.isEmpty {
                 FootprintEmptyView(
                     content: FootprintEmptyStateCopy.content(hasCurrentShow: hasCurrentShow),
@@ -51,6 +50,7 @@ struct FootprintsView: View {
                 content(prepared)
             }
         }
+        .background { FootprintBackground().ignoresSafeArea() }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $detailTarget) { target in
                 FootprintDetailView(
@@ -139,44 +139,16 @@ private struct FootprintEmptyView: View {
     let onAdd: () -> Void
 
     var body: some View {
-        VStack(spacing: BSSpacing.md) {
-            Spacer()
-
-            Image(systemName: "flag")
-                .font(.system(size: 34, weight: .light))
-                .foregroundColor(BSColor.Stage.accent)
-                .frame(width: 80, height: 80)
-                .background(Color.white.opacity(0.045), in: Circle())
-                .overlay(Circle().stroke(BSColor.Stage.border))
-
-            Text(content.title)
-                .font(BSFont.heroTitle)
-                .tracking(BSFont.titleTracking)
-                .foregroundColor(BSColor.Stage.foreground)
-                .multilineTextAlignment(.center)
-
-            Text(content.message)
-                .font(BSFont.body)
-                .foregroundColor(BSColor.Stage.muted)
-                .multilineTextAlignment(.center)
-
-            Button(action: onAdd) {
-                Text(content.actionTitle ?? BSLocalization.text("添加现场"))
-                    .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.background)
-                    .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
-                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
-            }
-                .padding(.top, BSSpacing.sm)
-
-            Spacer()
-        }
-        .padding(.horizontal, BSSpacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        BSRootEmptyState(
+            iconSystemName: "flag",
+            title: content.title,
+            message: content.message,
+            actionTitle: content.actionTitle ?? BSLocalization.text("添加现场"),
+            action: onAdd
+        )
         .overlay(alignment: .top) {
             Text(BSLocalization.text("足迹"))
-                .font(.system(size: 32, weight: .bold))
+                .font(BSFont.pageTitle)
                 .tracking(-0.5)
                 .foregroundColor(BSColor.Stage.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)

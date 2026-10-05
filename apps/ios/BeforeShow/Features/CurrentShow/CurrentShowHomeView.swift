@@ -96,16 +96,7 @@ struct CurrentShowHomeView: View {
     var body: some View {
         NavigationStack {
             // AmbientBackground 的理想宽度可能超过屏幕，这里封顶以免内容被顶出。
-            ZStack {
-                CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
-                    .opacity(
-                        homeArrival?.phase == .prepared
-                            && homeArrival?.showID == currentShow?.id
-                            ? 0
-                            : 1
-                    )
-                    .animation(.easeOut(duration: 0.35), value: homeArrival)
-
+            Group {
                 if let show = currentShow {
                     CurrentShowManagementSection(
                         show: show,
@@ -155,6 +146,17 @@ struct CurrentShowHomeView: View {
                         onOpenShowLibrary: { isShowingShowLibrary = true }
                     )
                 }
+            }
+            .background {
+                CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
+                    .opacity(
+                        homeArrival?.phase == .prepared
+                            && homeArrival?.showID == currentShow?.id
+                            ? 0
+                            : 1
+                    )
+                    .animation(.easeOut(duration: 0.35), value: homeArrival)
+                    .ignoresSafeArea()
             }
             .frame(maxWidth: UIScreen.main.bounds.width)
             .bsToastOverlay(toast, bottomPadding: 90)
@@ -483,51 +485,26 @@ private struct CurrentShowEmptyStateView: View {
     let onOpenShowLibrary: () -> Void
     @ObservedObject private var languageController = AppLanguageController.shared
 
+    private var message: String {
+        BSLocalization.text(
+            hasShows
+                ? "从你的现场中选择一个，设为当前"
+                : "把要去的音乐现场放进来，\n慢慢靠近那一场。"
+        )
+    }
+
     var body: some View {
-        VStack(spacing: BSSpacing.md) {
-            Spacer()
-
-            Image(systemName: "sparkles")
-                .font(.system(size: 34, weight: .light))
-                .foregroundColor(BSColor.Stage.accent)
-                .frame(width: 80, height: 80)
-                .background(Color.white.opacity(0.045), in: Circle())
-                .overlay(Circle().stroke(BSColor.Stage.border))
-
-            Text(BSLocalization.text(hasShows ? "选择当前现场" : "先添加一场现场"))
-                .font(BSFont.heroTitle)
-                .tracking(BSFont.titleTracking)
-                .foregroundColor(BSColor.Stage.foreground)
-                .multilineTextAlignment(.center)
-
-            Text(BSLocalization.text(
-                hasShows
-                    ? "从你的现场中选择一个，设为当前"
-                    : "把要去的音乐现场放进来，\n慢慢靠近那一场。"
-            ))
-                .font(BSFont.body)
-                .foregroundColor(BSColor.Stage.muted)
-                .multilineTextAlignment(.center)
-
-            Button(action: hasShows ? onOpenShowLibrary : onAddShow) {
-                Text(BSLocalization.text(hasShows ? "选择现场" : "添加现场"))
-                    .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.background)
-                    .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
-                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, BSSpacing.sm)
-
-            Spacer()
-        }
-        .padding(.horizontal, BSSpacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        BSRootEmptyState(
+            iconSystemName: "sparkles",
+            title: BSLocalization.text(hasShows ? "选择当前现场" : "先添加一场现场"),
+            message: message,
+            actionTitle: BSLocalization.text(hasShows ? "选择现场" : "添加现场"),
+            action: hasShows ? onOpenShowLibrary : onAddShow
+        )
         .overlay(alignment: .top) {
             HStack {
                 Text(BSLocalization.text("当前"))
-                    .font(.system(size: 32, weight: .bold))
+                    .font(BSFont.pageTitle)
                     .tracking(-0.5)
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()
