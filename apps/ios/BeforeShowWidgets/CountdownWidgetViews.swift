@@ -429,6 +429,7 @@ private struct MediumCountdownView: View {
     private func widgetCover(_ image: Image) -> some View {
         image
             .resizable()
+            .widgetAccentedRenderingMode(.fullColor)
             .scaledToFill()
             .frame(
                 width: WidgetTheme.mediumCoverSize.width,
