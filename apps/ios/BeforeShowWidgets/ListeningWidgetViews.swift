@@ -195,16 +195,28 @@ private struct PlayPauseButton: View {
     let isPlaying: Bool
     let size: CGFloat
 
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
     var body: some View {
         Button(intent: ToggleListeningPlaybackIntent()) {
             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: size * 0.38, weight: .bold))
-                .foregroundStyle(WidgetTheme.background)
+                .foregroundStyle(iconColor)
                 .offset(x: isPlaying ? 0 : size * 0.03)
                 .frame(width: size, height: size)
-                .background(WidgetTheme.heroWarmGold, in: Circle())
+                .background(buttonBackground, in: Circle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// Clear / Tinted 会把不透明前景统一着色；如果仍用深色 glyph + 实心圆，
+    /// 播放图标可能和圆底落到同一色阶。非 fullColor 下改用 alpha 对比保住可读性。
+    private var iconColor: Color {
+        renderingMode == .fullColor ? WidgetTheme.background : .primary
+    }
+
+    private var buttonBackground: Color {
+        renderingMode == .fullColor ? WidgetTheme.heroWarmGold : Color.primary.opacity(0.18)
     }
 }
 
@@ -215,10 +227,12 @@ private struct CoverImage: View {
         if let path, let uiImage = UIImage(contentsOfFile: path) {
             Image(uiImage: uiImage)
                 .resizable()
+                .widgetAccentedRenderingMode(.fullColor)
                 .scaledToFill()
         } else {
             Image("default_cover")
                 .resizable()
+                .widgetAccentedRenderingMode(.fullColor)
                 .scaledToFill()
         }
     }
