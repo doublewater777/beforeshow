@@ -146,6 +146,29 @@ struct LiveActivityShowResolver {
 
 extension WidgetShowSnapshot {
     init(show: Show, generatedAt: Date) {
+        let timetableSnapshot: WidgetTimetableSnapshot?
+        if let timetable = show.timetable {
+            let days = timetable.orderedDays.map { day in
+                let perfs = day.stages.flatMap { stage in
+                    stage.performances.map { p in
+                        WidgetTimetablePerformance(
+                            id: p.id,
+                            artistName: p.artistName,
+                            stageID: stage.id,
+                            stageName: stage.name,
+                            startsAt: p.startsAt,
+                            endsAt: p.endsAt,
+                            isInterested: p.isInterested
+                        )
+                    }
+                }
+                return WidgetTimetableDay(id: day.id, date: day.date, performances: perfs)
+            }
+            timetableSnapshot = WidgetTimetableSnapshot(days: days)
+        } else {
+            timetableSnapshot = nil
+        }
+
         self.init(
             showID: show.id,
             name: show.name,
@@ -153,7 +176,8 @@ extension WidgetShowSnapshot {
             venueName: show.venueName,
             coverImageURL: show.coverImageURL,
             timing: show.timingFields,
-            generatedAt: generatedAt
+            generatedAt: generatedAt,
+            timetable: timetableSnapshot
         )
     }
 }

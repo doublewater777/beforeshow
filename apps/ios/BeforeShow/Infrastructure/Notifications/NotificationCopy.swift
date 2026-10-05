@@ -30,6 +30,8 @@ struct NotificationCopy {
             return BSLocalization.text("散场后")
         case .afterShow, .footprintArrival:
             return BSLocalization.text("回看这场")
+        case .interestedPerformance:
+            return BSLocalization.text("想看的演出")
         }
     }
 

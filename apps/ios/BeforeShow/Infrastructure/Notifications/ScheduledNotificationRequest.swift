@@ -11,7 +11,10 @@ extension ScheduledShowNotification {
     }
 
     var requestIdentifier: String {
-        "\(showID.uuidString).\(milestone.rawValue)"
+        if let performanceID {
+            return "\(showID.uuidString).\(milestone.rawValue).\(performanceID.uuidString)"
+        }
+        return "\(showID.uuidString).\(milestone.rawValue)"
     }
 
     func makeNotificationRequest() -> UNNotificationRequest {
@@ -53,6 +56,9 @@ extension ShowNotificationScheduleRecord {
     var requestIdentifier: String {
         if isBackfill == true {
             return "\(showID.uuidString).backfill.\(milestoneRawValue)"
+        }
+        if let performanceID {
+            return "\(showID.uuidString).\(milestoneRawValue).\(performanceID.uuidString)"
         }
         return "\(showID.uuidString).\(milestoneRawValue)"
     }

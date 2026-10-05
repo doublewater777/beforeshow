@@ -28,6 +28,14 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var coverImageFilename: String?
         /// 开场是否已过,由 app 同步时写入。仅为兼容保留;UI 阶段以 context.isStale 为准。
         var hasStarted: Bool = false
+        var currentArtistName: String? = nil
+        var currentStageName: String? = nil
+        var nextArtistName: String? = nil
+        var nextStageName: String? = nil
+        var nextStartsAt: Date? = nil
+        var isNextStartingSoon: Bool = false
+        var isInterestedNext: Bool = false
+        var isFestivalDayActive: Bool = false
 
         var startCalendar: Calendar {
             calendar(identifier: timeZoneIdentifier, offsetSeconds: timeZoneSecondsFromGMT)

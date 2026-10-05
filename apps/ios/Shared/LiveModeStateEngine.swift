@@ -141,6 +141,19 @@ enum LiveModeStateEngine {
             if nextIndex < daySpans.count {
                 let nextSpan = daySpans[nextIndex]
                 let upcoming = selectUpcoming(from: nextSpan.day.performances, now: now)
+                let hoursToNext = nextSpan.start.timeIntervalSince(now) / 3600
+
+                // If within 4 hours of next festival day starting, transition to upcoming so activity can restart!
+                if hoursToNext <= 4 && hoursToNext > 0 {
+                    return LiveModeState(
+                        phase: .upcoming(firstStartsAt: nextSpan.start),
+                        activeDayID: nextSpan.day.id,
+                        currentPerformances: [],
+                        upcomingPerformances: upcoming,
+                        hasAnyInterested: hasAnyInterested
+                    )
+                }
+
                 return LiveModeState(
                     phase: .dayEnded(nextDayStartsAt: nextSpan.start),
                     activeDayID: nil,
@@ -259,31 +272,5 @@ enum LiveModeStateEngine {
             secondsUntilStart: input.startsAt.timeIntervalSince(now),
             secondsUntilEnd: input.endsAt.timeIntervalSince(now)
         )
-    }
-}
-
-extension LiveModeStateEngine {
-    /// Adapts SwiftData Timetable into pure LiveDayInput models.
-    static func buildInputs(from timetable: Timetable) -> [LiveDayInput] {
-        timetable.orderedDays.map { day in
-            let perfs = day.stages.flatMap { stage in
-                stage.performances.map { p in
-                    LivePerformanceInput(
-                        id: p.id,
-                        artistName: p.artistName,
-                        stageID: stage.id,
-                        stageName: stage.name,
-                        startsAt: p.startsAt,
-                        endsAt: p.endsAt,
-                        isInterested: p.isInterested
-                    )
-                }
-            }
-            return LiveDayInput(
-                id: day.id,
-                date: day.date,
-                performances: perfs
-            )
-        }
     }
 }

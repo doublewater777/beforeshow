@@ -4,6 +4,26 @@ import Foundation
 // App 侧把「当前现场」写成 Codable 快照放进 App Group,widget extension 只读。
 // 不共享 SwiftData store:widget 需要的只是渲染输入,快照是最小契约。
 
+struct WidgetTimetablePerformance: Codable, Equatable, Hashable {
+    var id: UUID
+    var artistName: String
+    var stageID: UUID
+    var stageName: String
+    var startsAt: Date
+    var endsAt: Date
+    var isInterested: Bool
+}
+
+struct WidgetTimetableDay: Codable, Equatable, Hashable {
+    var id: UUID
+    var date: Date
+    var performances: [WidgetTimetablePerformance]
+}
+
+struct WidgetTimetableSnapshot: Codable, Equatable, Hashable {
+    var days: [WidgetTimetableDay]
+}
+
 struct WidgetShowSnapshot: Codable, Equatable {
     var showID: UUID
     var name: String
@@ -12,6 +32,7 @@ struct WidgetShowSnapshot: Codable, Equatable {
     var coverImageURL: String?
     var timing: ShowTimingFields
     var generatedAt: Date
+    var timetable: WidgetTimetableSnapshot? = nil
 
     /// 内容级相等(忽略 generatedAt):generatedAt 每次同步都变,
     /// 用它去重会让「快照没变就不 reload」失效。
@@ -22,6 +43,7 @@ struct WidgetShowSnapshot: Codable, Equatable {
             && venueName == other.venueName
             && coverImageURL == other.coverImageURL
             && timing == other.timing
+            && timetable == other.timetable
     }
 }
 

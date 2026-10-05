@@ -193,16 +193,31 @@ enum LiveActivityArtwork {
 }
 
 private enum LiveActivityCopy {
-    /// expanded 岛与锁屏卡片的详情行:演出名 + 场馆;场馆为空只显示名称。
+    /// expanded 岛与锁屏卡片的详情行:演出名 + 场馆;若在现场模式优先展示正在演出的艺人与舞台。
     static func detailLine(for state: ShowLiveActivityAttributes.ContentState) -> String {
+        if let current = state.currentArtistName {
+            if let stage = state.currentStageName, !stage.isEmpty {
+                return BSLocalization.format("正在演: %1$@ · %2$@", current, stage)
+            }
+            return BSLocalization.format("正在演: %@", current)
+        }
         guard let venue = state.venueName, !venue.isEmpty else { return state.showName }
         return BSLocalization.format("%1$@ · %2$@", state.showName, venue)
     }
 
-    /// 时间元数据合并为一行:开场前「14:49 开场 · 预计 18:49 散场」(无预计
-    /// 散场时仅「14:49 开场」);开场后不再展示开场时刻(正计时与「已开场」
-    /// 阶段已表达),只保留「预计 18:49 散场」。en:「Starts 14:49 · Est. ends 18:49」。
+    /// 时间元数据合并为一行:现场模式展示下一场想看/客观安排;普通现场展示开场与散场时刻。
     static func timeLine(for state: ShowLiveActivityAttributes.ContentState, isLive: Bool) -> String? {
+        if let next = state.nextArtistName {
+            let prefix = state.isInterestedNext ? "❤️ " : ""
+            let status = state.isNextStartingSoon ? BSLocalization.text("快开始了") : ""
+            let clock = state.nextStartsAt.map { clockText($0, calendar: state.startCalendar) } ?? ""
+            let stage = state.nextStageName.map { " · \($0)" } ?? ""
+            if !status.isEmpty {
+                return BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@) · %5$@", prefix, next, clock, stage, status)
+            } else {
+                return BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@)", prefix, next, clock, stage)
+            }
+        }
         let end = state.endDate.map { clockText($0, calendar: state.endCalendar) }
         if isLive {
             guard let end else { return nil }
