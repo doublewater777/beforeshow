@@ -695,13 +695,6 @@ private struct ListeningArtworkDisc: View {
             )
             .blendMode(.screen)
 
-            Circle()
-                .fill(Color.black.opacity(0.85))
-                .frame(width: size * 0.22, height: size * 0.22)
-
-            Circle()
-                .stroke(Color.white.opacity(0.60), lineWidth: 0.6)
-                .frame(width: size * 0.12, height: size * 0.12)
         }
         .frame(width: size, height: size)
         .clipShape(Circle())

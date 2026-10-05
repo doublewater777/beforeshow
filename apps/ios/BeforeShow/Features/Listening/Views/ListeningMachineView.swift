@@ -113,7 +113,6 @@ struct ListeningMachineView: View {
                     && hardware.isClosed
             )
                 .zIndex(hardware.position == .seated ? 1 : 4)
-            spindle.zIndex(2)
             CDPlayerLidView(room: room, hardware: hardware, configuration: configuration, scale: scale)
                 .zIndex(3)
             CDPlayerLCDView(room: room)
@@ -163,29 +162,6 @@ struct ListeningMachineView: View {
             }
     }
 
-    private var spindle: some View {
-        let diameter = geometry.discDiameter * BSListeningTokens.discSpindleRadiusFraction * 2
-        return ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(white: 0.46), Color(white: 0.12), Color(white: 0.30)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            Circle()
-                .stroke(Color.white.opacity(0.34), lineWidth: max(0.6, diameter * 0.055))
-                .padding(diameter * 0.16)
-            Circle()
-                .fill(Color(white: 0.66))
-                .frame(width: diameter * 0.30, height: diameter * 0.30)
-        }
-        .frame(width: diameter, height: diameter)
-        .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
 }
 
 private struct CDPlayerDiscWellView: View {

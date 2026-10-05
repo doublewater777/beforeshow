@@ -74,12 +74,6 @@ private struct ListeningPreparingMachineView: View {
                 .frame(width: geometry.lid.width, height: geometry.lid.height)
                 .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180), anchor: .top)
                 .position(x: geometry.lid.midX, y: geometry.lid.midY)
-            Circle()
-                .fill(LinearGradient(colors: [Color(white: 0.30), .black, Color(white: 0.22)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .overlay(Circle().stroke(Color(white: 0.48), lineWidth: 1).padding(4))
-                .overlay(Circle().fill(Color(white: 0.12)).padding(12))
-                .frame(width: 42, height: 42)
-                .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
         }
         .frame(width: geometry.canvas.width, height: geometry.canvas.height)
         .scaleEffect(scale, anchor: .topLeading)
