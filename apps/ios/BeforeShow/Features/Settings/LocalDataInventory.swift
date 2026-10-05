@@ -4,6 +4,7 @@ import SwiftData
 struct LocalDataInventory: Equatable {
     var showCount = 0
     var memoryFragmentCount = 0
+    var timetableCount = 0
     var assetCount = 0
     var dynamicCoverCount = 0
     var familiarSongCount = 0
@@ -17,6 +18,7 @@ struct LocalDataInventory: Equatable {
     var isEmpty: Bool {
         showCount == 0
             && memoryFragmentCount == 0
+            && timetableCount == 0
             && assetCount == 0
             && dynamicCoverCount == 0
             && listeningRecordCount == 0
@@ -30,6 +32,7 @@ enum LocalDataInventoryService {
         var inventory = LocalDataInventory()
         inventory.showCount = count(Show.self, in: modelContext)
         inventory.memoryFragmentCount = count(MemoryFragment.self, in: modelContext)
+        inventory.timetableCount = count(Timetable.self, in: modelContext)
         inventory.assetCount = count(ShowAsset.self, in: modelContext)
         inventory.dynamicCoverCount = count(DynamicCover.self, in: modelContext)
         inventory.familiarSongCount = count(SongFamiliarityRecord.self, in: modelContext)

@@ -26,6 +26,24 @@ enum CurrentShowEndPolicy {
         guard phase == .live || timeState.kind == .postShow || timeState.kind == .ended else {
             return false
         }
+
+        // 多日结构化时刻表：只有最终演出日才进入真正散场
+        if let timetable = show.timetable, timetable.orderedDays.count > 1 {
+            let inputs = LiveModeStateEngine.buildInputs(from: timetable)
+            let liveState = LiveModeStateEngine.calculate(days: inputs, now: now)
+
+            if case .dayEnded = liveState.phase {
+                return false
+            }
+
+            if liveState.phase == .active {
+                guard let lastDayID = timetable.orderedDays.last?.id,
+                      liveState.activeDayID == lastDayID else {
+                    return false
+                }
+            }
+        }
+
         guard CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: eventCalendar) else {
             return true
         }
