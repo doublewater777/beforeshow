@@ -500,6 +500,11 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
         }
     }
 
+    private func resolvedPhase(for show: Show?, at date: Date) -> MemoryFragmentPhase {
+        guard let show else { return .live }
+        return MemoryFragmentPhase.resolved(at: date, timing: show.timingFields)
+    }
+
     private var timelineSections: [(phase: MemoryFragmentPhase, fragments: [MemoryFragment])] {
         MemoryFragmentPhase.timelineDisplayOrder.compactMap { phase in
             let items = visibleFragments.filter {
@@ -538,102 +543,23 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
         return [date, place].compactMap { $0 }.joined(separator: " · ")
     }
 
-    private func fetchShow(for id: UUID) -> Show? {
-        var descriptor = FetchDescriptor<Show>(predicate: #Predicate { $0.id == id })
-        descriptor.fetchLimit = 1
-        return try? modelContext.fetch(descriptor).first
-    }
-
-    private func resolvedPhase(for show: Show?, at date: Date) -> MemoryFragmentPhase {
-        guard let show else { return .live }
-        return MemoryFragmentPhase.resolved(at: date, timing: show.timingFields)
-    }
-
     @MainActor
     private func createFragment(
         draftID: UUID,
         media: [MemoryDraftMedia],
         caption: String
     ) async throws {
-        let normalizedCaption = try MemoryFragment.normalized(caption)
-        guard !media.isEmpty || normalizedCaption != nil else {
-            throw MemoryFragmentValidationError.emptyContent
-        }
-        guard media.count <= MemoryFragment.maximumMediaCount else {
-            throw MemoryFragmentValidationError.mediaLimitExceeded
-        }
-
-        if media.isEmpty {
-            let owner = fetchShow(for: show.id)
-            let createdAt = Date()
-            let phase = resolvedPhase(for: owner, at: createdAt)
-            let fragment = try MemoryFragment(
-                showID: show.id,
-                text: caption,
-                createdAt: createdAt,
-                updatedAt: createdAt,
-                phase: phase
-            )
-            fragment.show = owner
-            modelContext.insert(fragment)
-            try modelContext.save()
-            PostHogSDK.shared.capture("memory_fragment_created", properties: ["has_media": false, "media_count": 0])
-            presentToast(.success, "已加入这场现场")
-            return
-        }
-
-        let fragmentID = UUID()
-        await MemoryFragmentMediaStore.shared.acquireCommitGate()
-        let committed: [MemoryCommittedMedia]
-        do {
-            committed = try await MemoryFragmentMediaStore.shared.commit(
-                draftID: draftID,
-                showID: show.id,
-                fragmentID: fragmentID,
-                media: media
-            )
-        } catch {
-            await MemoryFragmentMediaStore.shared.releaseCommitGate()
-            throw error
-        }
-        let committedPaths = committed.flatMap {
-            [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
-        }
-        do {
-            let owner = fetchShow(for: show.id)
-            let createdAt = Date()
-            let phase = resolvedPhase(for: owner, at: createdAt)
-            let fragment = try MemoryFragment(
-                id: fragmentID,
-                showID: show.id,
-                text: caption,
-                createdAt: createdAt,
-                updatedAt: createdAt,
-                phase: phase
-            )
-            fragment.show = owner
-            for (index, item) in committed.enumerated() {
-                try fragment.appendMedia(MemoryMediaItem(
-                    id: item.id,
-                    kind: item.kind,
-                    relativePath: item.relativePath,
-                    thumbnailRelativePath: item.thumbnailRelativePath,
-                    contentTypeIdentifier: item.contentTypeIdentifier,
-                    videoDuration: item.videoDuration,
-                    sortOrder: index
-                ))
-            }
-            modelContext.insert(fragment)
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
-            await MemoryFragmentMediaStore.shared.releaseCommitGate()
-            throw error
-        }
-        await MemoryFragmentMediaStore.shared.releaseCommitGate()
-        try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
-        PostHogSDK.shared.capture("memory_fragment_created", properties: ["has_media": true, "media_count": media.count])
+        _ = try await MemoryFragmentEditCoordinator.create(
+            showID: show.id,
+            draftID: draftID,
+            media: media,
+            caption: caption,
+            modelContext: modelContext
+        )
+        PostHogSDK.shared.capture(
+            "memory_fragment_created",
+            properties: ["has_media": !media.isEmpty, "media_count": media.count]
+        )
         presentToast(.success, "已加入这场现场")
     }
 
@@ -660,18 +586,20 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
 
     private func commitDelete(_ fragment: MemoryFragment) {
         let fragmentID = fragment.id
+        let showID = show.id
         pendingDeleteTask?.cancel()
         pendingDeleteTask = nil
         if pendingDelete?.id == fragmentID { pendingDelete = nil }
-        modelContext.delete(fragment)
-        do {
-            try modelContext.save()
-            Task {
-                try? await MemoryFragmentMediaStore.shared.deleteFragment(showID: show.id, fragmentID: fragmentID)
+        Task { @MainActor in
+            do {
+                try await MemoryFragmentEditCoordinator.delete(
+                    fragment,
+                    showID: showID,
+                    modelContext: modelContext
+                )
+            } catch {
+                presentToast(.failure, "删除失败，请重试")
             }
-        } catch {
-            modelContext.rollback()
-            presentToast(.failure, "删除失败，请重试")
         }
     }
 

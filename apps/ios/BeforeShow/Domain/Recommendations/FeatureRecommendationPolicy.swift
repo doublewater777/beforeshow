@@ -110,3 +110,55 @@ enum FeatureRecommendationPolicy {
         return muted
     }
 }
+
+enum CurrentShowCardRecommendation {
+    /// 主卡在哪个阶段做功能推荐：开场前（分 7 天内外）与确认散场之后。
+    static func slot(timeState: CurrentShowTimeState, hasConfirmedEnd: Bool) -> FeatureRecommendationSlot? {
+        if hasConfirmedEnd {
+            switch timeState.kind {
+            case .postShow: return .cardPostShow
+            case .ended: return .cardAfterRetention
+            default: return nil
+            }
+        }
+        guard timeState.kind == .before else { return nil }
+        return timeState.dayDistance > 7 ? .cardFarBefore : .cardNearBefore
+    }
+
+    /// 一天只换一次：今天已经露出（卡片或通知）的功能保持到今天结束，用过或点过就收起；
+    /// 当天有推荐通知时推同一个；否则按候选顺序取第一个可推荐的。
+    static func resolve(
+        chain: [RecommendedFeature],
+        context: FeatureRecommendationContext,
+        todayKey: String,
+        todayNotificationFeature: RecommendedFeature?
+    ) -> RecommendedFeature? {
+        let ordered = chain + RecommendedFeature.allCases.filter { !chain.contains($0) }
+        let exposedToday = ordered.filter { context.records[$0]?.exposureDayKeys.contains(todayKey) == true }
+        if !exposedToday.isEmpty {
+            return exposedToday.first {
+                FeatureRecommendationPolicy.isEligible($0, context: context, todayKey: todayKey)
+            }
+        }
+        if let feature = todayNotificationFeature,
+           FeatureRecommendationPolicy.isEligible(feature, context: context, todayKey: todayKey) {
+            return feature
+        }
+        return FeatureRecommendationPolicy.candidate(from: chain, context: context, todayKey: todayKey)
+    }
+
+    /// 通知节奏和倒计时信息卡问的是同一个模块。通知节点按槽位和本次排期里已经占掉的露出决定。
+    static func notificationFeature(
+        slot: FeatureRecommendationSlot,
+        isFestival: Bool,
+        hasFutureShow: Bool,
+        context: FeatureRecommendationContext,
+        plannedExposures: [RecommendedFeature: Int]
+    ) -> RecommendedFeature? {
+        FeatureRecommendationPolicy.candidate(
+            from: slot.chain(isFestival: isFestival, hasFutureShow: hasFutureShow),
+            context: context,
+            plannedExposures: plannedExposures
+        )
+    }
+}

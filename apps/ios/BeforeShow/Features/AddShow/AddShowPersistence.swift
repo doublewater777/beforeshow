@@ -66,6 +66,7 @@ struct AddShowPersistenceResult {
     let outcome: AddShowSaveOutcome
     /// Permission history for a show that can still own future notification nodes.
     let notificationState: NotificationSchedulingState?
+    let committedState: CurrentShowCommittedState
 }
 
 enum AddShowPersistenceError: Error, Equatable {
@@ -81,8 +82,10 @@ enum AddShowPersistenceCoordinator {
         selections _: [CurrentShowSelection] = [],
         notificationStates _: [NotificationSchedulingState] = [],
         in modelContext: ModelContext,
-        now: Date = Date()
-    ) throws -> AddShowPersistenceResult {
+        now: Date = Date(),
+        effects: CurrentShowPostCommitEffects = .live,
+        beforePostCommit: @MainActor (AddShowSaveOutcome) -> Void = { _ in }
+    ) async throws -> AddShowPersistenceResult {
         let persistedShows = try modelContext.fetch(FetchDescriptor<Show>())
         if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: persistedShows) {
             throw AddShowPersistenceError.duplicateShow(existingShowID: duplicate.id)
@@ -98,6 +101,8 @@ enum AddShowPersistenceCoordinator {
 
         modelContext.insert(show)
 
+        let outcome: AddShowSaveOutcome
+        let notificationState: NotificationSchedulingState?
         switch lifecycle {
         case .ended:
             // Historical shows still belong to Footprints, but Current Show is a
@@ -110,20 +115,13 @@ enum AddShowPersistenceCoordinator {
 
             if show.endedAt == nil {
                 show.markAddedAsHistorical()
-                try modelContext.save()
-                return AddShowPersistenceResult(
-                    outcome: .footprint,
-                    notificationState: nil
-                )
+                outcome = .footprint
+                notificationState = nil
+            } else {
+                // A confirmed ended import can still own a future after-show reminder.
+                notificationState = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
+                outcome = .footprint
             }
-
-            // A confirmed ended import can still own a future after-show reminder.
-            let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
-            try modelContext.save()
-            return AddShowPersistenceResult(
-                outcome: .footprint,
-                notificationState: state
-            )
 
         case .future, .live:
             let becameCurrent = setAsCurrent || (existingCurrent == nil)
@@ -132,13 +130,40 @@ enum AddShowPersistenceCoordinator {
             }
 
             // Every newly added upcoming/live show gets its own notification nodes.
-            let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
-            try modelContext.save()
-
-            return AddShowPersistenceResult(
-                outcome: setAsCurrent ? .current : (lifecycle == .live && becameCurrent ? .current : .future),
-                notificationState: state
-            )
+            notificationState = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
+            outcome = setAsCurrent ? .current : (lifecycle == .live && becameCurrent ? .current : .future)
         }
+
+        let committedState: CurrentShowCommittedState
+        do {
+            try ShowMutationCoordinator.reconcileListening(in: modelContext, now: now)
+            try modelContext.save()
+            let shows = try modelContext.fetch(FetchDescriptor<Show>())
+            let selection = try selectionStore.canonicalSelection()
+            committedState = CurrentShowCommittedState(
+                currentShow: CurrentShowSession().selectCurrentShow(
+                    from: shows,
+                    manualSelection: selection,
+                    now: now
+                ),
+                shows: shows,
+                selection: selection
+            )
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+
+        beforePostCommit(outcome)
+        _ = await ShowMutationCoordinator.syncPostCommit(
+            committedState,
+            in: modelContext,
+            effects: effects
+        )
+        return AddShowPersistenceResult(
+            outcome: outcome,
+            notificationState: notificationState,
+            committedState: committedState
+        )
     }
 }

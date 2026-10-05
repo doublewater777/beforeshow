@@ -46,7 +46,7 @@ struct ListeningCabinetSheet: View {
                                     disc: disc,
                                     show: room.show,
                                     isPlaying: room.isPlayingDisc(disc),
-                                    isLoaded: room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored,
+                                    isLoaded: room.display.hardware.discID == disc.id && room.display.hardware.position != .stored,
                                     artistName: room.browsingArtist?.name ?? BSLocalization.text("BeforeShow 热门合辑"),
                                     onSelect: { selectedDisc = disc }
                                 )

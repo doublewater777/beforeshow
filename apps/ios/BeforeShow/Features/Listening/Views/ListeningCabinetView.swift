@@ -71,7 +71,7 @@ struct ListeningCabinetView<Placeholder: View>: View {
         .listeningFrame("cabinet")
         .task(id: hintEligibilityKey) {
             guard !didHintManualDiscDrag, !reduceMotion,
-                  room.mechanism.position == .stored,
+                  room.display.hardware.position == .stored,
                   let disc = hintDisc else { return }
             try? await Task.sleep(for: .milliseconds(550))
             guard !Task.isCancelled else { return }
@@ -83,7 +83,7 @@ struct ListeningCabinetView<Placeholder: View>: View {
     }
 
     private var hintEligibilityKey: String {
-        "\(hintDisc?.id ?? "none")-\(room.mechanism.position)"
+        "\(hintDisc?.id ?? "none")-\(room.display.hardware.position)"
     }
 }
 
@@ -206,7 +206,8 @@ private struct ListeningCabinetDiscButton: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var isLoaded: Bool {
-        room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored
+        let hardware = room.display.hardware
+        return hardware.discID == disc.id && hardware.position != .stored
     }
 
     private var presentation: ListeningDiscPresentation {
@@ -246,7 +247,7 @@ private struct ListeningCabinetDiscButton: View {
 
                     #if canImport(UIKit)
                     // Keep the active touch receiver mounted until the finger lifts.
-                    if !isLoaded || room.mechanism.isCabinetDragging {
+                    if !isLoaded || room.display.hardware.isCabinetDragging {
                         CabinetDiscGestureBridge(
                             canDrag: presentation.canLoad,
                             onBegin: {
@@ -293,26 +294,16 @@ private struct ListeningCabinetDiscButton: View {
     }
 
     private func beginDragIfNeeded() {
-        guard !room.mechanism.isCabinetDragging else {
-            return
-        }
+        guard room.beginCabinetDragIfNeeded(disc) else { return }
         suppressTap = true
-        _ = room.mechanism.beginCabinetDrag(disc)
     }
 
     private func updateDrag(_ translation: CGSize) {
-        guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else { return }
-        let tilt = room.mechanism.configuration.geometry.tiltDegrees * .pi / 180
-        room.mechanism.dragDisc(CGSize(
-            width: translation.width / scale,
-            height: translation.height / scale / cos(tilt)
-        ))
+        room.updateCabinetDrag(of: disc, translation: translation, scale: scale)
     }
 
     private func finishDragIfNeeded() {
-        if room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id {
-            room.mechanism.endDiscDrag()
-        }
+        room.endCabinetDrag(of: disc)
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(120))
             suppressTap = false

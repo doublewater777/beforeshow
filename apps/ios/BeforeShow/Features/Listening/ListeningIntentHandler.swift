@@ -36,7 +36,7 @@ final class ListeningIntentHandler: ListeningIntentHandling {
     /// 小组件在 intent 返回后立即刷新：先乐观翻转快照让按键即时响应，
     /// 真实播放在后台完成（App 有后台音频权限），失败或未生效时再按真实状态回写。
     func togglePlayPause() async {
-        if let cached = ListeningRoomCache.shared, cached.mechanism.hasDisc {
+        if let cached = ListeningRoomCache.shared, cached.hasLoadedDisc {
             cached.syncWidgetListeningState(
                 isPlayingOverride: ListeningWidgetPlaybackProjection.optimisticIsPlaying(
                     action: cached.playPauseAction,
@@ -55,7 +55,7 @@ final class ListeningIntentHandler: ListeningIntentHandling {
             BeforeShowWidgetKind.reloadAllTimelines()
             return
         }
-        if room.mechanism.hasDisc {
+        if room.hasLoadedDisc {
             room.playPause()
         } else if let disc = room.defaultDisc {
             room.loadDisc(disc, autoplay: true)
@@ -65,7 +65,7 @@ final class ListeningIntentHandler: ListeningIntentHandling {
     }
 
     private func resolveRoom() async -> ListeningRoomCoordinator? {
-        if let cached = ListeningRoomCache.shared, cached.mechanism.hasDisc {
+        if let cached = ListeningRoomCache.shared, cached.hasLoadedDisc {
             return cached
         }
         guard let container = modelContainer else { return nil }

@@ -17,6 +17,35 @@ final class MemoryFragmentTests: XCTestCase {
         }
     }
 
+    func testCreateFreezesBeforePhaseAndDeleteRemovesTheFragment() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let show = try Show(name: "未来现场", date: start, startTime: start)
+        context.insert(show)
+        try context.save()
+
+        let fragment = try await MemoryFragmentEditCoordinator.create(
+            showID: show.id,
+            draftID: UUID(),
+            media: [],
+            caption: "开场前的一句",
+            modelContext: context,
+            now: start.addingTimeInterval(-86_400)
+        )
+
+        XCTAssertEqual(fragment.phase, .before)
+        XCTAssertEqual(fragment.text, "开场前的一句")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MemoryFragment>()).count, 1)
+
+        try await MemoryFragmentEditCoordinator.delete(
+            fragment,
+            showID: show.id,
+            modelContext: context
+        )
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MemoryFragment>()).count, 0)
+    }
+
     func testQueryKeepsShowsIsolatedAndCreationOrdered() throws {
         let firstShowID = UUID()
         let secondShowID = UUID()

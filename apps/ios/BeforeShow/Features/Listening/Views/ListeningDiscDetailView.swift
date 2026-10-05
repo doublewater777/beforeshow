@@ -55,7 +55,7 @@ struct ListeningDiscDetailView: View {
     }
 
     private var isLoaded: Bool {
-        room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored
+        room.display.hardware.discID == disc.id && room.display.hardware.position != .stored
     }
 
     private var presentation: ListeningDiscPresentation {
@@ -193,7 +193,7 @@ struct ListeningDiscDetailView: View {
                 )
             }
             .buttonStyle(BSListeningActionStyle())
-            .disabled(room.busy || room.mechanism.isAutomatic)
+            .disabled(room.busy || room.display.hardware.isAutomatic)
             .accessibilityIdentifier("listening.detail.playPause")
         } else if case .metadataOnly = presentation.capability, let url = disc.appleMusicURL {
             appleMusicPrimaryAction(url)
@@ -235,7 +235,7 @@ struct ListeningDiscDetailView: View {
         let currentTrackID = room.track?.id
         let isLoadedDisc = isLoaded
         let isBusy = room.busy
-        let isAuto = room.mechanism.isAutomatic
+        let isAuto = room.display.hardware.isAutomatic
 
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -381,7 +381,7 @@ struct ListeningDiscDetailView: View {
         let trackPresentation = room.trackPresentation(for: track)
         guard trackPresentation.isPlayable,
               !room.busy,
-              !room.mechanism.isAutomatic else { return }
+              !room.display.hardware.isAutomatic else { return }
 
         let sameDisc = isLoaded
         if sameDisc, room.track?.id == track.id, room.wantsPlayback {

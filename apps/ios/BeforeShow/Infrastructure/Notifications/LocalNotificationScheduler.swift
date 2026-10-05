@@ -257,8 +257,10 @@ struct LocalNotificationScheduler {
         plannedExposures: [RecommendedFeature: Int]
     ) -> NotificationNodeContent? {
         func recommended(_ slot: FeatureRecommendationSlot) -> RecommendedFeature? {
-            FeatureRecommendationPolicy.candidate(
-                from: slot.chain(isFestival: copy.context.isFestival, hasFutureShow: scope.nextShow != nil),
+            CurrentShowCardRecommendation.notificationFeature(
+                slot: slot,
+                isFestival: copy.context.isFestival,
+                hasFutureShow: scope.nextShow != nil,
                 context: scope.recommendations,
                 plannedExposures: plannedExposures
             )

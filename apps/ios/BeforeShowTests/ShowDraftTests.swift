@@ -27,12 +27,8 @@ final class ShowDraftTests: XCTestCase {
 
         XCTAssertFalse(addShow.contains("NotificationPermissionPrimerView"))
         XCTAssertFalse(addShow.contains("requestAuthorization()"))
-        XCTAssertTrue(addShow.contains("await LocalNotificationCenter.shared.reconcilePortfolio("))
-        let savedCallback = try XCTUnwrap(addShow.range(of: "onSaved?(show.id)"))
-        let schedulingHandoff = try XCTUnwrap(
-            addShow.range(of: "await LocalNotificationCenter.shared.reconcilePortfolio(")
-        )
-        XCTAssertLessThan(savedCallback.lowerBound, schedulingHandoff.lowerBound)
+        XCTAssertFalse(addShow.contains("LocalNotificationCenter.shared.reconcilePortfolio("))
+        XCTAssertTrue(addShow.contains("onSaved?(show.id)"))
 
         XCTAssertTrue(currentShow.contains("requestNotificationPermissionIfEligible()"))
         XCTAssertTrue(currentShow.contains(".onChange(of: isPlaybackActive, initial: true)"))

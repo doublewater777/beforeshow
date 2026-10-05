@@ -161,7 +161,7 @@ struct ListeningArtistMatchSheet: View {
         searchFocused = false
         confirming = true
         Task {
-            room.errorText = nil
+            room.dismissError()
             await room.rematch(slotIndex: slotIndex, artist: selected)
             confirming = false
             if room.errorText == nil { dismiss() }

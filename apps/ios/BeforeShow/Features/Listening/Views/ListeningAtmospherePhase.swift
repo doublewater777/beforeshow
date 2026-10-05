@@ -4,13 +4,16 @@ import SwiftUI
 enum ListeningAtmospherePhase: Equatable {
     case resting, placing, playing
 
-    @MainActor init(room: ListeningRoomCoordinator) {
-        let mechanism = room.mechanism
-        if mechanism.isAutomatic || mechanism.position == .removed || mechanism.isOpen {
+    init(isPlacing: Bool, isPlaying: Bool) {
+        if isPlacing {
             self = .placing
         } else {
-            self = room.display.player.isPlaybackActive ? .playing : .resting
+            self = isPlaying ? .playing : .resting
         }
+    }
+
+    @MainActor init(room: ListeningRoomCoordinator) {
+        self = room.atmospherePhase
     }
 
     var color: Color {

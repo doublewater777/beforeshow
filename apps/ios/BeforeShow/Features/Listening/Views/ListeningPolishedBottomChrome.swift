@@ -111,7 +111,7 @@ struct ListeningPolishedBottomChrome: View {
 
     private var hasLoadedDisc: Bool {
         guard let room, track != nil else { return false }
-        return room.mechanism.hasDisc
+        return room.hasLoadedDisc
     }
 
     private var showsMiniPlayer: Bool {
@@ -341,7 +341,7 @@ private struct ListeningCompactPlaybackControl: View {
     private var artworkURL: URL? {
         ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: track.artworkURL,
-            discArtworkURL: room.mechanism.disc?.artworkURL
+            discArtworkURL: room.display.hardware.artworkURL
         )
     }
     private var displayedArtwork: UIImage? {
@@ -534,7 +534,7 @@ private struct ListeningCompactPlaybackControl: View {
     private func displayedArtwork(for pageTrack: ListeningDiscTrack) -> UIImage? {
         let pageArtworkURL = ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: pageTrack.artworkURL,
-            discArtworkURL: room.mechanism.disc?.artworkURL
+            discArtworkURL: room.display.hardware.artworkURL
         )
         if pageArtworkURL == artworkURL {
             return displayedArtwork
@@ -546,14 +546,7 @@ private struct ListeningCompactPlaybackControl: View {
     }
 
     private func adjacentTrack(for action: ListeningMiniPlayerSwipeAction) -> ListeningDiscTrack? {
-        guard room.mechanism.isClosed,
-              let disc = room.mechanism.disc else {
-            return nil
-        }
-        let delta = action == .next ? 1 : -1
-        let index = room.trackIndex + delta
-        guard disc.tracks.indices.contains(index) else { return nil }
-        return disc.tracks[index]
+        room.adjacentLoadedTrack(delta: action == .next ? 1 : -1)
     }
 
     private func captureSwipeSnapshotIfNeeded() {

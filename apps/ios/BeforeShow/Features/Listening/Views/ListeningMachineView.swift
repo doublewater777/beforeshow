@@ -71,16 +71,17 @@ enum ListeningDiscDetailTapPolicy {
 
 struct ListeningMachineView: View {
     @Bindable var room: ListeningRoomCoordinator
-    private var player: CDMechanism { room.mechanism }
     let scale: CGFloat
     let showDetails: (ListeningDisc) -> Void
-    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+    private var hardware: ListeningHardwareSnapshot { room.display.hardware }
+    private var configuration: CDPlayerConfiguration { room.playerConfiguration }
+    private var geometry: CDPlayerConfiguration.Geometry { configuration.geometry }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             ListeningPlayerAmbientHalo(
-                artworkURL: player.disc?.artworkURL,
-                phase: ListeningAtmospherePhase(room: room)
+                artworkURL: hardware.artworkURL,
+                phase: room.atmospherePhase
             )
             .frame(
                 width: geometry.discDiameter * BSListeningTokens.haloWidth,
@@ -100,18 +101,20 @@ struct ListeningMachineView: View {
             Ellipse()
                 .fill(.black.opacity(0.45)).blur(radius: 22)
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
-            CDPlayerDiscWellView(player: player)
-            CDPlayerBodyShellView(player: player)
+            CDPlayerDiscWellView(configuration: configuration)
+            CDPlayerBodyShellView(configuration: configuration)
             CDPlayerDiscView(
-                player: player,
+                room: room,
+                hardware: hardware,
+                configuration: configuration,
                 scale: scale,
                 isRotating: room.display.player.shouldRotateDisc
-                    && player.position == .seated
-                    && player.isClosed
+                    && hardware.position == .seated
+                    && hardware.isClosed
             )
-                .zIndex(player.position == .seated ? 1 : 4)
+                .zIndex(hardware.position == .seated ? 1 : 4)
             spindle.zIndex(2)
-            CDPlayerLidView(player: player, scale: scale)
+            CDPlayerLidView(room: room, hardware: hardware, configuration: configuration, scale: scale)
                 .zIndex(3)
             CDPlayerLCDView(room: room)
                 .zIndex(5)
@@ -119,8 +122,8 @@ struct ListeningMachineView: View {
                 .zIndex(6)
         }
         .frame(width: geometry.canvas.width, height: geometry.canvas.height)
-        .allowsHitTesting(!player.isAutomatic)
-        .disabled(player.isAutomatic)
+        .allowsHitTesting(!hardware.isAutomatic)
+        .disabled(hardware.isAutomatic)
         .scaleEffect(scale, anchor: .topLeading)
         .frame(width: geometry.canvas.width * scale, height: geometry.canvas.height * scale, alignment: .topLeading)
         .simultaneousGesture(discDetailGesture)
@@ -129,20 +132,15 @@ struct ListeningMachineView: View {
     private var discDetailGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onEnded { value in
-                let motion = player.motion
-                let partsAreMoving = motion.lid.target != nil
-                    || motion.discX.target != nil
-                    || motion.discY.target != nil
-                    || motion.discScale.target != nil
-                    || motion.lift.target != nil
-                guard let disc = player.disc,
+                guard let discID = hardware.discID,
+                      let disc = room.disc(id: discID),
                       ListeningDiscDetailTapPolicy.canOpen(
-                        position: player.position,
-                        isAutomatic: player.isAutomatic,
-                        isReturning: player.isReturning,
-                        isCabinetDragging: player.isCabinetDragging,
-                        lidIsStable: player.isOpen || player.isClosed,
-                        partsAreMoving: partsAreMoving
+                        position: hardware.position,
+                        isAutomatic: hardware.isAutomatic,
+                        isReturning: hardware.isReturning,
+                        isCabinetDragging: hardware.isCabinetDragging,
+                        lidIsStable: hardware.isOpen || hardware.isClosed,
+                        partsAreMoving: hardware.partsAreMoving
                       ),
                       ListeningDiscDetailTapPolicy.isIntentionalTap(value.translation) else {
                     return
@@ -191,11 +189,11 @@ struct ListeningMachineView: View {
 }
 
 private struct CDPlayerDiscWellView: View {
-    let player: CDMechanism
-    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+    let configuration: CDPlayerConfiguration
+    private var geometry: CDPlayerConfiguration.Geometry { configuration.geometry }
 
     var body: some View {
-        Image(player.configuration.assets.discWell)
+        Image(configuration.assets.discWell)
             .resizable()
             .frame(width: geometry.discWellDiameter, height: geometry.discWellDiameter)
             .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
@@ -206,11 +204,11 @@ private struct CDPlayerDiscWellView: View {
 }
 
 private struct CDPlayerBodyShellView: View {
-    let player: CDMechanism
-    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+    let configuration: CDPlayerConfiguration
+    private var geometry: CDPlayerConfiguration.Geometry { configuration.geometry }
 
     var body: some View {
-        Image(player.configuration.assets.body)
+        Image(configuration.assets.body)
             .resizable()
             .frame(width: geometry.body.width, height: geometry.body.height)
             // The photographed body texture still supplies the metal shell, controls,
@@ -244,46 +242,46 @@ private struct CDPlayerBodyShellView: View {
 }
 
 private struct CDPlayerDiscView: View {
-    let player: CDMechanism
+    let room: ListeningRoomCoordinator
+    let hardware: ListeningHardwareSnapshot
+    let configuration: CDPlayerConfiguration
     let scale: CGFloat
     let isRotating: Bool
-    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
-    private var motion: CDMotionDriver { player.motion }
+    private var geometry: CDPlayerConfiguration.Geometry { configuration.geometry }
     private var rotationIdentity: String {
-        "\(player.disc?.id ?? "empty"):\(player.position == .stored ? "stored" : "active")"
+        "\(hardware.discID ?? "empty"):\(hardware.position == .stored ? "stored" : "active")"
     }
 
     var body: some View {
         CDContinuousRotationLayer(
             identity: rotationIdentity,
-            isRotating: isRotating && !motion.reducedMotion,
+            isRotating: isRotating && !hardware.reducedMotion,
             revolutionsPerMinute: BSListeningTokens.discRotationRPM
         ) {
-            ListeningDiscArtwork(disc: player.disc, image: player.configuration.assets.disc)
+            ListeningDiscArtwork(disc: room.disc(id: hardware.discID ?? ""), image: configuration.assets.disc)
         }
             .frame(width: geometry.discDiameter, height: geometry.discDiameter)
-            .scaleEffect(motion.discScale.value)
-            .opacity(player.position == .stored ? 0 : 1)
+            .scaleEffect(hardware.discScale)
+            .opacity(hardware.position == .stored ? 0 : 1)
             .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
-            .shadow(color: .black.opacity(0.3), radius: 3 + motion.lift.value * 9, y: 4 + motion.lift.value * 13)
+            .shadow(color: .black.opacity(0.3), radius: 3 + hardware.lift * 9, y: 4 + hardware.lift * 13)
             .contentShape(Circle())
             .gesture(DragGesture(minimumDistance: 5, coordinateSpace: .named("playerStage"))
                 .onChanged { value in
-                    player.dragDisc(CGSize(width: value.translation.width / scale,
-                                           height: value.translation.height / scale / cos(geometry.tiltDegrees * .pi / 180)))
-                }.onEnded { _ in player.endDiscDrag() })
+                    room.dragLoadedDisc(translation: value.translation, scale: scale)
+                }.onEnded { _ in room.endLoadedDiscDrag() })
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(player.disc?.title ?? "CD") CD")
-            .accessibilityAction(named: BSLocalization.text("取出")) { player.removeDisc() }
-            .accessibilityAction(named: BSLocalization.text("放回唱片柜")) {
-                if player.position == .seated { player.returnCurrentDiscToCabinet() }
-                else { player.returnDisc() }
-            }
-            .accessibilityAction(named: BSLocalization.text("放入")) { player.insertDisc() }
-            .position(x: motion.discX.value, y: geometry.projectedY(motion.discY.value) - (motion.reducedMotion ? 0 : motion.lift.value * 20))
-            .allowsHitTesting(player.position != .stored && !player.isReturning)
-            .phaseAnimator([false, true, false], trigger: player.occupiedAttemptCount) { content, emphasized in
-                content.scaleEffect(emphasized && !motion.reducedMotion ? 1.035 : 1)
+            .accessibilityLabel("\(hardware.discTitle ?? "CD") CD")
+            .accessibilityAction(named: BSLocalization.text("取出")) { room.removeLoadedDisc() }
+            .accessibilityAction(named: BSLocalization.text("放回唱片柜")) { room.returnLoadedDisc() }
+            .accessibilityAction(named: BSLocalization.text("放入")) { room.insertLoadedDisc() }
+            .position(
+                x: hardware.discX,
+                y: geometry.projectedY(hardware.discY) - (hardware.reducedMotion ? 0 : hardware.lift * 20)
+            )
+            .allowsHitTesting(hardware.position != .stored && !hardware.isReturning)
+            .phaseAnimator([false, true, false], trigger: hardware.occupiedAttemptCount) { content, emphasized in
+                content.scaleEffect(emphasized && !hardware.reducedMotion ? 1.035 : 1)
             } animation: { _ in
                 .easeInOut(duration: 0.09)
             }
@@ -408,20 +406,21 @@ private struct CDContinuousRotationLayer<Content: View>: UIViewControllerReprese
 }
 
 private struct CDPlayerLidView: View {
-    let player: CDMechanism
+    let room: ListeningRoomCoordinator
+    let hardware: ListeningHardwareSnapshot
+    let configuration: CDPlayerConfiguration
     let scale: CGFloat
-    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
-    private var motion: CDMotionDriver { player.motion }
+    private var geometry: CDPlayerConfiguration.Geometry { configuration.geometry }
     private var lidAngle: Double {
-        geometry.tiltDegrees + motion.lid.value * geometry.maximumOpening
+        geometry.tiltDegrees + hardware.lid * geometry.maximumOpening
     }
     private var isShowingBackFace: Bool {
         cos(lidAngle * .pi / 180) < 0
     }
     private var transparencyProgress: Double {
         ListeningLoadedLidAppearance.transparencyProgress(
-            lidOpenFraction: motion.lid.value,
-            hasDisc: player.hasDisc,
+            lidOpenFraction: hardware.lid,
+            hasDisc: hardware.hasDisc,
             isShowingBackFace: isShowingBackFace
         )
     }
@@ -434,11 +433,11 @@ private struct CDPlayerLidView: View {
             // Keep the photographed lid solid while it is open. Once a seated
             // disc is being covered, fade into the clear-acrylic treatment only
             // during the final portion of the closing travel.
-            Image(player.configuration.assets.lidOuter).resizable()
+            Image(configuration.assets.lidOuter).resizable()
                 .opacity(isShowingBackFace ? 0 : outerLidOpacity)
 
             // The inside face is not part of the transparent treatment.
-            Image(player.configuration.assets.lidInner).resizable()
+            Image(configuration.assets.lidInner).resizable()
                 .opacity(isShowingBackFace ? 1 : 0)
 
             LinearGradient(
@@ -451,7 +450,7 @@ private struct CDPlayerLidView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .mask(Image(player.configuration.assets.lidOuter).resizable())
+            .mask(Image(configuration.assets.lidOuter).resizable())
             .opacity(transparencyProgress)
 
             // Keep the acrylic rim readable as the cover clears over the disc.
@@ -466,15 +465,15 @@ private struct CDPlayerLidView: View {
 
             LinearGradient(
                 colors: [
-                    .white.opacity((0.07 - 0.045 * transparencyProgress) * motion.lid.value),
+                    .white.opacity((0.07 - 0.045 * transparencyProgress) * hardware.lid),
                     .clear,
-                    .black.opacity((0.10 - 0.065 * transparencyProgress) * motion.lid.value)
+                    .black.opacity((0.10 - 0.065 * transparencyProgress) * hardware.lid)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .mask(
-                Image(isShowingBackFace ? player.configuration.assets.lidInner : player.configuration.assets.lidOuter)
+                Image(isShowingBackFace ? configuration.assets.lidInner : configuration.assets.lidOuter)
                     .resizable()
             )
         }
@@ -483,28 +482,33 @@ private struct CDPlayerLidView: View {
         .modifier(HingedPlane(angle: lidAngle))
         .offset(x: geometry.lid.minX, y: geometry.hingeY)
         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("playerStage"))
-            .onChanged { value in player.dragLid(value.translation.height / scale) }
-            .onEnded { value in player.endLidDrag(value.translation.height / scale,
-                                                predicted: value.predictedEndTranslation.height / scale) })
+            .onChanged { value in room.dragLid(translation: value.translation.height, scale: scale) }
+            .onEnded { value in
+                room.endLidDrag(
+                    translation: value.translation.height,
+                    predicted: value.predictedEndTranslation.height,
+                    scale: scale
+                )
+            })
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.text("播放器上盖"))
-        .accessibilityValue(BSLocalization.text(player.isOpen ? "已打开" : "已合上"))
-        .accessibilityAction(named: BSLocalization.text("打开")) { player.setLid(open: true) }
-        .accessibilityAction(named: BSLocalization.text("合上")) { player.setLid(open: false) }
+        .accessibilityValue(BSLocalization.text(hardware.isOpen ? "已打开" : "已合上"))
+        .accessibilityAction(named: BSLocalization.text("打开")) { room.setLid(open: true) }
+        .accessibilityAction(named: BSLocalization.text("合上")) { room.setLid(open: false) }
     }
 }
 
 private struct CDPlayerLCDView: View {
     let room: ListeningRoomCoordinator
-    private var player: CDMechanism { room.mechanism }
-    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+    private var hardware: ListeningHardwareSnapshot { room.display.hardware }
+    private var geometry: CDPlayerConfiguration.Geometry { room.playerConfiguration.geometry }
 
     var body: some View {
         let displayTrack = room.playerDisplayTrack
         VStack(alignment: .leading, spacing: 1) {
-            Text(!player.hasDisc ? "NO DISC" : displayTrack?.title ?? "")
+            Text(!hardware.hasDisc ? "NO DISC" : displayTrack?.title ?? "")
                 .font(.system(size: 9, weight: .semibold, design: .monospaced)).lineLimit(1)
-            Text(player.hasDisc ? displayTrack?.artistName ?? "—" : "—")
+            Text(hardware.hasDisc ? displayTrack?.artistName ?? "—" : "—")
                 .font(.system(size: 7, weight: .medium, design: .monospaced)).lineLimit(1)
             HStack(spacing: 3) {
                 if let displayTrackIndex = room.playerDisplayTrackIndex {
@@ -513,7 +517,7 @@ private struct CDPlayerLCDView: View {
                     Text("TR --")
                 }
                 Spacer(minLength: 0)
-                if player.hasDisc {
+                if hardware.hasDisc {
                     switch room.display.player.phase {
                     case .preparing, .waiting:
                         Text(room.playerDisplayTimeText)
@@ -540,7 +544,7 @@ private struct CDPlayerLCDView: View {
 private struct CDPlayerControlsView: View {
     let room: ListeningRoomCoordinator
     let scale: CGFloat
-    private var geometry: CDPlayerConfiguration.Geometry { room.mechanism.configuration.geometry }
+    private var geometry: CDPlayerConfiguration.Geometry { room.playerConfiguration.geometry }
     private var playerPresentation: ListeningPlayerPresentation { room.display.player }
 
     var body: some View {

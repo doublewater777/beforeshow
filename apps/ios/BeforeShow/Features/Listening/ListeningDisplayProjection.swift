@@ -188,11 +188,53 @@ struct ListeningHeaderNotice: Equatable {
     let recoveryAction: ListeningRecoveryAction?
 }
 
+enum ListeningMusicAccessPrompt: Equatable {
+    case notDetermined
+    case denied
+    case restricted
+}
+
+/// What the room shell renders in the cabinet area. The view does not re-derive
+/// authorization, catalog loading, or artist matching to choose it.
+enum ListeningCatalogChrome: Equatable {
+    case preparing
+    case needsMusicAccess(ListeningMusicAccessPrompt)
+    case connectArtist(slotIndex: Int?, name: String, isBrowsing: Bool)
+    case unavailable(isStale: Bool)
+    case empty
+}
+
+struct ListeningHardwareSnapshot: Equatable {
+    var discID: String?
+    var discTitle: String?
+    var position: CDMechanism.Position = .stored
+    var isAutomatic = false
+    var isReturning = false
+    var isCabinetDragging = false
+    var isClosed = true
+    var isOpen = false
+    var hasDisc = false
+    var artworkURL: URL?
+    var notice: String?
+    var occupiedAttemptCount = 0
+    var lid = 0.0
+    var discX = 230.0
+    var discY = 489.0
+    var lift = 0.0
+    var discScale = 1.0
+    var reducedMotion = false
+    var partsAreMoving = false
+
+    static let empty = ListeningHardwareSnapshot()
+}
+
 struct ListeningDisplayProjection: Equatable {
     let page: ListeningPresentation
     let roomMode: ListeningRoomPlaybackMode
     let headerNotice: ListeningHeaderNotice?
     let recoveryAction: ListeningRecoveryAction?
+    let catalogChrome: ListeningCatalogChrome
+    let hardware: ListeningHardwareSnapshot
     let shelfDiscs: [ListeningDisc]
     let showsAllDiscs: Bool
     let player: ListeningPlayerPresentation
@@ -223,7 +265,11 @@ enum ListeningDisplayProjector {
         isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
         playback: ListeningPlaybackSnapshot,
-        playbackError: String?
+        playbackError: String?,
+        browsingArtist: ListeningBrowseArtist? = nil,
+        isCatalogEnriching: Bool = false,
+        unmatchedArtist: ListeningBrowseArtist? = nil,
+        hardware: ListeningHardwareSnapshot = .empty
     ) -> ListeningDisplayProjection {
         let hasAnyTracks = allDiscs.contains(where: { !$0.tracks.isEmpty })
         let mode = roomMode(
@@ -253,11 +299,71 @@ enum ListeningDisplayProjector {
             roomMode: mode,
             headerNotice: modeNotice,
             recoveryAction: recovery,
+            catalogChrome: catalogChrome(
+                page: page,
+                access: access,
+                isAuthorizing: isAuthorizing,
+                allDiscs: allDiscs,
+                libraryDiscs: libraryDiscs,
+                browsingArtist: browsingArtist,
+                isCatalogEnriching: isCatalogEnriching,
+                unmatchedArtist: unmatchedArtist
+            ),
+            hardware: hardware,
             shelfDiscs: Array(libraryDiscs.prefix(Shelf.visibleCount)),
             showsAllDiscs: libraryDiscs.count > Shelf.visibleCount,
             player: player,
             access: access
         )
+    }
+
+    static func catalogChrome(
+        page: ListeningPresentation,
+        access: ListeningMusicAccess,
+        isAuthorizing: Bool,
+        allDiscs: [ListeningDisc],
+        libraryDiscs: [ListeningDisc],
+        browsingArtist: ListeningBrowseArtist?,
+        isCatalogEnriching: Bool,
+        unmatchedArtist: ListeningBrowseArtist?
+    ) -> ListeningCatalogChrome {
+        if isAuthorizing { return .preparing }
+        if access.authorizationStatus != .authorized, allDiscs.isEmpty {
+            return .needsMusicAccess(accessPrompt(access))
+        }
+        if let browsingArtist, !browsingArtist.isConnected {
+            return .connectArtist(
+                slotIndex: browsingArtist.slotIndex,
+                name: browsingArtist.name,
+                isBrowsing: true
+            )
+        }
+        if isCatalogEnriching, libraryDiscs.isEmpty { return .preparing }
+        switch page {
+        case .loading, .loadingCatalog:
+            return .preparing
+        case .noConnectedArtists:
+            return .connectArtist(
+                slotIndex: unmatchedArtist?.slotIndex,
+                name: unmatchedArtist?.name ?? "",
+                isBrowsing: false
+            )
+        case .cachedWithError:
+            return .unavailable(isStale: true)
+        case .fatalUnavailable:
+            return .unavailable(isStale: false)
+        case .needsAuthorization, .noCurrentShow, .ready:
+            return .empty
+        }
+    }
+
+    private static func accessPrompt(_ access: ListeningMusicAccess) -> ListeningMusicAccessPrompt {
+        switch access.authorizationStatus {
+        case .notDetermined: .notDetermined
+        case .denied: .denied
+        case .restricted: .restricted
+        case .authorized: .notDetermined
+        }
     }
 
     static func trackPresentation(
@@ -582,6 +688,36 @@ enum ListeningCopy {
 }
 
 extension ListeningRoomCoordinator {
+    private var hardwareSnapshot: ListeningHardwareSnapshot {
+        let motion = mechanism.motion
+        let partsAreMoving = motion.lid.target != nil
+            || motion.discX.target != nil
+            || motion.discY.target != nil
+            || motion.discScale.target != nil
+            || motion.lift.target != nil
+        return ListeningHardwareSnapshot(
+            discID: mechanism.disc?.id,
+            discTitle: mechanism.disc?.title,
+            position: mechanism.position,
+            isAutomatic: mechanism.isAutomatic,
+            isReturning: mechanism.isReturning,
+            isCabinetDragging: mechanism.isCabinetDragging,
+            isClosed: mechanism.isClosed,
+            isOpen: mechanism.isOpen,
+            hasDisc: mechanism.hasDisc,
+            artworkURL: mechanism.disc?.artworkURL,
+            notice: mechanism.notice,
+            occupiedAttemptCount: mechanism.occupiedAttemptCount,
+            lid: motion.lid.value,
+            discX: motion.discX.value,
+            discY: motion.discY.value,
+            lift: motion.lift.value,
+            discScale: motion.discScale.value,
+            reducedMotion: motion.reducedMotion,
+            partsAreMoving: partsAreMoving
+        )
+    }
+
     var display: ListeningDisplayProjection {
         ListeningDisplayProjector.make(
             page: presentation,
@@ -594,8 +730,150 @@ extension ListeningRoomCoordinator {
             isLidClosed: mechanism.isClosed,
             currentTrack: track,
             playback: playback,
-            playbackError: playbackError
+            playbackError: playbackError,
+            browsingArtist: browsingArtist,
+            isCatalogEnriching: isCatalogEnriching,
+            unmatchedArtist: browseArtists.first { !$0.isConnected },
+            hardware: hardwareSnapshot
         )
+    }
+
+    var hasLoadedDisc: Bool { mechanism.hasDisc }
+
+    var hardwareGeometry: CDPlayerConfiguration.Geometry { mechanism.configuration.geometry }
+
+    var playerConfiguration: CDPlayerConfiguration { mechanism.configuration }
+
+    func disc(id: String) -> ListeningDisc? {
+        if mechanism.disc?.id == id { return mechanism.disc }
+        return discs.first { $0.id == id }
+    }
+
+    var atmospherePhase: ListeningAtmospherePhase {
+        ListeningAtmospherePhase(
+            isPlacing: mechanism.isAutomatic || mechanism.position == .removed || mechanism.isOpen,
+            isPlaying: display.player.isPlaybackActive
+        )
+    }
+
+    func setReducedMotion(_ value: Bool) {
+        mechanism.motion.reducedMotion = value
+    }
+
+    func stopHardwareMotion() {
+        mechanism.motion.stop()
+    }
+
+    func dismissError() {
+        errorText = nil
+    }
+
+    func beginCabinetDragIfNeeded(_ disc: ListeningDisc) -> Bool {
+        guard !mechanism.isCabinetDragging else { return false }
+        return beginPlayableDiscDrag(disc)
+    }
+
+    func updateCabinetDrag(of disc: ListeningDisc, translation: CGSize, scale: CGFloat) {
+        guard mechanism.isCabinetDragging, mechanism.disc?.id == disc.id, scale > 0 else { return }
+        let tilt = mechanism.configuration.geometry.tiltDegrees * .pi / 180
+        mechanism.dragDisc(CGSize(
+            width: translation.width / scale,
+            height: translation.height / scale / cos(tilt)
+        ))
+    }
+
+    func endCabinetDrag(of disc: ListeningDisc) {
+        guard mechanism.isCabinetDragging, mechanism.disc?.id == disc.id else { return }
+        mechanism.endDiscDrag()
+    }
+
+    func dragLoadedDisc(translation: CGSize, scale: CGFloat) {
+        guard scale > 0 else { return }
+        let tilt = mechanism.configuration.geometry.tiltDegrees * .pi / 180
+        mechanism.dragDisc(CGSize(
+            width: translation.width / scale,
+            height: translation.height / scale / cos(tilt)
+        ))
+    }
+
+    func endLoadedDiscDrag() {
+        mechanism.endDiscDrag()
+    }
+
+    func removeLoadedDisc() {
+        mechanism.removeDisc()
+    }
+
+    func returnLoadedDisc() {
+        if mechanism.position == .seated {
+            mechanism.returnCurrentDiscToCabinet()
+        } else {
+            mechanism.returnDisc()
+        }
+    }
+
+    func insertLoadedDisc() {
+        mechanism.insertDisc()
+    }
+
+    func dragLid(translation: CGFloat, scale: CGFloat) {
+        guard scale > 0 else { return }
+        mechanism.dragLid(translation / scale)
+    }
+
+    func endLidDrag(translation: CGFloat, predicted: CGFloat, scale: CGFloat) {
+        guard scale > 0 else { return }
+        mechanism.endLidDrag(translation / scale, predicted: predicted / scale)
+    }
+
+    func setLid(open: Bool) {
+        mechanism.setLid(open: open)
+    }
+
+    func adjacentLoadedTrack(delta: Int) -> ListeningDiscTrack? {
+        guard mechanism.isClosed, let disc = mechanism.disc else { return nil }
+        let index = trackIndex + delta
+        guard disc.tracks.indices.contains(index) else { return nil }
+        return disc.tracks[index]
+    }
+
+    func applyListeningFrames(_ frames: [String: CGRect]) {
+        guard let stage = frames["stage"], stage.width > 0 else { return }
+        let geometry = mechanism.configuration.geometry
+        let stageScale = stage.width / geometry.canvas.width
+        let cosine = cos(geometry.tiltDegrees * .pi / 180)
+        func convert(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: (point.x - stage.minX) / stageScale,
+                y: geometry.hingeY + ((point.y - stage.minY) / stageScale - geometry.hingeY) / cosine
+            )
+        }
+        var newSlots: [String: CGPoint] = [:]
+        var newCabinetScale = mechanism.cabinetScale
+        for disc in discs {
+            if let frame = frames["slot:\(disc.id)"] {
+                newSlots[disc.id] = convert(CGPoint(x: frame.midX, y: frame.midY))
+                newCabinetScale = frame.width / stageScale / geometry.discDiameter
+            }
+        }
+        if mechanism.cabinetSlots != newSlots {
+            mechanism.cabinetSlots = newSlots
+        }
+        if abs(mechanism.cabinetScale - newCabinetScale) > 0.001 {
+            mechanism.cabinetScale = newCabinetScale
+        }
+        if let frame = frames["cabinet"] {
+            let origin = convert(frame.origin)
+            let newDropZone = CGRect(
+                x: origin.x,
+                y: origin.y,
+                width: frame.width / stageScale,
+                height: frame.height / stageScale / cosine
+            )
+            if mechanism.cabinetDropZone != newDropZone {
+                mechanism.cabinetDropZone = newDropZone
+            }
+        }
     }
 
     func discPresentation(for disc: ListeningDisc) -> ListeningDiscPresentation {

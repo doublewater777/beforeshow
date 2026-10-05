@@ -179,9 +179,10 @@ final class FootprintArchiveTests: XCTestCase {
         ]))
     }
 
-    func testUnifiedEndedAddPreservesCurrentSelectionAndPermissionHistory() throws {
+    func testUnifiedEndedAddPreservesCurrentSelectionAndPermissionHistory() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -194,13 +195,14 @@ final class FootprintArchiveTests: XCTestCase {
         try context.save()
 
         let ended = try makeShow("过去现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             ended,
             lifecycle: .ended,
             selections: [selection],
             notificationStates: [notificationState],
             in: context,
-            now: date(2026, 8, 29, 12)
+            now: date(2026, 8, 29, 12),
+            effects: .skipped
         )
 
         XCTAssertEqual(result.outcome, .footprint)
@@ -210,9 +212,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
-    func testUnifiedClearlyHistoricalAddBootstrapsCurrentWhenEmpty() throws {
+    func testUnifiedClearlyHistoricalAddBootstrapsCurrentWhenEmpty() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -222,13 +225,14 @@ final class FootprintArchiveTests: XCTestCase {
             startTime: date(2024, 6, 1, 20)
         )
 
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             historical,
             lifecycle: .ended,
             selections: [],
             notificationStates: [],
             in: context,
-            now: date(2026, 8, 29, 12)
+            now: date(2026, 8, 29, 12),
+            effects: .skipped
         )
 
         XCTAssertEqual(result.outcome, .footprint)
@@ -244,9 +248,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selected?.id, historical.id)
     }
 
-    func testAddEndedShowWithSetAsCurrentOverridesExistingSelection() throws {
+    func testAddEndedShowWithSetAsCurrentOverridesExistingSelection() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -258,14 +263,15 @@ final class FootprintArchiveTests: XCTestCase {
         try context.save()
 
         let ended = try makeShow("过去现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             ended,
             lifecycle: .ended,
             setAsCurrent: true,
             selections: [selection],
             notificationStates: [],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         let updatedSelection = try XCTUnwrap(
@@ -275,9 +281,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(result.outcome, .footprint)
     }
 
-    func testUnifiedConfirmedEndedAddReplansAfterShowWithoutStealingCurrent() throws {
+    func testUnifiedConfirmedEndedAddReplansAfterShowWithoutStealingCurrent() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -301,13 +308,14 @@ final class FootprintArchiveTests: XCTestCase {
         )
         ended.markEnded(at: date(2026, 8, 29, 21, 30))
 
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             ended,
             lifecycle: .ended,
             selections: [selection],
             notificationStates: [notificationState],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         XCTAssertEqual(result.outcome, .footprint)
@@ -326,9 +334,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertFalse(plan.scheduledRequests.contains { $0.showID == ended.id })
     }
 
-    func testUnifiedFutureAddDoesNotStealExistingCurrentShow() throws {
+    func testUnifiedFutureAddDoesNotStealExistingCurrentShow() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -342,13 +351,14 @@ final class FootprintArchiveTests: XCTestCase {
         context.insert(notificationState)
         try context.save()
 
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             farther,
             lifecycle: .future,
             selections: [selection],
             notificationStates: [notificationState],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         XCTAssertEqual(result.outcome, .future)
@@ -367,9 +377,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(Set(plan.scheduledRequests.map(\.showID)), Set([current.id, farther.id]))
     }
 
-    func testUnifiedFutureAddBootstrapsCurrentOnlyWhenNoDurableSelectionExists() throws {
+    func testUnifiedFutureAddBootstrapsCurrentOnlyWhenNoDurableSelectionExists() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -389,13 +400,14 @@ final class FootprintArchiveTests: XCTestCase {
         context.insert(notificationState)
         try context.save()
 
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             closer,
             lifecycle: .future,
             selections: [],
             notificationStates: [notificationState],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         let shows = try context.fetch(FetchDescriptor<Show>())
@@ -410,9 +422,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selected?.id, closer.id)
     }
 
-    func testUnifiedFutureAddDoesNotPreventNewShowFromBecomingLiveCurrent() throws {
+    func testUnifiedFutureAddDoesNotPreventNewShowFromBecomingLiveCurrent() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -430,13 +443,14 @@ final class FootprintArchiveTests: XCTestCase {
         context.insert(current)
         try context.save()
 
-        _ = try AddShowPersistenceCoordinator.persist(
+        _ = try await AddShowPersistenceCoordinator.persist(
             closer,
             lifecycle: .future,
             selections: [],
             notificationStates: [],
             in: context,
-            now: addedAt
+            now: addedAt,
+            effects: .skipped
         )
 
         let shows = try context.fetch(FetchDescriptor<Show>())
@@ -449,21 +463,23 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selected?.id, closer.id)
     }
 
-    func testUnifiedFirstFutureAddBecomesCurrentShow() throws {
+    func testUnifiedFirstFutureAddBecomesCurrentShow() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
         let future = try makeShow("第一场未来现场", year: 2027, artist: "A", city: "上海", venue: "MAO")
 
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             future,
             lifecycle: .future,
             selections: [],
             notificationStates: [],
             in: context,
-            now: date(2026, 8, 29, 12)
+            now: date(2026, 8, 29, 12),
+            effects: .skipped
         )
 
         XCTAssertEqual(result.outcome, .future)
@@ -472,9 +488,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selections.first?.selectedShowID, future.id)
     }
 
-    func testUnifiedConfirmedLiveAddDoesNotStealExistingCurrentShow() throws {
+    func testUnifiedConfirmedLiveAddDoesNotStealExistingCurrentShow() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
@@ -491,13 +508,14 @@ final class FootprintArchiveTests: XCTestCase {
         context.insert(notificationState)
         try context.save()
 
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             live,
             lifecycle: .live,
             selections: [selection],
             notificationStates: [notificationState],
             in: context,
-            now: date(2026, 8, 29, 21)
+            now: date(2026, 8, 29, 21),
+            effects: .skipped
         )
 
         XCTAssertEqual(result.outcome, .future)

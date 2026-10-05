@@ -644,6 +644,66 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(stopped.roomMode, .fullPlayback)
     }
 
+    func testCatalogChromeFollowsAuthorizationAndPageWithoutViewLogic() {
+        let denied = ListeningMusicAccess(authorizationStatus: .denied, canPlayCatalogContent: false)
+        let authorized = ListeningMusicAccess(authorizationStatus: .authorized, canPlayCatalogContent: true)
+        let empty = ListeningDisplayProjector.make(
+            page: .needsAuthorization,
+            access: denied,
+            isAuthorizing: false,
+            allDiscs: [],
+            libraryDiscs: [],
+            loadedDisc: nil,
+            isDiscSeated: false,
+            isLidClosed: true,
+            currentTrack: nil,
+            playback: ListeningPlaybackSnapshot(state: .idle),
+            playbackError: nil
+        )
+        let preparing = ListeningDisplayProjector.make(
+            page: .ready,
+            access: authorized,
+            isAuthorizing: true,
+            allDiscs: [],
+            libraryDiscs: [],
+            loadedDisc: nil,
+            isDiscSeated: false,
+            isLidClosed: true,
+            currentTrack: nil,
+            playback: ListeningPlaybackSnapshot(state: .idle),
+            playbackError: nil
+        )
+        let artist = ListeningBrowseArtist(
+            slotIndex: 1,
+            id: "artist",
+            name: "未连接",
+            artworkURL: nil,
+            appleMusicArtistID: nil,
+            albums: []
+        )
+        let matching = ListeningDisplayProjector.make(
+            page: .ready,
+            access: authorized,
+            isAuthorizing: false,
+            allDiscs: [],
+            libraryDiscs: [],
+            loadedDisc: nil,
+            isDiscSeated: false,
+            isLidClosed: true,
+            currentTrack: nil,
+            playback: ListeningPlaybackSnapshot(state: .idle),
+            playbackError: nil,
+            browsingArtist: artist
+        )
+
+        XCTAssertEqual(empty.catalogChrome, .needsMusicAccess(.denied))
+        XCTAssertEqual(preparing.catalogChrome, .preparing)
+        XCTAssertEqual(
+            matching.catalogChrome,
+            .connectArtist(slotIndex: 1, name: "未连接", isBrowsing: true)
+        )
+    }
+
     private func makeProjection(
         page: ListeningPresentation = .ready,
         access: ListeningMusicAccess,

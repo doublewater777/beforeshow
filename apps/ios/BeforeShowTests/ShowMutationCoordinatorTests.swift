@@ -11,7 +11,10 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         let coreModels: [any PersistentModel.Type] = [
             Show.self,
             CurrentShowSelection.self,
-            NotificationSchedulingState.self
+            NotificationSchedulingState.self,
+            ShowOpeningFamiliarityBaseline.self,
+            ShowOpeningArtistTier.self,
+            ShowArtistListeningPreference.self
         ]
         return try ModelContainer(
             for: Schema(coreModels + additionalModels),
@@ -271,7 +274,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
-    func testAddShowPersistenceRejectsSecondLogicalDuplicate() throws {
+    func testAddShowPersistenceRejectsSecondLogicalDuplicate() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
@@ -293,27 +296,30 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             artists: [ArtistSlot(name: "测试艺人")]
         )
 
-        _ = try AddShowPersistenceCoordinator.persist(
+        _ = try await AddShowPersistenceCoordinator.persist(
             first,
             lifecycle: .future,
             selections: [],
             notificationStates: [],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
         let selections = try context.fetch(FetchDescriptor<CurrentShowSelection>())
         let notificationStates = try context.fetch(FetchDescriptor<NotificationSchedulingState>())
 
-        XCTAssertThrowsError(
-            try AddShowPersistenceCoordinator.persist(
+        do {
+            _ = try await AddShowPersistenceCoordinator.persist(
                 duplicate,
                 lifecycle: .future,
                 selections: selections,
                 notificationStates: notificationStates,
                 in: context,
-                now: now
+                now: now,
+                effects: .skipped
             )
-        ) { error in
+            XCTFail("Expected a duplicate 现场 to be rejected")
+        } catch {
             XCTAssertEqual(
                 error as? AddShowPersistenceError,
                 .duplicateShow(existingShowID: first.id)
@@ -323,7 +329,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
-    func testAddingAnotherShowDoesNotStealDurableCurrentShow() throws {
+    func testAddingAnotherShowDoesNotStealDurableCurrentShow() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
@@ -336,13 +342,14 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         try context.save()
 
         let added = try Show(name: "新加入", date: addedDate, startTime: addedDate)
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             added,
             lifecycle: .future,
             selections: [selection],
             notificationStates: [],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         XCTAssertEqual(result.outcome, .future)
@@ -351,20 +358,21 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
-    func testFirstUpcomingShowBecomesCurrentAndCanScheduleNotifications() throws {
+    func testFirstUpcomingShowBecomesCurrentAndCanScheduleNotifications() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
         let start = now.addingTimeInterval(3 * 86_400)
         let show = try Show(name: "第一场", date: start, startTime: start)
 
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             show,
             lifecycle: .future,
             selections: [],
             notificationStates: [],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         let selection = try XCTUnwrap(
@@ -376,7 +384,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
-    func testAddShowWithSetAsCurrentOverridesExistingSelection() throws {
+    func testAddShowWithSetAsCurrentOverridesExistingSelection() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
@@ -389,14 +397,15 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         try context.save()
 
         let added = try Show(name: "设为当前的现场", date: addedDate, startTime: addedDate)
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             added,
             lifecycle: .future,
             setAsCurrent: true,
             selections: [selection],
             notificationStates: [],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         let updatedSelection = try XCTUnwrap(
@@ -407,7 +416,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
-    func testAddShowWithoutSetAsCurrentPreservesExistingSelection() throws {
+    func testAddShowWithoutSetAsCurrentPreservesExistingSelection() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
@@ -420,20 +429,64 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         try context.save()
 
         let added = try Show(name: "默认不设为当前", date: addedDate, startTime: addedDate)
-        let result = try AddShowPersistenceCoordinator.persist(
+        let result = try await AddShowPersistenceCoordinator.persist(
             added,
             lifecycle: .future,
             setAsCurrent: false,
             selections: [selection],
             notificationStates: [],
             in: context,
-            now: now
+            now: now,
+            effects: .skipped
         )
 
         let updatedSelection = try XCTUnwrap(
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
         XCTAssertEqual(updatedSelection.selectedShowID, current.id)
+        XCTAssertEqual(result.outcome, .future)
+    }
+
+    @MainActor
+    func testAddPersistSyncsNotificationsAndWidgetOnlyAfterSaveIsVisible() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let start = now.addingTimeInterval(3 * 86_400)
+        let show = try Show(name: "第一场", date: start, startTime: start)
+        var events: [String] = []
+        let effects = CurrentShowPostCommitEffects(
+            reconcileNotifications: { syncContext in
+                let stored = (try? syncContext.fetch(FetchDescriptor<Show>())) ?? []
+                XCTAssertEqual(stored.map(\.name), ["第一场"])
+                events.append("notifications")
+                return true
+            },
+            syncWidget: { shows, selection in
+                XCTAssertEqual(shows.map(\.name), ["第一场"])
+                XCTAssertEqual(selection?.selectedShowID, show.id)
+                events.append("widget")
+                return true
+            }
+        )
+
+        let result = try await AddShowPersistenceCoordinator.persist(
+            show,
+            lifecycle: .future,
+            selections: [],
+            notificationStates: [],
+            in: context,
+            now: now,
+            effects: effects,
+            beforePostCommit: { _ in
+                let stored = (try? context.fetch(FetchDescriptor<Show>())) ?? []
+                XCTAssertEqual(stored.map(\.name), ["第一场"])
+                events.append("saved")
+            }
+        )
+
+        XCTAssertEqual(events, ["saved", "notifications", "widget"])
+        XCTAssertEqual(result.committedState.selection?.selectedShowID, show.id)
         XCTAssertEqual(result.outcome, .future)
     }
 

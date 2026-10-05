@@ -3,7 +3,7 @@
 
     static func discardLocalState() {
         shared?.discardLoadedDiscState()
-        shared?.mechanism.motion.stop()
+        shared?.stopHardwareMotion()
         shared = nil
     }
 }
@@ -125,7 +125,7 @@ struct ListenRootView: View {
         guard isActive else { return }
         guard let show else {
             room?.stop()
-            room?.mechanism.motion.stop()
+            room?.stopHardwareMotion()
             room = nil
             ListeningRoomCache.shared = nil
             return
@@ -163,8 +163,8 @@ struct ListenRootView: View {
         ZStack {
             BSColor.Stage.background
             ListeningStageBackground(
-                artworkURL: room?.mechanism.disc?.artworkURL,
-                phase: room.map { ListeningAtmospherePhase(room: $0) } ?? .resting
+                artworkURL: room?.display.hardware.artworkURL,
+                phase: room?.atmospherePhase ?? .resting
             )
         }
     }
@@ -203,7 +203,7 @@ struct ListeningRoomView: View {
                             .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: room.display.player.isPlaybackActive)
                         }
 
-                        let geometry = room.mechanism.configuration.geometry
+                        let geometry = room.hardwareGeometry
                         let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
                         ListeningCabinetView(room: room, scale: scale, showAll: { showsCabinet = true }, showDetails: { room.browser.open($0) }) {
                             catalogStatus
@@ -220,7 +220,7 @@ struct ListeningRoomView: View {
                         ListeningCurrentSong(room: room)
                             .padding(.top, -BSSpacing.lg)
 
-                        if let notice = room.mechanism.notice {
+                        if let notice = room.display.hardware.notice {
                             Text(notice)
                                 .font(BSListeningTokens.caption)
                                 .foregroundStyle(BSColor.Stage.muted)
@@ -234,7 +234,7 @@ struct ListeningRoomView: View {
                 }
             }
         }
-        .onPreferenceChange(ListeningFramesKey.self, perform: updateFrames)
+        .onPreferenceChange(ListeningFramesKey.self) { room.applyListeningFrames($0) }
         .foregroundStyle(BSColor.Stage.foreground)
         .sheet(item: $room.browser.detail) { disc in
             ListeningDiscDetailView(room: room, disc: disc)
@@ -253,18 +253,18 @@ struct ListeningRoomView: View {
             BSLocalization.text("暂时未完成"),
             isPresented: Binding(
                 get: { room.errorText != nil },
-                set: { if !$0 { room.errorText = nil } }
+                set: { if !$0 { room.dismissError() } }
             )
         ) {
-            Button(BSLocalization.text("好"), role: .cancel) { room.errorText = nil }
+            Button(BSLocalization.text("好"), role: .cancel) { room.dismissError() }
         } message: {
             Text(room.errorText ?? "")
         }
-        .onChange(of: room.mechanism.disc?.id) { _, _ in room.manualDiscChanged() }
-        .onChange(of: room.mechanism.position) { _, position in
+        .onChange(of: room.display.hardware.discID) { _, _ in room.manualDiscChanged() }
+        .onChange(of: room.display.hardware.position) { _, position in
             if position == .seated { room.finalizeManualDiscInsertionIfNeeded() }
         }
-        .onChange(of: reduceMotion, initial: true) { _, value in room.mechanism.motion.reducedMotion = value }
+        .onChange(of: reduceMotion, initial: true) { _, value in room.setReducedMotion(value) }
         .task {
             while !Task.isCancelled {
                 room.tickMechanism()
@@ -275,110 +275,51 @@ struct ListeningRoomView: View {
 
     @ViewBuilder
     private var catalogStatus: some View {
-        if room.isAuthorizing {
+        switch room.display.catalogChrome {
+        case .preparing:
             ListeningShelfSkeleton()
-        } else if !room.accessResolved {
-            ListeningShelfSkeleton()
-        } else if room.access.authorizationStatus != .authorized && room.discs.isEmpty {
+        case .needsMusicAccess(let prompt):
             ListeningCatalogStatusView(
                 title: BSLocalization.text("连接 Apple Music"),
-                subtitle: musicAccessSubtitle,
+                subtitle: musicAccessSubtitle(prompt),
                 icon: "music.note",
                 actionTitle: room.display.recoveryAction?.title
             ) {
                 if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
             }
-        } else if let browsingArtist = room.browsingArtist, !browsingArtist.isConnected {
+        case .connectArtist(let slotIndex, let name, let isBrowsing):
             ListeningCatalogStatusView(
                 title: BSLocalization.text("尚未匹配 Apple Music 艺人"),
-                subtitle: ListeningCopy.text("选择对应的 Apple Music 艺人"),
-                icon: "link.badge.plus",
+                subtitle: isBrowsing ? ListeningCopy.text("选择对应的 Apple Music 艺人") : nil,
+                icon: isBrowsing ? "link.badge.plus" : "opticaldisc",
                 actionTitle: BSLocalization.text("连接艺人")
             ) {
-                matchingSlotIndex = browsingArtist.slotIndex
-                matchingArtistName = browsingArtist.name
-            }
-        } else if room.isCatalogEnriching && room.libraryDiscs.isEmpty {
-            // Keep the cabinet geometry stable while the selected artist's full
-            // albums are still arriving instead of briefly claiming no records exist.
-            ListeningShelfSkeleton()
-        } else {
-            switch room.presentation {
-            case .loading, .loadingCatalog:
-                ListeningShelfSkeleton()
-            case .noConnectedArtists:
-                ListeningCatalogStatusView(
-                    title: BSLocalization.text("尚未匹配 Apple Music 艺人"),
-                    actionTitle: BSLocalization.text("连接艺人")
-                ) {
-                    if let first = room.browseArtists.first(where: { !$0.isConnected }) {
-                        matchingSlotIndex = first.slotIndex
-                        matchingArtistName = first.name
-                    }
+                if let slotIndex {
+                    matchingSlotIndex = slotIndex
+                    matchingArtistName = name
                 }
-            case .cachedWithError, .fatalUnavailable:
-                ListeningCatalogStatusView(
-                    title: BSLocalization.text(room.presentation == .cachedWithError ? "暂时无法更新专场唱片" : "暂时无法载入音乐"),
-                    icon: "wifi.exclamationmark",
-                    actionTitle: room.display.recoveryAction?.title
-                ) {
-                    if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
-                }
-            case .needsAuthorization, .noCurrentShow, .ready:
-                ListeningCatalogStatusView(title: BSLocalization.text("暂时没有找到可翻的唱片"))
             }
+        case .unavailable(let isStale):
+            ListeningCatalogStatusView(
+                title: BSLocalization.text(isStale ? "暂时无法更新专场唱片" : "暂时无法载入音乐"),
+                icon: "wifi.exclamationmark",
+                actionTitle: room.display.recoveryAction?.title
+            ) {
+                if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
+            }
+        case .empty:
+            ListeningCatalogStatusView(title: BSLocalization.text("暂时没有找到可翻的唱片"))
         }
     }
 
-    private var musicAccessSubtitle: String {
-        switch room.access.authorizationStatus {
+    private func musicAccessSubtitle(_ prompt: ListeningMusicAccessPrompt) -> String {
+        switch prompt {
         case .notDetermined:
-            return ListeningCopy.text("授权后载入唱片")
+            ListeningCopy.text("授权后载入唱片")
         case .denied:
-            return BSLocalization.text("请在系统设置中允许访问 Apple Music")
+            BSLocalization.text("请在系统设置中允许访问 Apple Music")
         case .restricted:
-            return ListeningCopy.text("Apple Music 访问受到系统限制，无法在此更改。")
-        case .authorized:
-            return ""
-        }
-    }
-
-    private func updateFrames(_ frames: [String: CGRect]) {
-        guard let stage = frames["stage"], stage.width > 0 else { return }
-        let geometry = room.mechanism.configuration.geometry
-        let stageScale = stage.width / geometry.canvas.width
-        let cosine = cos(geometry.tiltDegrees * .pi / 180)
-        func convert(_ point: CGPoint) -> CGPoint {
-            CGPoint(
-                x: (point.x - stage.minX) / stageScale,
-                y: geometry.hingeY + ((point.y - stage.minY) / stageScale - geometry.hingeY) / cosine
-            )
-        }
-        var newSlots: [String: CGPoint] = [:]
-        var newCabinetScale = room.mechanism.cabinetScale
-        for disc in room.discs {
-            if let frame = frames["slot:\(disc.id)"] {
-                newSlots[disc.id] = convert(CGPoint(x: frame.midX, y: frame.midY))
-                newCabinetScale = frame.width / stageScale / geometry.discDiameter
-            }
-        }
-        if room.mechanism.cabinetSlots != newSlots {
-            room.mechanism.cabinetSlots = newSlots
-        }
-        if abs(room.mechanism.cabinetScale - newCabinetScale) > 0.001 {
-            room.mechanism.cabinetScale = newCabinetScale
-        }
-        if let frame = frames["cabinet"] {
-            let origin = convert(frame.origin)
-            let newDropZone = CGRect(
-                x: origin.x,
-                y: origin.y,
-                width: frame.width / stageScale,
-                height: frame.height / stageScale / cosine
-            )
-            if room.mechanism.cabinetDropZone != newDropZone {
-                room.mechanism.cabinetDropZone = newDropZone
-            }
+            ListeningCopy.text("Apple Music 访问受到系统限制，无法在此更改。")
         }
     }
 }

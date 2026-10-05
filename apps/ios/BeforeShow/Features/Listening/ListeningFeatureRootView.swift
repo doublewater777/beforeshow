@@ -16,10 +16,10 @@ enum ListeningChromeBootstrapper {
             let cached = ListeningRoomCache.shared
             let published = ListeningPlaybackChromeStore.shared.room
             cached?.stop()
-            cached?.mechanism.motion.stop()
+            cached?.stopHardwareMotion()
             if let published, published !== cached {
                 published.stop()
-                published.mechanism.motion.stop()
+                published.stopHardwareMotion()
             }
             ListeningRoomCache.shared = nil
             ListeningPlaybackChromeStore.shared.room = nil
@@ -35,10 +35,10 @@ enum ListeningChromeBootstrapper {
            cachedShowID != show.id {
             let published = ListeningPlaybackChromeStore.shared.room
             cached.discardLoadedDiscState()
-            cached.mechanism.motion.stop()
+            cached.stopHardwareMotion()
             if let published, published !== cached {
                 published.stop()
-                published.mechanism.motion.stop()
+                published.stopHardwareMotion()
             }
             ListeningRoomCache.shared = nil
             ListeningPlaybackChromeStore.shared.room = nil
@@ -62,10 +62,10 @@ enum ListeningChromeBootstrapper {
         // Root bootstrap exists only to restore chrome for a persisted disc. A fresh
         // coordinator with no restored disc must not trigger artist matching, Music
         // access, or catalog IO before the user actually enters Listen.
-        guard room.mechanism.hasDisc, room.track != nil else {
+        guard room.hasLoadedDisc, room.track != nil else {
             ListeningPlaybackChromeStore.shared.room = nil
             if createdCandidate {
-                room.mechanism.motion.stop()
+                room.stopHardwareMotion()
             }
             return nil
         }

@@ -6,7 +6,7 @@ struct ListeningCurrentSong: View {
 
     private var player: ListeningPlayerPresentation { room.display.player }
     private var showsInlineGuidance: Bool {
-        room.mechanism.position != .seated || room.track == nil
+        room.display.hardware.position != .seated || room.track == nil
     }
     private var recovery: ListeningRecoveryAction? {
         guard player.recoveryAction == .retryPlayback else { return nil }
@@ -42,7 +42,7 @@ struct ListeningCurrentSong: View {
         }
         .frame(maxWidth: .infinity)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.track?.id)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.mechanism.position)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.display.hardware.position)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)
         .onAppear {
             ListeningPlaybackChromeStore.shared.room = room
@@ -50,7 +50,7 @@ struct ListeningCurrentSong: View {
     }
 
     private var statusLine: some View {
-        Text(room.mechanism.isAutomatic || room.mechanism.position == .removed
+        Text(room.display.hardware.isAutomatic || room.display.hardware.position == .removed
              ? ListeningCopy.text("放置唱片中…") : player.statusText)
             .font(BSListeningTokens.caption)
             .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)

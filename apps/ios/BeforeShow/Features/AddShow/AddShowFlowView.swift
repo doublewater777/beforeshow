@@ -883,38 +883,33 @@ struct AddShowFlowView: View {
     ) async {
         isSaving = true
         do {
-            let result = try AddShowPersistenceCoordinator.persist(
+            _ = try await AddShowPersistenceCoordinator.persist(
                 show,
                 lifecycle: lifecycle,
                 setAsCurrent: setAsCurrentShow,
                 selections: selections,
                 notificationStates: notificationStates,
-                in: modelContext
-            )
-
-            synchronizeFreeShowCapacity(
                 in: modelContext,
-                entitlement: ProEntitlementStorage.decode(entitlementRawValue)
+                beforePostCommit: { outcome in
+                    synchronizeFreeShowCapacity(
+                        in: modelContext,
+                        entitlement: ProEntitlementStorage.decode(entitlementRawValue)
+                    )
+                    PostHogSDK.shared.capture("show_added", properties: [
+                        "method": sheet.rawValue,
+                        "lifecycle": outcome.rawValue
+                    ])
+                    didSave = true
+                    coverLifecycle.finalize(keeping: draft.coverImageURL)
+
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    isSaving = false
+
+                    // Saving is the end of the add transaction. If another Current Show already
+                    // exists, preserve it silently; users can switch later from the Current tab.
+                    onSaved?(show.id)
+                }
             )
-            PostHogSDK.shared.capture("show_added", properties: [
-                "method": sheet.rawValue,
-                "lifecycle": result.outcome.rawValue
-            ])
-            didSave = true
-            coverLifecycle.finalize(keeping: draft.coverImageURL)
-
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            isSaving = false
-
-            // Saving is the end of the add transaction. If another Current Show already
-            // exists, preserve it silently; users can switch later from the Current tab.
-            onSaved?(show.id)
-
-            if result.notificationState != nil {
-                await LocalNotificationCenter.shared.reconcilePortfolio(
-                    in: modelContext
-                )
-            }
         } catch AddShowPersistenceError.duplicateShow {
             modelContext.rollback()
             message = BSLocalization.text("这场已经在 BeforeShow 里了")

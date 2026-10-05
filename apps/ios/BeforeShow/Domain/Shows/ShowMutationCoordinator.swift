@@ -86,6 +86,12 @@ struct CurrentShowPostCommitEffects {
             WidgetDataSync.sync(shows: shows, manualSelection: selection)
         }
     )
+
+    /// Tests that only care about the saved 现场 pass this so they do not touch notifications or widgets.
+    static let skipped = CurrentShowPostCommitEffects(
+        reconcileNotifications: { _ in true },
+        syncWidget: { _, _ in true }
+    )
 }
 
 @MainActor
@@ -133,11 +139,6 @@ enum ShowMutationCoordinator {
     ) async throws -> Bool {
         do {
             try mutation()
-            let listeningNow = Date()
-            _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(
-                in: modelContext,
-                now: listeningNow
-            )
             let committedState = try commitCurrentShowState(
                 shows: shows,
                 selections: selections,
@@ -165,6 +166,7 @@ enum ShowMutationCoordinator {
         session: CurrentShowSession = CurrentShowSession(),
         now: Date = Date()
     ) throws -> CurrentShowCommittedState {
+        try reconcileListening(in: modelContext, now: now)
         let store = CurrentShowSelectionStore(modelContext: modelContext)
         let selection = try store.bootstrapIfNeeded(
             shows: shows,
@@ -182,6 +184,17 @@ enum ShowMutationCoordinator {
             currentShow: currentShow,
             shows: shows,
             selection: selection
+        )
+    }
+
+    @MainActor
+    static func reconcileListening(
+        in modelContext: ModelContext,
+        now: Date = Date()
+    ) throws {
+        _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(
+            in: modelContext,
+            now: now
         )
     }
 
