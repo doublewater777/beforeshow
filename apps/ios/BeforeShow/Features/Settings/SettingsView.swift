@@ -109,6 +109,16 @@ struct SettingsView: View {
 
             // 系统与关于
             Section {
+                Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+                    BSSettingsRow(
+                        icon: "globe",
+                        tint: BSColor.Stage.glowBlue,
+                        title: BSLocalization.text("语言")
+                    )
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(BSColor.Stage.surface)
+
                 NavigationLink {
                     AboutBeforeShowView()
                 } label: {
