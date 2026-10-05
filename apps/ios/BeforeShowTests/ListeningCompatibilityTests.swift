@@ -502,12 +502,13 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             room.mechanism.motion.stop()
         }
         await room.load(show: show)
+        room.deck.progressInterval = .milliseconds(20)
 
         room.playPause()
         try await waitUntil { room.isPlaying && !room.busy }
         // Progress samples arrive once a second while playing.
         playback.currentTime = 1.4
-        try await Task.sleep(for: .milliseconds(1_100))
+        try await Task.sleep(for: .milliseconds(150))
         playback.currentTime = 2.1
         try await waitUntil { room.errorText != nil }
 
@@ -570,6 +571,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             playbackFactory: { _ in playback }
         )
         let room = try XCTUnwrap(prepared)
+        room.deck.progressInterval = .milliseconds(20)
         defer {
             room.stop()
             room.mechanism.motion.stop()
@@ -583,7 +585,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         // Build continuous full-catalog evidence to just below 50% from the
         // deck's own progress samples, without any view timer.
         playback.currentTime = 1.4
-        try await Task.sleep(for: .milliseconds(1_100))
+        try await Task.sleep(for: .milliseconds(150))
         XCTAssertNil(
             try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
                 .first { $0.songID == song.appleMusicSongID }?.actualListeningAt

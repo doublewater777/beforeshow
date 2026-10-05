@@ -242,6 +242,7 @@ import SwiftData
         defer { room.mechanism.motion.stop() }
         let clock = LifecycleClock()
         room.deck.now = { clock.now }
+        room.deck.progressInterval = .milliseconds(20)
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first)
@@ -257,7 +258,7 @@ import SwiftData
         // The next progress sample crosses the halfway mark while saving fails.
         player.currentTime = 51
         clock.advance(51)
-        try await Task.sleep(for: .milliseconds(1_200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
         XCTAssertEqual(
@@ -267,7 +268,7 @@ import SwiftData
         )
 
         persistenceAvailable = true
-        try await Task.sleep(for: .milliseconds(1_200))
+        try await Task.sleep(for: .milliseconds(200))
 
         XCTAssertTrue(
             try context.fetch(FetchDescriptor<SongFamiliarityRecord>())

@@ -31,6 +31,8 @@ final class ListeningDeck {
     @ObservationIgnored var evidenceProvider: () -> ListeningPlaybackEvidenceCoordinator? = { nil }
     /// Clock for listening samples.
     @ObservationIgnored var now: () -> Date = Date.init
+    /// How often playback progress is sampled while playing.
+    @ObservationIgnored var progressInterval: Duration = .seconds(1)
 
     @ObservationIgnored private let makeEngine: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
     @ObservationIgnored private var commandTask: Task<Void, Never>?
@@ -509,7 +511,8 @@ final class ListeningDeck {
         guard progressTask == nil else { return }
         progressTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                guard let interval = self?.progressInterval else { return }
+                try? await Task.sleep(for: interval)
                 guard let self, !Task.isCancelled else { return }
                 guard self.isPlaying, let engine = self.engine else { continue }
                 self.recordSample(immediate: false)

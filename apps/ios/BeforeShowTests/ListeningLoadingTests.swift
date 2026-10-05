@@ -486,7 +486,7 @@ final class ListeningLoadingTests: XCTestCase {
         let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
         let room = ListeningRoomCoordinator(
             context: context,
-            catalogService: ListeningFixtureCatalog(scenario: .authorizationFlow),
+            catalogService: ListeningFixtureCatalog(scenario: .authorizationFlow, pace: 0.2),
             artistSearchService: ListeningFixtureArtistSearch(),
             playbackFactory: { ListeningFixturePlayer(source: $0) }
         )

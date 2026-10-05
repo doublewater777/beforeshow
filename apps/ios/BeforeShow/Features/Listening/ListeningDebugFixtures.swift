@@ -165,22 +165,26 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
     private let lock = NSLock()
     private var authorization: ListeningMusicAuthorizationStatus
 
-    init(scenario: ListeningFixtureScenario) {
+    /// Scales the simulated network delays; tests pass a small value.
+    let pace: Double
+
+    init(scenario: ListeningFixtureScenario, pace: Double = 1) {
         self.scenario = scenario
+        self.pace = pace
         authorization = scenario == .authorizationFlow ? .notDetermined : scenario == .authorizationDenied ? .denied : .authorized
     }
 
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { lock.withLock { authorization } }
     func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
         if scenario == .authorizationFlow {
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(3) * pace)
             lock.withLock { authorization = .authorized }
         }
         return currentAuthorizationStatus()
     }
     func currentAccess() async -> ListeningMusicAccess {
         if scenario == .coldProgressive { NSLog("ListeningColdStart access %.3f", ProcessInfo.processInfo.systemUptime) }
-        if scenario == .coldLoading { try? await Task.sleep(for: .seconds(3)) }
+        if scenario == .coldLoading { try? await Task.sleep(for: .seconds(3) * pace) }
         let status = currentAuthorizationStatus()
         return .init(authorizationStatus: status, canPlayCatalogContent: status == .authorized && scenario != .previewOnly && scenario != .metadataOnly)
     }
@@ -188,7 +192,7 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
         if scenario == .coldProgressive {
             // One slow artist must not hold the other artist's playable CD hostage.
             NSLog("ListeningColdStart request %@ %.3f", artistID, ProcessInfo.processInfo.systemUptime)
-            try await Task.sleep(for: artistID.hasSuffix("0") ? .seconds(15) : .milliseconds(250))
+            try await Task.sleep(for: (artistID.hasSuffix("0") ? .seconds(15) : .milliseconds(250)) * pace)
             NSLog("ListeningColdStart result %@ %.3f", artistID, ProcessInfo.processInfo.systemUptime)
             let name = artistID.hasSuffix("0") ? "Aimer" : "YOASOBI"
             return [.init(songID: "fixture-song-\(artistID.hasSuffix("0") ? 0 : 1)-0", title: "夜色", artistName: name,
@@ -219,7 +223,7 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
         }
     }
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
-        if scenario.startsWithoutCatalog { try await Task.sleep(for: .seconds(3)) }
+        if scenario.startsWithoutCatalog { try await Task.sleep(for: .seconds(3) * pace) }
         if scenario == .cachedError || scenario == .catalogFailure { throw ListeningCatalogError.incompleteCatalog(artistID) }
         let ids = (0..<4).map { "fixture-song-\(artistID.hasSuffix("1") ? 1 : 0)-\($0)" }
         let songs: [ListeningCatalogSongPayload] = scenario.startsWithoutCatalog ? ids.map {
