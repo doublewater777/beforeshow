@@ -78,7 +78,17 @@ struct TimetableSheet: View {
                         }
                     )
                 } else if hasStructuredTimetable, let timetable = currentShow?.timetable {
-                    structuredTimetableContent(timetable: timetable)
+                    TimetableExperienceView(
+                        timetable: timetable,
+                        show: currentShow,
+                        onInspectOrEdit: {
+                            activeReviewDraft = TimetableDraft(from: timetable)
+                        },
+                        onViewOriginalImages: {
+                            isViewerPresented = true
+                        },
+                        originalImagesCount: loadedAssetImages.count
+                    )
                 } else if hasSavedImages {
                     legacyImagesContent
                 } else {
@@ -242,94 +252,6 @@ struct TimetableSheet: View {
             .padding(.horizontal, BSSpacing.lg)
         }
         .padding(.vertical, BSSpacing.lg)
-    }
-
-    private func structuredTimetableContent(timetable: Timetable) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: BSSpacing.lg) {
-                // Summary bar
-                let draft = TimetableDraft(from: timetable)
-                HStack(spacing: BSSpacing.md) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(draft.summary.dateRangeDescription)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(BSColor.textPrimary)
-                        Text(BSLocalization.format("%d 个舞台 • 共 %d 场演出", draft.summary.stageCount, draft.summary.performanceCount))
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                    }
-                    Spacer()
-                    Button {
-                        activeReviewDraft = draft
-                    } label: {
-                        Label(BSLocalization.text("检查/修改"), systemImage: "slider.horizontal.3")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Accent.warm)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(BSColor.Accent.warm.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                }
-                .padding(BSSpacing.md)
-                .background(BSColor.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                if !loadedAssetImages.isEmpty {
-                    HStack {
-                        Button {
-                            isViewerPresented = true
-                        } label: {
-                            Label(BSLocalization.format("查看原图 (%d 张)", loadedAssetImages.count), systemImage: "photo")
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.textSecondary)
-                        }
-                        Spacer()
-                    }
-                }
-
-                // Days & Stages preview
-                ForEach(timetable.orderedDays, id: \.id) { day in
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(formatDay(day.date))
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(BSColor.Accent.prepare)
-
-                        ForEach(day.orderedStages, id: \.id) { stage in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(stage.name)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(BSColor.Accent.warm)
-
-                                ForEach(stage.orderedPerformances, id: \.id) { perf in
-                                    HStack {
-                                        Text(formatTimeRange(start: perf.startsAt, end: perf.endsAt))
-                                            .font(.system(size: 13, weight: .medium, design: .monospaced))
-                                            .foregroundColor(BSColor.textTertiary)
-                                        Text(perf.artistName)
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(BSColor.textPrimary)
-                                        Spacer()
-                                        if perf.isInterested {
-                                            Image(systemName: "heart.fill")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(Color.red)
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                    Divider().overlay(Color.white.opacity(0.06))
-                                }
-                            }
-                            .padding(12)
-                            .background(BSColor.surface)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, BSSpacing.lg)
-            .padding(.vertical, BSSpacing.md)
-        }
     }
 
     private var timetableImagesViewer: some View {
