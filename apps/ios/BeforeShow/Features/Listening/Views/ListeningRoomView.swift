@@ -260,10 +260,6 @@ struct ListeningRoomView: View {
         } message: {
             Text(room.errorText ?? "")
         }
-        .onChange(of: room.display.hardware.discID) { _, _ in room.manualDiscChanged() }
-        .onChange(of: room.display.hardware.position) { _, position in
-            if position == .seated { room.finalizeManualDiscInsertionIfNeeded() }
-        }
         .onChange(of: reduceMotion, initial: true) { _, value in room.setReducedMotion(value) }
         .task {
             while !Task.isCancelled {

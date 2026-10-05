@@ -108,34 +108,20 @@ enum ListeningPlayerPhase: Equatable {
     case finished
     case failed
 
-    init(playback: ListeningPlaybackSnapshot) {
-        self = switch playback.state {
-        case .idle, .ready: .stopped
-        case .preparing: .preparing
-        case .waiting: .waiting
-        case .playing: .playing
-        case .seeking: .seeking
-        case .paused: .paused
-        case .interrupted: .interrupted
-        case .finished: .finished
-        case .failed: .failed
-        }
-        guard self != .preparing, self != .failed else { return }
-
-        if playback.intent == .paused {
-            self = .paused
-        } else if playback.intent == .playing,
-                  self == .stopped || self == .paused || self == .finished {
-            self = .waiting
-        }
-    }
-
     var isPlaybackActive: Bool {
         switch self {
         case .preparing, .waiting, .playing, .seeking: true
         case .noDisc, .paused, .interrupted, .stopped, .finished, .failed: false
         }
     }
+}
+
+/// What the player projection reads from the deck.
+struct ListeningPlayerTransport: Equatable {
+    var phase: ListeningPlayerPhase = .stopped
+    var source: ListeningPlaybackSource?
+    var time: TimeInterval = 0
+    var duration: TimeInterval?
 }
 
 struct ListeningPlayerPresentation: Equatable {
@@ -264,7 +250,7 @@ enum ListeningDisplayProjector {
         isDiscSeated: Bool,
         isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
-        playback: ListeningPlaybackSnapshot,
+        transport: ListeningPlayerTransport,
         playbackError: String?,
         browsingArtist: ListeningBrowseArtist? = nil,
         isCatalogEnriching: Bool = false,
@@ -276,7 +262,7 @@ enum ListeningDisplayProjector {
             access: access,
             isAuthorizing: isAuthorizing || (!hasAnyTracks && (page == .loading || page == .loadingCatalog)),
             allDiscs: allDiscs,
-            playback: playback
+            transport: transport
         )
         let modeNotice = headerNotice(mode: mode, access: access)
         let recovery = recoveryAction(page: page, access: access, isAuthorizing: isAuthorizing)
@@ -290,7 +276,7 @@ enum ListeningDisplayProjector {
             isLidClosed: isLidClosed,
             currentTrack: currentTrack,
             trackPresentation: currentTrackState,
-            playback: playback,
+            transport: transport,
             playbackError: playbackError
         )
 
@@ -424,17 +410,17 @@ enum ListeningDisplayProjector {
         access: ListeningMusicAccess,
         isAuthorizing: Bool,
         allDiscs: [ListeningDisc],
-        playback: ListeningPlaybackSnapshot
+        transport: ListeningPlayerTransport
     ) -> ListeningRoomPlaybackMode {
         if isAuthorizing { return .connecting }
         // An established transport is the truth for what is playing now. Access
         // changes describe whether a future transport may be prepared; they must not
         // relabel an already-running preview or a full-catalog session whose access
         // check merely became temporarily inconclusive.
-        if playback.source == .preview {
+        if transport.source == .preview {
             return .preview
         }
-        if playback.source == .fullCatalog {
+        if transport.source == .fullCatalog {
             return .fullPlayback
         }
         guard allDiscs.contains(where: { !$0.tracks.isEmpty }) else { return .unavailable }
@@ -568,7 +554,7 @@ enum ListeningDisplayProjector {
         isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
         trackPresentation: ListeningTrackPresentation?,
-        playback: ListeningPlaybackSnapshot,
+        transport: ListeningPlayerTransport,
         playbackError: String?
     ) -> ListeningPlayerPresentation {
         guard loadedDisc != nil, isDiscSeated, currentTrack != nil, let trackPresentation else {
@@ -588,7 +574,7 @@ enum ListeningDisplayProjector {
         let keepsEstablishedFullCatalogSession = ListeningPlaybackSourceResolver.resolve(
             capability: trackPresentation.capability,
             access: access,
-            establishedSource: playback.state.isFinished ? nil : playback.source
+            establishedSource: transport.phase == .finished ? nil : transport.source
         ) == .fullCatalog
         if !trackPresentation.isPlayable && !keepsEstablishedFullCatalogSession {
             return ListeningPlayerPresentation(
@@ -603,41 +589,28 @@ enum ListeningDisplayProjector {
             )
         }
 
-        if let playbackError {
+        if let failure = playbackError ?? (transport.phase == .failed ? ListeningCopy.text("暂时无法播放") : nil) {
             return ListeningPlayerPresentation(
                 phase: .failed,
-                source: playback.source,
-                previewRemaining: previewRemaining(from: playback.state),
+                source: transport.source,
+                previewRemaining: previewRemaining(from: transport),
                 playPauseAction: .disabled,
-                blockingReason: playbackError,
+                blockingReason: failure,
                 recoveryAction: .retryPlayback,
-                errorText: playbackError,
-                noDiscMessage: nil
-            )
-        }
-        if case .failed = playback.state {
-            return ListeningPlayerPresentation(
-                phase: .failed,
-                source: nil,
-                previewRemaining: nil,
-                playPauseAction: .disabled,
-                blockingReason: ListeningCopy.text("暂时无法播放"),
-                recoveryAction: .retryPlayback,
-                errorText: ListeningCopy.text("暂时无法播放"),
+                errorText: failure,
                 noDiscMessage: nil
             )
         }
 
         let lidReason = isLidClosed ? nil : ListeningCopy.text("请先合上播放器上盖")
         return ListeningPlayerPresentation(
-            phase: ListeningPlayerPhase(playback: playback),
-            source: playback.source,
-            previewRemaining: previewRemaining(from: playback.state),
-            playPauseAction: ListeningPlayPauseAction.resolve(
-                state: playback.state,
-                intent: playback.intent,
-                canInitiatePlayback: trackPresentation.isPlayable || keepsEstablishedFullCatalogSession
-            ),
+            phase: transport.phase,
+            source: transport.source,
+            previewRemaining: previewRemaining(from: transport),
+            // The control shows what the player was asked to do, so a tap
+            // reads back instantly even while the source is still loading. An
+            // interrupted session resumes on its own unless it is paused.
+            playPauseAction: transport.phase.isPlaybackActive || transport.phase == .interrupted ? .pause : .play,
             blockingReason: lidReason,
             recoveryAction: nil,
             errorText: nil,
@@ -658,17 +631,12 @@ enum ListeningDisplayProjector {
         }
     }
 
-    private static func previewRemaining(from state: ListeningPlaybackState) -> TimeInterval? {
-        switch state {
-        case let .ready(_, source, current, duration),
-             let .waiting(_, source, current, duration),
-             let .playing(_, source, current, duration),
-             let .seeking(_, source, current, duration),
-             let .paused(_, source, current, duration),
-             let .interrupted(_, source, current, duration):
-            guard source == .preview, let duration else { return nil }
-            return max(0, duration - current)
-        case .idle, .preparing, .finished, .failed:
+    private static func previewRemaining(from transport: ListeningPlayerTransport) -> TimeInterval? {
+        guard transport.source == .preview, let duration = transport.duration else { return nil }
+        switch transport.phase {
+        case .waiting, .playing, .seeking, .paused, .interrupted, .stopped:
+            return max(0, duration - transport.time)
+        case .noDisc, .preparing, .finished, .failed:
             return nil
         }
     }
@@ -729,7 +697,12 @@ extension ListeningRoomCoordinator {
             isDiscSeated: mechanism.position == .seated,
             isLidClosed: mechanism.isClosed,
             currentTrack: track,
-            playback: playback,
+            transport: ListeningPlayerTransport(
+                phase: deck.phase,
+                source: deck.source,
+                time: deck.time,
+                duration: deck.duration
+            ),
             playbackError: playbackError,
             browsingArtist: browsingArtist,
             isCatalogEnriching: isCatalogEnriching,
@@ -830,11 +803,11 @@ extension ListeningRoomCoordinator {
         mechanism.setLid(open: open)
     }
 
+    /// The song Next/Previous would reach, in play order.
     func adjacentLoadedTrack(delta: Int) -> ListeningDiscTrack? {
-        guard mechanism.isClosed, let disc = mechanism.disc else { return nil }
-        let index = trackIndex + delta
-        guard disc.tracks.indices.contains(index) else { return nil }
-        return disc.tracks[index]
+        guard mechanism.isClosed, mechanism.hasDisc,
+              let songID = deck.adjacentSongID(delta) else { return nil }
+        return deck.tracks.first { $0.id == songID }
     }
 
     func applyListeningFrames(_ frames: [String: CGRect]) {
@@ -881,7 +854,7 @@ extension ListeningRoomCoordinator {
     }
 
     func trackPresentation(for track: ListeningDiscTrack) -> ListeningTrackPresentation {
-        if canReuseEstablishedFullCatalogTransport(for: track) {
+        if playbackSource(for: track) == .fullCatalog {
             return ListeningTrackPresentation(capability: .fullPlayback)
         }
         return ListeningDisplayProjector.trackPresentation(for: track, access: access)
@@ -937,7 +910,7 @@ extension ListeningRoomCoordinator {
         }
     }
 
-    /// Once the disc is seated into the tray, close the lid and start playback automatically.
+    /// Once a manually inserted disc is seated, close the lid and start playback.
     func finalizeManualDiscInsertionIfNeeded() {
         guard !mechanism.isAutomatic,
               mechanism.position == .seated,

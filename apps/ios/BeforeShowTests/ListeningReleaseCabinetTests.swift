@@ -48,7 +48,7 @@ final class ListeningReleaseCabinetTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer { room.mechanism.motion.stop() }
 
@@ -195,7 +195,7 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         } else {
             XCTFail("Expected restored featured playlist origin")
         }
-        XCTAssertEqual(reopened.playbackState, .idle)
+        XCTAssertEqual(reopened.deck.phase, .stopped)
         XCTAssertFalse(reopened.isPlaying)
 
         await reopened.load(show: show)
@@ -221,7 +221,7 @@ final class ListeningReleaseCabinetTests: XCTestCase {
             playlistID: "featured-guest"
         )
 
-        let service = FeaturedPlaylistEvidencePlaybackService()
+        let service = ListeningTestPlayer()
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: FeaturedPlaylistEvidenceCatalog(),
@@ -229,6 +229,8 @@ final class ListeningReleaseCabinetTests: XCTestCase {
             playbackFactory: { _ in service }
         )
         await room.load(show: show)
+        var now = Date()
+        room.deck.now = { now }
 
         let before = try XCTUnwrap(room.artistPresentation("a"))
         let beforeDenominator = before.all.count
@@ -242,8 +244,9 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
-        service.advance(by: 100)
-        room.tick()
+        service.currentTime = 100
+        now = now.addingTimeInterval(100)
+        room.playPause()
 
         let evidence = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
             .first { $0.songID == "playlist-guest" }
@@ -388,63 +391,5 @@ private struct FeaturedPlaylistEvidenceCatalog: ListeningMusicCatalogServicing {
     }
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
         throw ListeningCatalogError.artistNotFound(artistID)
-    }
-}
-
-@MainActor
-private final class FeaturedPlaylistEvidencePlaybackService: ListeningPlaybackServicing {
-    var failure: ListeningPlaybackError?
-    private var item: ListeningPlaybackItem?
-    private var source: ListeningPlaybackSource = .fullCatalog
-    private var currentTime: TimeInterval = 0
-    private var observedAt = Date(timeIntervalSinceReferenceDate: 0)
-    private var playing = false
-
-    func prepare(
-        items: [ListeningPlaybackItem],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String?
-    ) async throws {
-        self.source = source
-        if let startingAtSongID {
-            item = items.first { $0.songID == startingAtSongID }
-        } else {
-            item = items.first
-        }
-        guard item != nil else { throw ListeningPlaybackError.emptyQueue }
-        currentTime = 0
-        observedAt = Date(timeIntervalSinceReferenceDate: 0)
-        playing = false
-    }
-
-    func play() async throws { playing = true }
-    func pause() { playing = false }
-    func skipToNext() async throws { throw ListeningPlaybackError.queueBoundary }
-    func skipToPrevious() async throws { throw ListeningPlaybackError.queueBoundary }
-    func seek(to time: TimeInterval) { currentTime = time }
-
-    func snapshot(observedAt _: Date) -> ListeningPlaybackSample? {
-        guard let item else { return nil }
-        let duration = item.duration ?? 180
-        return ListeningPlaybackSample(
-            songID: item.songID,
-            source: source,
-            currentTime: min(currentTime, duration),
-            duration: duration,
-            isPlaying: playing && currentTime < duration,
-            observedAt: observedAt,
-            hasEnded: currentTime >= duration
-        )
-    }
-
-    func stop() {
-        item = nil
-        currentTime = 0
-        playing = false
-    }
-
-    func advance(by delta: TimeInterval) {
-        currentTime += delta
-        observedAt = observedAt.addingTimeInterval(delta)
     }
 }

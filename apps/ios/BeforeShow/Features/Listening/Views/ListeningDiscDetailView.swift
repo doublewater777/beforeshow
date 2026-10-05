@@ -12,7 +12,6 @@ struct ListeningDiscDetailView: View {
     var onLoad: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
-    @State private var requestedTrackID: String?
 
     private let isMultiArtist: Bool
     private let metadataSummary: String
@@ -124,16 +123,6 @@ struct ListeningDiscDetailView: View {
         .tint(BSColor.Stage.foreground)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .onChange(of: room.sleevePlaybackSongID) { _, songID in
-            if songID == requestedTrackID {
-                requestedTrackID = nil
-            }
-        }
-        .onChange(of: room.playbackError) { _, error in
-            if error != nil {
-                requestedTrackID = nil
-            }
-        }
     }
 
     @ViewBuilder
@@ -342,7 +331,6 @@ struct ListeningDiscDetailView: View {
         playerPhase: ListeningPlayerPhase
     ) -> ListeningDiscTrackRowState {
         guard isPlayable else { return .unavailable }
-        if requestedTrackID == track.id { return .preparing }
         guard isCurrent else { return .normal }
 
         switch playerPhase {
@@ -388,7 +376,6 @@ struct ListeningDiscDetailView: View {
             return
         }
 
-        requestedTrackID = track.id
         room.playFromSleeve(disc, songID: track.id)
 
         if !sameDisc {

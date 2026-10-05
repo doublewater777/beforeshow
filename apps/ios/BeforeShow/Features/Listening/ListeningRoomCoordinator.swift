@@ -22,6 +22,8 @@ private let listeningCatalogFetchConcurrency = 4
     #endif
 
     let mechanism = CDMechanism()
+    /// The CD player's transport: what is loaded, and the Apple player that plays it.
+    let deck: ListeningDeck
     private(set) var catalogSongs: [CatalogSong] = []
     private(set) var catalogAlbums: [CatalogAlbum] = []
     private(set) var openingTiers: [ShowOpeningArtistTier] = []
@@ -37,31 +39,16 @@ private let listeningCatalogFetchConcurrency = 4
         mechanism.restoreSeated(disc)
         mechanism.setLid(open: true)
         opensWithoutStopping = true
-        trackIndex = 0
-        preparedSongID = nil
-        playback = ListeningPlaybackSnapshot()
-        trackBelongsToShow = true
+        deck.load([disc], cursor: disc.tracks.first?.id)
     }
     #endif
     private(set) var catalogState: CatalogState = .loading
     private(set) var access = ListeningMusicAccess(authorizationStatus: .notDetermined, canPlayCatalogContent: false)
     private(set) var isAuthorizing = false
     private(set) var isCatalogEnriching = false
-    /// Transport and intent change together, so the UI cannot observe a half-updated session.
-    private(set) var playback = ListeningPlaybackSnapshot() {
-        didSet { updateTimeText() }
-    }
-    var playbackState: ListeningPlaybackState { playback.state }
-    var playbackIntent: ListeningPlaybackTransportTarget? { playback.intent }
-    var isPlaying: Bool { playbackState.isPlaying }
-    var wantsPlayback: Bool { playback.wantsPlayback }
+    var isPlaying: Bool { deck.isPlaying }
+    var wantsPlayback: Bool { deck.wantsPlayback }
     var playPauseAction: ListeningPlayPauseAction { display.player.playPauseAction }
-    private var transportIsPlaying: Bool { playbackState.isPlaying }
-    private(set) var timeText: String = "00:00"
-    private(set) var trackIndex = 0
-    private(set) var persistedPlaybackTime: TimeInterval = 0 {
-        didSet { updateTimeText() }
-    }
     private(set) var wantedSongIDs: Set<String> = []
     private(set) var familiarSongIDs: Set<String> = []
     private(set) var actualSongIDs: Set<String> = []
@@ -75,18 +62,14 @@ private let listeningCatalogFetchConcurrency = 4
     var browser = ListeningBrowseState()
     private(set) var browseArtists: [ListeningBrowseArtist] = []
     private(set) var compilationDiscs: [ListeningDisc] = []
+    /// A mechanical sequence (disc swap, closing the lid to play) is running.
     private(set) var busy = false
-    private(set) var sleevePlaybackSongID: String?
-    private var pendingSleeveSongID: String?
     var errorText: String?
     var playbackError: String?
-    @ObservationIgnored private var visibility = ListeningVisibilityPolicy()
     @ObservationIgnored private var foreground = true
     @ObservationIgnored private var musicAccessRequestGeneration = UUID()
     private(set) var accessResolved = false
-    @ObservationIgnored private var preparedSource: ListeningPlaybackSource?
     @ObservationIgnored private var runtimeSongs: [String: [CatalogSong]] = [:]
-    @ObservationIgnored private var trackBelongsToShow = false
     var presentation: ListeningPresentation {
         .resolve(hasShow: show != nil, authorized: access.authorizationStatus == .authorized,
                  connected: show?.artists.contains { $0.appleMusicArtistID != nil } == true,
@@ -100,34 +83,23 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private let catalogService: any ListeningMusicCatalogServicing
     @ObservationIgnored private let artistSearchService: any ArtistSearchServicing
     @ObservationIgnored private let catalogStore: ListeningCatalogStore
-    @ObservationIgnored private let playbackFactory: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
     @ObservationIgnored private let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
     @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
     @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
     @ObservationIgnored private var evidenceRetryPending = false
     @ObservationIgnored private var evidenceFailureAlertShown = false
     @ObservationIgnored private var evidenceFailureOwnsErrorText = false
-    @ObservationIgnored private var controller: ListeningPlaybackController?
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var widgetCoverTask: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
-    @ObservationIgnored private var preparedSongID: String?
-    @ObservationIgnored private var pendingResumePosition: (songID: String, time: TimeInterval)?
-    @ObservationIgnored private var preparedDiscID: String?
-    @ObservationIgnored private var preparedCompilationDiscs: [ListeningDisc] = []
-    @ObservationIgnored private var finishedSongID: String?
     @ObservationIgnored private var catalogProjectionContext: ModelContext?
     @ObservationIgnored private var featuredPlaylistTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var loadedFeaturedPlaylistArtistIDs: Set<String> = []
     private(set) var initialLoaded = false
     @ObservationIgnored private var isLoadingShow = false
     @ObservationIgnored private var active = true
-    @ObservationIgnored private var playbackGeneration = UUID()
-    @ObservationIgnored private var lidOpenedDiscID: String?
-    @ObservationIgnored private var lidOpenedSongID: String?
-    @ObservationIgnored private var lidOpenedPlaybackTime: TimeInterval?
 
     init(context: ModelContext, catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
          artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
@@ -137,21 +109,26 @@ private let listeningCatalogFetchConcurrency = 4
          evidenceCoordinatorFactory: @escaping @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator = {
              try ListeningPlaybackEvidenceCoordinator(modelContext: $0)
          }) {
-        self.context = context; self.catalogService = catalogService; self.playbackFactory = playbackFactory
+        self.context = context; self.catalogService = catalogService
         self.artistSearchService = artistSearchService
         self.evidenceCoordinatorFactory = evidenceCoordinatorFactory
         catalogStore = ListeningCatalogStore(modelContext: context, service: catalogService)
+        deck = ListeningDeck(makeEngine: playbackFactory)
+        deck.evidenceProvider = { [weak self] in try? self?.playbackEvidenceCoordinatorForUse() }
+        deck.onCursorChange = { [weak self] _ in self?.deckCursorDidChange() }
+        deck.onTransportChange = { [weak self] in self?.deckTransportDidChange() }
+        deck.onProgress = { [weak self] time in self?.deckDidProgress(time) }
+        deck.onEvidence = { [weak self] result, immediate in
+            self?.applyDeckEvidence(result, representDismissedAlert: immediate)
+        }
+        deck.onFailure = { [weak self] in self?.playbackError = BSLocalization.text("暂时无法播放") }
         mechanism.onOpen = { [weak self] in
             #if DEBUG
             if self?.opensWithoutStopping == true { return }
             #endif
-            guard let self else { return }
-            self.suspendPlaybackForLid()
+            self?.lidDidOpen()
         }
         mechanism.onTransition = { [weak self] transition in
-            if transition == "remove" || transition == "store" {
-                self?.preparedDiscID = nil
-            }
             CDSoundPlayer.shared.play(transition)
             self?.handleMechanismTransition(transition)
             #if os(iOS)
@@ -169,74 +146,59 @@ private let listeningCatalogFetchConcurrency = 4
         }
         restorePersistedDiscIfNeeded()
     }
-    private func suspendPlaybackForLid() {
-        lidOpenedDiscID = mechanism.disc?.id
-        lidOpenedSongID = track?.id
 
-        let hadController = controller != nil
-        if hadController {
-            do {
-                _ = try controller?.refresh()
-            } catch {
-                handlePlaybackEvidenceFailure()
-            }
-        }
-
-        if !playbackState.isFinished {
-            if hadController {
-                lidOpenedPlaybackTime = persistedPlaybackTime
-            } else if let resume = pendingResumePosition,
-                      resume.songID == lidOpenedSongID {
-                lidOpenedPlaybackTime = resume.time
-            } else {
-                lidOpenedPlaybackTime = nil
-            }
-        } else {
-            lidOpenedPlaybackTime = nil
-        }
-
-        endPlaybackSession(resetTrackSelection: false)
-        pendingResumePosition = nil
+    /// Opening the lid stops the motor; the track and its position stay loaded.
+    private func lidDidOpen() {
+        deck.pause()
+        persistLoadedDisc(force: true)
     }
+
     private func handleMechanismTransition(_ transition: String) {
         switch transition {
         case "seat":
-            persistLoadedDisc()
-        case "close":
-            restoreLidSelectionIfNeeded()
+            // Automatic swaps load the deck themselves once the tray settles.
+            guard !mechanism.isAutomatic, let disc = mechanism.disc else { return }
+            deck.load(queueDiscs(for: disc), cursor: discPresentation(for: disc).defaultPlayableTrackID)
+            persistLoadedDisc(force: true)
+            finalizeManualDiscInsertionIfNeeded()
         case "remove":
-            clearLidSelection()
-            pendingResumePosition = nil
-            persistedPlaybackTime = 0
+            deck.eject()
             if !mechanism.isAutomatic { clearPersistedDisc() }
+            syncWidgetListeningState()
         case "store":
-            clearLidSelection()
-            pendingResumePosition = nil
-            persistedPlaybackTime = 0
+            deck.eject()
             clearPersistedDisc()
+            syncWidgetListeningState()
         default:
             break
         }
     }
-    private func restoreLidSelectionIfNeeded() {
-        defer { clearLidSelection() }
-        guard mechanism.position == .seated,
-              let disc = mechanism.disc,
-              disc.id == lidOpenedDiscID,
-              let songID = lidOpenedSongID,
-              let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
-        trackIndex = index
-        trackBelongsToShow = true
-        let resumeTime = max(0, lidOpenedPlaybackTime ?? 0)
-        persistedPlaybackTime = resumeTime
-        pendingResumePosition = resumeTime > 0 ? (songID, resumeTime) : nil
+
+    private func deckCursorDidChange() {
+        // A compilation shows the volume that holds the current song.
+        if let volume = deck.currentDisc, let seated = mechanism.disc, volume.id != seated.id {
+            mechanism.updateContents(volume)
+        }
+        recordedPlayingSongID = nil
+        recordPlayingIfNeeded()
         persistLoadedDisc(force: true)
     }
-    private func clearLidSelection() {
-        lidOpenedDiscID = nil
-        lidOpenedSongID = nil
-        lidOpenedPlaybackTime = nil
+
+    private func deckTransportDidChange() {
+        recordPlayingIfNeeded()
+        if !deck.wantsPlayback {
+            persistLoadedDisc(force: true)
+        }
+        syncWidgetListeningState()
     }
+
+    private func deckDidProgress(_ time: TimeInterval) {
+        persistLoadedDisc(currentTime: time)
+        if active, foreground, time > 0 {
+            AppReviewPrompt.consider(.listenedToSong)
+        }
+    }
+
     private func restorePersistedDiscIfNeeded() {
         guard mechanism.position == .stored else { return }
         do {
@@ -247,23 +209,16 @@ private let listeningCatalogFetchConcurrency = 4
                 try context.save()
                 return
             }
+            let songID = state.songID.flatMap { id in disc.tracks.contains { $0.id == id } ? id : nil }
             mechanism.restoreSeated(disc)
-            trackIndex = state.songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-            let savedTime = state.currentTime ?? 0
-            persistedPlaybackTime = savedTime.isFinite ? max(0, savedTime) : 0
-            pendingResumePosition = persistedPlaybackTime > 0
-                ? state.songID.map { ($0, persistedPlaybackTime) }
-                : nil
-            preparedSongID = nil
-            playback = ListeningPlaybackSnapshot()
-            trackBelongsToShow = true
+            deck.load([disc], cursor: songID, resumeAt: songID == nil ? 0 : state.currentTime ?? 0)
         } catch {}
     }
     private func persistLoadedDisc(currentTime: TimeInterval? = nil, force: Bool = false) {
         guard mechanism.position == .seated, let disc = mechanism.disc else { return }
         do {
-            let songID = disc.tracks.indices.contains(trackIndex) ? disc.tracks[trackIndex].id : nil
-            let time = currentTime ?? persistedPlaybackTime
+            let songID = deck.cursorSongID.flatMap { id in disc.tracks.contains { $0.id == id } ? id : nil }
+            let time = currentTime ?? deck.time
             guard time.isFinite, time >= 0 else { return }
             let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
             if let state = states.first {
@@ -293,11 +248,8 @@ private let listeningCatalogFetchConcurrency = 4
     func discardLoadedDiscState() {
         operation?.cancel()
         operation = nil
-        resetPlaybackForTransition()
+        deck.eject()
         mechanism.discardDisc()
-        trackBelongsToShow = false
-        pendingSleeveSongID = nil
-        sleevePlaybackSongID = nil
         clearPersistedDisc()
         syncWidgetListeningState()
     }
@@ -341,93 +293,51 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
     var track: ListeningDiscTrack? {
-        guard trackBelongsToShow, mechanism.position != .stored, let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex) else { return nil }
-        return disc.tracks[trackIndex]
+        guard mechanism.position != .stored, mechanism.disc != nil else { return nil }
+        return deck.currentTrack
     }
 
-    private var pendingPlayerDisplayTrack: ListeningDiscTrack? {
-        guard mechanism.position == .seated,
-              let pendingSleeveSongID,
-              let disc = mechanism.disc else { return nil }
-        return disc.tracks.first(where: { $0.id == pendingSleeveSongID })
+    /// Position of the current track on the visible record.
+    var trackIndex: Int {
+        guard let disc = mechanism.disc, let songID = deck.cursorSongID else { return 0 }
+        return disc.tracks.firstIndex { $0.id == songID } ?? 0
     }
 
-    var playerDisplayTrack: ListeningDiscTrack? {
-        pendingPlayerDisplayTrack ?? track
-    }
+    var playerDisplayTrack: ListeningDiscTrack? { track }
 
     var playerDisplayTrackIndex: Int? {
-        guard let disc = mechanism.disc, let displayTrack = playerDisplayTrack else { return nil }
-        return disc.tracks.firstIndex(where: { $0.id == displayTrack.id })
+        guard let disc = mechanism.disc, let track else { return nil }
+        return disc.tracks.firstIndex { $0.id == track.id }
     }
 
-    var isPlayerDisplayPreparing: Bool {
-        if pendingPlayerDisplayTrack != nil { return true }
-        if case .preparing = playbackState { return true }
-        return false
-    }
+    var isPlayerDisplayPreparing: Bool { deck.phase == .preparing }
 
     var playerDisplayTimeText: String {
         isPlayerDisplayPreparing ? "00:00" : timeText
     }
 
     var elapsed: TimeInterval {
-        switch playbackState {
-        case let .ready(_, _, time, _),
-             let .waiting(_, _, time, _),
-             let .playing(_, _, time, _),
-             let .seeking(_, _, time, _),
-             let .paused(_, _, time, _),
-             let .interrupted(_, _, time, _):
-            time
-        case let .finished(_, _, duration):
-            duration ?? 0
-        case .idle, .preparing, .failed:
-            persistedPlaybackTime
-        }
+        deck.phase == .finished ? deck.duration ?? deck.time : deck.time
     }
-    private func updateTimeText() {
+
+    var timeText: String {
         let time = elapsed.isFinite ? Int(max(0, min(elapsed, 86400))) : 0
-        let formatted = String(format: "%02d:%02d", time / 60, time % 60)
-        if timeText != formatted {
-            timeText = formatted
-        }
+        return String(format: "%02d:%02d", time / 60, time % 60)
     }
     func capability(for track: ListeningDiscTrack?) -> ListeningMusicCapability {
         ListeningMusicCapabilityResolver.resolve(access: access, hasPreviewAsset: track?.previewURL != nil, hasCatalogMetadata: track != nil)
     }
 
-    func canReuseEstablishedFullCatalogTransport(for track: ListeningDiscTrack) -> Bool {
-        guard controller != nil,
-              preparedSource == .fullCatalog,
-              preparedSongID != nil,
-              !playbackState.isFinished,
-              access.authorizationStatus == .authorized,
-              access.catalogPlaybackAccess == .accessCheckFailed,
-              mechanism.position == .seated,
-              mechanism.disc?.tracks.contains(where: { $0.id == track.id }) == true else {
-            return false
-        }
-        return true
-    }
-
-    private func moveWithinEstablishedFullCatalogTransport(
-        by delta: Int,
-        autoplay: Bool
-    ) {
-        guard delta != 0, let controller else { return }
-        run { [self] in
-            for _ in 0..<abs(delta) {
-                if delta > 0 {
-                    try await controller.skipToNext()
-                } else {
-                    try await controller.skipToPrevious()
-                }
-            }
-            if autoplay, !controller.wantsPlayback {
-                try await controller.play()
-            }
-        }
+    /// The source a song would play from now. An established full-catalog
+    /// session keeps serving its queue while access cannot be re-confirmed.
+    func playbackSource(for track: ListeningDiscTrack) -> ListeningPlaybackSource? {
+        let established = deck.isFinished || !deck.tracks.contains(where: { $0.id == track.id })
+            ? nil : deck.source
+        return ListeningPlaybackSourceResolver.resolve(
+            capability: capability(for: track),
+            access: access,
+            establishedSource: established
+        )
     }
     var capabilityTitle: String {
         switch capability(for: track) {
@@ -459,10 +369,7 @@ private let listeningCatalogFetchConcurrency = 4
             cancelFeaturedPlaylistTasks(clearLoaded: true)
             initialLoaded = false
             browser = ListeningBrowseState()
-            pendingSleeveSongID = nil
-            sleevePlaybackSongID = nil
             recentListening = nil
-            preparedDiscID = nil
         }
         if showCatalogKey != newKey {
             cancelFeaturedPlaylistTasks(clearLoaded: true)
@@ -498,6 +405,7 @@ private let listeningCatalogFetchConcurrency = 4
                 isLoadingShow = false
                 // 目录到齐后未装碟时的默认唱片可能变化
                 syncWidgetListeningState()
+                prewarmLoadedDisc()
                 if case let .artist(artistID) = browser.scope {
                     scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
                 }
@@ -1005,7 +913,7 @@ private let listeningCatalogFetchConcurrency = 4
         return disc.tracks.contains { $0.id == recentListening.songID }
     }
     private func recordPlayingIfNeeded() {
-        guard transportIsPlaying, let show, let track, let disc = mechanism.disc,
+        guard deck.isPlaying, let show, let track, let disc = mechanism.disc,
               recordedPlayingSongID != track.id else { return }
         do {
             let record = recentListening ?? ShowRecentListening(showID: show.id, discID: disc.id, songID: track.id)
@@ -1172,135 +1080,70 @@ private let listeningCatalogFetchConcurrency = 4
         // initial show load is still active, the pending browse request is started
         // when that load releases its identity/catalog generation.
     }
+    /// Seats a record silently, as a relaunch does, without playing it.
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
         guard mechanism.position == .stored, !busy else { return }
-        resetPlaybackForTransition()
         mechanism.restoreSeated(disc)
-        trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-        persistedPlaybackTime = 0
-        pendingResumePosition = nil
-        preparedDiscID = nil
-        preparedSongID = nil
-        playback = ListeningPlaybackSnapshot()
-        trackBelongsToShow = true
-        persistLoadedDisc()
+        deck.load(queueDiscs(for: disc), cursor: songID)
+        persistLoadedDisc(force: true)
+        prewarmLoadedDisc()
     }
     func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true) {
         if mechanism.disc == disc, mechanism.position == .seated {
-            guard songID != nil else { return }
-            selectTrack(on: disc, songID: songID, autoplay: autoplay)
+            guard let songID else { return }
+            selectTrack(songID, autoplay: autoplay)
             return
         }
-        run { [self] in
-            resetPlaybackForTransition()
+        runMachine { [self] in
+            deck.endSession()
             try await mechanism.load(disc)
-            trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-            persistedPlaybackTime = 0
-            pendingResumePosition = nil
-            preparedSongID = nil; playback = ListeningPlaybackSnapshot(); trackBelongsToShow = true
-            persistLoadedDisc()
-            if autoplay { try await playCurrentTrack() }
+            deck.load(queueDiscs(for: disc), cursor: songID)
+            persistLoadedDisc(force: true)
+            if autoplay {
+                startPlaybackIfPossible()
+            } else {
+                prewarmLoadedDisc()
+            }
         }
     }
     func playFromSleeve(_ disc: ListeningDisc, songID: String) {
-        guard !busy, !mechanism.isAutomatic, pendingSleeveSongID == nil else { return }
-        sleevePlaybackSongID = nil
+        guard !busy, !mechanism.isAutomatic else { return }
         guard discs.contains(where: { $0.id == disc.id }),
               let selectedTrack = disc.tracks.first(where: { $0.id == songID }),
-              ListeningPlaybackSourceResolver.resolve(capability: capability(for: selectedTrack)) != nil
-                || canReuseEstablishedFullCatalogTransport(for: selectedTrack) else {
+              playbackSource(for: selectedTrack) != nil else {
             playbackError = BSLocalization.text("暂不可播放")
             return
         }
         playbackError = nil
         if mechanism.disc == disc, track?.id == songID, wantsPlayback {
-            sleevePlaybackSongID = songID
             return
         }
-        pendingSleeveSongID = songID
-        if mechanism.disc == disc, mechanism.position == .seated, !mechanism.isClosed {
-            run { [self] in
+        guard mechanism.disc == disc, mechanism.position == .seated else {
+            loadDisc(disc, songID: songID)
+            return
+        }
+        guard mechanism.isClosed else {
+            runMachine { [self] in
                 try await mechanism.closeForPlayback()
-                guard let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
-                trackIndex = index; trackBelongsToShow = true
-                persistedPlaybackTime = 0
-                pendingResumePosition = nil
-                persistLoadedDisc()
-                try await playCurrentTrack()
+                selectTrack(songID, autoplay: true)
             }
             return
         }
-        loadDisc(disc, songID: songID)
+        selectTrack(songID, autoplay: true)
     }
-    private func selectTrack(on disc: ListeningDisc, songID: String?, autoplay: Bool) {
-        guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
-        let nextIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-        guard disc.tracks.indices.contains(nextIndex) else { return }
-        if disc.id == mechanism.disc?.id, nextIndex == trackIndex {
-            if autoplay, !wantsPlayback { playPause() }
-            return
-        }
-
-        let targetTrack = disc.tracks[nextIndex]
-        if canReuseEstablishedFullCatalogTransport(for: targetTrack) {
-            moveWithinEstablishedFullCatalogTransport(
-                by: nextIndex - trackIndex,
-                autoplay: autoplay
-            )
-            return
-        }
-
-        mechanism.updateContents(disc)
-        let shouldContinuePlayback =
-            (autoplay || wantsPlayback)
-            && ListeningPlaybackSourceResolver.resolve(
-                capability: capability(for: targetTrack)
-            ) != nil
-        run { [self] in
-            resetPlaybackForTransition(continuingPlayback: shouldContinuePlayback)
-            trackIndex = nextIndex
-            trackBelongsToShow = true
-            persistedPlaybackTime = 0
-            pendingResumePosition = nil
-            persistLoadedDisc()
-            if shouldContinuePlayback, wantsPlayback {
-                try await playCurrentTrack()
-            }
-        }
-    }
-    func manualDiscChanged() {
-        guard !mechanism.isAutomatic else { return }
-        resetPlaybackForTransition()
-        trackIndex = 0
-        persistedPlaybackTime = 0
-        pendingResumePosition = nil
-        trackBelongsToShow = true
-        preparedDiscID = nil
-        persistLoadedDisc()
+    private func selectTrack(_ songID: String, autoplay: Bool) {
+        guard mechanism.position == .seated, !mechanism.isAutomatic,
+              let target = deck.tracks.first(where: { $0.id == songID }) else { return }
+        playbackError = nil
+        deck.select(songID, autoplay: autoplay, source: playbackSource(for: target))
     }
     func playPause() {
         guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
-
         switch playPauseAction {
         case .pause:
-            visibility.userPause()
-            if let controller {
-                do {
-                    try controller.pause()
-                } catch {
-                    playbackError = BSLocalization.text("暂时无法播放")
-                }
-            } else {
-                // A transition can briefly own a Play intent before its next
-                // controller exists. Cancel the intent without aborting the
-                // track-selection transition itself.
-                playback = ListeningPlaybackSnapshot()
-                syncWidgetListeningState()
-            }
-
+            deck.pause()
         case .play:
             startPlayback()
-
         case .disabled:
             return
         }
@@ -1312,251 +1155,58 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private func startPlayback() {
-        run { [self] in
-            if !mechanism.isClosed {
-                try await mechanism.closeForPlayback()
-            }
-            visibility.userPlay()
-            try await playCurrentTrack()
-        }
-    }
-
-    private func playCurrentTrack() async throws {
-        guard let track, let disc = mechanism.disc else {
-            pendingSleeveSongID = nil
-            endPlaybackSession(resetTrackSelection: false)
-            syncWidgetListeningState()
-            return
-        }
-        let establishedSource = controller != nil && preparedSongID == track.id && !playbackState.isFinished
-            ? playback.source : nil
-        guard let source = ListeningPlaybackSourceResolver.resolve(
-            capability: capability(for: track),
-            access: access,
-            establishedSource: establishedSource
-        ) else {
-            // A continuing Play intent only exists while a target transport can
-            // actually be established. An unavailable target terminates it.
-            pendingSleeveSongID = nil
-            endPlaybackSession(resetTrackSelection: false)
-            syncWidgetListeningState()
-            return
-        }
         playbackError = nil
-        let generation = playbackGeneration
-        if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
-            try controller?.stop()
-            let service = playbackFactory(source)
-            let evidence = try playbackEvidenceCoordinatorForUse()
-            applyPlaybackEvidenceDrainResult(try evidence.flushPending())
-            let stateGeneration = generation
-            let next = ListeningPlaybackController(
-                service: service,
-                evidenceCoordinator: evidence,
-                playbackDidChange: { [weak self] playback in
-                    guard let self, self.playbackGeneration == stateGeneration else { return }
-                    self.applyPlayback(playback)
-                },
-                transportSampleDidChange: { [weak self] sample in
-                    guard let self, self.playbackGeneration == stateGeneration else { return }
-                    self.applyTransportSample(sample)
-                },
-                evidenceDidChange: { [weak self] in
-                    guard let self else { return }
-                    self.refreshPlaybackEvidenceProjection()
-                },
-                evidenceDidFail: { [weak self] origin in
-                    guard let self else { return }
-                    self.handlePlaybackEvidenceFailure(
-                        representDismissedAlert: origin == .immediate
-                    )
-                }
-            )
-            controller = next
-            // Reading the disc: spin-up whir and laser seek only when a new disc
-            // is seated. Switching tracks on the same disc or resuming playback stays silent.
-            if preparedDiscID != disc.id {
-                CDSoundPlayer.shared.play("read")
-                preparedDiscID = disc.id
+        guard mechanism.isClosed else {
+            runMachine { [self] in
+                try await mechanism.closeForPlayback()
+                startPlaybackIfPossible()
             }
-            // Real records own only their physical disc. BeforeShow compilations are
-            // three visible virtual volumes backed by one continuous transport queue.
-            let queueTracks = playbackTracks(for: disc)
-            try await next.prepare(
-                items: queueTracks.map(\.playbackItem),
-                source: source,
-                startingAtSongID: track.id,
-                playbackIntent: .playing
-            )
-            try Task.checkCancellation()
-            guard generation == playbackGeneration, mechanism.isClosed, mechanism.position == .seated else {
-                pendingSleeveSongID = nil
-                try next.stop()
-                return
-            }
-            if let resume = pendingResumePosition, resume.songID == track.id, resume.time > 0 {
-                try next.seek(to: resume.time)
-                persistedPlaybackTime = resume.time
-                pendingResumePosition = nil
-            }
-            preparedSongID = track.id; preparedSource = source
-        }
-        try await controller?.play()
-        try Task.checkCancellation()
-        guard generation == playbackGeneration, mechanism.isClosed else {
-            pendingSleeveSongID = nil
-            try controller?.stop()
             return
         }
-        finishedSongID = nil
+        startPlaybackIfPossible()
     }
-    private func playbackTracks(for disc: ListeningDisc) -> [ListeningDiscTrack] {
+
+    private func startPlaybackIfPossible() {
+        if let disc = mechanism.disc {
+            deck.replaceIdleDiscs(queueDiscs(for: disc))
+        }
+        guard let track = deck.currentTrack, let source = playbackSource(for: track) else { return }
+        deck.play(source: source)
+    }
+
+    /// Resolves the seated record's songs ahead of the first Play, so a
+    /// restored disc starts as fast as one that was just playing.
+    private func prewarmLoadedDisc() {
+        guard mechanism.position == .seated, let track,
+              playbackSource(for: track) == .fullCatalog else { return }
+        if let disc = mechanism.disc {
+            deck.replaceIdleDiscs(queueDiscs(for: disc))
+        }
+        deck.prefetch(source: .fullCatalog)
+    }
+
+    /// Real records own only their physical disc. BeforeShow compilations are
+    /// visible virtual volumes that play as one continuous queue.
+    private func queueDiscs(for disc: ListeningDisc) -> [ListeningDisc] {
         guard case let .compilation(showID, _) = disc.origin,
-              showID == show?.id else {
-            preparedCompilationDiscs = []
-            return disc.tracks
-        }
-
-        let availableVolumes = compilationDiscs
-        let canUseContinuousQueue = availableVolumes.contains(disc)
-        guard canUseContinuousQueue else {
-            preparedCompilationDiscs = [disc]
-            return disc.tracks
-        }
-
-        preparedCompilationDiscs = availableVolumes
-        return availableVolumes.flatMap(\.tracks)
-    }
-
-    private var activeCompilationDiscs: [ListeningDisc] {
-        if !preparedCompilationDiscs.isEmpty { return preparedCompilationDiscs }
-        if let loadedDisc = mechanism.disc,
-           case .compilation = loadedDisc.origin,
-           !compilationDiscs.contains(loadedDisc) {
-            return [loadedDisc]
-        }
+              showID == show?.id,
+              compilationDiscs.contains(disc) else { return [disc] }
         return compilationDiscs
     }
 
-    private func completeSleevePlaybackIfNeeded() {
-        guard transportIsPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
-        sleevePlaybackSongID = pendingSleeveSongID
-        self.pendingSleeveSongID = nil
-    }
     func skip(_ delta: Int) {
         guard delta != 0,
-              let disc = mechanism.disc,
-              let currentTrack = track,
               mechanism.position == .seated,
-              mechanism.isClosed else { return }
-
-        if case .compilation = disc.origin {
-            let queue = activeCompilationDiscs.flatMap(\.tracks)
-            guard let currentIndex = queue.firstIndex(where: { $0.id == currentTrack.id }) else { return }
-            let targetIndex = currentIndex + delta
-            guard queue.indices.contains(targetIndex) else { return }
-
-            if let controller {
-                run {
-                    let stepCount = abs(delta)
-                    for _ in 0..<stepCount {
-                        if delta > 0 {
-                            try await controller.skipToNext()
-                        } else {
-                            try await controller.skipToPrevious()
-                        }
-                    }
-                }
-                return
-            }
-
-            guard let targetDisc = activeCompilationDiscs.first(where: {
-                $0.tracks.contains(where: { $0.id == queue[targetIndex].id })
-            }), let localIndex = targetDisc.tracks.firstIndex(where: {
-                $0.id == queue[targetIndex].id
-            }) else { return }
-
-            mechanism.updateContents(targetDisc)
-            trackIndex = localIndex
-            persistedPlaybackTime = 0
-            pendingResumePosition = nil
-            preparedDiscID = targetDisc.id
-            persistLoadedDisc()
-            return
-        }
-
-        let nextIndex = trackIndex + delta
-        guard disc.tracks.indices.contains(nextIndex) else { return }
-        let targetTrack = disc.tracks[nextIndex]
-
-        if canReuseEstablishedFullCatalogTransport(for: targetTrack) {
-            moveWithinEstablishedFullCatalogTransport(by: delta, autoplay: false)
-            return
-        }
-
-        let shouldContinuePlayback =
-            wantsPlayback
-            && ListeningPlaybackSourceResolver.resolve(
-                capability: capability(for: targetTrack)
-            ) != nil
-        run { [self] in
-            resetPlaybackForTransition(continuingPlayback: shouldContinuePlayback)
-            trackIndex = nextIndex
-            persistedPlaybackTime = 0
-            pendingResumePosition = nil
-            persistLoadedDisc()
-            if shouldContinuePlayback, wantsPlayback {
-                try await playCurrentTrack()
-            }
-        }
+              mechanism.isClosed,
+              !mechanism.isAutomatic,
+              let targetID = deck.adjacentSongID(delta),
+              let target = deck.tracks.first(where: { $0.id == targetID }) else { return }
+        deck.skip(by: delta, source: playbackSource(for: target))
     }
     func stop() {
         operation?.cancel()
-        pendingSleeveSongID = nil
-        endPlaybackSession(resetTrackSelection: true)
+        deck.stop()
         persistLoadedDisc(force: true)
-    }
-
-    private func resetPlaybackForTransition(continuingPlayback: Bool = false) {
-        endPlaybackSession(
-            resetTrackSelection: true,
-            continuingPlayback: continuingPlayback
-        )
-    }
-
-    private func endPlaybackSession(
-        resetTrackSelection: Bool,
-        continuingPlayback: Bool = false
-    ) {
-        recordedPlayingSongID = nil
-        let endingController = controller
-        controller = nil
-        // Retire transport callbacks before Stop publishes idle. Evidence belongs
-        // to the room and can still drain across this transport boundary.
-        playbackGeneration = UUID()
-        do {
-            try endingController?.stop()
-        } catch {
-            handlePlaybackEvidenceFailure()
-        }
-        retryPendingPlaybackEvidence()
-        if resetTrackSelection {
-            trackIndex = 0
-            persistedPlaybackTime = 0
-            pendingResumePosition = nil
-        } else {
-            persistLoadedDisc()
-        }
-        preparedSongID = nil
-        preparedSource = nil
-        preparedCompilationDiscs = []
-        // A same-disc transition keeps the user's Play intent alive while the
-        // old transport is torn down, so physical playback presentation never
-        // depends on same-run-loop update coalescing.
-        playback = ListeningPlaybackSnapshot(intent: continuingPlayback ? .playing : nil)
-        finishedSongID = nil
-        visibility = ListeningVisibilityPolicy()
-        updateTimeText()
     }
 
     private func hasConfirmedFullPlaybackCapabilityLoss(_ access: ListeningMusicAccess) -> Bool {
@@ -1572,56 +1222,15 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func endFullPlaybackSessionForCapabilityLossIfNeeded(_ access: ListeningMusicAccess) {
         guard hasConfirmedFullPlaybackCapabilityLoss(access),
-              preparedSource == .fullCatalog else { return }
-        pendingSleeveSongID = nil
-        endPlaybackSession(resetTrackSelection: false)
+              deck.source == .fullCatalog else { return }
+        deck.endSession()
+        persistLoadedDisc(force: true)
     }
 
     func tickMechanism() {
         mechanism.refresh()
     }
 
-    /// Explicit transport refresh retained for tests and recovery paths. Production
-    /// UI synchronization is pushed from ListeningPlaybackController instead.
-    func tick() {
-        tickMechanism()
-        guard !busy, let controller else { return }
-        do {
-            _ = try controller.refresh()
-        } catch {
-            pendingSleeveSongID = nil
-            resetPlaybackForTransition()
-            playbackError = BSLocalization.text("暂时无法播放")
-        }
-    }
-
-    private func applyPlayback(_ snapshot: ListeningPlaybackSnapshot) {
-        playback = snapshot
-        let state = snapshot.state
-        syncTrackIndex(with: state)
-
-        if case .failed = state {
-            pendingSleeveSongID = nil
-            playbackError = BSLocalization.text("暂时无法播放")
-        }
-
-        if case let .finished(songID, _, _) = state {
-            finishedSongID = songID
-        } else {
-            finishedSongID = nil
-        }
-        syncWidgetListeningState()
-    }
-
-    private func applyTransportSample(_ sample: ListeningPlaybackSample) {
-        persistedPlaybackTime = max(0, sample.currentTime)
-        persistLoadedDisc(currentTime: sample.currentTime, force: !sample.isPlaying)
-        completeSleevePlaybackIfNeeded()
-        recordPlayingIfNeeded()
-        if active, foreground, sample.isPlaying, sample.currentTime > 0 {
-            AppReviewPrompt.consider(.listenedToSong)
-        }
-    }
     private func refreshPlaybackEvidenceProjection() {
         do {
             try refreshEvidence()
@@ -1641,6 +1250,18 @@ private let listeningCatalogFetchConcurrency = 4
         let created = try evidenceCoordinatorFactory(context)
         playbackEvidenceCoordinator = created
         return created
+    }
+
+    private func applyDeckEvidence(
+        _ result: ListeningPlaybackEvidenceDrainResult,
+        representDismissedAlert: Bool
+    ) {
+        if result.committedAny {
+            refreshPlaybackEvidenceProjection()
+        }
+        if result.hasFailure {
+            handlePlaybackEvidenceFailure(representDismissedAlert: representDismissedAlert)
+        }
     }
 
     private func applyPlaybackEvidenceDrainResult(
@@ -1727,75 +1348,15 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
 
-    private func syncTrackIndex(with state: ListeningPlaybackState) {
-        let songID: String?
-        switch state {
-        case let .ready(id, _, _, _),
-             let .waiting(id, _, _, _),
-             let .playing(id, _, _, _),
-             let .seeking(id, _, _, _),
-             let .paused(id, _, _, _),
-             let .interrupted(id, _, _, _),
-             let .finished(id, _, _):
-            songID = id
-        case .idle, .preparing, .failed:
-            songID = nil
-        }
-        guard let songID, let currentDisc = mechanism.disc else { return }
-
-        let targetDisc: ListeningDisc
-        let index: Int
-        if let currentIndex = currentDisc.tracks.firstIndex(where: { $0.id == songID }) {
-            targetDisc = currentDisc
-            index = currentIndex
-        } else if case .compilation = currentDisc.origin,
-                  let compilationDisc = activeCompilationDiscs.first(where: {
-                      $0.tracks.contains(where: { $0.id == songID })
-                  }),
-                  let compilationIndex = compilationDisc.tracks.firstIndex(where: { $0.id == songID }) {
-            targetDisc = compilationDisc
-            index = compilationIndex
-            mechanism.updateContents(compilationDisc)
-            preparedDiscID = compilationDisc.id
-        } else {
-            return
-        }
-
-        if trackIndex != index || currentDisc.id != targetDisc.id {
-            trackIndex = index
-            persistedPlaybackTime = 0
-            pendingResumePosition = nil
-            recordedPlayingSongID = nil
-            persistLoadedDisc()
-        }
-        preparedSongID = songID
-    }
-    func seek(_ time: TimeInterval) {
-        guard time.isFinite, time >= 0 else { return }
-        do {
-            try controller?.seek(to: time)
-            persistedPlaybackTime = time
-            persistLoadedDisc(currentTime: time)
-        }
-        catch { playbackError = BSLocalization.text("暂时无法播放") }
-    }
     func setForeground(_ value: Bool) {
         let wasForeground = foreground
         foreground = value
-
-        // Transport events are the normal synchronization path. Returning from
-        // suspension is also an explicit resynchronization boundary so any event
-        // that occurred while the process could not consume observations cannot
-        // leave the UI stale.
-        if value, !wasForeground, let controller {
-            do {
-                _ = try controller.resynchronizeTransport()
-            } catch {
-                playbackError = BSLocalization.text("暂时无法播放")
-            }
+        // Observation catches up on its own; returning from suspension is
+        // also an explicit boundary to re-read the player.
+        if value, !wasForeground {
+            deck.resynchronize()
         }
-
-        updateVisibility()
+        updateMotion()
     }
     func setActive(_ value: Bool) {
         active = value
@@ -1806,17 +1367,11 @@ private let listeningCatalogFetchConcurrency = 4
         } else {
             cancelFeaturedPlaylistTasks()
         }
-        updateVisibility()
+        updateMotion()
     }
-    private func updateVisibility() {
-        let source = preparedSource ?? ListeningPlaybackSourceResolver.resolve(capability: capability(for: track))
-        if ListeningVisibilityPolicy.mustPause(tabVisible: active, foreground: foreground, source: source) {
-            visibility.interrupt(wasPlaying: wantsPlayback)
-            do { try controller?.pause() }
-            catch { playbackError = BSLocalization.text("暂时无法播放") }
-        } else if visibility.resumeIfAllowed() {
-            run { [self] in try await playCurrentTrack() }
-        }
+    /// Listening is a secondary task: tab changes and backgrounding never
+    /// touch the transport, only the mechanism's display link.
+    private func updateMotion() {
         if active && foreground {
             mechanism.motion.wake()
         } else {
@@ -1824,12 +1379,14 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
     func returnToWholeShow() { selectScope(.all) }
-    /// 等待排队中的播放/装碟操作完成，供小组件乐观状态之后按真实结果回写。
+    /// 等待排队中的装碟操作和播放命令完成，供小组件乐观状态之后按真实结果回写。
     func settlePendingOperation() async {
         await operation?.value
+        await deck.settle()
     }
 
-    private func run(_ action: @escaping @MainActor () async throws -> Void) {
+    /// Serializes mechanical sequences: a disc swap, or closing the lid before Play.
+    private func runMachine(_ action: @escaping @MainActor () async throws -> Void) {
         let previous = operation
         previous?.cancel()
         operation = Task { @MainActor [weak self] in
@@ -1837,9 +1394,12 @@ private let listeningCatalogFetchConcurrency = 4
             guard let self, !Task.isCancelled else { return }
             self.busy = true
             defer { self.busy = false }
-            do { try await action() }
-            catch is CancellationError { self.pendingSleeveSongID = nil; self.resetPlaybackForTransition() }
-            catch { self.pendingSleeveSongID = nil; self.resetPlaybackForTransition(); self.playbackError = BSLocalization.text("暂时无法播放") }
+            do {
+                try await action()
+            } catch is CancellationError {
+            } catch {
+                self.playbackError = BSLocalization.text("暂时无法播放")
+            }
         }
     }
 }

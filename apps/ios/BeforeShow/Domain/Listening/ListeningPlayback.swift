@@ -65,20 +65,12 @@ enum ListeningPlaybackTransportPhase: Equatable, Sendable {
         self == .playing
     }
 
-    var satisfiesPlayIntent: Bool {
+    /// Playing, or committed to playing while media buffers or seeks.
+    var isActive: Bool {
         switch self {
         case .playing, .waiting, .seeking:
             true
         case .stopped, .paused, .interrupted:
-            false
-        }
-    }
-
-    var satisfiesPauseIntent: Bool {
-        switch self {
-        case .stopped, .paused:
-            true
-        case .playing, .waiting, .interrupted, .seeking:
             false
         }
     }
@@ -158,259 +150,10 @@ enum ListeningPlaybackCompletionPolicy {
     }
 }
 
-enum ListeningPlaybackState: Equatable, Sendable {
-    case idle
-    case preparing(source: ListeningPlaybackSource)
-    case ready(
-        songID: String,
-        source: ListeningPlaybackSource,
-        currentTime: TimeInterval,
-        duration: TimeInterval?
-    )
-    case waiting(
-        songID: String,
-        source: ListeningPlaybackSource,
-        currentTime: TimeInterval,
-        duration: TimeInterval?
-    )
-    case playing(
-        songID: String,
-        source: ListeningPlaybackSource,
-        currentTime: TimeInterval,
-        duration: TimeInterval?
-    )
-    case seeking(
-        songID: String,
-        source: ListeningPlaybackSource,
-        currentTime: TimeInterval,
-        duration: TimeInterval?
-    )
-    case paused(
-        songID: String,
-        source: ListeningPlaybackSource,
-        currentTime: TimeInterval,
-        duration: TimeInterval?
-    )
-    case interrupted(
-        songID: String,
-        source: ListeningPlaybackSource,
-        currentTime: TimeInterval,
-        duration: TimeInterval?
-    )
-    case finished(songID: String, source: ListeningPlaybackSource, duration: TimeInterval?)
-    case failed
-
-    var isPlaying: Bool {
-        if case .playing = self { return true }
-        return false
-    }
-
-    var isPlaybackActive: Bool {
-        switch self {
-        case .waiting, .playing, .seeking:
-            true
-        case .idle, .preparing, .ready, .paused, .interrupted, .finished, .failed:
-            false
-        }
-    }
-
-    var isFinished: Bool {
-        if case .finished = self { return true }
-        return false
-    }
-}
-
 enum ListeningPlayPauseAction: Equatable, Sendable {
     case play
     case pause
     case disabled
-
-    static func resolve(
-        state: ListeningPlaybackState,
-        intent: ListeningPlaybackTransportTarget?,
-        canInitiatePlayback: Bool
-    ) -> Self {
-        if case .preparing = state { return .disabled }
-        if case .failed = state { return .disabled }
-
-        let hasTransportContext: Bool
-        switch state {
-        case .ready, .waiting, .playing, .seeking, .paused, .interrupted:
-            hasTransportContext = true
-        case .idle, .preparing, .finished, .failed:
-            hasTransportContext = false
-        }
-        let canPlay = canInitiatePlayback || hasTransportContext
-
-        switch intent {
-        case .playing:
-            return canPlay ? .pause : .disabled
-        case .paused:
-            return canPlay ? .play : .disabled
-        case nil:
-            switch state {
-            case .waiting, .playing, .seeking:
-                return .pause
-            case .idle, .ready, .paused, .interrupted, .finished:
-                return canPlay ? .play : .disabled
-            case .preparing, .failed:
-                return .disabled
-            }
-        }
-    }
-}
-
-enum ListeningPlaybackTransportTarget: Equatable, Sendable {
-    case playing
-    case paused
-
-    func matches(_ sample: ListeningPlaybackSample) -> Bool {
-        switch self {
-        case .playing:
-            sample.phase.satisfiesPlayIntent && !sample.hasEnded
-        case .paused:
-            sample.phase.satisfiesPauseIntent
-        }
-    }
-}
-
-enum ListeningPlaybackEvent: Equatable, Sendable {
-    case prepareStarted(source: ListeningPlaybackSource)
-    case sample(ListeningPlaybackSample)
-    case progress(ListeningPlaybackSample)
-    case finished(songID: String)
-    case failed
-    case reset
-}
-
-struct ListeningPlaybackStateMachine {
-    private(set) var state: ListeningPlaybackState = .idle
-
-    @discardableResult
-    mutating func handle(_ event: ListeningPlaybackEvent) -> ListeningPlaybackState {
-        switch event {
-        case let .prepareStarted(source):
-            state = .preparing(source: source)
-        case let .sample(sample):
-            state = observedState(for: sample)
-        case let .progress(sample):
-            state = progressedState(for: sample)
-        case let .finished(songID):
-            if let current = currentTrack, current.songID == songID {
-                state = .finished(songID: songID, source: current.source, duration: current.duration)
-            }
-        case .failed:
-            state = .failed
-        case .reset:
-            state = .idle
-        }
-        return state
-    }
-
-    private func observedState(for sample: ListeningPlaybackSample) -> ListeningPlaybackState {
-        if sample.hasEnded {
-            return .finished(songID: sample.songID, source: sample.source, duration: sample.duration)
-        }
-
-        let values = (
-            songID: sample.songID,
-            source: sample.source,
-            currentTime: sample.currentTime,
-            duration: sample.duration
-        )
-
-        switch sample.phase {
-        case .playing:
-            return .playing(
-                songID: values.songID,
-                source: values.source,
-                currentTime: values.currentTime,
-                duration: values.duration
-            )
-        case .waiting:
-            return .waiting(
-                songID: values.songID,
-                source: values.source,
-                currentTime: values.currentTime,
-                duration: values.duration
-            )
-        case .seeking:
-            return .seeking(
-                songID: values.songID,
-                source: values.source,
-                currentTime: values.currentTime,
-                duration: values.duration
-            )
-        case .interrupted:
-            return .interrupted(
-                songID: values.songID,
-                source: values.source,
-                currentTime: values.currentTime,
-                duration: values.duration
-            )
-        case .paused, .stopped:
-            if currentTrack?.songID == sample.songID {
-                switch state {
-                case .waiting, .playing, .seeking, .paused, .interrupted:
-                    return .paused(
-                        songID: values.songID,
-                        source: values.source,
-                        currentTime: values.currentTime,
-                        duration: values.duration
-                    )
-                case .idle, .preparing, .ready, .finished, .failed:
-                    break
-                }
-            }
-            return .ready(
-                songID: values.songID,
-                source: values.source,
-                currentTime: values.currentTime,
-                duration: values.duration
-            )
-        }
-    }
-
-    private func progressedState(for sample: ListeningPlaybackSample) -> ListeningPlaybackState {
-        guard currentTrack?.songID == sample.songID else { return state }
-        let duration = sample.duration ?? currentTrack?.duration
-
-        switch state {
-        case let .ready(songID, source, _, _):
-            return .ready(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
-        case let .waiting(songID, source, _, _):
-            return .waiting(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
-        case let .playing(songID, source, _, _):
-            return .playing(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
-        case let .seeking(songID, source, _, _):
-            return .seeking(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
-        case let .paused(songID, source, _, _):
-            return .paused(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
-        case let .interrupted(songID, source, _, _):
-            return .interrupted(songID: songID, source: source, currentTime: sample.currentTime, duration: duration)
-        case .idle, .preparing, .finished, .failed:
-            return state
-        }
-    }
-
-    private var currentTrack: (
-        songID: String,
-        source: ListeningPlaybackSource,
-        duration: TimeInterval?
-    )? {
-        switch state {
-        case let .ready(songID, source, _, duration),
-             let .waiting(songID, source, _, duration),
-             let .playing(songID, source, _, duration),
-             let .seeking(songID, source, _, duration),
-             let .paused(songID, source, _, duration),
-             let .interrupted(songID, source, _, duration),
-             let .finished(songID, source, duration):
-            (songID, source, duration)
-        case .idle, .preparing, .failed:
-            nil
-        }
-    }
 }
 
 enum ListeningPlaybackEvidenceUpdate: Equatable {
@@ -512,36 +255,36 @@ enum ListeningPlaybackError: Error, Equatable {
     case unsupportedSource
 }
 
+/// One Apple player per source. The player is the single source of truth:
+/// `phase`, `currentSongID`, `hasEnded` and `failure` are observable (MusicKit
+/// player state and queue on iOS 26.4+, AVFoundation with
+/// `AVPlayer.isObservationEnabled`), so the deck and SwiftUI read them directly.
 @MainActor
 protocol ListeningPlaybackServicing: AnyObject {
+    var source: ListeningPlaybackSource { get }
+    var phase: ListeningPlaybackTransportPhase { get }
+    var currentSongID: String? { get }
+    var hasEnded: Bool { get }
     var failure: ListeningPlaybackError? { get }
-    func prepare(
-        items: [ListeningPlaybackItem],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String?
-    ) async throws
+    /// Song IDs of the loaded queue in play order. Items the player cannot play are left out.
+    var queuedSongIDs: [String] { get }
+    /// Continuous state: sample it, don't observe it.
+    var currentTime: TimeInterval { get }
+    var currentDuration: TimeInterval? { get }
+
+    /// Resolves catalog items ahead of playback without touching the audio session.
+    func prefetch(_ items: [ListeningPlaybackItem]) async
+    /// Replaces the queue and buffers its starting entry at `time`.
+    func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws
     func play() async throws
     func pause()
     func skipToNext() async throws
     func skipToPrevious() async throws
-    func seek(to time: TimeInterval)
-
-    /// Discrete transport truth. Production adapters emit when playback status or
-    /// the current queue entry changes. This is the normal synchronization path.
-    func transportEvents() -> AsyncStream<ListeningPlaybackSample>
-
-    /// Point-in-time transport read used for initial seeding, explicit recovery,
-    /// and playback-time sampling. It is not the ongoing state synchronization path.
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample?
+    /// Moves to a queued song, keeping playback running if it was running.
+    func skip(to songID: String) async throws
     func stop()
 }
 
 @MainActor extension ListeningPlaybackServicing {
-    var failure: ListeningPlaybackError? { nil }
-
-    func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
-        AsyncStream { continuation in
-            continuation.finish()
-        }
-    }
+    func prefetch(_ items: [ListeningPlaybackItem]) async {}
 }

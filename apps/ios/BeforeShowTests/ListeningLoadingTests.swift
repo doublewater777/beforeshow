@@ -11,7 +11,7 @@ final class ListeningLoadingTests: XCTestCase {
             context: container.mainContext,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: LoadingArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         let task = Task { await room.load(show: show) }
         defer { task.cancel(); room.stop(); room.mechanism.motion.stop() }
@@ -56,7 +56,7 @@ final class ListeningLoadingTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: EmptyArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         let load = Task { await room.load(show: show) }
         defer {
@@ -125,7 +125,7 @@ final class ListeningLoadingTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: EmptyArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             catalog.releaseFullCatalog()
@@ -179,7 +179,7 @@ final class ListeningLoadingTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: EmptyArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             catalog.releaseFullCatalog()
@@ -250,7 +250,7 @@ final class ListeningLoadingTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: EmptyArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             catalog.releaseRuntimeCatalog()
@@ -282,30 +282,12 @@ final class ListeningLoadingTests: XCTestCase {
     }
 
     func testCompilationPlaybackUsesOneQueueAcrossVisibleVolumes() async throws {
-        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
-        let context = container.mainContext
-        let start = Date().addingTimeInterval(20_000)
-        let show = try Show(name: "Continuous Festival", date: start, startTime: start)
-        show.artists = (0..<17).map {
-            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
-        }
-        context.insert(show)
-        try context.save()
-
-        let catalog = GatedLargeFestivalCatalog()
-        let playback = CompilationQueuePlaybackService()
-        let room = ListeningRoomCoordinator(
-            context: context,
-            catalogService: catalog,
-            artistSearchService: EmptyArtistSearch(),
-            playbackFactory: { _ in playback }
-        )
+        let (container, room, player, _) = try await makeFestivalRoom()
+        _ = container
         defer {
             room.stop()
             room.mechanism.motion.stop()
         }
-
-        await room.load(show: show)
         XCTAssertEqual(room.compilationDiscs.count, 3)
         let first = try XCTUnwrap(room.compilationDiscs.first)
         let second = try XCTUnwrap(room.compilationDiscs.dropFirst().first)
@@ -317,35 +299,158 @@ final class ListeningLoadingTests: XCTestCase {
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
         XCTAssertEqual(
-            playback.preparedSongIDs,
+            player.loadedSongIDs,
             room.compilationDiscs.flatMap(\.tracks).map(\.id),
             "visible compilation volumes should be one transport queue"
         )
-        XCTAssertEqual(playback.startingSongID, firstLastSongID)
-        XCTAssertEqual(playback.prepareCount, 1)
+        XCTAssertEqual(player.loadedStartSongID, firstLastSongID)
+        XCTAssertEqual(player.loadCount, 1)
 
-        playback.advanceToNextForTesting()
+        player.advanceNaturally()
         try await wait { room.track?.id == secondFirstSongID }
 
         XCTAssertEqual(room.mechanism.disc?.id, second.id, "virtual disc identity should follow the active queue volume")
         XCTAssertEqual(room.track?.id, secondFirstSongID)
-        XCTAssertEqual(playback.prepareCount, 1, "cross-volume continuation must not rebuild the queue")
+        XCTAssertEqual(player.loadCount, 1, "cross-volume continuation must not rebuild the queue")
 
         room.skip(-1)
         try await ListenTestData.settle(room) {
             room.track?.id == firstLastSongID && room.mechanism.disc?.id == first.id
         }
-        XCTAssertEqual(playback.prepareCount, 1, "previous across a volume boundary should stay in the prepared queue")
+        XCTAssertEqual(player.loadCount, 1, "previous across a volume boundary should stay in the prepared queue")
+    }
+
+    func testCrossingCompilationVolumesKeepsPlayingWithTheRoomOnScreen() async throws {
+        for crossing in ["natural", "next"] {
+            let (container, room, player, show) = try await makeFestivalRoom()
+            _ = container
+            let first = room.compilationDiscs[0]
+            let second = room.compilationDiscs[1]
+            room.restoreDisc(first, songID: try XCTUnwrap(first.tracks.last?.id))
+            let window = try mountRoomView(room, show: show)
+            defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
+            let view = try XCTUnwrap(window.rootViewController?.view)
+            try await settleLayout(view)
+
+            room.playPause()
+            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            if crossing == "natural" {
+                player.advanceNaturally()
+            } else {
+                room.skip(1)
+            }
+            try await wait { room.track?.id == second.tracks.first?.id }
+            try await settleLayout(view)
+
+            XCTAssertEqual(room.mechanism.disc?.id, second.id, crossing)
+            XCTAssertEqual(room.track?.id, second.tracks.first?.id, crossing)
+            XCTAssertTrue(room.isPlaying, "\(crossing) crossing into the next volume must keep playing")
+            XCTAssertEqual(player.loadCount, 1, crossing)
+        }
+    }
+
+    func testStoppedPreviousAcrossCompilationVolumesLandsOnTheLastTrack() async throws {
+        let (container, room, _, show) = try await makeFestivalRoom()
+        _ = container
+        let first = room.compilationDiscs[0]
+        let second = room.compilationDiscs[1]
+        room.restoreDisc(second, songID: try XCTUnwrap(second.tracks.first?.id))
+        let window = try mountRoomView(room, show: show)
+        defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
+        let view = try XCTUnwrap(window.rootViewController?.view)
+        try await settleLayout(view)
+
+        room.skip(-1)
+        try await settleLayout(view)
+
+        XCTAssertEqual(room.mechanism.disc?.id, first.id)
+        XCTAssertEqual(room.track?.id, first.tracks.last?.id)
+        XCTAssertFalse(room.wantsPlayback)
+    }
+
+    func testAlbumNextMovesInsideThePreparedQueue() async throws {
+        let (container, room, player, _) = try await makeFestivalRoom()
+        _ = container
+        defer { room.stop(); room.mechanism.motion.stop() }
+        let source = room.compilationDiscs[0]
+        let album = ListeningDisc(id: "queue-album", title: "Album", artworkURL: nil, tracks: Array(source.tracks.prefix(4)))
+        room.restoreDisc(album, songID: album.tracks[0].id)
+
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        room.skip(1)
+        try await wait { player.currentSongID == album.tracks[1].id && room.isPlaying }
+        XCTAssertEqual(room.track?.id, album.tracks[1].id)
+        room.skip(1)
+        try await wait { player.currentSongID == album.tracks[2].id && room.isPlaying }
+        XCTAssertEqual(room.track?.id, album.tracks[2].id)
+
+        XCTAssertEqual(player.loadCount, 1, "Next within the loaded album must not rebuild the queue")
+        XCTAssertEqual(player.nativeSkips, [1, 1])
+    }
+
+    /// The compact player's control must read back on the tap, and stay usable
+    /// while the source still loads the queue.
+    func testMiniPlayerControlFlipsOnTapWhileTheQueueLoads() async throws {
+        let (container, room, player, _) = try await makeFestivalRoom()
+        _ = container
+        defer { room.stop(); room.mechanism.motion.stop() }
+        let disc = room.compilationDiscs[0]
+        room.restoreDisc(disc)
+        player.loadDelay = .milliseconds(300)
+
+        room.perform(.playPause)
+
+        XCTAssertTrue(room.display.player.showsPauseControl)
+        XCTAssertTrue(room.display.player.canPlayPause)
+        XCTAssertTrue(room.display.player.shouldRotateDisc)
+        XCTAssertFalse(room.busy)
+
+        room.perform(.playPause)
+        XCTAssertFalse(room.display.player.showsPauseControl)
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertFalse(room.isPlaying, "a pause during loading must cancel the start")
+        XCTAssertEqual(player.playCount, 0)
+    }
+
+    private func makeFestivalRoom() async throws -> (ModelContainer, ListeningRoomCoordinator, ListeningTestPlayer, Show) {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Continuous Festival", date: start, startTime: start)
+        show.artists = (0..<17).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+        try context.save()
+        let player = ListeningTestPlayer()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: GatedLargeFestivalCatalog(),
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in player }
+        )
+        await room.load(show: show)
+        return (container, room, player, show)
+    }
+
+    private func mountRoomView(_ room: ListeningRoomCoordinator, show: Show) throws -> UIWindow {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = UIHostingController(rootView: ListeningRoomView(room: room, show: show))
+        window.makeKeyAndVisible()
+        return window
     }
 
     func testRestoredCompilationKeepsSelectedSongWhenRefreshedVolumesOmitIt() async throws {
         let (container, show) = try ListenTestData.make()
-        let playback = CompilationQueuePlaybackService()
+        let player = ListeningTestPlayer()
         let room = ListeningRoomCoordinator(
             context: container.mainContext,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: EmptyArtistSearch(),
-            playbackFactory: { _ in playback }
+            playbackFactory: { _ in player }
         )
         defer { room.stop(); room.mechanism.motion.stop() }
         await room.load(show: show)
@@ -361,7 +466,7 @@ final class ListeningLoadingTests: XCTestCase {
         room.restoreDisc(restored, songID: retiredTrack.id)
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        XCTAssertEqual(playback.preparedSongIDs, restored.tracks.map(\.id))
+        XCTAssertEqual(player.loadedSongIDs, restored.tracks.map(\.id))
         XCTAssertEqual(room.track?.id, retiredTrack.id)
 
         room.stop()
@@ -371,7 +476,7 @@ final class ListeningLoadingTests: XCTestCase {
         room.skip(-1)
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        XCTAssertEqual(playback.preparedSongIDs, restored.tracks.map(\.id), "a shared selected song must not replace the loaded record with refreshed contents")
+        XCTAssertEqual(player.loadedSongIDs, restored.tracks.map(\.id), "a shared selected song must not replace the loaded record with refreshed contents")
         XCTAssertEqual(room.track?.id, sharedTrack.id)
     }
 
@@ -383,7 +488,7 @@ final class ListeningLoadingTests: XCTestCase {
             context: context,
             catalogService: ListeningFixtureCatalog(scenario: .authorizationFlow),
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         let probe = ListeningLayoutProbe()
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -468,7 +573,7 @@ final class ListeningLoadingTests: XCTestCase {
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         await room.load(show: show)
         room.selectScope(.artist("fixture-artist-0"))
@@ -519,7 +624,7 @@ final class ListeningLoadingTests: XCTestCase {
                 context: context,
                 catalogService: ListeningFixtureCatalog(scenario: scenario),
                 artistSearchService: ListeningFixtureArtistSearch(),
-                playbackFactory: { _ in ListeningFixturePlayer() }
+                playbackFactory: { ListeningFixturePlayer(source: $0) }
             )
             await room.load(show: show)
             let probe = ListeningLayoutProbe()
@@ -596,80 +701,6 @@ private struct LoadingArtistSearch: ArtistSearchServicing {
 
 private struct EmptyArtistSearch: ArtistSearchServicing {
     func searchArtists(query: String) async throws -> [RecognizedArtist] { [] }
-}
-
-@MainActor
-private final class CompilationQueuePlaybackService: ListeningPlaybackServicing {
-    private var items: [ListeningPlaybackItem] = []
-    private var index = 0
-    private var source: ListeningPlaybackSource = .fullCatalog
-    private var playing = false
-
-    private let transport = AsyncStream<ListeningPlaybackSample>.makeStream()
-
-    func transportEvents() -> AsyncStream<ListeningPlaybackSample> { transport.stream }
-
-    private(set) var preparedSongIDs: [String] = []
-    private(set) var startingSongID: String?
-    private(set) var prepareCount = 0
-
-    func prepare(
-        items: [ListeningPlaybackItem],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String?
-    ) async throws {
-        guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
-        self.items = items
-        self.source = source
-        preparedSongIDs = items.map(\.songID)
-        self.startingSongID = startingAtSongID
-        prepareCount += 1
-        index = startingAtSongID.flatMap { id in
-            items.firstIndex(where: { $0.songID == id })
-        } ?? 0
-        playing = false
-    }
-
-    func play() async throws { playing = true }
-    func pause() { playing = false }
-
-    func skipToNext() async throws {
-        guard index + 1 < items.count else { throw ListeningPlaybackError.queueBoundary }
-        index += 1
-    }
-
-    func skipToPrevious() async throws {
-        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
-        index -= 1
-    }
-
-    func advanceToNextForTesting() {
-        if index + 1 < items.count { index += 1 }
-        if let sample = snapshot(observedAt: Date()) {
-            transport.continuation.yield(sample)
-        }
-    }
-
-    func seek(to time: TimeInterval) {}
-
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
-        guard items.indices.contains(index) else { return nil }
-        let item = items[index]
-        return ListeningPlaybackSample(
-            songID: item.songID,
-            source: source,
-            currentTime: 0,
-            duration: item.duration ?? 180,
-            isPlaying: playing,
-            observedAt: observedAt
-        )
-    }
-
-    func stop() {
-        playing = false
-        items = []
-        index = 0
-    }
 }
 
 private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {

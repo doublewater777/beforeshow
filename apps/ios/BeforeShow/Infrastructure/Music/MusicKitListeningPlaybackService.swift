@@ -1,51 +1,87 @@
 import Foundation
-import Observation
 @preconcurrency import MusicKit
 
+/// Full-catalog playback on `ApplicationMusicPlayer`, the way Apple's MusicKit
+/// samples drive it: one shared player, one queue per loaded disc, state read
+/// straight from the player. Lock Screen and Control Center belong to the system.
 @MainActor
 final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
+    let source = ListeningPlaybackSource.fullCatalog
     private let player: ApplicationMusicPlayer
+    private var songsByID: [String: Song] = [:]
     private var durationBySongID: [String: TimeInterval] = [:]
-    private var lastObservedSongID: String?
+    private(set) var queuedSongIDs: [String] = []
 
     init(player: ApplicationMusicPlayer = .shared) {
         self.player = player
     }
 
-    func prepare(
-        items: [ListeningPlaybackItem],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String?
-    ) async throws {
-        guard source == .fullCatalog else {
-            throw ListeningPlaybackError.unsupportedSource
+    var phase: ListeningPlaybackTransportPhase {
+        switch player.state.playbackStatus {
+        case .playing: .playing
+        case .paused: .paused
+        case .stopped: .stopped
+        case .interrupted: .interrupted
+        case .seekingForward, .seekingBackward: .seeking
+        @unknown default: .stopped
         }
-        guard !items.isEmpty else {
-            throw ListeningPlaybackError.emptyQueue
-        }
-        if let startingAtSongID,
-           !items.contains(where: { $0.songID == startingAtSongID }) {
-            throw ListeningPlaybackError.songUnavailable(startingAtSongID)
-        }
+    }
 
-        let songs = try await fetchSongs(ids: items.map(\.songID))
-        guard songs.count == items.count else {
-            let fetchedIDs = Set(songs.map { $0.id.rawValue })
-            let missingID = items.first { !fetchedIDs.contains($0.songID) }?.songID ?? items[0].songID
-            throw ListeningPlaybackError.songUnavailable(missingID)
-        }
+    var currentSongID: String? {
+        guard !queuedSongIDs.isEmpty else { return nil }
+        // A finished queue has no current entry; its last song stays loaded.
+        return currentEntrySongID ?? queuedSongIDs.last
+    }
 
-        let orderedByID = Dictionary(uniqueKeysWithValues: songs.map { ($0.id.rawValue, $0) })
-        let orderedSongs = items.compactMap { orderedByID[$0.songID] }
-        let startingSong = startingAtSongID.flatMap { orderedByID[$0] }
-        durationBySongID = Dictionary(uniqueKeysWithValues: items.compactMap { item in
-            item.duration.map { (item.songID, $0) }
-        })
-        lastObservedSongID = startingAtSongID ?? items.first?.songID
+    var hasEnded: Bool {
+        guard !queuedSongIDs.isEmpty else { return false }
+        let status = player.state.playbackStatus
+        guard status == .stopped || status == .paused else { return false }
+        guard let songID = currentEntrySongID else { return true }
+        return ListeningPlaybackCompletionPolicy.hasEnded(
+            currentTime: currentTime,
+            duration: duration(of: songID),
+            isPlaying: false
+        )
+    }
+
+    var failure: ListeningPlaybackError? { nil }
+
+    var currentTime: TimeInterval {
+        let time = player.playbackTime
+        return time.isFinite ? max(0, time) : 0
+    }
+
+    var currentDuration: TimeInterval? {
+        currentSongID.flatMap(duration(of:))
+    }
+
+    func prefetch(_ items: [ListeningPlaybackItem]) async {
+        try? await fetchMissingSongs(items.map(\.songID))
+    }
+
+    func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws {
+        guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
+        try await fetchMissingSongs(items.map(\.songID))
+        // Songs the catalog no longer returns are skipped instead of failing the disc.
+        let playable = items.filter { songsByID[$0.songID] != nil }
+        guard let first = playable.first else {
+            throw ListeningPlaybackError.songUnavailable(songID ?? items[0].songID)
+        }
+        for item in items {
+            if let duration = item.duration { durationBySongID[item.songID] = duration }
+        }
+        let startID = Self.startingSongID(requested: songID, items: items, playable: playable) ?? first.songID
+        let songs = playable.compactMap { songsByID[$0.songID] }
+        queuedSongIDs = playable.map(\.songID)
         player.state.repeatMode = MusicPlayer.RepeatMode.none
         player.state.shuffleMode = .off
-        player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs, startingAt: startingSong)
+        player.queue = ApplicationMusicPlayer.Queue(for: songs, startingAt: songsByID[startID])
+        AppAudioSession.configureMusicPlayback()
         try await player.prepareToPlay()
+        if time > 0 {
+            player.playbackTime = time
+        }
     }
 
     func play() async throws {
@@ -65,127 +101,71 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         try await player.skipToPreviousEntry()
     }
 
-    func seek(to time: TimeInterval) {
-        player.playbackTime = max(0, time)
-    }
-
-    func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
-        AsyncStream { continuation in
-            let task = Task { @MainActor [weak self] in
-                guard let self else {
-                    continuation.finish()
-                    return
-                }
-
-                let observations = Observations {
-                    MusicKitTransportObservation(
-                        status: self.player.state.playbackStatus,
-                        songID: self.currentSongID
-                    )
-                }
-
-                for await _ in observations {
-                    if Task.isCancelled { break }
-                    if let sample = self.snapshot(observedAt: Date()) {
-                        continuation.yield(sample)
-                    }
-                }
-                continuation.finish()
-            }
-
-            continuation.onTermination = { @Sendable _ in
-                task.cancel()
-            }
+    func skip(to songID: String) async throws {
+        guard queuedSongIDs.contains(songID), let song = songsByID[songID] else {
+            throw ListeningPlaybackError.songUnavailable(songID)
         }
-    }
-
-    func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {
-        let phase = transportPhase(for: player.state.playbackStatus)
-        guard case let .song(song) = player.queue.currentEntry?.item else {
-            guard let songID = lastObservedSongID else { return nil }
-            let duration = durationBySongID[songID]
-            let currentTime = max(0, player.playbackTime)
-            let hasEnded = phase == .stopped
-                && duration.map { currentTime >= $0 - 0.25 || currentTime == 0 } == true
-            return ListeningPlaybackSample(
-                songID: songID,
-                source: .fullCatalog,
-                currentTime: hasEnded ? (duration ?? currentTime) : currentTime,
-                duration: duration,
-                phase: phase,
-                observedAt: observedAt,
-                hasEnded: hasEnded
-            )
-        }
-        lastObservedSongID = song.id.rawValue
-        let currentTime = max(0, player.playbackTime)
-        let duration = song.duration ?? durationBySongID[song.id.rawValue]
-        return ListeningPlaybackSample(
-            songID: song.id.rawValue,
-            source: .fullCatalog,
-            currentTime: currentTime,
-            duration: duration,
-            phase: phase,
-            observedAt: observedAt,
-            hasEnded: ListeningPlaybackCompletionPolicy.hasEnded(
-                currentTime: currentTime,
-                duration: duration,
-                phase: phase
-            )
+        let continuesPlaying = phase.isActive
+        player.queue = ApplicationMusicPlayer.Queue(
+            for: queuedSongIDs.compactMap { songsByID[$0] },
+            startingAt: song
         )
+        if continuesPlaying {
+            try await play()
+        }
     }
 
     func stop() {
         player.stop()
-        durationBySongID = [:]
-        lastObservedSongID = nil
+        queuedSongIDs = []
         AppAudioSession.releaseMusicPlayback()
     }
 
-    private var currentSongID: String? {
+    private var currentEntrySongID: String? {
         guard case let .song(song) = player.queue.currentEntry?.item else { return nil }
         return song.id.rawValue
     }
 
-    private func transportPhase(
-        for status: MusicPlayer.PlaybackStatus
-    ) -> ListeningPlaybackTransportPhase {
-        switch status {
-        case .playing:
-            return .playing
-        case .paused:
-            return .paused
-        case .stopped:
-            return .stopped
-        case .interrupted:
-            return .interrupted
-        case .seekingForward, .seekingBackward:
-            return .seeking
-        @unknown default:
-            return .stopped
-        }
+    private func duration(of songID: String) -> TimeInterval? {
+        songsByID[songID]?.duration ?? durationBySongID[songID]
     }
 
-    private func fetchSongs(ids: [String]) async throws -> [Song] {
-        var fetched: [Song] = []
-        for start in stride(from: 0, to: ids.count, by: 25) {
-            let batch = Array(ids[start..<min(start + 25, ids.count)])
-            var request = MusicCatalogResourceRequest<Song>(
-                matching: \.id,
-                memberOf: batch.map { MusicItemID($0) }
-            )
-            request.limit = batch.count
-            let response = try await request.response()
-            fetched.append(contentsOf: response.items)
+    /// The requested song, or the next one the catalog could resolve.
+    private static func startingSongID(
+        requested: String?,
+        items: [ListeningPlaybackItem],
+        playable: [ListeningPlaybackItem]
+    ) -> String? {
+        guard let requested,
+              let index = items.firstIndex(where: { $0.songID == requested }) else { return nil }
+        let playableIDs = Set(playable.map(\.songID))
+        return items[index...].first { playableIDs.contains($0.songID) }?.songID
+    }
+
+    private func fetchMissingSongs(_ ids: [String]) async throws {
+        var seen = Set<String>()
+        let missing = ids.filter { songsByID[$0] == nil && seen.insert($0).inserted }
+        guard !missing.isEmpty else { return }
+        let batches = stride(from: 0, to: missing.count, by: 25).map {
+            Array(missing[$0..<min($0 + 25, missing.count)])
         }
-        let order = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
-        return fetched.sorted {
-            (order[$0.id.rawValue] ?? Int.max) < (order[$1.id.rawValue] ?? Int.max)
+        let fetched = try await withThrowingTaskGroup(of: [Song].self) { group in
+            for batch in batches {
+                group.addTask {
+                    var request = MusicCatalogResourceRequest<Song>(
+                        matching: \.id,
+                        memberOf: batch.map { MusicItemID($0) }
+                    )
+                    request.limit = batch.count
+                    return Array(try await request.response().items)
+                }
+            }
+            var songs: [Song] = []
+            for try await batch in group { songs += batch }
+            return songs
+        }
+        for song in fetched {
+            songsByID[song.id.rawValue] = song
         }
     }
-}
-
-private struct MusicKitTransportObservation: Equatable, Sendable {
-    let status: MusicPlayer.PlaybackStatus
-    let songID: String?
 }

@@ -17,6 +17,7 @@ import SwiftUI
     @ObservationIgnored var cabinetDropZone = CGRect.zero
     @ObservationIgnored var cabinetScale = 0.25
     @ObservationIgnored private var lidOrigin: Double?
+    @ObservationIgnored private var lidDragOpened = false
     @ObservationIgnored private var discOrigin: CGPoint?
     @ObservationIgnored private var pendingClose = false
     @ObservationIgnored private var pendingSeat = false
@@ -60,9 +61,16 @@ import SwiftUI
     func dragLid(_ translation: CGFloat) {
         guard !isAutomatic, !isCompletingInsertion else { return }
         if lidOrigin == nil {
-            onOpen(); motion.lid.grab(); pendingClose = false; lidOrigin = motion.lid.value
+            motion.lid.grab(); pendingClose = false; lidOrigin = motion.lid.value
+            lidDragOpened = false
         }
         motion.lid.value = max(0, min(1, lidOrigin! - translation / configuration.geometry.dragTravel))
+        // The lid switch trips once the lid actually lifts, not when a drag
+        // that starts on it (e.g. a page scroll) pushes down on a closed lid.
+        if !lidDragOpened, motion.lid.value >= 0.002 {
+            lidDragOpened = true
+            onOpen()
+        }
         motion.wake()
     }
 

@@ -110,12 +110,13 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         try context.save()
 
-        let playback = ListeningChromePlaybackSpy()
+        let playback = ListeningTestPlayer()
+        var requestedSources: [ListeningPlaybackSource] = []
         let prepared = await ListeningChromeBootstrapper.prepare(
             show: show,
             context: context,
             catalogService: ListeningChromeCatalogStub(),
-            playbackFactory: { _ in playback }
+            playbackFactory: { requestedSources.append($0); return playback }
         )
         let room = try XCTUnwrap(prepared)
         defer {
@@ -133,10 +134,11 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
 
         // Compact play before visiting Listen must use hydrated Music access rather
         // than the coordinator's initial notDetermined/preview fallback.
+        try await waitUntil { playback.prefetchedSongIDs == [song.appleMusicSongID] }
         room.playPause()
         try await waitUntil { room.isPlaying && !room.busy }
-        XCTAssertEqual(playback.preparedSource, .fullCatalog)
-        XCTAssertEqual(playback.prepareCount, 1)
+        XCTAssertEqual(requestedSources, [.fullCatalog])
+        XCTAssertEqual(playback.loadCount, 1)
         XCTAssertEqual(playback.pauseCount, 0)
         XCTAssertEqual(playback.stopCount, 0)
 
@@ -150,7 +152,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertTrue(listenRoom.isPlaying)
         XCTAssertEqual(listenRoom.track?.id, song.appleMusicSongID)
         XCTAssertEqual(listenRoom.trackIndex, room.trackIndex)
-        XCTAssertEqual(playback.prepareCount, 1)
+        XCTAssertEqual(playback.loadCount, 1)
         XCTAssertEqual(playback.pauseCount, 0)
         XCTAssertEqual(playback.stopCount, 0)
     }
@@ -190,7 +192,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         context.insert(ListeningLoadedDiscState(discData: try JSONEncoder().encode(disc), songID: song.appleMusicSongID))
         try context.save()
 
-        let playback = ListeningChromePlaybackSpy()
+        let playback = ListeningTestPlayer()
         let prepared = await ListeningChromeBootstrapper.prepare(
             show: show,
             context: context,
@@ -244,7 +246,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         try context.save()
 
-        let playback = ListeningChromePlaybackSpy()
+        let playback = ListeningTestPlayer()
         let prepared = await ListeningChromeBootstrapper.prepare(
             show: show,
             context: context,
@@ -254,7 +256,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         let room = try XCTUnwrap(prepared)
         room.playPause()
         try await waitUntil { room.isPlaying && !room.busy }
-        XCTAssertTrue(playback.transportIsPlaying)
+        XCTAssertEqual(playback.phase, .playing)
         XCTAssertEqual(playback.stopCount, 0)
 
         let cleared = await ListeningChromeBootstrapper.prepare(
@@ -266,7 +268,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
 
         XCTAssertNil(cleared)
         XCTAssertFalse(room.isPlaying)
-        XCTAssertFalse(playback.transportIsPlaying)
+        XCTAssertNotEqual(playback.phase, .playing)
         XCTAssertEqual(playback.stopCount, 1)
         XCTAssertNil(ListeningRoomCache.shared)
         XCTAssertNil(ListeningPlaybackChromeStore.shared.room)
@@ -291,7 +293,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: ListeningChromeCatalogStub(),
-            playbackFactory: { _ in ListeningChromePlaybackSpy() }
+            playbackFactory: { ListeningTestPlayer(source: $0) }
         )
         room.prepareForDisplay(show: first)
         room.errorText = BSLocalization.text("保存失败，请重试")
@@ -324,7 +326,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: search,
-            playbackFactory: { _ in ListeningChromePlaybackSpy() }
+            playbackFactory: { ListeningTestPlayer(source: $0) }
         )
 
         XCTAssertNil(rootPrepared)
@@ -340,7 +342,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: search,
-            playbackFactory: { _ in ListeningChromePlaybackSpy() }
+            playbackFactory: { ListeningTestPlayer(source: $0) }
         )
         ListeningRoomCache.shared = room
         room.setActive(false)
@@ -401,7 +403,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         try context.save()
 
-        let playback = ListeningChromePlaybackSpy()
+        let playback = ListeningTestPlayer()
         let prepared = await ListeningChromeBootstrapper.prepare(
             show: show,
             context: context,
@@ -418,24 +420,23 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         try await waitUntil { room.isPlaying && !room.busy }
         XCTAssertEqual(room.track?.id, "sync-a")
 
-        // Remote pause/play updates the shared room immediately; no ListeningRoomView
-        // timer or explicit room.tick() is involved.
-        try await ListeningRemoteCommandBridge.shared.togglePlayPauseForTesting()
+        // Lock Screen pause/play reach the system player directly; the shared
+        // room reads them from the player with no view timer involved.
+        playback.phase = .paused
+        try await waitUntil { room.display.player.phase == .paused }
         XCTAssertFalse(room.isPlaying)
-        XCTAssertEqual(room.display.player.phase, .paused)
 
-        try await ListeningRemoteCommandBridge.shared.togglePlayPauseForTesting()
+        playback.phase = .playing
+        try await waitUntil { room.display.player.phase == .playing }
         XCTAssertTrue(room.isPlaying)
-        XCTAssertEqual(room.display.player.phase, .playing)
 
-        // Remote next also projects the controller's new queue entry immediately.
-        try await ListeningRemoteCommandBridge.shared.nextForTesting()
-        XCTAssertEqual(room.track?.id, "sync-b")
+        // Lock Screen next moves the player's queue entry.
+        playback.advanceNaturally()
+        try await waitUntil { room.track?.id == "sync-b" }
         XCTAssertEqual(room.trackIndex, 1)
 
-        // Simulate ApplicationMusicPlayer naturally advancing while Listen is not
-        // driving a view timer. The controller observation must still update chrome.
-        playback.advanceTransportToNext()
+        // ApplicationMusicPlayer advancing on its own also updates chrome.
+        playback.advanceNaturally()
         try await waitUntil { room.track?.id == "sync-c" }
         XCTAssertEqual(room.trackIndex, 2)
         XCTAssertTrue(room.isPlaying)
@@ -475,7 +476,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         try context.save()
 
-        let playback = ListeningChromePlaybackSpy()
+        let playback = ListeningTestPlayer()
         var shouldFail = true
         let room = ListeningRoomCoordinator(
             context: context,
@@ -504,20 +505,20 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
 
         room.playPause()
         try await waitUntil { room.isPlaying && !room.busy }
+        // Progress samples arrive once a second while playing.
         playback.currentTime = 1.4
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+        try await Task.sleep(for: .milliseconds(1_100))
         playback.currentTime = 2.1
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+        try await waitUntil { room.errorText != nil }
 
         XCTAssertTrue(room.isPlaying)
         XCTAssertEqual(room.display.player.phase, .playing)
-        XCTAssertNotNil(room.errorText)
         XCTAssertFalse(room.actualSongIDs.contains(song.appleMusicSongID))
         XCTAssertFalse(room.familiarSongIDs.contains(song.appleMusicSongID))
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
         room.errorText = nil
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+        try await waitUntil { room.actualSongIDs.contains(song.appleMusicSongID) }
 
         XCTAssertTrue(room.isPlaying)
         XCTAssertNil(room.errorText)
@@ -561,7 +562,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         try context.save()
 
-        let playback = ListeningChromePlaybackSpy()
+        let playback = ListeningTestPlayer()
         let prepared = await ListeningChromeBootstrapper.prepare(
             show: show,
             context: context,
@@ -579,22 +580,21 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertFalse(room.actualSongIDs.contains(song.appleMusicSongID))
         XCTAssertFalse(room.familiarSongIDs.contains(song.appleMusicSongID))
 
-        // Build continuous full-catalog evidence to just below 50% without using
-        // the ListeningRoomView timer or room.tick().
+        // Build continuous full-catalog evidence to just below 50% from the
+        // deck's own progress samples, without any view timer.
         playback.currentTime = 1.4
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+        try await Task.sleep(for: .milliseconds(1_100))
         XCTAssertNil(
             try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
                 .first { $0.songID == song.appleMusicSongID }?.actualListeningAt
         )
 
-        // The final remote-pause sample crosses 50%. pause() stops controller
-        // observation, so this sample must both persist and immediately re-project
-        // evidence into the shared room without a later polling tick.
+        // A Lock Screen pause crosses 50%: the closing sample must persist and
+        // re-project evidence into the shared room without a later tick.
         playback.currentTime = 2.1
-        try ListeningRemoteCommandBridge.shared.pauseForTesting()
+        playback.phase = .paused
 
-        XCTAssertFalse(room.isPlaying)
+        try await waitUntil { !room.isPlaying }
         XCTAssertEqual(room.display.player.phase, .paused)
         try await waitUntil {
             room.actualSongIDs.contains(song.appleMusicSongID)
@@ -739,106 +739,6 @@ private final class ListeningChromeArtistSearchSpy: @unchecked Sendable, ArtistS
     }
 }
 
-@MainActor
-private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
-    private(set) var preparedSource: ListeningPlaybackSource?
-    private(set) var prepareCount = 0
-    private(set) var pauseCount = 0
-    private(set) var stopCount = 0
-    private var items: [ListeningPlaybackItem] = []
-    private var index = 0
-    private var playing = false
-    private var transportContinuation: AsyncStream<ListeningPlaybackSample>.Continuation?
-    var currentTime: TimeInterval = 0
-
-    var transportIsPlaying: Bool { playing }
-
-    private var pendingSamples: [ListeningPlaybackSample] = []
-
-    func advanceTransportToNext() {
-        guard index + 1 < items.count else { return }
-        index += 1
-        emitTransport()
-    }
-
-    func prepare(
-        items: [ListeningPlaybackItem],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String?
-    ) async throws {
-        self.items = items
-        preparedSource = source
-        index = startingAtSongID.flatMap { id in
-            items.firstIndex(where: { $0.songID == id })
-        } ?? 0
-        prepareCount += 1
-        currentTime = 0
-        playing = false
-    }
-
-    func play() async throws {
-        playing = true
-    }
-
-    func pause() {
-        pauseCount += 1
-        playing = false
-    }
-
-    func skipToNext() async throws {
-        guard index + 1 < items.count else { throw ListeningPlaybackError.queueBoundary }
-        index += 1
-    }
-
-    func skipToPrevious() async throws {
-        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
-        index -= 1
-    }
-
-    func seek(to time: TimeInterval) {}
-
-    func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
-        AsyncStream { continuation in
-            transportContinuation = continuation
-            for sample in pendingSamples {
-                continuation.yield(sample)
-            }
-            pendingSamples.removeAll()
-        }
-    }
-
-    private func emitTransport(observedAt: Date = Date()) {
-        guard let sample = snapshot(observedAt: observedAt) else { return }
-        if let transportContinuation {
-            transportContinuation.yield(sample)
-        } else {
-            pendingSamples.append(sample)
-        }
-    }
-
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
-        guard items.indices.contains(index), let preparedSource else { return nil }
-        let item = items[index]
-        return ListeningPlaybackSample(
-            songID: item.songID,
-            source: preparedSource,
-            currentTime: currentTime,
-            duration: item.duration,
-            isPlaying: playing,
-            observedAt: observedAt
-        )
-    }
-
-    func stop() {
-        stopCount += 1
-        playing = false
-        items = []
-        index = 0
-        currentTime = 0
-        transportContinuation?.finish()
-        transportContinuation = nil
-    }
-}
 
 private enum CompatibilityEvidencePersistenceTestError: Error {
     case expectedFailure

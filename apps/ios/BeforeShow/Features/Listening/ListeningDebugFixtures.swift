@@ -234,43 +234,87 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
     }
 }
 
-@MainActor final class ListeningFixturePlayer: ListeningPlaybackServicing {
-    private var items: [ListeningPlaybackItem] = []
-    private var index = 0
-    var item: ListeningPlaybackItem?
-    var source: ListeningPlaybackSource = .fullCatalog
-    var start: Date?
-    var elapsed: TimeInterval = 0
-    func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
+/// Simulated player for fixtures: no network or audio, time follows the clock.
+@MainActor @Observable final class ListeningFixturePlayer: ListeningPlaybackServicing {
+    let source: ListeningPlaybackSource
+    private(set) var phase: ListeningPlaybackTransportPhase = .stopped
+    private(set) var currentSongID: String?
+    private(set) var queuedSongIDs: [String] = []
+    @ObservationIgnored private var items: [ListeningPlaybackItem] = []
+    @ObservationIgnored private var startedAt: Date?
+    @ObservationIgnored private var elapsed: TimeInterval = 0
+
+    init(source: ListeningPlaybackSource = .fullCatalog) {
         self.source = source
-        self.items = items
-        index = startingAtSongID.flatMap { id in
-            items.firstIndex(where: { $0.songID == id })
-        } ?? 0
-        item = items.indices.contains(index) ? items[index] : nil
+    }
+
+    var hasEnded: Bool { false }
+    var failure: ListeningPlaybackError? { nil }
+
+    var currentDuration: TimeInterval? {
+        guard let item = items.first(where: { $0.songID == currentSongID }) else { return nil }
+        return source == .preview ? 30 : item.duration ?? 180
+    }
+
+    var currentTime: TimeInterval {
+        let value = elapsed + (startedAt.map { Date().timeIntervalSince($0) } ?? 0)
+        return min(value, currentDuration ?? value)
+    }
+
+    func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws {
+        let playable = source == .preview ? items.filter { $0.previewURL != nil } : items
+        guard let first = playable.first else { throw ListeningPlaybackError.emptyQueue }
+        self.items = playable
+        queuedSongIDs = playable.map(\.songID)
+        currentSongID = playable.first { $0.songID == songID }?.songID ?? first.songID
+        elapsed = time
+        startedAt = nil
+        phase = .paused
+    }
+
+    func play() async throws {
+        guard currentSongID != nil else { throw ListeningPlaybackError.emptyQueue }
+        if startedAt == nil { startedAt = Date() }
+        phase = .playing
+    }
+
+    func pause() {
+        if let startedAt { elapsed += Date().timeIntervalSince(startedAt) }
+        startedAt = nil
+        if currentSongID != nil { phase = .paused }
+    }
+
+    func skipToNext() async throws { try move(by: 1) }
+    func skipToPrevious() async throws { try move(by: -1) }
+
+    func skip(to songID: String) async throws {
+        guard queuedSongIDs.contains(songID) else { throw ListeningPlaybackError.songUnavailable(songID) }
+        currentSongID = songID
+        restartClock()
+    }
+
+    func stop() {
+        items = []
+        queuedSongIDs = []
+        currentSongID = nil
+        startedAt = nil
         elapsed = 0
-        start = nil
+        phase = .stopped
     }
-    func play() async throws { start = Date() }
-    func pause() { if let start { elapsed += Date().timeIntervalSince(start) }; start = nil }
-    func seek(to time: TimeInterval) { elapsed = time; if start != nil { start = Date() } }
-    func skipToNext() async throws { try skip(1) }
-    func skipToPrevious() async throws { try skip(-1) }
-    private func skip(_ delta: Int) throws {
-        let nextIndex = index + delta
-        guard items.indices.contains(nextIndex) else { throw ListeningPlaybackError.queueBoundary }
-        index = nextIndex
-        item = items[index]
+
+    private func move(by delta: Int) throws {
+        guard let currentSongID,
+              let index = queuedSongIDs.firstIndex(of: currentSongID),
+              queuedSongIDs.indices.contains(index + delta) else {
+            throw ListeningPlaybackError.queueBoundary
+        }
+        self.currentSongID = queuedSongIDs[index + delta]
+        restartClock()
+    }
+
+    private func restartClock() {
         elapsed = 0
-        if start != nil { start = Date() }
+        if startedAt != nil { startedAt = Date() }
     }
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
-        guard let item else { return nil }
-        let duration = source == .preview ? 30 : (item.duration ?? 180)
-        let value = elapsed + (start.map { observedAt.timeIntervalSince($0) } ?? 0)
-        return .init(songID: item.songID, source: source, currentTime: min(value, duration), duration: duration,
-                     isPlaying: start != nil && value < duration, observedAt: observedAt, hasEnded: value >= duration)
-    }
-    func stop() { items = []; item = nil; start = nil; elapsed = 0 }
 }
 #endif

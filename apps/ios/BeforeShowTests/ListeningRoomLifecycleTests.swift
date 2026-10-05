@@ -26,14 +26,14 @@ import SwiftData
         room.stop(); room.mechanism.motion.stop()
     }
 
-    func testForegroundBoundaryRepairsTransportChangeMissedWhileSuspended() async throws {
+    func testTransportChangesWhileSuspendedAreReadFromThePlayer() async throws {
         let (container, show) = try ListenTestData.make()
-        let playback = LifecyclePendingPlaybackService()
+        let player = ListeningTestPlayer()
         let room = ListeningRoomCoordinator(
             context: container.mainContext,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in playback }
+            playbackFactory: { _ in player }
         )
         defer {
             room.stop()
@@ -51,8 +51,8 @@ import SwiftData
         XCTAssertFalse(room.isPlaying)
 
         room.setForeground(false)
-        playback.setPlayingExternally(true)
-        XCTAssertFalse(room.isPlaying)
+        player.phase = .playing
+        XCTAssertTrue(room.isPlaying, "transport state is read from the player, never a stale copy")
 
         room.setForeground(true)
 
@@ -60,16 +60,16 @@ import SwiftData
         XCTAssertEqual(room.display.player.phase, .playing)
     }
 
-    func testOpeningLidDrainsAllPendingEvidenceBeforeControllerIsDestroyed() async throws {
+    func testOpeningLidDrainsAllPendingEvidenceBeforePausing() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
-        let playback = LifecyclePendingPlaybackService()
+        let player = ListeningTestPlayer()
         var persistenceAvailable = false
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in playback },
+            playbackFactory: { _ in player },
             evidenceCoordinatorFactory: { modelContext in
                 try ListeningPlaybackEvidenceCoordinator(
                     modelContext: modelContext,
@@ -85,35 +85,21 @@ import SwiftData
             }
         )
         defer { room.mechanism.motion.stop() }
+        let clock = LifecycleClock()
+        room.deck.now = { clock.now }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first { $0.tracks.count >= 2 })
         let firstSongID = disc.tracks[0].id
         let secondSongID = disc.tracks[1].id
-        room.restoreDisc(disc, songID: firstSongID)
-        try await ListenTestData.settle(room) { room.track?.id == firstSongID && !room.busy }
-
-        room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-
-        playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(51)
-        )
-
-        try await ListeningRemoteCommandBridge.shared.nextForTesting()
-        XCTAssertEqual(room.track?.id, secondSongID)
-        playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(51)
-        )
+        try await listenPastHalf(room, player: player, clock: clock, disc: disc, first: firstSongID, second: secondSongID)
 
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
         persistenceAvailable = true
         room.mechanism.setLid(open: true)
 
-        XCTAssertTrue(playback.didStop)
+        XCTAssertEqual(player.phase, .paused)
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
         XCTAssertEqual(
             Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
@@ -124,14 +110,14 @@ import SwiftData
     func testPartialEvidenceBatchCommitImmediatelyRefreshesRoomProjectionAndReportsFailure() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
-        let playback = LifecyclePendingPlaybackService()
+        let player = ListeningTestPlayer()
         var persistenceAvailable = false
         var failSongID: String?
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in playback },
+            playbackFactory: { _ in player },
             evidenceCoordinatorFactory: { modelContext in
                 try ListeningPlaybackEvidenceCoordinator(
                     modelContext: modelContext,
@@ -150,33 +136,19 @@ import SwiftData
             room.stop()
             room.mechanism.motion.stop()
         }
+        let clock = LifecycleClock()
+        room.deck.now = { clock.now }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first { $0.tracks.count >= 2 })
         let firstSongID = disc.tracks[0].id
         let secondSongID = disc.tracks[1].id
-        room.restoreDisc(disc, songID: firstSongID)
-        try await ListenTestData.settle(room) { room.track?.id == firstSongID && !room.busy }
-
-        room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-
-        playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(51)
-        )
-        try await ListeningRemoteCommandBridge.shared.nextForTesting()
-        playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(51)
-        )
+        try await listenPastHalf(room, player: player, clock: clock, disc: disc, first: firstSongID, second: secondSongID)
 
         persistenceAvailable = true
         failSongID = secondSongID
         room.errorText = nil
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(52)
-        )
+        room.playPause()
 
         XCTAssertTrue(room.actualSongIDs.contains(firstSongID))
         XCTAssertTrue(room.familiarSongIDs.contains(firstSongID))
@@ -193,13 +165,13 @@ import SwiftData
     func testOpeningLidWithPersistenceFailureRetainsPendingEvidenceForLaterRoomRetry() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
-        let playback = LifecyclePendingPlaybackService()
+        let player = ListeningTestPlayer()
         var persistenceAvailable = false
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in playback },
+            playbackFactory: { _ in player },
             evidenceCoordinatorFactory: { modelContext in
                 try ListeningPlaybackEvidenceCoordinator(
                     modelContext: modelContext,
@@ -215,36 +187,18 @@ import SwiftData
             }
         )
         defer { room.mechanism.motion.stop() }
+        let clock = LifecycleClock()
+        room.deck.now = { clock.now }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first { $0.tracks.count >= 2 })
         let firstSongID = disc.tracks[0].id
         let secondSongID = disc.tracks[1].id
-        room.restoreDisc(disc, songID: firstSongID)
-        try await ListenTestData.settle(room) { room.track?.id == firstSongID && !room.busy }
-
-        room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-
-        playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(51)
-        )
-        try await ListeningRemoteCommandBridge.shared.nextForTesting()
-        playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(51)
-        )
+        try await listenPastHalf(room, player: player, clock: clock, disc: disc, first: firstSongID, second: secondSongID)
 
         room.mechanism.setLid(open: true)
 
-        XCTAssertTrue(playback.didStop)
-        XCTAssertNil(
-            try ListeningRemoteCommandBridge.shared.refreshForTesting(
-                now: Date().addingTimeInterval(52)
-            ),
-            "lid-open teardown must detach the destroyed playback controller"
-        )
+        XCTAssertEqual(player.phase, .paused)
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
         persistenceAvailable = true
@@ -264,13 +218,13 @@ import SwiftData
     func testEvidenceFailureDoesNotOverrideExistingUnrelatedErrorOrClearItOnRecovery() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
-        let playback = LifecyclePendingPlaybackService()
+        let player = ListeningTestPlayer()
         var persistenceAvailable = false
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in playback },
+            playbackFactory: { _ in player },
             evidenceCoordinatorFactory: { modelContext in
                 try ListeningPlaybackEvidenceCoordinator(
                     modelContext: modelContext,
@@ -286,6 +240,8 @@ import SwiftData
             }
         )
         defer { room.mechanism.motion.stop() }
+        let clock = LifecycleClock()
+        room.deck.now = { clock.now }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first)
@@ -298,11 +254,12 @@ import SwiftData
         let unrelatedError = BSLocalization.text("保存失败，请重试")
         room.errorText = unrelatedError
 
-        playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
-            now: Date().addingTimeInterval(51)
-        )
+        // The next progress sample crosses the halfway mark while saving fails.
+        player.currentTime = 51
+        clock.advance(51)
+        try await Task.sleep(for: .milliseconds(1_200))
 
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
         XCTAssertEqual(
             room.errorText,
             unrelatedError,
@@ -310,7 +267,7 @@ import SwiftData
         )
 
         persistenceAvailable = true
-        try await Task.sleep(for: .milliseconds(1_100))
+        try await Task.sleep(for: .milliseconds(1_200))
 
         XCTAssertTrue(
             try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
@@ -336,8 +293,8 @@ import SwiftData
         let reopened = ListenTestData.room(container.mainContext)
         XCTAssertEqual(reopened.mechanism.disc?.id, disc.id)
         XCTAssertEqual(reopened.track?.id, songID)
-        XCTAssertEqual(reopened.playbackState, .idle)
-        XCTAssertFalse(reopened.isPlaying)
+        XCTAssertEqual(reopened.deck.phase, .stopped)
+        XCTAssertFalse(reopened.wantsPlayback)
 
         await reopened.load(show: show)
         for _ in 0..<10 { await Task.yield() }
@@ -346,8 +303,8 @@ import SwiftData
         XCTAssertTrue(reopened.mechanism.isClosed)
         XCTAssertEqual(reopened.mechanism.disc?.id, disc.id)
         XCTAssertEqual(reopened.track?.id, songID)
-        XCTAssertEqual(reopened.playbackState, .idle)
-        XCTAssertFalse(reopened.isPlaying)
+        XCTAssertEqual(reopened.deck.phase, .stopped)
+        XCTAssertFalse(reopened.wantsPlayback)
         XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 1)
         reopened.mechanism.motion.stop()
     }
@@ -386,8 +343,8 @@ import SwiftData
 
         let reopened = ListenTestData.room(container.mainContext)
         XCTAssertEqual(reopened.mechanism.disc?.id, second.id)
-        XCTAssertEqual(reopened.playbackState, .idle)
-        XCTAssertFalse(reopened.isPlaying)
+        XCTAssertEqual(reopened.deck.phase, .stopped)
+        XCTAssertFalse(reopened.wantsPlayback)
         reopened.mechanism.motion.stop()
     }
 
@@ -468,7 +425,7 @@ import SwiftData
     func testManualArtistRematchReturnsBeforeCatalogAndKeepsPlaybackTransport() async throws {
         let (container, show) = try ListenTestData.make()
         let catalog = GatedRematchCatalog()
-        let playback = TrackingPlaybackService()
+        let playback = ListeningTestPlayer()
         let room = ListeningRoomCoordinator(
             context: container.mainContext,
             catalogService: catalog,
@@ -491,7 +448,7 @@ import SwiftData
         let discID = room.mechanism.disc?.id
         let songID = room.track?.id
         let trackIndex = room.trackIndex
-        let prepareCount = playback.prepareCount
+        let loadCount = playback.loadCount
         let rematchFinished = expectation(description: "manual rematch saves locally")
 
         Task {
@@ -509,7 +466,7 @@ import SwiftData
         XCTAssertEqual(room.mechanism.disc?.id, discID)
         XCTAssertEqual(room.track?.id, songID)
         XCTAssertEqual(room.trackIndex, trackIndex)
-        XCTAssertEqual(playback.prepareCount, prepareCount)
+        XCTAssertEqual(playback.loadCount, loadCount)
         XCTAssertEqual(playback.pauseCount, 0)
         XCTAssertEqual(playback.stopCount, 0)
 
@@ -520,7 +477,7 @@ import SwiftData
         XCTAssertTrue(room.isPlaying)
         XCTAssertEqual(room.mechanism.disc?.id, discID)
         XCTAssertEqual(room.track?.id, songID)
-        XCTAssertEqual(playback.prepareCount, prepareCount)
+        XCTAssertEqual(playback.loadCount, loadCount)
         XCTAssertEqual(playback.pauseCount, 0)
         XCTAssertEqual(playback.stopCount, 0)
     }
@@ -533,7 +490,7 @@ import SwiftData
             context: container.mainContext,
             catalogService: catalog,
             artistSearchService: search,
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             search.release()
@@ -576,7 +533,7 @@ import SwiftData
             context: container.mainContext,
             catalogService: catalog,
             artistSearchService: search,
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             catalog.releaseInitialCatalog()
@@ -619,19 +576,15 @@ import SwiftData
         XCTAssertEqual(search.searchCount, searchCountAfterCatalogStarted, "catalog catch-up must not rerun artist matching")
     }
 
-    func testFailedPlaybackRetryRebuildsTransport() async throws {
+    func testFailedPlaybackRetryReloadsTheQueue() async throws {
         for openLidBeforeRetry in [false, true] {
             let (container, show) = try ListenTestData.make()
-            var services: [RetryPlaybackService] = []
+            let player = ListeningTestPlayer()
             let room = ListeningRoomCoordinator(
                 context: container.mainContext,
                 catalogService: ListeningFixtureCatalog(scenario: .singleFull),
                 artistSearchService: ListeningFixtureArtistSearch(),
-                playbackFactory: { _ in
-                    let service = RetryPlaybackService()
-                    services.append(service)
-                    return service
-                }
+                playbackFactory: { _ in player }
             )
             await room.load(show: show)
             let disc = try XCTUnwrap(room.discs.first)
@@ -639,12 +592,11 @@ import SwiftData
             try await ListenTestData.settle(room) { room.track != nil && !room.busy }
             room.playPause()
             try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-            XCTAssertEqual(services.count, 1)
-            services[0].failure = .songUnavailable(try XCTUnwrap(room.track?.id))
-            room.tick()
-            XCTAssertEqual(room.playbackState, .failed)
+            XCTAssertEqual(player.loadCount, 1)
+            player.failure = .songUnavailable(try XCTUnwrap(room.track?.id))
+            try await waitUntil { room.display.player.phase == .failed }
             XCTAssertNotNil(room.playbackError)
-            services[0].failure = nil
+            player.failure = nil
             if openLidBeforeRetry {
                 room.mechanism.setLid(open: true)
                 try await ListenTestData.settle(room) { room.mechanism.isOpen }
@@ -652,12 +604,34 @@ import SwiftData
             }
             room.retryCurrentPlayback()
             try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-            XCTAssertEqual(services.count, 2)
-            let replacement = try XCTUnwrap(services.dropFirst().first)
-            XCTAssertEqual(replacement.prepareCount, 1)
+            XCTAssertEqual(player.loadCount, 2)
             XCTAssertTrue(room.mechanism.isClosed)
             room.stop(); room.mechanism.motion.stop()
         }
+    }
+
+    /// Plays the first song past its halfway mark, moves to the second with
+    /// Next, and plays that past halfway too, on an injected clock.
+    private func listenPastHalf(
+        _ room: ListeningRoomCoordinator,
+        player: ListeningTestPlayer,
+        clock: LifecycleClock,
+        disc: ListeningDisc,
+        first: String,
+        second: String
+    ) async throws {
+        room.restoreDisc(disc, songID: first)
+        try await ListenTestData.settle(room) { room.track?.id == first && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        player.currentTime = 51
+        clock.advance(51)
+        room.skip(1)
+        try await waitUntil { room.track?.id == second && player.nativeSkips == [1] }
+
+        player.currentTime = 51
+        clock.advance(51)
     }
 
     private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async throws {
@@ -844,124 +818,7 @@ private enum LifecycleEvidencePersistenceTestError: Error {
 }
 
 @MainActor
-private final class LifecyclePendingPlaybackService: ListeningPlaybackServicing {
-    private var items: [ListeningPlaybackItem] = []
-    private var index = 0
-    private var source: ListeningPlaybackSource = .fullCatalog
-    private var playing = false
-    var currentTime: TimeInterval = 0
-    private(set) var didStop = false
-
-    func prepare(
-        items: [ListeningPlaybackItem],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String?
-    ) async throws {
-        guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
-        self.items = items
-        self.source = source
-        index = startingAtSongID.flatMap { id in
-            items.firstIndex(where: { $0.songID == id })
-        } ?? 0
-        currentTime = 0
-        playing = false
-        didStop = false
-    }
-
-    func play() async throws {
-        playing = true
-    }
-
-    func pause() {
-        playing = false
-    }
-
-    func setPlayingExternally(_ value: Bool) {
-        playing = value
-    }
-
-    func skipToNext() async throws {
-        guard index + 1 < items.count else { throw ListeningPlaybackError.queueBoundary }
-        index += 1
-        currentTime = 0
-    }
-
-    func skipToPrevious() async throws {
-        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
-        index -= 1
-        currentTime = 0
-    }
-
-    func seek(to time: TimeInterval) {
-        currentTime = time
-    }
-
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
-        guard items.indices.contains(index) else { return nil }
-        let item = items[index]
-        return ListeningPlaybackSample(
-            songID: item.songID,
-            source: source,
-            currentTime: currentTime,
-            duration: item.duration,
-            isPlaying: playing,
-            observedAt: observedAt
-        )
-    }
-
-    func stop() {
-        didStop = true
-        playing = false
-        items = []
-        index = 0
-        currentTime = 0
-    }
-}
-
-@MainActor
-private final class TrackingPlaybackService: ListeningPlaybackServicing {
-    private let player = ListeningFixturePlayer()
-    private(set) var prepareCount = 0
-    private(set) var playCount = 0
-    private(set) var pauseCount = 0
-    private(set) var stopCount = 0
-
-    func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
-        prepareCount += 1
-        try await player.prepare(items: items, source: source, startingAtSongID: startingAtSongID)
-    }
-    func play() async throws {
-        playCount += 1
-        try await player.play()
-    }
-    func pause() {
-        pauseCount += 1
-        player.pause()
-    }
-    func stop() {
-        stopCount += 1
-        player.stop()
-    }
-    func seek(to time: TimeInterval) { player.seek(to: time) }
-    func skipToNext() async throws { try await player.skipToNext() }
-    func skipToPrevious() async throws { try await player.skipToPrevious() }
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? { player.snapshot(observedAt: observedAt) }
-}
-
-@MainActor
-private final class RetryPlaybackService: ListeningPlaybackServicing {
-    var failure: ListeningPlaybackError?
-    private(set) var prepareCount = 0
-    private let player = ListeningFixturePlayer()
-    func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
-        prepareCount += 1
-        try await player.prepare(items: items, source: source, startingAtSongID: startingAtSongID)
-    }
-    func play() async throws { try await player.play() }
-    func pause() { player.pause() }
-    func stop() { player.stop() }
-    func seek(to time: TimeInterval) { player.seek(to: time) }
-    func skipToNext() async throws { try await player.skipToNext() }
-    func skipToPrevious() async throws { try await player.skipToPrevious() }
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? { player.snapshot(observedAt: observedAt) }
+private final class LifecycleClock {
+    private(set) var now = Date()
+    func advance(_ seconds: TimeInterval) { now = now.addingTimeInterval(seconds) }
 }

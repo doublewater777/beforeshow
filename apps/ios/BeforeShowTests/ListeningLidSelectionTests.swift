@@ -36,12 +36,12 @@ final class ListeningLidSelectionTests: XCTestCase {
 
     func testClosingSameDiscKeepsResumePointWithoutAutoplay() async throws {
         let (container, show) = try ListenTestData.make()
-        let playback = ListeningFixturePlayer()
+        let player = ListeningTestPlayer()
         let room = ListeningRoomCoordinator(
             context: container.mainContext,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull),
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in playback }
+            playbackFactory: { _ in player }
         )
         defer {
             room.stop()
@@ -55,29 +55,62 @@ final class ListeningLidSelectionTests: XCTestCase {
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
-        playback.elapsed = 97
-        playback.start = Date()
+        player.currentTime = 97
         room.mechanism.setLid(open: true)
         try await ListenTestData.settle(room) { room.mechanism.isOpen }
 
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.track?.id, songID)
         XCTAssertEqual(room.timeText, "01:37")
-        XCTAssertNil(playback.start)
+        XCTAssertEqual(player.phase, .paused)
 
         room.mechanism.setLid(open: false)
         try await ListenTestData.settle(room) { room.mechanism.isClosed }
 
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.track?.id, songID)
-        XCTAssertNil(playback.start)
+        XCTAssertEqual(player.phase, .paused)
 
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
         XCTAssertTrue(room.isPlaying)
-        XCTAssertNotNil(playback.start)
-        XCTAssertEqual(playback.elapsed, 97, accuracy: 1)
+        XCTAssertEqual(player.loadCount, 1, "closing the lid resumes the same queue")
+        XCTAssertEqual(room.elapsed, 97, accuracy: 1)
     }
+
+    /// A drag that starts on the closed lid but goes down (e.g. scrolling the
+    /// page) never opens it, so playback must not stop.
+    func testDownwardDragOnClosedLidKeepsPlaying() async throws {
+        let (container, show) = try ListenTestData.make()
+        let player = ListeningTestPlayer()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in player }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        room.restoreDisc(disc)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        player.currentTime = 42
+
+        room.mechanism.dragLid(12)
+        room.mechanism.endLidDrag(12, predicted: 40)
+        try await ListenTestData.settle(room) { room.mechanism.motion.lid.target == nil }
+
+        XCTAssertTrue(room.mechanism.isClosed)
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.elapsed, 42)
+    }
+
+
 }
 

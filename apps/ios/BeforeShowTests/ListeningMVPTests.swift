@@ -355,7 +355,7 @@ import XCTest
         }
         context.insert(ArtistCatalogSnapshot(artistID: "artist", artistName: "Artist", orderedSongIDs: ["a", "b"], topSongIDs: ["a", "b"]))
         try context.save()
-        let service = ListeningMVPPlaybackStub()
+        let service = ListeningTestPlayer(source: .preview)
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningMVPCatalogStub(), playbackFactory: { _ in service })
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first)
@@ -371,22 +371,21 @@ import XCTest
         try await wait { room.mechanism.isClosed && room.mechanism.hasDisc && !room.busy }
         try await wait { room.isPlaying }
         XCTAssertEqual(service.source, .preview)
-        service.ended = true
-        room.tick()
+        service.advanceNaturally()
         try await wait { room.trackIndex == 1 && room.isPlaying && !room.busy }
-        XCTAssertEqual(service.preparedIDs, ["a", "b"])
-        service.ended = true
-        room.tick()
+        XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
+        service.finishQueue()
+        try await wait { !room.isPlaying }
         XCTAssertEqual(room.trackIndex, 1)
-        XCTAssertFalse(room.isPlaying)
+        XCTAssertEqual(room.display.player.phase, .finished)
         XCTAssertEqual(room.mechanism.disc?.id, disc.id)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
-        XCTAssertEqual(service.prepareCount, 1)
+        XCTAssertEqual(service.loadCount, 1)
         room.playPause()
         try await wait { room.isPlaying && !room.busy }
-        XCTAssertEqual(service.prepareCount, 2)
-        XCTAssertEqual(service.preparedStartingSongID, "b")
-        XCTAssertEqual(service.preparedIDs, ["a", "b"])
+        XCTAssertEqual(service.loadCount, 2)
+        XCTAssertEqual(service.loadedStartSongID, "b")
+        XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
         room.skip(1)
         XCTAssertEqual(room.trackIndex, 1)
         show.artists[0].appleMusicArtistID = "replacement-artist"
@@ -410,7 +409,7 @@ import XCTest
         }
         context.insert(ArtistCatalogSnapshot(artistID: "artist", artistName: "Artist", orderedSongIDs: ["a", "b"], topSongIDs: ["a", "b"]))
         try context.save()
-        let service = ListeningMVPPlaybackStub()
+        let service = ListeningTestPlayer(source: .preview)
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningMVPCatalogStub(), playbackFactory: { _ in service })
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first)
@@ -433,7 +432,8 @@ import XCTest
         XCTAssertEqual(room.mechanism.position, .seated)
         XCTAssertTrue(room.mechanism.isClosed)
         XCTAssertEqual(room.mechanism.disc?.id, disc.id)
-        XCTAssertEqual(service.preparedIDs, ["a", "b"])
+        XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
+        XCTAssertEqual(service.loadCount, 1, "selecting a track on the seated disc stays in its queue")
     }
     func testSwitchingDiscsWhilePlayingStopsOldTrackAndStartsReplacementAfterAnimation() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
@@ -450,7 +450,7 @@ import XCTest
         context.insert(songB)
         context.insert(ArtistCatalogSnapshot(artistID: "artist", artistName: "Artist", orderedSongIDs: ["a", "b"], topSongIDs: ["a", "b"]))
         try context.save()
-        let service = ListeningMVPPlaybackStub()
+        let service = ListeningTestPlayer(source: .preview)
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningMVPCatalogStub(), playbackFactory: { _ in service })
         await room.load(show: show)
         let first = ListeningDisc(id: "first", title: "First", artworkURL: nil,
@@ -476,7 +476,8 @@ import XCTest
         try await wait { room.mechanism.disc?.id == second.id && room.isPlaying && !room.busy }
 
         XCTAssertEqual(steps, ["open", "remove", "store", "insert", "seat", "close"])
-        XCTAssertEqual(service.preparedIDs, ["a", "b"])
+        XCTAssertEqual(service.loadCount, 2)
+        XCTAssertEqual(service.loadedSongIDs, ["b"])
     }
     private func wait(_ condition: () -> Bool) async throws {
         for _ in 0..<1000 {
@@ -494,51 +495,4 @@ private struct ListeningMVPCatalogStub: ListeningMusicCatalogServicing {
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
         throw ListeningCatalogError.artistNotFound(artistID)
     }
-}
-
-@MainActor private final class ListeningMVPPlaybackStub: ListeningPlaybackServicing {
-    var source = ListeningPlaybackSource.preview
-    var item: ListeningPlaybackItem? { queue.indices.contains(index) ? queue[index] : nil }
-    var playing = false
-    var preparedIDs: [String] = []
-    var preparedStartingSongID: String?
-    private(set) var prepareCount = 0
-    private var queue: [ListeningPlaybackItem] = []
-    private var index = 0
-    private var finishedLastTrack = false
-    var ended: Bool {
-        get { finishedLastTrack }
-        set {
-            guard newValue else {
-                finishedLastTrack = false
-                return
-            }
-            if index + 1 < queue.count {
-                index += 1
-                finishedLastTrack = false
-            } else {
-                finishedLastTrack = true
-            }
-        }
-    }
-    func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
-        self.source = source
-        queue = items
-        index = startingAtSongID.flatMap { id in items.firstIndex(where: { $0.songID == id }) } ?? 0
-        finishedLastTrack = false
-        prepareCount += 1
-        preparedStartingSongID = startingAtSongID ?? items.first?.songID
-        preparedIDs.append(contentsOf: items.map(\.songID).filter { !preparedIDs.contains($0) })
-    }
-    func play() async throws { playing = true }
-    func pause() { playing = false }
-    func skipToNext() async throws { throw ListeningPlaybackError.queueBoundary }
-    func skipToPrevious() async throws { throw ListeningPlaybackError.queueBoundary }
-    func seek(to time: TimeInterval) {}
-    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
-        guard let item else { return nil }
-        return ListeningPlaybackSample(songID: item.songID, source: source, currentTime: finishedLastTrack ? 1 : 0, duration: 1,
-                                       isPlaying: playing && !finishedLastTrack, observedAt: observedAt, hasEnded: finishedLastTrack)
-    }
-    func stop() { queue = []; index = 0; playing = false; finishedLastTrack = false }
 }

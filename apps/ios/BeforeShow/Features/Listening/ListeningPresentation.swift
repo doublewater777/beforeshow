@@ -45,21 +45,3 @@ enum ListeningDiscDetailTrackAction: Equatable {
         }
     }
 }
-
-/// User pause and lifecycle visibility have different ownership. Listening audio
-/// is a secondary task, so tab changes and app backgrounding never own transport.
-struct ListeningVisibilityPolicy {
-    private(set) var userPaused = false
-    private(set) var interrupted = false
-    mutating func userPause() { userPaused = true; interrupted = false }
-    mutating func userPlay() { userPaused = false; interrupted = false }
-    mutating func interrupt(wasPlaying: Bool) { if wasPlaying && !userPaused { interrupted = true } }
-    mutating func resumeIfAllowed() -> Bool {
-        guard interrupted && !userPaused else { return false }
-        interrupted = false
-        return true
-    }
-    static func mustPause(tabVisible: Bool, foreground: Bool, source: ListeningPlaybackSource?) -> Bool {
-        false
-    }
-}

@@ -518,13 +518,17 @@ private struct CDPlayerLCDView: View {
                 }
                 Spacer(minLength: 0)
                 if hardware.hasDisc {
-                    switch room.display.player.phase {
-                    case .preparing, .waiting:
-                        Text(room.playerDisplayTimeText)
-                    case .playing, .seeking:
-                        Text("▶ \(room.playerDisplayTimeText)")
-                    case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
-                        Text("⏸ \(room.playerDisplayTimeText)")
+                    let phase = room.display.player.phase
+                    // Playback time is continuous player state: sample it while playing.
+                    TimelineView(.animation(minimumInterval: 1, paused: !phase.isPlaybackActive)) { _ in
+                        switch phase {
+                        case .preparing, .waiting:
+                            Text(room.playerDisplayTimeText)
+                        case .playing, .seeking:
+                            Text("▶ \(room.playerDisplayTimeText)")
+                        case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
+                            Text("⏸ \(room.playerDisplayTimeText)")
+                        }
                     }
                 }
             }

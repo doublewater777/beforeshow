@@ -151,7 +151,7 @@ struct ListeningFeatureRootView: View {
                 isActive: isActive,
                 catalogService: ListeningFixtureCatalog(scenario: fixture.scenario),
                 artistSearchService: ListeningFixtureArtistSearch(fails: fixture.scenario == .artistSearchFailure),
-                playbackFactory: { _ in ListeningFixturePlayer() }
+                playbackFactory: { ListeningFixturePlayer(source: $0) }
             )
             .modelContainer(fixture.container)
             .task(id: fixture.seededDisc?.id ?? fixture.mosaicSeededDisc?.id) {

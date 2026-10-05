@@ -182,7 +182,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(state: .playing(songID: "preview", source: .preview, currentTime: 18, duration: 30)),
+            transport: ListeningPlayerTransport(phase: .playing, source: .preview, time: 18, duration: 30),
             playbackError: nil
         )
         let failed = ListeningDisplayProjector.make(
@@ -195,7 +195,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(state: .failed),
+            transport: ListeningPlayerTransport(phase: .failed),
             playbackError: nil
         )
 
@@ -224,15 +224,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(
-                state: .ready(
-                    songID: "waiting-song",
-                    source: .fullCatalog,
-                    currentTime: 0,
-                    duration: 180
-                ),
-                intent: .playing
-            ),
+            transport: ListeningPlayerTransport(phase: .waiting, source: .fullCatalog, time: 0, duration: 180),
             playbackError: nil
         )
 
@@ -241,7 +233,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertTrue(projection.player.shouldRotateDisc)
     }
 
-    func testContinuingPlayIntentKeepsInternalTransitionActive() {
+    func testPreparingKeepsPlaybackActiveAndOffersPause() {
         let disc = ListeningDisc(
             id: "transition",
             title: "Transition",
@@ -258,13 +250,14 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(state: .idle, intent: .playing),
+            transport: ListeningPlayerTransport(phase: .preparing, source: .fullCatalog),
             playbackError: nil
         )
 
-        XCTAssertEqual(projection.player.phase, .waiting)
+        XCTAssertEqual(projection.player.phase, .preparing)
         XCTAssertTrue(projection.player.isPlaybackActive)
         XCTAssertTrue(projection.player.shouldRotateDisc)
+        XCTAssertEqual(projection.player.playPauseAction, .pause, "Pause must be available while the source loads")
     }
 
     func testInterruptedPendingPlayUsesPauseControlWhilePhysicalPlaybackStops() {
@@ -284,15 +277,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(
-                state: .interrupted(
-                    songID: "interrupted-song",
-                    source: .fullCatalog,
-                    currentTime: 21,
-                    duration: 180
-                ),
-                intent: .playing
-            ),
+            transport: ListeningPlayerTransport(phase: .interrupted, source: .fullCatalog, time: 21, duration: 180),
             playbackError: nil
         )
 
@@ -320,14 +305,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(
-                state: .finished(
-                    songID: "finished-song",
-                    source: .fullCatalog,
-                    duration: 180
-                ),
-                intent: nil
-            ),
+            transport: ListeningPlayerTransport(phase: .finished, source: .fullCatalog, time: 180, duration: 180),
             playbackError: nil
         )
 
@@ -354,15 +332,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(
-                state: .playing(
-                    songID: "pausing-song",
-                    source: .fullCatalog,
-                    currentTime: 42,
-                    duration: 180
-                ),
-                intent: .paused
-            ),
+            transport: ListeningPlayerTransport(phase: .paused, source: .fullCatalog, time: 42, duration: 180),
             playbackError: nil
         )
 
@@ -527,14 +497,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: true,
             isLidClosed: true,
             currentTrack: disc.tracks[0],
-            playback: ListeningPlaybackSnapshot(
-                state: .playing(
-                    songID: "full-only",
-                    source: .fullCatalog,
-                    currentTime: 42,
-                    duration: 180
-                )
-            ),
+            transport: ListeningPlayerTransport(phase: .playing, source: .fullCatalog, time: 42, duration: 180),
             playbackError: nil
         )
 
@@ -617,26 +580,17 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         let playing = makeProjection(
             access: fullAccess,
             discs: [disc],
-            playbackState: .playing(
-                songID: "preview",
-                source: .preview,
-                currentTime: 12,
-                duration: 30
-            )
+            transport: ListeningPlayerTransport(phase: .playing, source: .preview, time: 12, duration: 30)
         )
         let finished = makeProjection(
             access: fullAccess,
             discs: [disc],
-            playbackState: .finished(
-                songID: "preview",
-                source: .preview,
-                duration: 30
-            )
+            transport: ListeningPlayerTransport(phase: .finished, source: .preview, time: 30, duration: 30)
         )
         let stopped = makeProjection(
             access: fullAccess,
             discs: [disc],
-            playbackState: .idle
+            transport: ListeningPlayerTransport()
         )
 
         XCTAssertEqual(playing.roomMode, .preview)
@@ -657,7 +611,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: false,
             isLidClosed: true,
             currentTrack: nil,
-            playback: ListeningPlaybackSnapshot(state: .idle),
+            transport: ListeningPlayerTransport(),
             playbackError: nil
         )
         let preparing = ListeningDisplayProjector.make(
@@ -670,7 +624,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: false,
             isLidClosed: true,
             currentTrack: nil,
-            playback: ListeningPlaybackSnapshot(state: .idle),
+            transport: ListeningPlayerTransport(),
             playbackError: nil
         )
         let artist = ListeningBrowseArtist(
@@ -691,7 +645,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: false,
             isLidClosed: true,
             currentTrack: nil,
-            playback: ListeningPlaybackSnapshot(state: .idle),
+            transport: ListeningPlayerTransport(),
             playbackError: nil,
             browsingArtist: artist
         )
@@ -709,7 +663,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         access: ListeningMusicAccess,
         discs: [ListeningDisc],
         libraryDiscs: [ListeningDisc]? = nil,
-        playbackState: ListeningPlaybackState = .idle
+        transport: ListeningPlayerTransport = ListeningPlayerTransport()
     ) -> ListeningDisplayProjection {
         ListeningDisplayProjector.make(
             page: page,
@@ -721,7 +675,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: false,
             isLidClosed: true,
             currentTrack: nil,
-            playback: ListeningPlaybackSnapshot(state: playbackState),
+            transport: transport,
             playbackError: nil
         )
     }

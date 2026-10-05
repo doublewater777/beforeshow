@@ -262,7 +262,7 @@ import SwiftData
         let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
         XCTAssertTrue(show.artists.allSatisfy { $0.appleMusicArtistID == nil })
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningFixtureCatalog(scenario: .multiFull),
-                                           artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { _ in ListeningFixturePlayer() })
+                                           artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { ListeningFixturePlayer(source: $0) })
         defer { room.stop(); room.mechanism.motion.stop() }
         await room.load(show: show)
         try await ListenTestData.settle(room) { !room.busy }
@@ -296,7 +296,7 @@ import SwiftData
             context: context,
             catalogService: CountingListenCatalog(),
             artistSearchService: search,
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer { room.stop(); room.mechanism.motion.stop() }
 
@@ -327,7 +327,7 @@ import SwiftData
             context: context,
             catalogService: CountingListenCatalog(),
             artistSearchService: search,
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer { room.stop(); room.mechanism.motion.stop() }
 
@@ -355,7 +355,7 @@ import SwiftData
             context: context,
             catalogService: CountingListenCatalog(),
             artistSearchService: search,
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer { room.stop(); room.mechanism.motion.stop() }
 
@@ -376,7 +376,7 @@ import SwiftData
         context.insert(first); context.insert(second); try context.save()
         let search = AutoMatchSearchStub(candidates: [candidate("late", "Artist")], delayed: true)
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningFixtureCatalog(scenario: .multiFull),
-                                           artistSearchService: search, playbackFactory: { _ in ListeningFixturePlayer() })
+                                           artistSearchService: search, playbackFactory: { ListeningFixturePlayer(source: $0) })
         defer { room.stop(); room.mechanism.motion.stop() }
         let loading = Task { await room.load(show: first) }
         while await search.queries.isEmpty { await Task.yield() }
@@ -404,7 +404,7 @@ import SwiftData
         context.insert(ArtistCatalogSnapshot(artistID: "artist-1", artistName: "Artist", orderedSongIDs: ["song-1"], topSongIDs: ["song-1"], albumIDs: []))
         try context.save()
         let catalog = CountingListenCatalog()
-        let room = ListeningRoomCoordinator(context: context, catalogService: catalog, artistSearchService: AutoMatchSearchStub(candidates: []), playbackFactory: { _ in ListeningFixturePlayer() })
+        let room = ListeningRoomCoordinator(context: context, catalogService: catalog, artistSearchService: AutoMatchSearchStub(candidates: []), playbackFactory: { ListeningFixturePlayer(source: $0) })
         defer { room.stop(); room.mechanism.motion.stop() }
 
         await room.load(show: show)

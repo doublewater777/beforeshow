@@ -109,7 +109,7 @@ final class ListeningColdStartTests: XCTestCase {
     private func makeRoom(_ container: ModelContainer, catalog: ColdStartCatalog) -> ListeningRoomCoordinator {
         ListeningRoomCoordinator(context: container.mainContext, catalogService: catalog,
                                  artistSearchService: ListeningFixtureArtistSearch(),
-                                 playbackFactory: { _ in ListeningFixturePlayer() })
+                                 playbackFactory: { ListeningFixturePlayer(source: $0) })
     }
 
     private func wait(_ condition: () -> Bool) async throws {

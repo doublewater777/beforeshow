@@ -23,7 +23,7 @@ import SwiftData
         return (container, show)
     }
     static func room(_ context: ModelContext) -> ListeningRoomCoordinator {
-        ListeningRoomCoordinator(context: context, catalogService: ListenTestCatalog(), artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { _ in ListeningFixturePlayer() })
+        ListeningRoomCoordinator(context: context, catalogService: ListenTestCatalog(), artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { ListeningFixturePlayer(source: $0) })
     }
     static func settle(_ room: ListeningRoomCoordinator, until condition: () -> Bool) async throws {
         for _ in 0..<1000 {
@@ -240,19 +240,6 @@ final class ListeningPresentationTests: XCTestCase {
         XCTAssertEqual(ListeningPresentation.resolve(hasShow: true, authorized: true, connected: true, hasSongs: false, loading: false, failed: true), .fatalUnavailable)
     }
 }
-final class ListeningAccessibilityTests: XCTestCase {
-    func testUserPauseNeverResumesFromLifecycle() {
-        var policy = ListeningVisibilityPolicy()
-        policy.interrupt(wasPlaying: true)
-        XCTAssertTrue(policy.resumeIfAllowed())
-        policy.userPause(); policy.interrupt(wasPlaying: true)
-        XCTAssertFalse(policy.resumeIfAllowed())
-        XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: true, foreground: false, source: .fullCatalog))
-        XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: true, foreground: false, source: .preview))
-        XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: false, foreground: true, source: .fullCatalog))
-    }
-}
-
 @MainActor final class ListeningLoadingPipelineTests: XCTestCase {
     func testAuthorizationContinuesCatalogWithoutRepeatingArtistMatching() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
@@ -274,7 +261,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: search,
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
 
         await room.load(show: show)
@@ -297,7 +284,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             room.stop()
@@ -331,7 +318,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             room.stop()
@@ -355,7 +342,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.track?.id, selectedTrackID)
         XCTAssertEqual(room.trackIndex, selectedIndex)
-        XCTAssertEqual(room.elapsed, 0)
+        XCTAssertEqual(room.elapsed, 0, accuracy: 0.5)
         XCTAssertEqual(room.display.roomMode, .preview)
 
         room.playPause()
@@ -372,11 +359,12 @@ final class ListeningAccessibilityTests: XCTestCase {
             status: .authorized,
             playbackAccess: .available
         )
+        let player = ListeningTestPlayer()
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { _ in player }
         )
         defer {
             room.stop()
@@ -390,7 +378,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
         room.playPause()
         XCTAssertEqual(room.display.player.phase, .paused)
-        room.seek(42)
+        player.currentTime = 42
 
         let selectedTrackID = try XCTUnwrap(room.track?.id)
         let selectedIndex = room.trackIndex
@@ -419,8 +407,8 @@ final class ListeningAccessibilityTests: XCTestCase {
                 context: context,
                 catalogService: catalog,
                 artistSearchService: ListeningFixtureArtistSearch(),
-                playbackFactory: { _ in
-                    let service = ListeningFixturePlayer()
+                playbackFactory: { source in
+                    let service = ListeningFixturePlayer(source: source)
                     playbackServices.append(service)
                     return service
                 }
@@ -431,7 +419,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             }
 
             await room.load(show: show)
-            let disc = try XCTUnwrap(room.discs.first { !$0.tracks.isEmpty })
+            let disc = try XCTUnwrap(room.discs.first { $0.tracks.count > 2 })
             room.restoreDisc(disc)
             room.playPause()
             try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
@@ -451,14 +439,14 @@ final class ListeningAccessibilityTests: XCTestCase {
             )
 
             room.playPause()
-            room.seek(42)
+            let pausedAt = room.elapsed
             XCTAssertEqual(room.display.player.phase, .paused)
             XCTAssertEqual(room.display.player.playPauseAction, .play)
             room.playPause()
             await room.settlePendingOperation()
             XCTAssertTrue(room.isPlaying, "temporary access uncertainty must allow the established session to resume")
             XCTAssertEqual(room.display.player.source, .fullCatalog)
-            XCTAssertEqual(room.elapsed, 42, accuracy: 0.5)
+            XCTAssertGreaterThanOrEqual(room.elapsed, pausedAt)
             XCTAssertEqual(playbackServices.count, 1)
 
             guard disc.tracks.count > 2 else {
@@ -516,7 +504,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             room.stop()
@@ -546,7 +534,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             context: container.mainContext,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             catalog.resumeAll(
@@ -604,7 +592,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             context: container.mainContext,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             catalog.resumeAll(
@@ -684,7 +672,7 @@ final class ListeningAccessibilityTests: XCTestCase {
             context: context,
             catalogService: catalog,
             artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { _ in ListeningFixturePlayer() }
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         defer {
             room.stop()
