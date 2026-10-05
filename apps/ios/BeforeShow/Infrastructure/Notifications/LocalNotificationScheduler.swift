@@ -84,6 +84,40 @@ struct LocalNotificationScheduler {
                 feature: content.feature
             ))
         }
+        // 个性化开演提醒：仅针对明确标记「想看」的 performance（固定 15 分钟提前量）
+        if let timetable = show.timetable {
+            let leadTime: TimeInterval = 15 * 60
+            for day in timetable.orderedDays {
+                for stage in day.orderedStages {
+                    for perf in stage.orderedPerformances where perf.isInterested {
+                        let fireDate = perf.startsAt.addingTimeInterval(-leadTime)
+                        if fireDate > now {
+                            let title = BSLocalization.format("%@ 快开始了", perf.artistName)
+                            let timeFormatter = DateFormatter()
+                            timeFormatter.dateFormat = "HH:mm"
+                            timeFormatter.timeZone = eventCalendar.timeZone
+                            let rangeText = "\(timeFormatter.string(from: perf.startsAt)) - \(timeFormatter.string(from: perf.endsAt))"
+                            let body = BSLocalization.format(
+                                "还有 15 分钟开演，舞台：%@ (%@)",
+                                stage.name,
+                                rangeText
+                            )
+                            requests.append(ScheduledShowNotification(
+                                showID: show.id,
+                                milestone: .interestedPerformance,
+                                fireDate: fireDate,
+                                title: title,
+                                body: body,
+                                showStartTime: perf.startsAt,
+                                destination: .timetable,
+                                performanceID: perf.id
+                            ))
+                        }
+                    }
+                }
+            }
+        }
+
         return requests
     }
 
@@ -313,7 +347,7 @@ struct LocalNotificationScheduler {
                 destination: feature.notificationDestination,
                 feature: feature
             )
-        case .addedFollowUp, .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore:
+        case .addedFollowUp, .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .interestedPerformance:
             return nil
         }
     }

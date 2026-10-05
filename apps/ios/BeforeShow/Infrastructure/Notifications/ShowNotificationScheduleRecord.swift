@@ -13,6 +13,7 @@ final class ShowNotificationScheduleRecord {
     var showStartTime: Date?
     var destinationRawValue: String?
     var featureRawValue: String?
+    var performanceID: UUID?
     var createdAt: Date
 
     var milestone: ShowNotificationMilestone {
@@ -36,7 +37,8 @@ final class ShowNotificationScheduleRecord {
         title: String = "",
         body: String = "",
         createdAt: Date = Date(),
-        showStartTime: Date? = nil
+        showStartTime: Date? = nil,
+        performanceID: UUID? = nil
     ) {
         self.id = id
         self.showID = showID
@@ -47,6 +49,7 @@ final class ShowNotificationScheduleRecord {
         self.body = body
         self.createdAt = createdAt
         self.showStartTime = showStartTime
+        self.performanceID = performanceID
     }
 
     func matches(_ request: ScheduledShowNotification) -> Bool {
@@ -59,6 +62,7 @@ final class ShowNotificationScheduleRecord {
             && showStartTime == request.showStartTime
             && destinationRawValue == request.destination.rawValue
             && featureRawValue == request.feature?.rawValue
+            && performanceID == request.performanceID
     }
 
     func apply(_ request: ScheduledShowNotification) {
@@ -71,5 +75,6 @@ final class ShowNotificationScheduleRecord {
         showStartTime = request.showStartTime
         destinationRawValue = request.destination.rawValue
         featureRawValue = request.feature?.rawValue
+        performanceID = request.performanceID
     }
 }

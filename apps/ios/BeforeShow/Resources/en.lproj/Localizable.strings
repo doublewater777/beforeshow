@@ -1802,3 +1802,11 @@ First show: %@";
 "本场音乐现场已全部谢幕" = "This show has ended";
 "可回顾完整时刻表或记录现场足迹" = "Review the timetable or record your footprint";
 "查看全部舞台完整排期" = "View complete schedule across all stages";
+
+"想看的演出" = "Want to See";
+"%@ 快开始了" = "%@ is starting soon";
+"还有 15 分钟开演，舞台：%@ (%@)" = "Starting in 15 minutes at stage %@ (%@)";
+"正在演: %1$@ · %2$@" = "Now: %1$@ · %2$@";
+"正在演: %@" = "Now: %@";
+"下一场: %1$@%2$@ (%3$@%4$@) · %5$@" = "Next: %1$@%2$@ (%3$@%4$@) · %5$@";
+"下一场: %1$@%2$@ (%3$@%4$@)" = "Next: %1$@%2$@ (%3$@%4$@)";

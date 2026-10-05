@@ -73,12 +73,13 @@ enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
     case postShowRitual
     case afterShow
     case footprintArrival
+    case interestedPerformance
 }
 
 extension ShowNotificationMilestone {
     /// 唯一会响铃并突破专注模式的：「开场前 3 小时」错过有真实后果。
     var isTimeSensitive: Bool {
-        self == .showDay
+        self == .showDay || self == .interestedPerformance
     }
 
     /// 刚散场的轻提醒不主动亮屏，留在通知中心。
@@ -100,7 +101,8 @@ extension ShowNotificationMilestone {
     var portfolioPriority: Int {
         switch self {
         case .showDay: return 0
-        case .openingMemory: return 1
+        case .interestedPerformance: return 1
+        case .openingMemory: return 2
         case .showDayMorning: return 2
         case .postShowRitual: return 3
         case .afterShow: return 4
@@ -192,6 +194,7 @@ struct ScheduledShowNotification: Equatable {
     var destination: NotificationDeepLink.Destination = .home
     /// 推荐的功能；送达后计一次露出，用过后从通知中心撤掉。
     var feature: RecommendedFeature? = nil
+    var performanceID: UUID? = nil
 }
 
 @Model
