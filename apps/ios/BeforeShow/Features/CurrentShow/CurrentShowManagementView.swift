@@ -328,32 +328,44 @@ struct CurrentShowManagementSection: View {
                     .scaleEffect(homeArrivalFlags.hasArrivedHero ? 1 : 0.94)
                     .offset(y: homeArrivalFlags.hasArrivedHero ? 0 : 24)
 
-                    CurrentShowCountdownCard(
-                        show: show,
-                        snapshot: snapshot,
-                        candidateShows: candidateShows,
-                        isVisible: isHeroPlaybackActive,
-                        onRecommendation: performRecommendation,
-                        onEndShow: canRecordEnd
-                            ? { presentedSheet = .endConfirmation }
-                            : nil,
-                        onCompanion: { presentedSheet = .companion },
-                        onMemoryFragments: {
-                            pendingMemoryCreate = nil
-                            presentedSheet = .memory
-                        },
-                        onMemoryCreate: {
-                            pendingMemoryCreate = nil
-                            presentedSheet = .memoryCreate
-                        },
-                        onOpenRoute: embedsRouteInLocation
-                            ? { openRouteChooser() }
-                            : nil
-                    )
+                    if let timetable = show.timetable,
+                       let liveState = resolveLiveModeState(timetable: timetable, now: now) {
+                        HomeLiveTimetableSection(
+                            state: liveState,
+                            onOpenTimetable: { presentedSheet = .asset(.timetable) }
+                        )
                         .padding(.horizontal, 21)
                         .padding(.top, 20)
                         .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
                         .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
+                    } else {
+                        CurrentShowCountdownCard(
+                            show: show,
+                            snapshot: snapshot,
+                            candidateShows: candidateShows,
+                            isVisible: isHeroPlaybackActive,
+                            onRecommendation: performRecommendation,
+                            onEndShow: canRecordEnd
+                                ? { presentedSheet = .endConfirmation }
+                                : nil,
+                            onCompanion: { presentedSheet = .companion },
+                            onMemoryFragments: {
+                                pendingMemoryCreate = nil
+                                presentedSheet = .memory
+                            },
+                            onMemoryCreate: {
+                                pendingMemoryCreate = nil
+                                presentedSheet = .memoryCreate
+                            },
+                            onOpenRoute: embedsRouteInLocation
+                                ? { openRouteChooser() }
+                                : nil
+                        )
+                        .padding(.horizontal, 21)
+                        .padding(.top, 20)
+                        .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
+                        .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
+                    }
 
                     quickActionRow(
                         CurrentShowQuickAction.actions(
@@ -569,6 +581,19 @@ struct CurrentShowManagementSection: View {
             matching: show,
             from: candidateShows
         )
+    }
+
+    private func resolveLiveModeState(timetable: Timetable, now: Date) -> LiveModeState? {
+        let state = LiveModeStateEngine.calculate(
+            days: LiveModeStateEngine.buildInputs(from: timetable),
+            now: now
+        )
+        switch state.phase {
+        case .active, .dayEnded:
+            return state
+        case .upcoming, .fullyEnded:
+            return nil
+        }
     }
 }
 

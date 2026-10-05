@@ -1787,3 +1787,18 @@ First show: %@";
 "该日期没有 18:00 之后的晚间场次" = "No evening sets after 18:00 for this date";
 "点击演出卡片上的心标，即可标记想看的演出" = "Tap the heart on any performance card to mark it as Want to See";
 "该舞台或日期下没有演出数据" = "No performance data for this stage or date";
+
+"现场模式" = "Live Mode";
+"今日已落幕" = "Today Ended";
+"时刻表安排" = "Schedule";
+"完整时刻表" = "Full Timetable";
+"正在演出" = "Now Playing";
+"接下来" = "Up Next";
+"快开始了 (%d分)" = "Starting Soon (%dm)";
+"今日演出已全部落幕" = "Today's performances have ended";
+"明日演出将于 %@ 继续开始" = "Performances continue tomorrow at %@";
+"明日精彩继续，敬请期待" = "More performances continue tomorrow";
+"首场演出将于 %@ 开演" = "First set starts at %@";
+"本场音乐现场已全部谢幕" = "This show has ended";
+"可回顾完整时刻表或记录现场足迹" = "Review the timetable or record your footprint";
+"查看全部舞台完整排期" = "View complete schedule across all stages";
