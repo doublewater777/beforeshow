@@ -11,22 +11,13 @@ enum BSLocalization {
         NSLocalizedString(key, bundle: .main, comment: "")
     }
 
-    /// stringsdict 复数按传入 locale 选形式；不传时按系统语言选，
-    /// 中文系统里 App 选 English 会得到「1 days」，所以跟随 App 所选语言。
-    /// 只给复数格式传 locale：普通格式带 locale 会给 %lld 加千分位（2,026年）。
+    /// 仅复数格式传入 locale，避免普通整数格式出现千分位。
     static func format(_ key: String, _ arguments: CVarArg...) -> String {
         let format = text(key)
         guard format.contains("%#@") else {
             return String(format: format, arguments: arguments)
         }
-        return String(format: format, locale: selectedLocale, arguments: arguments)
+        return String(format: format, locale: Locale(identifier: Bundle.main.preferredLocalizations.first ?? Locale.current.identifier), arguments: arguments)
     }
 
-    private static var selectedLocale: Locale {
-        guard let code = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)?.string(forKey: "appLanguage"),
-              !code.isEmpty else {
-            return .current
-        }
-        return Locale(identifier: code)
-    }
 }

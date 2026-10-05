@@ -15,7 +15,6 @@ struct RootView: View {
     @State private var selectedTab: BeforeShowTab = .current
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
-    @ObservedObject private var languageController = AppLanguageController.shared
 
     init() {
         let isReturning = OnboardingCompletionStore.hasCompleted()

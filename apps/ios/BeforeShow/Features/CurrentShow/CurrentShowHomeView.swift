@@ -483,7 +483,6 @@ private struct CurrentShowEmptyStateView: View {
     let onAddShow: () -> Void
     let onOpenSettings: () -> Void
     let onOpenShowLibrary: () -> Void
-    @ObservedObject private var languageController = AppLanguageController.shared
 
     private var message: String {
         BSLocalization.text(

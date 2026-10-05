@@ -121,7 +121,6 @@ struct ShowDraftEditorView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .environment(\.locale, AppLanguageManager.persisted.locale)
         .interactiveDismissDisabled(hasUnsavedChanges || isSaving || isApplyingStatus)
         .onChange(of: draft) { _, _ in
             message = nil
@@ -247,7 +246,7 @@ struct ShowDraftEditorView: View {
 
     private var summaryDateText: String {
         let calendar = draft.timingCalendar()
-        let locale = AppLanguageManager.persisted.locale
+        let locale = Locale.autoupdatingCurrent
         let dateFormatter = DateFormatter()
         dateFormatter.locale = locale
         dateFormatter.dateFormat = DateFormatter.dateFormat(fromTemplate: "Md", options: 0, locale: locale)

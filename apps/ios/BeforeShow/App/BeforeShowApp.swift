@@ -11,7 +11,6 @@ struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    @StateObject private var languageController = AppLanguageController.shared
     @State private var companionCoordinator = CompanionSharingCoordinator()
     @State private var lastLocalMediaMaintenanceAt: Date?
     @State private var isLocalMediaMaintenanceRunning = false
@@ -83,7 +82,6 @@ struct BeforeShowApp: App {
             }
         }
 
-        AppLanguageManager.apply(AppLanguageManager.persisted)
 
         if !isRunningHostedUnitTests {
             AppAudioSession.configureAmbient()
@@ -113,7 +111,6 @@ struct BeforeShowApp: App {
             } else {
                 RootView()
                     .environment(companionCoordinator)
-                    .environment(\.locale, languageController.language.locale)
                     .onOpenURL { url in
                         if CompanionInviteWebLink.token(from: url) != nil || CompanionInviteWebLink.validShareURL(url) {
                             appDelegate.deliverCompanionInviteURL(url)

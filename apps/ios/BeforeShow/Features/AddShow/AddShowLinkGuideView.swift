@@ -10,16 +10,8 @@ struct AddShowLinkGuideView: View {
     @State private var browserPage: BSInAppBrowserPage?
     @Environment(\.dismiss) private var dismiss
 
-    /// 排序跟随 app 语言（「跟随系统」时看系统首选语言）：中文环境国内平台在前。
     private var prefersChinese: Bool {
-        switch AppLanguageManager.persisted {
-        case .zhHans, .zhHant:
-            return true
-        case .en:
-            return false
-        case .system:
-            return Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") ?? false
-        }
+        Bundle.main.preferredLocalizations.first?.hasPrefix("zh") ?? false
     }
 
     private var platforms: [ShowLinkGuidePlatform] {

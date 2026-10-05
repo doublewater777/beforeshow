@@ -25,7 +25,7 @@ final class MemoryFragmentTests: XCTestCase {
         context.insert(show)
         try context.save()
 
-        let fragment = try await MemoryFragmentEditCoordinator.create(
+        let fragment = try await MemoryFragmentCreationCoordinator.create(
             showID: show.id,
             draftID: UUID(),
             media: [],

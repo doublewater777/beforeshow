@@ -656,7 +656,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
 
     private func formattedDate(_ date: Date, format: String, calendar: Calendar? = nil) -> String {
         let formatter = DateFormatter()
-        formatter.locale = AppLanguageManager.persisted.locale
+        formatter.locale = .autoupdatingCurrent
         formatter.dateFormat = format
         formatter.timeZone = (calendar ?? show.timingCalendar()).timeZone
         return formatter.string(from: date)

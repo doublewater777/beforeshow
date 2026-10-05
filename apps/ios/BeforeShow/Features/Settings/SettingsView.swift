@@ -9,7 +9,6 @@ import UserNotifications
 struct SettingsView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeFeedbackEnabled = true
-    @ObservedObject private var languageController = AppLanguageController.shared
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingProPaywall = false
 
@@ -110,18 +109,6 @@ struct SettingsView: View {
 
             // 系统与关于
             Section {
-                NavigationLink {
-                    LanguageSettingsView()
-                } label: {
-                    BSSettingsRow(
-                        icon: "globe",
-                        tint: BSColor.Stage.glowBlue,
-                        title: BSLocalization.text("语言"),
-                        value: languageController.language.displayName
-                    )
-                }
-                .listRowBackground(BSColor.Stage.surface)
-
                 NavigationLink {
                     AboutBeforeShowView()
                 } label: {
