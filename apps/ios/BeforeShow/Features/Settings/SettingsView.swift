@@ -87,17 +87,12 @@ struct SettingsView: View {
                 Button {
                     AppReviewPrompt.consider(.settings)
                 } label: {
-                    HStack {
-                        BSSettingsRow(
-                            icon: "star.fill",
-                            tint: BSColor.Stage.accent,
-                            title: SettingsEntry.rateApp.displayTitle
-                        )
-                        Spacer(minLength: 4)
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(BSColor.Stage.dim)
-                    }
+                    BSSettingsRow(
+                        icon: "star.fill",
+                        tint: BSColor.Stage.accent,
+                        title: SettingsEntry.rateApp.displayTitle,
+                        showsExternalLink: true
+                    )
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(BSColor.Stage.surface)
@@ -113,7 +108,8 @@ struct SettingsView: View {
                     BSSettingsRow(
                         icon: "globe",
                         tint: BSColor.Stage.glowBlue,
-                        title: BSLocalization.text("语言")
+                        title: BSLocalization.text("语言"),
+                        showsExternalLink: true
                     )
                 }
                 .buttonStyle(.plain)
@@ -204,6 +200,7 @@ struct BSSettingsRow: View {
     var tint: Color = BSColor.Stage.accent
     let title: String
     var value: String? = nil
+    var showsExternalLink = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -232,6 +229,11 @@ struct BSSettingsRow: View {
                     .font(BSFont.V3.small)
                     .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
+            }
+            if showsExternalLink {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(BSColor.Stage.dim)
             }
         }
         .padding(.vertical, 3)
