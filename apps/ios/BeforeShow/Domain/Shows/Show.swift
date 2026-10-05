@@ -147,6 +147,9 @@ final class Show {
     @Relationship(deleteRule: .cascade, inverse: \DynamicCover.show)
     var dynamicCover: DynamicCover?
 
+    @Relationship(deleteRule: .cascade, inverse: \Timetable.show)
+    var timetable: Timetable?
+
     private var changeStatusRawValue: String
 
     var companionStatus: ShowCompanionStatus {
