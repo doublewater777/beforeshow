@@ -56,7 +56,13 @@ struct ShowAssetSheet: View {
 
     var body: some View {
         Group {
-            if let asset = assets.first {
+            if kind == .timetable {
+                TimetableSheet(
+                    showID: showID,
+                    showName: showName,
+                    onDetailVisibilityChange: onDetailVisibilityChange
+                )
+            } else if let asset = assets.first {
                 NavigationStack {
                     ShowAssetViewerView(
                         showID: showID,

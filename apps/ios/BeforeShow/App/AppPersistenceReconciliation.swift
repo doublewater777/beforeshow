@@ -195,7 +195,7 @@ func reconcileShowAssetShowBoundary(
             continue
         }
 
-        let key = ShowAsset.makeUniqueKey(showID: asset.showID, kind: asset.kind)
+        let key = ShowAsset.makeUniqueKey(showID: asset.showID, kind: asset.kind, assetID: asset.id)
         if asset.repairUniqueKeyIfNeeded() {
             mutated = true
         }

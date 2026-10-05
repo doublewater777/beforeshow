@@ -136,14 +136,17 @@ final class ShowAsset {
         self.id = id
         self.showID = showID
         self.kindRawValue = kind.rawValue
-        self.uniqueKey = Self.makeUniqueKey(showID: showID, kind: kind)
+        self.uniqueKey = Self.makeUniqueKey(showID: showID, kind: kind, assetID: id)
         self.relativePath = relativePath
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
 
-    static func makeUniqueKey(showID: UUID, kind: ShowAssetKind) -> String {
-        "\(showID.uuidString)|\(kind.rawValue)"
+    static func makeUniqueKey(showID: UUID, kind: ShowAssetKind, assetID: UUID? = nil) -> String {
+        if kind == .timetable, let assetID {
+            return "\(showID.uuidString)|\(kind.rawValue)|\(assetID.uuidString)"
+        }
+        return "\(showID.uuidString)|\(kind.rawValue)"
     }
 
     /// Asset paths are intentionally limited to the show/kind directory layout
@@ -166,7 +169,7 @@ final class ShowAsset {
     @discardableResult
     func repairUniqueKeyIfNeeded() -> Bool {
         guard let rawKind = ShowAssetKind(rawValue: kindRawValue) else { return false }
-        let expected = Self.makeUniqueKey(showID: showID, kind: rawKind)
+        let expected = Self.makeUniqueKey(showID: showID, kind: rawKind, assetID: id)
         guard uniqueKey != expected else { return false }
         uniqueKey = expected
         return true
