@@ -125,25 +125,18 @@ struct TimetablePerformanceCard: View {
     private var clashNoticeView: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(clashes) { clash in
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .center, spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 12))
                         .foregroundColor(BSColor.Accent.warm)
-                        .padding(.top, 1)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(BSLocalization.format(
-                            "与「%@」时间重叠 (%@)",
-                            clash.conflictingArtistName,
-                            formatTimeRange(start: clash.conflictingStartsAt, end: clash.conflictingEndsAt)
-                        ))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(BSColor.Accent.warm)
-
-                        Text(BSLocalization.text("撞场仅作提醒，不会自动取舍演出"))
-                            .font(.system(size: 11))
-                            .foregroundColor(BSColor.textTertiary)
-                    }
+                    Text(BSLocalization.format(
+                        "与「%@」时间重叠 (%@)",
+                        clash.conflictingArtistName,
+                        formatTimeRange(start: clash.conflictingStartsAt, end: clash.conflictingEndsAt)
+                    ))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(BSColor.Accent.warm)
                 }
             }
         }

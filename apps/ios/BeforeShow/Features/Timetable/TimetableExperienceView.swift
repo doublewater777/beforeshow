@@ -125,8 +125,11 @@ struct TimetableExperienceView: View {
         let all = currentDayPerformances
 
         return all.filter { perf in
-            if viewMode == .byStage, let stageID = selectedStageID {
-                if perf.stage?.id != stageID { return false }
+            if viewMode == .byStage {
+                if let stageID = selectedStageID {
+                    return perf.stage?.id == stageID
+                }
+                return true
             }
 
             return TimetablePeriodPolicy.matches(
@@ -150,10 +153,7 @@ struct TimetableExperienceView: View {
                     periodFilter: $periodFilter,
                     selectedStageID: $selectedStageID,
                     currentDayStages: currentDay?.orderedStages ?? [],
-                    interestedCount: interestedPerformances.count,
-                    originalImagesCount: originalImagesCount,
-                    onInspectOrEdit: onInspectOrEdit,
-                    onViewOriginalImages: onViewOriginalImages
+                    interestedCount: interestedPerformances.count
                 )
 
                 if totalClashesCount > 0 {

@@ -111,6 +111,26 @@ struct TimetableSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     if activeReviewDraft == nil && (hasStructuredTimetable || hasSavedImages) {
                         Menu {
+                            if hasStructuredTimetable, let timetable = currentShow?.timetable {
+                                Button {
+                                    activeReviewDraft = TimetableDraft(from: timetable)
+                                } label: {
+                                    Label(BSLocalization.text("校对与修正排期"), systemImage: "pencil")
+                                }
+                            }
+
+                            if loadedAssetImages.count > 0 {
+                                Button {
+                                    isViewerPresented = true
+                                } label: {
+                                    Label(BSLocalization.text("查看原始时刻表图片"), systemImage: "photo")
+                                }
+                            }
+
+                            if hasStructuredTimetable || loadedAssetImages.count > 0 {
+                                Divider()
+                            }
+
                             Button(BSLocalization.text("重新上传图片")) {
                                 isPhotosPickerPresented = true
                             }

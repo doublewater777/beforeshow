@@ -9,9 +9,6 @@ struct TimetableControlsHeader: View {
     @Binding var selectedStageID: UUID?
     let currentDayStages: [TimetableStage]
     let interestedCount: Int
-    let originalImagesCount: Int
-    let onInspectOrEdit: () -> Void
-    let onViewOriginalImages: () -> Void
 
     var body: some View {
         VStack(spacing: BSSpacing.sm) {
@@ -20,44 +17,18 @@ struct TimetableControlsHeader: View {
                 multiDaySelector
             }
 
-            // View mode picker & Secondary actions
-            HStack(spacing: BSSpacing.sm) {
-                Picker("", selection: $viewMode) {
-                    ForEach(TimetableViewMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Spacer()
-
-                if originalImagesCount > 0 {
-                    Button {
-                        onViewOriginalImages()
-                    } label: {
-                        Image(systemName: "photo")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.textSecondary)
-                            .frame(width: 32, height: 32)
-                            .background(BSColor.surface)
-                            .clipShape(Circle())
-                    }
-                }
-
-                Button {
-                    onInspectOrEdit()
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(BSColor.Accent.warm)
-                        .frame(width: 32, height: 32)
-                        .background(BSColor.Accent.warm.opacity(0.12))
-                        .clipShape(Circle())
+            // View mode picker
+            Picker("", selection: $viewMode) {
+                ForEach(TimetableViewMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
                 }
             }
+            .pickerStyle(.segmented)
 
-            // Period filters capsule row
-            periodFilterBar
+            // Period filters capsule row (only in timeline mode)
+            if viewMode == .timeline {
+                periodFilterBar
+            }
 
             // Stage filter bar (when in byStage mode)
             if viewMode == .byStage {

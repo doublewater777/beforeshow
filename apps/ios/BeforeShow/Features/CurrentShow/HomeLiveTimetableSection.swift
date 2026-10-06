@@ -81,21 +81,6 @@ struct HomeLiveTimetableSection: View {
             }
 
             Spacer()
-
-            Button(action: onOpenTimetable) {
-                HStack(spacing: 4) {
-                    Text(BSLocalization.text("完整时刻表"))
-                        .font(.system(size: 12, weight: .medium))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                }
-                .foregroundColor(BSColor.Accent.warm)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(BSColor.Accent.warm.opacity(0.12))
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
         }
     }
 
