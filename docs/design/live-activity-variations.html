@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>锁屏实时活动 · 双舱分块精修方案 (无步行/无按钮纯净大字版) · BeforeShow</title>
+  <style>
+    :root {
+      --bg-canvas: #06080E;
+      --card-bg: rgba(18, 22, 33, 0.94);
+      --card-border: rgba(255, 255, 255, 0.14);
+      --card-border-glow: rgba(255, 59, 92, 0.35);
+
+      --color-live: #FF3B5C;
+      --color-live-bg: rgba(255, 59, 92, 0.15);
+      --color-gold: #F5C542;
+      --color-gold-bg: rgba(245, 197, 66, 0.14);
+      --color-green: #00E676;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      background-color: var(--bg-canvas);
+      color: #FFF;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: 60px;
+    }
+
+    .top-header {
+      width: 100%;
+      max-width: 1300px;
+      padding: 22px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      background: rgba(6, 8, 14, 0.90);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      z-index: 1000;
+    }
+
+    .header-info h1 {
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      background: var(--color-live);
+      border-radius: 20px;
+    }
+
+    .header-info p {
+      font-size: 13px;
+      color: #8C93A8;
+      margin-top: 3px;
+    }
+
+    .control-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .segmented-group {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .segmented-btn {
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #9AA0B4;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .segmented-btn.active {
+      background: #FFF;
+      color: #000;
+    }
+
+    .main-container {
+      width: 100%;
+      max-width: 1300px;
+      padding: 32px 24px;
+    }
+
+    .lockscreens-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 32px;
+      width: 100%;
+    }
+
+    /* Lock Screen Frame */
+    .lockscreen-frame {
+      width: 100%;
+      max-width: 380px;
+      height: 750px;
+      border-radius: 52px;
+      background: #000;
+      border: 6px solid #2B303C;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      margin: 0 auto;
+    }
+
+    .lockscreen-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 20%, #171E33 0%, #080A12 70%);
+      z-index: 1;
+    }
+
+    .lockscreen-content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 16px 20px 24px;
+    }
+
+    .island-pill {
+      width: 122px;
+      height: 35px;
+      background: #000;
+      border-radius: 20px;
+      margin: 0 auto 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .island-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--color-live);
+    }
+
+    .island-txt {
+      font-size: 11px;
+      font-weight: 700;
+      font-family: monospace;
+      color: #FFF;
+    }
+
+    .lock-clock-section {
+      text-align: center;
+      margin-top: 8px;
+      margin-bottom: 24px;
+    }
+
+    .lock-date {
+      font-size: 15px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .lock-time {
+      font-size: 74px;
+      font-weight: 800;
+      color: #FFF;
+      letter-spacing: -2px;
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+      margin-top: 2px;
+    }
+
+    .live-activity-wrapper {
+      margin-top: auto;
+      margin-bottom: 24px;
+    }
+
+    .lock-bottom-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px 6px;
+    }
+
+    .lock-circle-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #FFF;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .home-bar {
+      width: 136px;
+      height: 5px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.7);
+      margin: 8px auto 0;
+    }
+
+    .variant-intro {
+      margin-bottom: 14px;
+    }
+
+    .variant-badge-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      margin-bottom: 4px;
+    }
+
+    .variant-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #FFF;
+    }
+
+    .variant-summary {
+      font-size: 13px;
+      color: #8C93A8;
+      line-height: 1.45;
+      margin-top: 4px;
+    }
+
+    /* ==========================================================================
+       双舱分块核心设计 (Two-Tier Split Base)
+       ========================================================================== */
+    .la-card-base {
+      width: 100%;
+      background: rgba(18, 22, 33, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 26px;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 上舱：正在现场 */
+    .tier-now-pod {
+      padding: 15px 16px 13px;
+      background: linear-gradient(180deg, rgba(255, 59, 92, 0.14) 0%, rgba(255, 59, 92, 0.03) 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .tier-header-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .now-indicator-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--color-live);
+      background: var(--color-live-bg);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .now-indicator-pill .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-live);
+      animation: pulseDot 1.4s infinite;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    .live-timer-big {
+      font-size: 16px;
+      font-weight: 800;
+      font-family: "SF Mono", Menlo, monospace;
+      color: #FFF;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .live-timer-big small {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--color-live);
+      font-family: -apple-system, sans-serif;
+    }
+
+    .now-main-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .now-cover-thumb {
+      width: 46px;
+      height: 46px;
+      border-radius: 10px;
+      background: #252B3B;
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .now-artist-details {
+      flex: 1;
+    }
+
+    .now-artist-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #FFF;
+      line-height: 1.25;
+      letter-spacing: -0.3px;
+    }
+
+    .now-stage-time-meta {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stage-tag-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.14);
+      color: #EEE;
+    }
+
+    /* 下舱：接档想看 (纯净高对比，无多余按钮与距离) */
+    .tier-next-pod {
+      padding: 13px 16px 14px;
+      background: rgba(0, 0, 0, 0.28);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .next-subline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--color-gold);
+    }
+
+    .next-artist-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .next-artist-name-bold {
+      font-size: 15px;
+      font-weight: 800;
+      color: #FFF;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .next-timing-badge {
+      font-size: 12px;
+      font-weight: 700;
+      font-family: monospace;
+      color: var(--color-gold);
+      background: var(--color-gold-bg);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    /* 撞场预警条 */
+    .clash-warning-strip {
+      background: rgba(245, 197, 66, 0.12);
+      border: 1px solid rgba(245, 197, 66, 0.35);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--color-gold);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    /* 方案 1B 专属：细进度条 */
+    .thin-timeline-track {
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.10);
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .thin-timeline-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--color-live);
+      width: 52%;
+    }
+
+    /* 方案 1C 专属：突出舞台双色块对比 */
+    .stage-pill-colored {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 5px;
+      letter-spacing: 0.3px;
+    }
+    .stage-pill-colored.love {
+      background: var(--color-live);
+      color: #FFF;
+    }
+    .stage-pill-colored.berry {
+      background: #1E88E5;
+      color: #FFF;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="top-header">
+    <div class="header-info">
+      <h1>
+        锁屏实时活动 · 双舱分块精修方案
+        <span class="header-badge">LIVE POD</span>
+      </h1>
+      <p>按照反馈精简：已移除步行距离与记一段记忆按钮，释放全部空间聚焦「正在演」与「接下来演」</p>
+    </div>
+
+    <div class="control-actions">
+      <div class="segmented-group" id="viewModeGroup">
+        <button class="segmented-btn active" onclick="switchView('all')">三案并排对比</button>
+        <button class="segmented-btn" onclick="switchView('v1a')">方案 1A · 纯净通栏版</button>
+        <button class="segmented-btn" onclick="switchView('v1b')">方案 1B · 进度条与倒数版</button>
+        <button class="segmented-btn" onclick="switchView('v1c')">方案 1C · 舞台高彩撞色版</button>
+      </div>
+
+      <button class="segmented-btn" style="background: rgba(255,255,255,0.12); color: #FFF;" onclick="toggleClash()">
+        <span id="clashBtnText">⚡ 模拟下一场撞场预警</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div class="lockscreens-grid" id="lockGrid">
+
+      <!-- ======================================================================
+           方案 1A: 【纯净通栏版 · Clean Banner】
+           ====================================================================== -->
+      <div class="variant-col" id="col-v1a">
+        <div class="variant-intro">
+          <div class="variant-badge-label">方案 1A · 极简纯净型（最克制）</div>
+          <div class="variant-name">纯净双舱通栏</div>
+          <div class="variant-summary">
+            去除一切次级杂音。上舱两行完整呈现「King Gizzard & The Lizard Wizard」，下舱直接并列「❤️ 万能青年旅店」，字号最大、余量充沛。
+          </div>
+        </div>
+
+        <div class="lockscreen-frame">
+          <div class="lockscreen-bg"></div>
+          <div class="lockscreen-content">
+            <div class="island-pill">
+              <span class="island-dot"></span>
+              <span class="island-txt">11:05</span>
+            </div>
+
+            <div class="lock-clock-section">
+              <div class="lock-date">10月6日 星期二 · 草莓现场</div>
+              <div class="lock-time">11:05</div>
+            </div>
+
+            <div class="live-activity-wrapper">
+              <div class="la-card-base">
+                <!-- 上舱：正在演出 -->
+                <div class="tier-now-pod">
+                  <div class="tier-header-line">
+                    <span class="now-indicator-pill">
+                      <span class="pulse-dot"></span>
+                      正在演出 · 爱舞台
+                    </span>
+                    <div class="live-timer-big">
+                      01:23:45 <small>已开场</small>
+                    </div>
+                  </div>
+
+                  <div class="now-main-content">
+                    <div class="now-cover-thumb">🎸</div>
+                    <div class="now-artist-details">
+                      <div class="now-artist-title">
+                        King Gizzard &amp;<br>The Lizard Wizard
+                      </div>
+                      <div class="now-stage-time-meta">
+                        <span class="stage-tag-badge">爱舞台</span>
+                        <span>10:39 - 11:29</span>
+                        <span style="color: var(--color-live); font-weight: 700;">余 24 分钟</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 下舱：接档想看 -->
+                <div class="tier-next-pod">
+                  <div class="next-subline-header">
+                    <span>接档想看 UP NEXT</span>
+                    <span style="color: #8C93A8;">11:44 开演</span>
+                  </div>
+
+                  <div class="next-artist-row">
+                    <div class="next-artist-name-bold">
+                      ❤️ 万能青年旅店 · 草莓舞台
+                    </div>
+                    <div class="next-timing-badge">
+                      快开始了 🔥
+                    </div>
+                  </div>
+
+                  <!-- 撞场预警条 (默认隐藏，点击按钮展开) -->
+                  <div class="clash-warning-strip clash-box" style="display: none;">
+                    <span>⚠️</span>
+                    <span>与「NewJeans」时间重叠 (11:54 - 12:54)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lock-bottom-controls">
+              <div class="lock-circle-btn">🔦</div>
+              <div class="lock-circle-btn">📷</div>
+            </div>
+            <div class="home-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 1B: 【进度条与倒数版 · Timeline Track】
+           ====================================================================== -->
+      <div class="variant-col" id="col-v1b">
+        <div class="variant-intro">
+          <div class="variant-badge-label" style="color: var(--color-green);">方案 1B · 动态感知型</div>
+          <div class="variant-name">双舱 + 走带进度条</div>
+          <div class="variant-summary">
+            上舱在艺人下方增加一条纤细发光进度条（当前 52%），下舱直接展示「距开演 39 分钟」精准倒数，时间进度感知最细腻。
+          </div>
+        </div>
+
+        <div class="lockscreen-frame">
+          <div class="lockscreen-bg" style="background: radial-gradient(circle at 50% 20%, #15222E 0%, #070D14 70%);"></div>
+          <div class="lockscreen-content">
+            <div class="island-pill">
+              <span class="island-dot" style="background: var(--color-green);"></span>
+              <span class="island-txt">11:05</span>
+            </div>
+
+            <div class="lock-clock-section">
+              <div class="lock-date">10月6日 星期二 · 现场动态</div>
+              <div class="lock-time">11:05</div>
+            </div>
+
+            <div class="live-activity-wrapper">
+              <div class="la-card-base">
+                <!-- 上舱：正在演出 + 进度条 -->
+                <div class="tier-now-pod">
+                  <div class="tier-header-line">
+                    <span class="now-indicator-pill" style="color: var(--color-green); background: var(--color-green-bg);">
+                      <span class="pulse-dot" style="background: var(--color-green);"></span>
+                      正在演出 · 爱舞台
+                    </span>
+                    <div class="live-timer-big">
+                      01:23:45 <small style="color: var(--color-green);">已开场</small>
+                    </div>
+                  </div>
+
+                  <div class="now-main-content">
+                    <div class="now-cover-thumb">🎸</div>
+                    <div class="now-artist-details">
+                      <div class="now-artist-title">
+                        King Gizzard &amp;<br>The Lizard Wizard
+                      </div>
+                      <div class="now-stage-time-meta">
+                        <span>10:39 - 11:29</span>
+                        <span style="color: var(--color-live); font-weight: 700;">余 24 分钟 (52%)</span>
+                      </div>
+                      <!-- 细进度条 -->
+                      <div class="thin-timeline-track">
+                        <div class="thin-timeline-fill"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 下舱：接档想看 + 倒计时 -->
+                <div class="tier-next-pod">
+                  <div class="next-subline-header">
+                    <span>接档想看 UP NEXT</span>
+                    <span style="color: var(--color-gold); font-weight: 800;">距开演 39 分钟</span>
+                  </div>
+
+                  <div class="next-artist-row">
+                    <div class="next-artist-name-bold">
+                      ❤️ 万能青年旅店
+                    </div>
+                    <div class="next-timing-badge" style="background: rgba(0, 230, 118, 0.15); color: var(--color-green);">
+                      草莓舞台 · 11:44
+                    </div>
+                  </div>
+
+                  <!-- 撞场预警条 -->
+                  <div class="clash-warning-strip clash-box" style="display: none;">
+                    <span>⚠️</span>
+                    <span>与「NewJeans」时间重叠 (11:54 - 12:54)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lock-bottom-controls">
+              <div class="lock-circle-btn">🔦</div>
+              <div class="lock-circle-btn">📷</div>
+            </div>
+            <div class="home-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 1C: 【舞台高彩撞色版 · High-Contrast Badges】
+           ====================================================================== -->
+      <div class="variant-col" id="col-v1c">
+        <div class="variant-intro">
+          <div class="variant-badge-label" style="color: #64B5F6;">方案 1C · 舞台识别型</div>
+          <div class="variant-name">舞台高彩徽章撞色</div>
+          <div class="variant-summary">
+            为多舞台穿梭设计。将「爱舞台（红粉）」与「草莓舞台（海蓝）」赋予极醒目的高饱和背景胶囊，一眼定位舞台空间。
+          </div>
+        </div>
+
+        <div class="lockscreen-frame">
+          <div class="lockscreen-bg" style="background: radial-gradient(circle at 50% 20%, #1F1728 0%, #0B080F 70%);"></div>
+          <div class="lockscreen-content">
+            <div class="island-pill">
+              <span class="island-dot" style="background: #AB47BC;"></span>
+              <span class="island-txt">11:05</span>
+            </div>
+
+            <div class="lock-clock-section">
+              <div class="lock-date">10月6日 星期二 · 舞台穿梭</div>
+              <div class="lock-time">11:05</div>
+            </div>
+
+            <div class="live-activity-wrapper">
+              <div class="la-card-base">
+                <!-- 上舱：爱舞台 -->
+                <div class="tier-now-pod">
+                  <div class="tier-header-line">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span class="stage-pill-colored love">爱舞台</span>
+                      <span style="font-size: 11px; font-weight: 800; color: var(--color-live);">● 正在演出</span>
+                    </div>
+                    <div class="live-timer-big">
+                      01:23:45 <small>已开场</small>
+                    </div>
+                  </div>
+
+                  <div class="now-main-content">
+                    <div class="now-cover-thumb">🎸</div>
+                    <div class="now-artist-details">
+                      <div class="now-artist-title">
+                        King Gizzard &amp;<br>The Lizard Wizard
+                      </div>
+                      <div class="now-stage-time-meta">
+                        <span>10:39 - 11:29</span>
+                        <span style="color: var(--color-live); font-weight: 700;">余 24 分钟</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 下舱：草莓舞台 -->
+                <div class="tier-next-pod">
+                  <div class="next-subline-header">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span class="stage-pill-colored berry">草莓舞台</span>
+                      <span style="color: #BBB;">下场接棒</span>
+                    </div>
+                    <span style="color: var(--color-gold); font-weight: 800;">11:44 开演</span>
+                  </div>
+
+                  <div class="next-artist-row" style="margin-top: 2px;">
+                    <div class="next-artist-name-bold" style="font-size: 16px;">
+                      ❤️ 万能青年旅店
+                    </div>
+                    <div class="next-timing-badge">
+                      快开始了 🔥
+                    </div>
+                  </div>
+
+                  <!-- 撞场预警条 -->
+                  <div class="clash-warning-strip clash-box" style="display: none;">
+                    <span>⚠️</span>
+                    <span>与「NewJeans」时间重叠 (11:54 - 12:54)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lock-bottom-controls">
+              <div class="lock-circle-btn">🔦</div>
+              <div class="lock-circle-btn">📷</div>
+            </div>
+            <div class="home-bar"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    function switchView(mode) {
+      const btns = document.querySelectorAll('#viewModeGroup .segmented-btn');
+      btns.forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const colA = document.getElementById('col-v1a');
+      const colB = document.getElementById('col-v1b');
+      const colC = document.getElementById('col-v1c');
+      const grid = document.getElementById('lockGrid');
+
+      if (mode === 'all') {
+        grid.style.display = 'grid';
+        colA.style.display = 'block';
+        colB.style.display = 'block';
+        colC.style.display = 'block';
+      } else {
+        grid.style.display = 'flex';
+        grid.style.justifyContent = 'center';
+        colA.style.display = mode === 'v1a' ? 'block' : 'none';
+        colB.style.display = mode === 'v1b' ? 'block' : 'none';
+        colC.style.display = mode === 'v1c' ? 'block' : 'none';
+      }
+    }
+
+    let isClash = false;
+    function toggleClash() {
+      isClash = !isClash;
+      const boxes = document.querySelectorAll('.clash-box');
+      const btn = document.getElementById('clashBtnText');
+      boxes.forEach(b => {
+        b.style.display = isClash ? 'flex' : 'none';
+      });
+      btn.textContent = isClash ? '✅ 撞场预警已展开 (点击收起)' : '⚡ 模拟下一场撞场预警';
+    }
+  </script>
+</body>
+</html>
