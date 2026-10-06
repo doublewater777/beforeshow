@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>时刻表设计探索 · 视觉化撞场与时空并轨 · BeforeShow</title>
+  <style>
+    /* ==========================================================================
+       BeforeShow Design Tokens
+       ========================================================================== */
+    :root {
+      --stage-bg: #05070D;
+      --stage-surface: #0D111B;
+      --stage-raised: #151A27;
+      --stage-card: #111624;
+      --stage-border: rgba(255, 255, 255, 0.08);
+      --stage-border-active: rgba(255, 255, 255, 0.20);
+
+      --color-live: #FF3B5C;
+      --color-live-glow: rgba(255, 59, 92, 0.35);
+      --color-gold: #F5C542;
+      --color-gold-glow: rgba(245, 197, 66, 0.35);
+      --color-amber: #FF9800;
+      --color-amber-glow: rgba(255, 152, 0, 0.35);
+      --color-blue: #388BFD;
+
+      --text-primary: #F2F3F7;
+      --text-secondary: #9399AA;
+      --text-tertiary: #646B7D;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      background-color: #030407;
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: 80px;
+    }
+
+    /* Top Sticky Controls */
+    .top-toolbar {
+      width: 100%;
+      max-width: 1440px;
+      padding: 20px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      background: rgba(3, 4, 7, 0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      z-index: 1000;
+    }
+
+    .brand-group h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-group p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .seg-picker {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .seg-btn {
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .seg-btn.active {
+      background: #FFF;
+      color: #000;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Main Showcase Canvas */
+    .main-canvas {
+      width: 100%;
+      max-width: 1440px;
+      padding: 32px 24px;
+    }
+
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+      gap: 32px;
+      width: 100%;
+    }
+
+    /* Phone Shell (iPhone 17) */
+    .phone-mockup {
+      width: 100%;
+      max-width: 380px;
+      height: 780px;
+      border-radius: 50px;
+      background: var(--stage-bg);
+      border: 6px solid #282C38;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      margin: 0 auto;
+      flex-shrink: 0;
+    }
+
+    /* Phone Header & Dynamic Island */
+    .phone-top-bar {
+      padding: 14px 24px 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #FFF;
+      z-index: 50;
+    }
+
+    .dynamic-island {
+      width: 110px;
+      height: 32px;
+      background: #000;
+      border-radius: 18px;
+      margin: -24px auto 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* App Sheet Header inside Phone */
+    .sheet-nav-bar {
+      padding: 10px 18px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .sheet-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #FFF;
+    }
+
+    .sheet-icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border: none;
+    }
+
+    /* Phone Scroll Body */
+    .sheet-scroll-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Common multi-day capsule */
+    .multi-day-capsule-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .day-capsule {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--stage-surface);
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .day-capsule.active {
+      background: var(--color-gold);
+      color: #000;
+    }
+
+    .variant-card-intro {
+      margin-bottom: 14px;
+    }
+
+    .variant-pill-tag {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      margin-bottom: 4px;
+    }
+
+    .variant-heading {
+      font-size: 18px;
+      font-weight: 800;
+      color: #FFF;
+    }
+
+    .variant-subtext {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      margin-top: 4px;
+    }
+
+    /* ==========================================================================
+       方案 A: 【对决并轨时间舱 · Fork & Clash Duo Dock】
+       聪明点：不需要文字说“时间重叠”，垂直时间线在此处优雅分叉，两张卡片并排对决咬合
+       ========================================================================== */
+    .timeline-spine-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 普通时间轴单卡 */
+    .spine-normal-card {
+      background: var(--stage-card);
+      border: 1px solid var(--stage-border);
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card-meta-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .stage-badge-small {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-secondary);
+    }
+
+    .card-artist-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #FFF;
+    }
+
+    /* 【核心创新】：并轨对决槽位 (Clash Duo Dock) */
+    .clash-duo-dock {
+      background: linear-gradient(180deg, rgba(245, 197, 66, 0.08) 0%, rgba(20, 24, 36, 0.95) 100%);
+      border: 1.5px solid rgba(245, 197, 66, 0.4);
+      border-radius: 20px;
+      padding: 12px 12px 14px;
+      position: relative;
+      box-shadow: 0 8px 24px rgba(245, 197, 66, 0.12);
+    }
+
+    /* 顶部对决提示杆（无长文案，纯粹的时空标尺） */
+    .clash-dock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+      border-bottom: 1px dashed rgba(245, 197, 66, 0.25);
+    }
+
+    .clash-time-slot {
+      font-size: 12px;
+      font-weight: 800;
+      font-family: monospace;
+      color: var(--color-gold);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .clash-indicator-symbol {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--color-gold);
+      color: #000;
+      font-size: 10px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .clash-overlap-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: #FFF;
+      background: rgba(245, 197, 66, 0.2);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* 左右两列并排对决 */
+    .clash-columns-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .clash-column-card {
+      background: var(--stage-surface);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .clash-column-card.fav {
+      border-color: var(--color-live);
+      background: rgba(255, 59, 92, 0.08);
+    }
+
+    .col-stage-tag {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .col-stage-tag.berry { background: rgba(56, 139, 253, 0.2); color: #58A6FF; }
+    .col-stage-tag.love { background: rgba(255, 59, 92, 0.2); color: #FF7B92; }
+
+    .col-artist-name {
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.25;
+      color: #FFF;
+      margin-top: 2px;
+    }
+
+    .col-time-range {
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--text-secondary);
+      margin-top: auto;
+    }
+
+    /* 冲突重叠交织带 (中间重叠指示线) */
+    .clash-middle-bridge {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 8px;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    .bridge-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(245, 197, 66, 0.3), transparent);
+    }
+
+    /* ==========================================================================
+       方案 B: 【时间标尺全景泳道 · Gantt Time Swimlanes】
+       聪明点：X轴是舞台、Y轴是连续时间刻度。两场演出直接在同一视平线重叠，0文字解释
+       ========================================================================== */
+    .gantt-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 100%;
+    }
+
+    .gantt-stage-headers {
+      display: grid;
+      grid-template-columns: 46px 1fr 1fr;
+      gap: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--stage-border);
+    }
+
+    .gantt-header-col {
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+      color: var(--text-secondary);
+      padding: 4px;
+      background: var(--stage-surface);
+      border-radius: 8px;
+    }
+
+    /* 连续时间柱网格 */
+    .gantt-body-grid {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding-top: 6px;
+    }
+
+    .time-slice-row {
+      display: grid;
+      grid-template-columns: 46px 1fr 1fr;
+      gap: 6px;
+      min-height: 64px;
+      position: relative;
+    }
+
+    .slice-clock {
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 700;
+      color: var(--text-tertiary);
+      text-align: right;
+      padding-right: 6px;
+      padding-top: 2px;
+    }
+
+    /* 泳道内的色块卡片 */
+    .swimlane-block {
+      border-radius: 12px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .swimlane-block.now-live {
+      background: linear-gradient(135deg, rgba(255, 59, 92, 0.25) 0%, rgba(20, 24, 36, 0.9) 100%);
+      border-color: var(--color-live);
+    }
+
+    .swimlane-block.interested {
+      background: rgba(245, 197, 66, 0.14);
+      border-color: var(--color-gold);
+    }
+
+    .swimlane-block.normal {
+      background: var(--stage-surface);
+    }
+
+    .block-artist {
+      font-size: 12px;
+      font-weight: 800;
+      color: #FFF;
+      line-height: 1.2;
+    }
+
+    .block-time {
+      font-size: 10px;
+      font-family: monospace;
+      color: var(--text-secondary);
+    }
+
+    /* 重叠斜纹高亮带 */
+    .gantt-overlap-highlight-strip {
+      position: absolute;
+      left: 52px;
+      right: 0;
+      top: 140px;
+      height: 70px;
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(245, 197, 66, 0.08),
+        rgba(245, 197, 66, 0.08) 8px,
+        rgba(245, 197, 66, 0.02) 8px,
+        rgba(245, 197, 66, 0.02) 16px
+      );
+      border-top: 1px dashed rgba(245, 197, 66, 0.4);
+      border-bottom: 1px dashed rgba(245, 197, 66, 0.4);
+      pointer-events: none;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlap-strip-pill {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--color-gold);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 2px 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(245, 197, 66, 0.4);
+    }
+
+    /* ==========================================================================
+       方案 C: 【交错咬合卡片组 · Interlocking Deck】
+       聪明点：物理咬合结构、重叠阴影区、双卡错落层叠
+       ========================================================================== */
+    .interlocking-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .interlock-pair-container {
+      position: relative;
+      padding: 10px 0;
+    }
+
+    /* 物理交织的上下两张卡 */
+    .interlock-card-1 {
+      background: var(--stage-card);
+      border: 1.5px solid var(--color-live);
+      border-radius: 18px;
+      padding: 14px;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .interlock-card-2 {
+      background: #151926;
+      border: 1.5px solid var(--color-gold);
+      border-radius: 18px;
+      padding: 14px;
+      margin-top: -18px; /* 物理重叠重合 */
+      padding-top: 26px; /* 留出咬合空间 */
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    /* 咬合连接处的交织拉链装饰 */
+    .interlock-zipper-seal {
+      position: absolute;
+      right: 20px;
+      top: -12px;
+      background: var(--color-gold);
+      color: #000;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 3px 8px;
+      border-radius: 12px;
+      z-index: 10;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ==========================================================================
+       方案 D: 【光轴节点与连结弦带 · Chord Ribbon Spine】
+       聪明点：主时间光轴旁生出发光双连线，直接用几何线条“锁住”重叠演出
+       ========================================================================== */
+    .chord-spine-wrapper {
+      position: relative;
+      padding-left: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* 垂直时间光轴 */
+    .chord-spine-wrapper::before {
+      content: '';
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--color-live) 0%, var(--color-gold) 40%, rgba(255,255,255,0.1) 100%);
+    }
+
+    .chord-item-box {
+      position: relative;
+    }
+
+    .chord-dot-anchor {
+      position: absolute;
+      left: -24px;
+      top: 16px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--stage-bg);
+      border: 2px solid var(--color-live);
+    }
+
+    .chord-dot-anchor.clash {
+      border-color: var(--color-gold);
+      background: var(--color-gold);
+      box-shadow: 0 0 10px var(--color-gold-glow);
+    }
+
+    .chord-card {
+      background: var(--stage-card);
+      border: 1px solid var(--stage-border);
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chord-card.clash-highlight {
+      border-color: rgba(245, 197, 66, 0.45);
+      background: linear-gradient(90deg, rgba(245, 197, 66, 0.08) 0%, rgba(17, 22, 36, 0.95) 100%);
+    }
+
+    /* 连结弦纽带 (Chord Ribbon) */
+    .chord-linking-ribbon {
+      position: absolute;
+      left: -21px;
+      top: 24px;
+      bottom: -32px;
+      width: 8px;
+      border-left: 2px dashed var(--color-gold);
+      border-bottom: 2px dashed var(--color-gold);
+      border-bottom-left-radius: 12px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Controls Bar -->
+  <header class="top-toolbar">
+    <div class="brand-group">
+      <h1>
+        时刻表设计探索 · 视觉化撞场与时空并轨
+        <span style="font-size: 11px; padding: 2px 7px; background: var(--color-gold); color: #000; font-weight: 800; border-radius: 12px;">HI-FI EXPLORATION</span>
+      </h1>
+      <p>解决痛点：拒绝用冗长文字硬解释「与XXX时间重叠」，用空间并轨、分叉时间轴与时空几何表达冲突</p>
+    </div>
+
+    <div class="toolbar-actions">
+      <div class="seg-picker" id="viewModePicker">
+        <button class="seg-btn active" onclick="switchMode('all')">四案横向对比</button>
+        <button class="seg-btn" onclick="switchMode('a')">方案 A · 对决并轨时间舱</button>
+        <button class="seg-btn" onclick="switchMode('b')">方案 B · 连续时间泳道</button>
+        <button class="seg-btn" onclick="switchMode('c')">方案 C · 交错咬合卡片</button>
+        <button class="seg-btn" onclick="switchMode('d')">方案 D · 光轴节点连结</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-canvas">
+    <div class="showcase-grid" id="mainGrid">
+
+      <!-- ======================================================================
+           方案 A: 【对决并轨时间舱 · Fork & Clash Duo Dock】
+           ====================================================================== -->
+      <div class="grid-column" id="col-a">
+        <div class="variant-card-intro">
+          <div class="variant-pill-tag">方案 A · 空间并轨型（强烈推荐）</div>
+          <div class="variant-heading">对决并轨时间舱 (Clash Duo Dock)</div>
+          <div class="variant-subtext">
+            垂直时间线在此处优雅分叉，将万青与 NewJeans 并排吸附为一个「对决槽」。0 解释文字，布局本身即是冲突真相。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="phone-top-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+          <div class="dynamic-island"></div>
+
+          <div class="sheet-nav-bar">
+            <span class="sheet-title">时刻表 · 第 1 天 (10/6)</span>
+            <button class="sheet-icon-btn">•••</button>
+          </div>
+
+          <div class="sheet-scroll-body">
+            <!-- 多日胶囊 -->
+            <div class="multi-day-capsule-row">
+              <div class="day-capsule active"><span>第 1 天</span><small>10/6</small></div>
+              <div class="day-capsule"><span>第 2 天</span><small>10/7</small></div>
+            </div>
+
+            <div class="timeline-spine-wrapper">
+              <!-- 正在演出：落日飞车 -->
+              <div class="spine-normal-card">
+                <div class="card-meta-line">
+                  <span style="color: var(--color-live); font-weight: 800; font-size: 11px;">● 正在演出 · 10:24 - 11:39</span>
+                  <span class="stage-badge-small">草莓舞台</span>
+                </div>
+                <div class="card-artist-title">落日飞车 Sunset Rollercoaster</div>
+              </div>
+
+              <!-- 正在演出：King Gizzard -->
+              <div class="spine-normal-card" style="border-color: var(--color-live); background: rgba(255, 59, 92, 0.08);">
+                <div class="card-meta-line">
+                  <span style="color: var(--color-live); font-weight: 800; font-size: 11px;">● 正在演出 · 10:39 - 11:29</span>
+                  <span class="stage-badge-small" style="background: var(--color-live); color: #FFF;">爱舞台</span>
+                </div>
+                <div class="card-artist-title">❤️ King Gizzard &amp; The Lizard Wizard</div>
+              </div>
+
+              <!-- 【核心创新】：对决并轨时间舱 -->
+              <div class="clash-duo-dock">
+                <div class="clash-dock-header">
+                  <div class="clash-time-slot">
+                    <span class="clash-indicator-symbol">✕</span>
+                    <span>11:44 - 12:54 · 时空对决</span>
+                  </div>
+                  <span class="clash-overlap-badge">重叠 50 分钟</span>
+                </div>
+
+                <!-- 两个卡片并排在同一个时间舱内！ -->
+                <div class="clash-columns-grid">
+                  <!-- 左：万青 -->
+                  <div class="clash-column-card fav">
+                    <div style="display: flex; justify-content: space-between;">
+                      <span class="col-stage-tag berry">草莓舞台</span>
+                      <span style="color: red; font-size: 11px;">❤️</span>
+                    </div>
+                    <div class="col-artist-name">万能青年旅店</div>
+                    <div class="col-time-range">11:44 - 12:44</div>
+                  </div>
+
+                  <!-- 右：NewJeans -->
+                  <div class="clash-column-card fav">
+                    <div style="display: flex; justify-content: space-between;">
+                      <span class="col-stage-tag love">爱舞台</span>
+                      <span style="color: red; font-size: 11px;">❤️</span>
+                    </div>
+                    <div class="col-artist-name">NewJeans</div>
+                    <div class="col-time-range">11:54 - 12:54</div>
+                  </div>
+                </div>
+
+                <div class="clash-middle-bridge">
+                  <span class="bridge-line"></span>
+                  <span>双舞台同时开演 · 请依现场喜好驻留</span>
+                  <span class="bridge-line"></span>
+                </div>
+              </div>
+
+              <!-- 晚间场次：草东 -->
+              <div class="spine-normal-card">
+                <div class="card-meta-line">
+                  <span style="color: var(--text-secondary); font-size: 11px;">13:14 - 14:14</span>
+                  <span class="stage-badge-small">草莓舞台</span>
+                </div>
+                <div class="card-artist-title">草东没有派对 No Party For Cao Dong</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 B: 【时间标尺全景泳道 · Gantt Time Swimlanes】
+           ====================================================================== -->
+      <div class="grid-column" id="col-b">
+        <div class="variant-card-intro">
+          <div class="variant-pill-tag" style="color: var(--color-blue);">方案 B · 时空甘特型</div>
+          <div class="variant-heading">双舞台连续时间泳道</div>
+          <div class="variant-subtext">
+            如同音乐制作软件（DAW）多轨排布，舞台为列，时间为轴。两场演出在相同纵向区间重叠，纯视觉感知冲突。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="phone-top-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+          <div class="dynamic-island"></div>
+
+          <div class="sheet-nav-bar">
+            <span class="sheet-title">舞台时空网格 · 10/6</span>
+            <button class="sheet-icon-btn">•••</button>
+          </div>
+
+          <div class="sheet-scroll-body">
+            <div class="gantt-container">
+              <!-- 舞台表头 -->
+              <div class="gantt-stage-headers">
+                <div style="font-size: 10px; font-weight: 800; text-align: center; color: var(--text-tertiary); padding: 4px;">时间</div>
+                <div class="gantt-header-col" style="color: #58A6FF;">草莓舞台</div>
+                <div class="gantt-header-col" style="color: #FF7B92;">爱舞台</div>
+              </div>
+
+              <div class="gantt-body-grid">
+                <!-- 10:00 - 11:30 区间 -->
+                <div class="time-slice-row">
+                  <div class="slice-clock">10:30</div>
+                  <div class="swimlane-block now-live">
+                    <div class="block-artist">落日飞车</div>
+                    <div class="block-time">10:24-11:39</div>
+                  </div>
+                  <div class="swimlane-block now-live">
+                    <div class="block-artist">❤️ King Gizzard</div>
+                    <div class="block-time">10:39-11:29</div>
+                  </div>
+                </div>
+
+                <!-- 11:30 - 13:00 重叠区间 -->
+                <div class="time-slice-row" style="min-height: 90px;">
+                  <div class="slice-clock">11:45</div>
+                  <div class="swimlane-block interested">
+                    <div class="block-artist">❤️ 万青</div>
+                    <div class="block-time">11:44-12:44</div>
+                  </div>
+                  <div class="swimlane-block interested">
+                    <div class="block-artist">❤️ NewJeans</div>
+                    <div class="block-time">11:54-12:54</div>
+                  </div>
+                </div>
+
+                <!-- 几何重叠阴影指示 -->
+                <div class="gantt-overlap-highlight-strip">
+                  <span class="overlap-strip-pill">11:54 ~ 12:44 并行冲突时段</span>
+                </div>
+
+                <!-- 13:00 - 14:30 区间 -->
+                <div class="time-slice-row">
+                  <div class="slice-clock">13:15</div>
+                  <div class="swimlane-block normal">
+                    <div class="block-artist">草东没有派对</div>
+                    <div class="block-time">13:14-14:14</div>
+                  </div>
+                  <div class="swimlane-block normal" style="opacity: 0.3; border-style: dashed;">
+                    <div style="font-size: 11px; color: var(--text-tertiary); text-align: center; margin: auto;">舞台转场准备</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 C: 【交错咬合卡片组 · Interlocking Deck】
+           ====================================================================== -->
+      <div class="grid-column" id="col-c">
+        <div class="variant-card-header">
+          <div class="variant-pill-tag" style="color: #FF7043;">方案 C · 拟物咬合型</div>
+          <div class="variant-heading">交错阶梯咬合卡</div>
+          <div class="variant-subtext">
+            两张卡片采用阶梯式咬合（Interlocking）。咬合重合处带有金色拉链标尺，像两张错位重叠的真实纸质票根。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="phone-top-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+          <div class="dynamic-island"></div>
+
+          <div class="sheet-nav-bar">
+            <span class="sheet-title">时刻表 · 咬合视图</span>
+            <button class="sheet-icon-btn">•••</button>
+          </div>
+
+          <div class="sheet-scroll-body">
+            <div class="interlocking-wrapper">
+              <!-- 普通单卡 -->
+              <div class="spine-normal-card">
+                <div class="card-meta-line">
+                  <span style="color: var(--color-live); font-weight: 800; font-size: 11px;">● 正在演出 · 爱舞台</span>
+                  <span>10:39 - 11:29</span>
+                </div>
+                <div class="card-artist-title">❤️ King Gizzard &amp; The Lizard Wizard</div>
+              </div>
+
+              <!-- 咬合卡组 -->
+              <div class="interlock-pair-container">
+                <!-- 第一张：万青 -->
+                <div class="interlock-card-1">
+                  <div class="card-meta-line">
+                    <span class="col-stage-tag berry">草莓舞台</span>
+                    <span style="font-family: monospace; font-size: 12px; font-weight: 700; color: #FFF;">11:44 - 12:44</span>
+                  </div>
+                  <div class="card-artist-title" style="margin-top: 4px;">
+                    ❤️ 万能青年旅店
+                  </div>
+                </div>
+
+                <!-- 物理咬合拉链标尺 -->
+                <div class="interlock-zipper-seal">
+                  <span>⚡ 50分钟重合</span>
+                </div>
+
+                <!-- 第二张：NewJeans (错位下压) -->
+                <div class="interlock-card-2">
+                  <div class="card-meta-line">
+                    <span class="col-stage-tag love">爱舞台</span>
+                    <span style="font-family: monospace; font-size: 12px; font-weight: 700; color: #FFF;">11:54 - 12:54</span>
+                  </div>
+                  <div class="card-artist-title" style="margin-top: 4px;">
+                    ❤️ NewJeans
+                  </div>
+                </div>
+              </div>
+
+              <div class="spine-normal-card">
+                <div class="card-meta-line">
+                  <span style="color: var(--text-secondary); font-size: 11px;">草莓舞台</span>
+                  <span>13:14 - 14:14</span>
+                </div>
+                <div class="card-artist-title">草东没有派对</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 D: 【光轴节点与连结弦带 · Chord Ribbon Spine】
+           ====================================================================== -->
+      <div class="grid-column" id="col-d">
+        <div class="variant-card-header">
+          <div class="variant-pill-tag" style="color: #AB47BC;">方案 D · 优雅连结型</div>
+          <div class="variant-heading">光轴节点连结弦 (Chord Ribbon)</div>
+          <div class="variant-subtext">
+            保持单列大卡片的从容排版，但在左侧时间光轴上，用发光的双叉弧线纽带将两场演出“锁”为一个共同时间群组。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="phone-top-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+          <div class="dynamic-island"></div>
+
+          <div class="sheet-nav-bar">
+            <span class="sheet-title">时刻表 · 光轴模式</span>
+            <button class="sheet-icon-btn">•••</button>
+          </div>
+
+          <div class="sheet-scroll-body">
+            <div class="chord-spine-wrapper">
+              <!-- 节点 1 -->
+              <div class="chord-item-box">
+                <div class="chord-dot-anchor" style="border-color: var(--color-live);"></div>
+                <div class="chord-card">
+                  <div class="card-meta-line">
+                    <span style="color: var(--color-live); font-weight: 800; font-size: 11px;">● 正在演出 · 爱舞台</span>
+                    <span style="font-family: monospace;">10:39 - 11:29</span>
+                  </div>
+                  <div class="card-artist-title">❤️ King Gizzard &amp; The Lizard Wizard</div>
+                </div>
+              </div>
+
+              <!-- 节点 2 (冲突群组 1) -->
+              <div class="chord-item-box">
+                <div class="chord-dot-anchor clash"></div>
+                <div class="chord-linking-ribbon"></div>
+                <div class="chord-card clash-highlight">
+                  <div class="card-meta-line">
+                    <span class="col-stage-tag berry">草莓舞台</span>
+                    <span style="font-family: monospace; color: var(--color-gold); font-weight: 700;">11:44 - 12:44</span>
+                  </div>
+                  <div class="card-artist-title">❤️ 万能青年旅店</div>
+                </div>
+              </div>
+
+              <!-- 节点 3 (冲突群组 2) -->
+              <div class="chord-item-box">
+                <div class="chord-dot-anchor clash"></div>
+                <div class="chord-card clash-highlight">
+                  <div class="card-meta-line">
+                    <span class="col-stage-tag love">爱舞台</span>
+                    <span style="font-family: monospace; color: var(--color-gold); font-weight: 700;">11:54 - 12:54</span>
+                  </div>
+                  <div class="card-artist-title">❤️ NewJeans</div>
+                </div>
+              </div>
+
+              <!-- 节点 4 -->
+              <div class="chord-item-box">
+                <div class="chord-dot-anchor"></div>
+                <div class="chord-card">
+                  <div class="card-meta-line">
+                    <span class="col-stage-tag berry">草莓舞台</span>
+                    <span style="font-family: monospace;">13:14 - 14:14</span>
+                  </div>
+                  <div class="card-artist-title">草东没有派对</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    function switchMode(mode) {
+      const btns = document.querySelectorAll('#viewModePicker .seg-btn');
+      btns.forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const colA = document.getElementById('col-a');
+      const colB = document.getElementById('col-b');
+      const colC = document.getElementById('col-c');
+      const colD = document.getElementById('col-d');
+      const grid = document.getElementById('mainGrid');
+
+      if (mode === 'all') {
+        grid.style.display = 'grid';
+        colA.style.display = 'block';
+        colB.style.display = 'block';
+        colC.style.display = 'block';
+        colD.style.display = 'block';
+      } else {
+        grid.style.display = 'flex';
+        grid.style.justifyContent = 'center';
+        colA.style.display = mode === 'a' ? 'block' : 'none';
+        colB.style.display = mode === 'b' ? 'block' : 'none';
+        colC.style.display = mode === 'c' ? 'block' : 'none';
+        colD.style.display = mode === 'd' ? 'block' : 'none';
+      }
+    }
+  </script>
+</body>
+</html>

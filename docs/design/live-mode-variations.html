@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>现场进行时 · 4种高对比度醒目设计方案 · BeforeShow</title>
+  <style>
+    /* ==========================================================================
+       Design System & Tokens (Aligned with BeforeShow & Apple Design Guidelines)
+       ========================================================================== */
+    :root {
+      --bg-dark: #06080F;
+      --bg-card-dark: #0D121F;
+      --bg-card-dark-elevated: #151C2E;
+      --border-dark: rgba(255, 255, 255, 0.10);
+      --border-dark-highlight: rgba(255, 255, 255, 0.22);
+
+      --color-live-pink: #FF3B5C;
+      --color-live-pink-glow: rgba(255, 59, 92, 0.35);
+      --color-neon-green: #00E676;
+      --color-neon-green-glow: rgba(0, 230, 118, 0.35);
+      --color-warm-gold: #F5C542;
+      --color-warm-gold-glow: rgba(245, 197, 66, 0.35);
+      --color-electric-blue: #00B0FF;
+
+      --text-primary-dark: #FFFFFF;
+      --text-secondary-dark: #9AA0B4;
+      --text-tertiary-dark: #5C6275;
+
+      /* Daylight Outdoor High-Contrast Mode */
+      --bg-daylight: #F4F6F9;
+      --bg-card-daylight: #FFFFFF;
+      --border-daylight: rgba(0, 0, 0, 0.12);
+      --text-primary-daylight: #0A0D14;
+      --text-secondary-daylight: #4A5164;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-primary-dark);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    body.daylight-env {
+      background-color: #E2E7ED;
+      color: #111;
+    }
+
+    /* Top Global Header */
+    .toolbar-header {
+      width: 100%;
+      max-width: 1320px;
+      padding: 24px 20px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      position: sticky;
+      top: 0;
+      background: rgba(6, 8, 15, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      z-index: 1000;
+    }
+
+    body.daylight-env .toolbar-header {
+      background: rgba(226, 231, 237, 0.90);
+      border-bottom-color: rgba(0, 0, 0, 0.08);
+    }
+
+    .brand-title-wrap h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .live-badge-glow {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: var(--color-live-pink);
+      color: #fff;
+      box-shadow: 0 0 14px var(--color-live-pink-glow);
+      animation: pulseGlow 1.8s infinite ease-in-out;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.03); }
+    }
+
+    .brand-title-wrap p {
+      font-size: 12px;
+      color: var(--text-secondary-dark);
+      margin-top: 3px;
+    }
+    body.daylight-env .brand-title-wrap p { color: #555; }
+
+    /* Controls Bar */
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .segmented-control {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    body.daylight-env .segmented-control {
+      background: #D5DBE3;
+      border-color: rgba(0, 0, 0, 0.06);
+    }
+
+    .segmented-btn {
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary-dark);
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    body.daylight-env .segmented-btn { color: #555; }
+
+    .segmented-btn.active {
+      background: #FFFFFF;
+      color: #000000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+    body.daylight-env .segmented-btn.active {
+      background: #FFFFFF;
+      color: #111;
+    }
+
+    .action-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary-dark);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    body.daylight-env .action-toggle-btn {
+      background: #fff;
+      color: #222;
+      border-color: #CCC;
+    }
+    .action-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    /* Main Showcase Canvas */
+    .showcase-container {
+      width: 100%;
+      max-width: 1320px;
+      padding: 28px 20px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    /* Side by side comparison grid */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(295px, 1fr));
+      gap: 24px;
+      width: 100%;
+    }
+
+    .single-mode-wrapper {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+
+    /* Device Mockup Shell (iPhone 17 Form Factor) */
+    .phone-mockup {
+      width: 100%;
+      max-width: 375px;
+      height: 740px;
+      border-radius: 46px;
+      background: #000;
+      border: 6px solid #282C38;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      margin: 0 auto;
+      flex-shrink: 0;
+    }
+
+    body.daylight-env .phone-mockup {
+      border-color: #B8BEC9;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Dynamic Island at Top */
+    .dynamic-island {
+      position: absolute;
+      top: 11px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 35px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 9px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .island-icon {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--color-live-pink);
+    }
+
+    .island-time {
+      font-size: 11px;
+      font-weight: 700;
+      color: #FFF;
+      font-family: monospace;
+    }
+
+    /* Phone Status Bar */
+    .phone-status-bar {
+      padding: 15px 26px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 40;
+      color: #fff;
+    }
+    body.daylight-env .phone-status-bar {
+      color: #111;
+    }
+
+    /* Screen Content Area */
+    .phone-screen {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+      background: var(--bg-dark);
+      transition: background 0.3s ease;
+    }
+
+    body.daylight-env .phone-screen {
+      background: var(--bg-daylight);
+    }
+
+    /* Card Variant Header in Grid */
+    .variant-card-header {
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .variant-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--color-warm-gold);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .variant-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #FFF;
+    }
+    body.daylight-env .variant-title { color: #111; }
+
+    .variant-desc {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text-secondary-dark);
+    }
+    body.daylight-env .variant-desc { color: #555; }
+
+    /* ==========================================================================
+       方案 A: 【巨幅双舞台看板 · Dual-Stage Monolith】
+       特点：强光穿透、超大字号、双舞台高对比分流、想看聚光灯
+       ========================================================================== */
+    .stage-monolith-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    /* 顶部现场大广播条 */
+    .live-broadcast-banner {
+      background: linear-gradient(90deg, #FF1744, #FF5252);
+      padding: 10px 14px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #FFF;
+      box-shadow: 0 4px 16px rgba(255, 23, 68, 0.35);
+    }
+
+    .live-broadcast-banner .banner-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .wave-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 14px;
+    }
+
+    .wave-bar {
+      width: 3px;
+      background: #FFF;
+      border-radius: 1.5px;
+      animation: waveBounce 0.9s ease-in-out infinite alternate;
+    }
+    .wave-bar:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+    .wave-bar:nth-child(2) { height: 14px; animation-delay: 0.3s; }
+    .wave-bar:nth-child(3) { height: 9px; animation-delay: 0.5s; }
+    .wave-bar:nth-child(4) { height: 12px; animation-delay: 0.2s; }
+
+    @keyframes waveBounce {
+      0% { height: 4px; }
+      100% { height: 15px; }
+    }
+
+    .banner-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .banner-timer {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: monospace;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+
+    /* 双舞台分屏卡片 */
+    .monolith-card {
+      border-radius: 20px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border: 2px solid transparent;
+      transition: all 0.25s ease;
+    }
+
+    /* 想看的舞台：高聚光灯聚焦 */
+    .monolith-card.spotlight {
+      background: linear-gradient(135deg, rgba(255, 59, 92, 0.16) 0%, rgba(13, 18, 31, 0.95) 100%);
+      border-color: var(--color-live-pink);
+      box-shadow: 0 8px 24px rgba(255, 59, 92, 0.20), inset 0 0 18px rgba(255, 59, 92, 0.10);
+    }
+    body.daylight-env .monolith-card.spotlight {
+      background: #FFF;
+      border-color: #FF2A55;
+      box-shadow: 0 6px 20px rgba(255, 42, 85, 0.18);
+    }
+
+    /* 非想看舞台：保持高对比度与客观呈现 */
+    .monolith-card.parallel {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.10);
+    }
+    body.daylight-env .monolith-card.parallel {
+      background: #FFFFFF;
+      border-color: #D2D6DE;
+    }
+
+    .monolith-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stage-badge-large {
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stage-badge-large.love {
+      background: #FF3B5C;
+      color: #FFF;
+    }
+
+    .stage-badge-large.strawberry {
+      background: rgba(255, 255, 255, 0.12);
+      color: #DDD;
+    }
+    body.daylight-env .stage-badge-large.strawberry {
+      background: #E5E8EE;
+      color: #333;
+    }
+
+    .time-slot-bold {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: monospace;
+      color: var(--text-secondary-dark);
+    }
+    body.daylight-env .time-slot-bold { color: #555; }
+
+    .monolith-artist-name {
+      font-size: 21px;
+      font-weight: 900;
+      line-height: 1.25;
+      letter-spacing: -0.5px;
+      color: #FFF;
+    }
+    body.daylight-env .monolith-artist-name { color: #0A0D14; }
+
+    .monolith-footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    body.daylight-env .monolith-footer-row {
+      border-top-color: rgba(0, 0, 0, 0.06);
+    }
+
+    .monolith-status {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--color-live-pink);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .monolith-countdown {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary-dark);
+    }
+    body.daylight-env .monolith-countdown { color: #666; }
+
+    /* 下一场预报栏 */
+    .monolith-next-preview {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 14px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    body.daylight-env .monolith-next-preview {
+      background: #FFF;
+      border-color: #D2D6DE;
+    }
+
+    .next-artist-slot {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    body.daylight-env .next-artist-slot { color: #111; }
+
+    /* ==========================================================================
+       方案 B: 【Live Radar & Tape Ribbon 模拟走带时间轴 · 时间空间流】
+       特点：连续时间流感、剩余时间进度条、撞场斜纹警戒
+       ========================================================================== */
+    .radar-tape-container {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+
+    /* 实时走带仪表板 */
+    .tape-dashboard {
+      background: #080B14;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 22px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    body.daylight-env .tape-dashboard {
+      background: #FFFFFF;
+      border-color: #D0D5DD;
+    }
+
+    .tape-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .tape-now-clock {
+      font-size: 26px;
+      font-weight: 900;
+      font-family: monospace;
+      color: #FFF;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    body.daylight-env .tape-now-clock { color: #000; }
+
+    .tape-now-clock small {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--color-neon-green);
+      letter-spacing: 1px;
+    }
+
+    /* 走带轨道 */
+    .tape-tracks {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .stage-track {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .track-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .track-artist {
+      font-weight: 700;
+      color: #FFF;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    body.daylight-env .track-artist { color: #111; }
+
+    .track-progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+    }
+    body.daylight-env .track-progress-bar-bg {
+      background: #E8ECF2;
+    }
+
+    .track-progress-fill {
+      height: 100%;
+      border-radius: 5px;
+      position: relative;
+      transition: width 0.4s ease;
+    }
+
+    .track-progress-fill.love {
+      width: 65%;
+      background: linear-gradient(90deg, #FF6B8B, #FF3B5C);
+      box-shadow: 0 0 10px rgba(255, 59, 92, 0.5);
+    }
+
+    .track-progress-fill.strawberry {
+      width: 80%;
+      background: linear-gradient(90deg, #64B5F6, #1E88E5);
+    }
+
+    /* 接下来交接区 (Handover Zone) */
+    .tape-handover-box {
+      margin-top: 14px;
+      padding: 12px;
+      background: rgba(245, 197, 66, 0.06);
+      border: 1px dashed rgba(245, 197, 66, 0.4);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    body.daylight-env .tape-handover-box {
+      background: #FFF9E6;
+      border-color: #E6B800;
+    }
+
+    .handover-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--color-warm-gold);
+      letter-spacing: 0.5px;
+    }
+
+    /* ==========================================================================
+       方案 C: 【Cyber HUD 现场领航仪 · 视线聚焦导航型】
+       特点：夜间极致对比、下一步目的地指针、转场建议、荧光绿/现场玫红
+       ========================================================================== */
+    .cyber-hud-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .hud-main-unit {
+      background: #020307;
+      border: 2px solid var(--color-neon-green);
+      border-radius: 24px;
+      padding: 18px;
+      box-shadow: 0 0 25px rgba(0, 230, 118, 0.18), inset 0 0 20px rgba(0, 230, 118, 0.06);
+      position: relative;
+    }
+    body.daylight-env .hud-main-unit {
+      background: #0F141C;
+      border-color: #00C853;
+    }
+
+    .hud-target-kicker {
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--color-neon-green);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-destination-hero {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .hud-stage-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--color-warm-gold);
+    }
+
+    .hud-artist-hero {
+      font-size: 24px;
+      font-weight: 900;
+      color: #FFFFFF;
+      letter-spacing: -0.5px;
+    }
+
+    .hud-action-advice {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: rgba(0, 230, 118, 0.10);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--color-neon-green);
+    }
+
+    /* 并列雷达扫描态 */
+    .hud-parallel-feed {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    body.daylight-env .hud-parallel-feed {
+      background: #FFF;
+      border-color: #CCC;
+    }
+
+    /* ==========================================================================
+       方案 D: 【Physical Wristband & Ticket 实体手环票根 · 艺术拟物型】
+       特点：手环编织材质、打孔卡片边缘、粗体打标、摇滚现场仪式感
+       ========================================================================== */
+    .wristband-ticket-container {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+
+    /* 顶部布艺手环带 */
+    .cloth-wristband-strap {
+      height: 38px;
+      background: repeating-linear-gradient(
+        45deg,
+        #E64A19,
+        #E64A19 12px,
+        #FF7043 12px,
+        #FF7043 24px
+      );
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      color: #FFF;
+      font-weight: 900;
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      position: relative;
+    }
+
+    .wristband-clip {
+      width: 18px;
+      height: 44px;
+      background: #D4AF37;
+      border-radius: 4px;
+      box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0,0,0,0.4);
+      position: absolute;
+      right: 36px;
+      top: -3px;
+    }
+
+    /* 实体票根主卡 */
+    .ticket-stub-card {
+      background: #141724;
+      border: 2px dashed rgba(255, 255, 255, 0.25);
+      border-radius: 18px;
+      padding: 18px 16px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    body.daylight-env .ticket-stub-card {
+      background: #FFFFFF;
+      border-color: #B0B7C3;
+    }
+
+    /* 左右两边圆形打孔凹口 (Notch) */
+    .ticket-stub-card::before, .ticket-stub-card::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--bg-dark);
+    }
+    body.daylight-env .ticket-stub-card::before,
+    body.daylight-env .ticket-stub-card::after {
+      background: var(--bg-daylight);
+    }
+    .ticket-stub-card::before { left: -11px; }
+    .ticket-stub-card::after { right: -11px; }
+
+    .ticket-header-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: var(--color-warm-gold);
+    }
+
+    .ticket-main-artist {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: #FFF;
+      line-height: 1.2;
+    }
+    body.daylight-env .ticket-main-artist { color: #111; }
+
+    .ticket-time-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    body.daylight-env .ticket-time-strip {
+      background: #F0F2F6;
+      color: #222;
+    }
+
+    /* 底部通用工具栏模拟 (与真机对齐) */
+    .phone-dock-bar {
+      margin-top: auto;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    body.daylight-env .phone-dock-bar {
+      background: #FFF;
+      border-color: #D5DAE2;
+    }
+
+    .dock-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: var(--text-secondary-dark);
+      cursor: pointer;
+    }
+    body.daylight-env .dock-item { color: #555; }
+
+    .dock-icon {
+      font-size: 16px;
+    }
+
+    /* Interactive Simulation Bar at Bottom */
+    .sim-bar {
+      width: 100%;
+      max-width: 1320px;
+      padding: 16px 20px;
+      background: rgba(21, 28, 46, 0.9);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 10px;
+    }
+    body.daylight-env .sim-bar {
+      background: #FFFFFF;
+      border-color: #D0D5DD;
+    }
+
+    .sim-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sim-slider-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary-dark);
+    }
+    body.daylight-env .sim-slider-label { color: #444; }
+
+    .sim-slider {
+      width: 180px;
+      accent-color: var(--color-live-pink);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .toolbar-header { flex-direction: column; align-items: flex-start; }
+      .controls-group { width: 100%; justify-content: space-between; }
+      .phone-mockup { max-width: 100%; height: 690px; border-width: 4px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation & Controls Bar -->
+  <header class="toolbar-header">
+    <div class="brand-title-wrap">
+      <h1>
+        BeforeShow · 现场进行时
+        <span class="live-badge-glow">LIVE NOW</span>
+      </h1>
+      <p>4 种高对比度醒目设计探索 · 解决强光/远距离扫视「看着不够明显」痛点</p>
+    </div>
+
+    <div class="controls-group">
+      <!-- 视图模式切换 -->
+      <div class="segmented-control" id="viewModeControl">
+        <button class="segmented-btn active" onclick="switchView('all')">四案并排大看板</button>
+        <button class="segmented-btn" onclick="switchView('a')">方案 A · 巨幅双舞台看板</button>
+        <button class="segmented-btn" onclick="switchView('b')">方案 B · 走带时间轴</button>
+        <button class="segmented-btn" onclick="switchView('c')">方案 C · 赛博 HUD 领航</button>
+        <button class="segmented-btn" onclick="switchView('d')">方案 D · 实体手环票根</button>
+      </div>
+
+      <!-- 环境光切换（户外日光 vs 暗夜舞台） -->
+      <button class="action-toggle-btn" id="envToggleBtn" onclick="toggleEnvironment()">
+        <span id="envIcon">☀️</span>
+        <span id="envLabel">切换户外强光模式</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Showcase Container -->
+  <main class="showcase-container">
+
+    <!-- Comparison Grid (holds all 4 or single view) -->
+    <div class="comparison-grid" id="mainGrid">
+
+      <!-- ======================================================================
+           方案 A: 巨幅双舞台看板 (Stage Dual-Monolith)
+           ====================================================================== -->
+      <div class="variant-column" id="col-a">
+        <div class="variant-card-header">
+          <div class="variant-tag">方案 A · 空间并列型</div>
+          <div class="variant-title">巨幅双舞台分屏看板</div>
+          <div class="variant-desc">
+            告别嵌套小卡片！超大字号撞色大分屏，将「爱舞台（想看）」赋予聚光灯焦点，另一舞台高对比客观并列，阳光直射下 5 米开外也能一眼看清。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="dynamic-island">
+            <span class="island-icon"></span>
+            <span class="island-time" id="islandClockA">11:05</span>
+          </div>
+          <div class="phone-status-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+
+          <div class="phone-screen">
+            <div class="stage-monolith-container">
+              <!-- 顶部通栏广播 -->
+              <div class="live-broadcast-banner">
+                <div class="banner-left">
+                  <div class="wave-bars">
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                  </div>
+                  <span class="banner-title">正在现场 · 正在演出 (2个舞台)</span>
+                </div>
+                <span class="banner-timer" id="timerA">01:23:45</span>
+              </div>
+
+              <!-- 爱舞台 (想看，超大聚光灯焦点) -->
+              <div class="monolith-card spotlight">
+                <div class="monolith-top-row">
+                  <span class="stage-badge-large love">爱舞台 · 想看置顶 ❤️</span>
+                  <span class="time-slot-bold">10:39 - 11:29</span>
+                </div>
+
+                <div class="monolith-artist-name">
+                  King Gizzard &<br>The Lizard Wizard
+                </div>
+
+                <div class="monolith-footer-row">
+                  <span class="monolith-status">● 正在演出</span>
+                  <span class="monolith-countdown" id="remainA">还剩 24 分钟</span>
+                </div>
+              </div>
+
+              <!-- 草莓舞台 (客观并列) -->
+              <div class="monolith-card parallel">
+                <div class="monolith-top-row">
+                  <span class="stage-badge-large strawberry">草莓舞台</span>
+                  <span class="time-slot-bold">10:24 - 11:39</span>
+                </div>
+
+                <div class="monolith-artist-name" style="font-size: 18px;">
+                  落日飞车 Sunset Rollercoaster
+                </div>
+
+                <div class="monolith-footer-row">
+                  <span style="font-size: 12px; color: var(--text-secondary-dark);">● 正在演出</span>
+                  <span class="monolith-countdown">还剩 34 分钟</span>
+                </div>
+              </div>
+
+              <!-- 下一场接档预告 -->
+              <div class="monolith-next-preview">
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-dark);">接档想看 · 11:44 草莓舞台</div>
+                  <div class="next-artist-slot">❤️ 万能青年旅店 (快开始了)</div>
+                </div>
+                <div style="font-size: 11px; font-weight: 700; color: var(--color-warm-gold);">
+                  建议 15 分钟后动身 →
+                </div>
+              </div>
+            </div>
+
+            <!-- 底部快捷工具栏 -->
+            <div class="phone-dock-bar">
+              <div class="dock-item"><span class="dock-icon">👥</span><span>添加同行</span></div>
+              <div class="dock-item"><span class="dock-icon">📷</span><span>记记忆</span></div>
+              <div class="dock-item"><span class="dock-icon">🎟️</span><span>票根</span></div>
+              <div class="dock-item" style="color: var(--color-warm-gold);"><span class="dock-icon">📅</span><span>完整排期</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 B: Live Radar & Tape Ribbon 模拟走带时间轴
+           ====================================================================== -->
+      <div class="variant-column" id="col-b">
+        <div class="variant-card-header">
+          <div class="variant-tag" style="color: var(--color-neon-green);">方案 B · 时间流感知型</div>
+          <div class="variant-title">走带时间轴仪表盘</div>
+          <div class="variant-desc">
+            借鉴专业音频工作站（DAW）与模拟录音机走带逻辑，实时走针与进度条直观展示各舞台演到第几首、距离散场还剩多久，时间流动感极强。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="dynamic-island">
+            <span class="island-icon" style="background: var(--color-neon-green);"></span>
+            <span class="island-time">11:05</span>
+          </div>
+          <div class="phone-status-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+
+          <div class="phone-screen">
+            <div class="radar-tape-container">
+              <!-- 走带表头 -->
+              <div class="tape-dashboard">
+                <div class="tape-header">
+                  <div>
+                    <span style="font-size: 11px; font-weight: 800; color: var(--color-neon-green); letter-spacing: 1px;">TIME REMAINING</span>
+                    <div class="tape-now-clock">
+                      11:05 <small>LIVE TAPE</small>
+                    </div>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-size: 11px; color: var(--text-secondary-dark);">当前处于</div>
+                    <div style="font-size: 13px; font-weight: 800; color: #FFF;">第 1 天 · 午后黄金段</div>
+                  </div>
+                </div>
+
+                <!-- 两个舞台的走带刻度 -->
+                <div class="tape-tracks">
+                  <!-- 爱舞台 -->
+                  <div class="stage-track">
+                    <div class="track-meta">
+                      <span class="track-artist">
+                        <span style="color: #FF3B5C;">❤️ 爱舞台</span> · King Gizzard
+                      </span>
+                      <span style="font-family: monospace; font-weight: 700; color: #FF3B5C;">已演 52% (余 24分)</span>
+                    </div>
+                    <div class="track-progress-bar-bg">
+                      <div class="track-progress-fill love" id="progressB1"></div>
+                    </div>
+                  </div>
+
+                  <!-- 草莓舞台 -->
+                  <div class="stage-track" style="margin-top: 6px;">
+                    <div class="track-meta">
+                      <span class="track-artist" style="color: var(--text-secondary-dark);">
+                        草莓舞台 · 落日飞车
+                      </span>
+                      <span style="font-family: monospace; font-weight: 700; color: var(--text-secondary-dark);">已演 55% (余 34分)</span>
+                    </div>
+                    <div class="track-progress-bar-bg">
+                      <div class="track-progress-fill strawberry" id="progressB2"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 接下来交接警告带 -->
+                <div class="tape-handover-box">
+                  <div class="handover-title">⚠️ NEXT UP & CLASH ALERT (接棒与撞场)</div>
+                  <div style="font-size: 12px; font-weight: 600; color: #FFF;">
+                    11:44 草莓万青 与 11:54 爱舞台NewJeans 重叠
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-secondary-dark); margin-top: 2px;">
+                    倒数 39 分钟，爱舞台将无缝切入 NewJeans 调试
+                  </div>
+                </div>
+              </div>
+
+              <!-- 快捷操作大卡 -->
+              <div style="background: rgba(255,255,255,0.04); border-radius: 16px; padding: 14px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.08);">
+                <div>
+                  <div style="font-size: 13px; font-weight: 700;">查看全部 6 舞台完整走带图</div>
+                  <div style="font-size: 11px; color: var(--text-secondary-dark);">包含电音舞台、新血计划舞台</div>
+                </div>
+                <span style="font-size: 16px;">➔</span>
+              </div>
+            </div>
+
+            <!-- 底部快捷工具栏 -->
+            <div class="phone-dock-bar">
+              <div class="dock-item"><span class="dock-icon">👥</span><span>添加同行</span></div>
+              <div class="dock-item"><span class="dock-icon">📷</span><span>记记忆</span></div>
+              <div class="dock-item"><span class="dock-icon">🎟️</span><span>票根</span></div>
+              <div class="dock-item" style="color: var(--color-warm-gold);"><span class="dock-icon">📅</span><span>完整排期</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 C: Cyber HUD 现场领航仪
+           ====================================================================== -->
+      <div class="variant-column" id="col-c">
+        <div class="variant-card-header">
+          <div class="variant-tag" style="color: var(--color-electric-blue);">方案 C · 暗夜极致对比型</div>
+          <div class="variant-title">赛博 HUD 现场领航仪</div>
+          <div class="variant-desc">
+            为夜间暗光音乐节量身定制。以军规 HUD 仪表风格构建纯黑+极光绿/荧光粉超高对比度，突出“当前目的地”与转场行动指令，视线一击即中。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="dynamic-island">
+            <span class="island-icon" style="background: var(--color-electric-blue);"></span>
+            <span class="island-time">11:05</span>
+          </div>
+          <div class="phone-status-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+
+          <div class="phone-screen">
+            <div class="cyber-hud-container">
+              <!-- HUD 主单元 -->
+              <div class="hud-main-unit">
+                <div class="hud-target-kicker">
+                  <span>◎</span> DESTINATION TARGET LOCKED
+                </div>
+
+                <div class="hud-destination-hero">
+                  <div class="hud-stage-name">📍 当前推荐驻留：爱舞台 (想看优先)</div>
+                  <div class="hud-artist-hero">King Gizzard &amp;<br>The Lizard Wizard</div>
+                </div>
+
+                <div class="hud-action-advice">
+                  <span>⚡</span> 距离本场谢幕剩 24 分钟 · 建议就近观赏
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; font-family: monospace; font-size: 12px; color: var(--text-secondary-dark);">
+                  <span>LATENCY: LIVE 0s</span>
+                  <span style="color: var(--color-neon-green); font-weight: 700;">ON AIR: 01:23:45</span>
+                </div>
+              </div>
+
+              <!-- 并列次级雷达 -->
+              <div class="hud-parallel-feed">
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-dark);">PARALLEL FEED · 次级舞台</div>
+                  <div style="font-size: 14px; font-weight: 700;">草莓舞台 · 落日飞车</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 11px; color: var(--text-secondary-dark);">步行距离</div>
+                  <div style="font-size: 13px; font-weight: 700; color: var(--color-warm-gold);">约 350m (5分)</div>
+                </div>
+              </div>
+
+              <!-- 下一航标 -->
+              <div style="background: rgba(255, 59, 92, 0.08); border: 1px solid rgba(255, 59, 92, 0.3); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <div style="font-size: 11px; color: #FF3B5C; font-weight: 700;">NEXT JUMP · 11:44</div>
+                  <div style="font-size: 14px; font-weight: 800;">❤️ 万能青年旅店 · 草莓舞台</div>
+                </div>
+                <button style="padding: 6px 12px; font-size: 11px; font-weight: 700; border-radius: 8px; background: #FF3B5C; color: #FFF; border: none; cursor: pointer;">
+                  路线指引
+                </button>
+              </div>
+            </div>
+
+            <!-- 底部快捷工具栏 -->
+            <div class="phone-dock-bar">
+              <div class="dock-item"><span class="dock-icon">👥</span><span>添加同行</span></div>
+              <div class="dock-item"><span class="dock-icon">📷</span><span>记记忆</span></div>
+              <div class="dock-item"><span class="dock-icon">🎟️</span><span>票根</span></div>
+              <div class="dock-item" style="color: var(--color-warm-gold);"><span class="dock-icon">📅</span><span>完整排期</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================================
+           方案 D: 实体手环票根 (Physical Wristband & Ticket)
+           ====================================================================== -->
+      <div class="variant-column" id="col-d">
+        <div class="variant-card-header">
+          <div class="variant-tag" style="color: #FF7043;">方案 D · 实体物感型</div>
+          <div class="variant-title">音乐节手环与打孔票根</div>
+          <div class="variant-desc">
+            数字化实体音乐节布艺手环、金属锁扣与打孔门票存根。具备强烈的青年独立摇滚气息、粗体打标排版与触手可及的物性仪式感。
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="dynamic-island">
+            <span class="island-icon" style="background: #E64A19;"></span>
+            <span class="island-time">11:05</span>
+          </div>
+          <div class="phone-status-bar">
+            <span>09:41</span>
+            <span>5G 􀛨</span>
+          </div>
+
+          <div class="phone-screen">
+            <div class="wristband-ticket-container">
+              <!-- 布艺手环条 -->
+              <div class="cloth-wristband-strap">
+                <span>STRAWBERRY 2026 · VIP PASS</span>
+                <span style="font-size: 10px; opacity: 0.8;">SHANGHAI</span>
+                <div class="wristband-clip"></div>
+              </div>
+
+              <!-- 打孔票根主卡 -->
+              <div class="ticket-stub-card">
+                <div class="ticket-header-meta">
+                  <span>NOW PLAYING ON STAGE</span>
+                  <span>NO. 002-LOVE</span>
+                </div>
+
+                <div class="ticket-main-artist">
+                  King Gizzard &amp;<br>The Lizard Wizard
+                </div>
+
+                <div class="ticket-time-strip">
+                  <span>爱舞台 · 现场直击</span>
+                  <span style="color: var(--color-live-pink);">10:39 - 11:29</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                  <span style="font-size: 12px; font-weight: 700; color: #FF3B5C;">❤️ 标记想看 · 现场走秒中</span>
+                  <button style="padding: 6px 12px; font-size: 11px; font-weight: 700; border-radius: 6px; background: rgba(255,255,255,0.12); color: #FFF; border: none; cursor: pointer;">
+                    打卡印章
+                  </button>
+                </div>
+              </div>
+
+              <!-- 次级票根副券 -->
+              <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 11px; color: var(--text-secondary-dark);">PARALLEL SET · 并行场次</div>
+                  <div style="font-size: 14px; font-weight: 700;">草莓舞台 · 落日飞车</div>
+                </div>
+                <div style="font-size: 12px; font-family: monospace; color: var(--text-secondary-dark);">10:24-11:39</div>
+              </div>
+            </div>
+
+            <!-- 底部快捷工具栏 -->
+            <div class="phone-dock-bar">
+              <div class="dock-item"><span class="dock-icon">👥</span><span>添加同行</span></div>
+              <div class="dock-item"><span class="dock-icon">📷</span><span>记记忆</span></div>
+              <div class="dock-item"><span class="dock-icon">🎟️</span><span>票根</span></div>
+              <div class="dock-item" style="color: var(--color-warm-gold);"><span class="dock-icon">📅</span><span>完整排期</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Interactive Simulation Scrubber at Bottom -->
+    <div class="sim-bar">
+      <div class="sim-left">
+        <span style="font-size: 18px;">⏱️</span>
+        <div>
+          <div style="font-size: 13px; font-weight: 800;">现场时间流动模拟器 (Live Scrubber)</div>
+          <div style="font-size: 11px; color: var(--text-secondary-dark);">拖动滑块模拟现场行进中的剩余时间与进度条响应</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="sim-slider-label" id="simTimeLabel">当前现场时间：11:05 (余 24分钟)</span>
+        <input type="range" min="0" max="100" value="50" class="sim-slider" id="timeSlider" oninput="onTimeSliderChange(this.value)">
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // View Switcher (All vs Single)
+    function switchView(mode) {
+      const btns = document.querySelectorAll('#viewModeControl .segmented-btn');
+      btns.forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const colA = document.getElementById('col-a');
+      const colB = document.getElementById('col-b');
+      const colC = document.getElementById('col-c');
+      const colD = document.getElementById('col-d');
+      const grid = document.getElementById('mainGrid');
+
+      if (mode === 'all') {
+        grid.style.display = 'grid';
+        colA.style.display = 'block';
+        colB.style.display = 'block';
+        colC.style.display = 'block';
+        colD.style.display = 'block';
+      } else {
+        grid.style.display = 'flex';
+        grid.style.justifyContent = 'center';
+        colA.style.display = mode === 'a' ? 'block' : 'none';
+        colB.style.display = mode === 'b' ? 'block' : 'none';
+        colC.style.display = mode === 'c' ? 'block' : 'none';
+        colD.style.display = mode === 'd' ? 'block' : 'none';
+      }
+    }
+
+    // Toggle Daylight Environment Mode
+    function toggleEnvironment() {
+      const isDaylight = document.body.classList.toggle('daylight-env');
+      const icon = document.getElementById('envIcon');
+      const label = document.getElementById('envLabel');
+
+      if (isDaylight) {
+        icon.textContent = '🌙';
+        label.textContent = '切换暗夜舞台模式';
+      } else {
+        icon.textContent = '☀️';
+        label.textContent = '切换户外强光模式';
+      }
+    }
+
+    // Live Slider Change
+    function onTimeSliderChange(val) {
+      const remainMinutes = Math.max(1, Math.round(50 - (val * 0.45)));
+      const label = document.getElementById('simTimeLabel');
+      label.textContent = `当前现场时间：11:${Math.min(59, 10 + Math.floor(val * 0.35))} (余 ${remainMinutes}分钟)`;
+
+      // Update A
+      const remainA = document.getElementById('remainA');
+      if (remainA) remainA.textContent = `还剩 ${remainMinutes} 分钟`;
+
+      // Update B progress
+      const p1 = document.getElementById('progressB1');
+      const p2 = document.getElementById('progressB2');
+      if (p1) p1.style.width = `${Math.min(100, parseInt(val) + 20)}%`;
+      if (p2) p2.style.width = `${Math.min(100, parseInt(val) + 30)}%`;
+    }
+
+    // Timer Auto Tick
+    let seconds = 5025;
+    setInterval(() => {
+      seconds++;
+      const hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+      const secs = String(seconds % 60).padStart(2, '0');
+      const timerStr = `${hrs}:${mins}:${secs}`;
+
+      const tA = document.getElementById('timerA');
+      if (tA) tA.textContent = timerStr;
+    }, 1000);
+  </script>
+</body>
+</html>

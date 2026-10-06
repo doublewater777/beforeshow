@@ -374,6 +374,7 @@
 		C2932172BA57A6981E9BCC0C /* ListeningLidSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAD7534A70FDECFFF84674F3 /* ListeningLidSelectionTests.swift */; };
 		C332BC3929EFC7AF98DDEB54 /* WidgetTimelinePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1A165A2C555CC97C803683 /* WidgetTimelinePlanner.swift */; };
 		C405653CDC8B754ABD26736A /* ListeningDeck.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC60CA0EABDF84C9E90E79A6 /* ListeningDeck.swift */; };
+		C4A7C327A39727E78A9A86DC /* TimetableStageMatrixView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C049F63AB646AD21C0F75C /* TimetableStageMatrixView.swift */; };
 		C4C5D9144B75B152BB6FBDCC /* ListeningEmptyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F558C03CFF40A8A85AC7A92 /* ListeningEmptyView.swift */; };
 		C4F835031493606E71BACCD0 /* ListeningMusicContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D024883624FF980BCBCDA7 /* ListeningMusicContracts.swift */; };
 		C59C216DB3EB1AB600A28E56 /* ShowScreenshotRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17098BD24AC149A783AB802 /* ShowScreenshotRecognitionService.swift */; };
@@ -721,6 +722,7 @@
 		619CAC680E3D044C14478072 /* CompanionReviewerRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionReviewerRegressionTests.swift; sourceTree = "<group>"; };
 		624D7A7F9CD38403E3EF8361 /* MusicKitListeningPlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitListeningPlaybackService.swift; sourceTree = "<group>"; };
 		6287BC80F1F7D37458EA5AD4 /* DynamicCover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCover.swift; sourceTree = "<group>"; };
+		62C049F63AB646AD21C0F75C /* TimetableStageMatrixView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableStageMatrixView.swift; sourceTree = "<group>"; };
 		63572CE268CBBEDF2D7CEBF3 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		635A08F180A354053CC188E2 /* ListeningDiscDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDiscDetailView.swift; sourceTree = "<group>"; };
 		6415F4606243641BAC1FF562 /* FeatureRecommendationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureRecommendationPolicy.swift; sourceTree = "<group>"; };
@@ -1885,6 +1887,7 @@
 				3D7082EA747B39BD5A466D99 /* TimetablePerformanceCard.swift */,
 				066008E82A40317A1899C6FE /* TimetableReviewView.swift */,
 				91738D374C36140225E51F99 /* TimetableSheet.swift */,
+				62C049F63AB646AD21C0F75C /* TimetableStageMatrixView.swift */,
 			);
 			path = Timetable;
 			sourceTree = "<group>";
@@ -2419,6 +2422,7 @@
 				D146886F32CD6C81973B0371 /* TimetablePeriodPolicy.swift in Sources */,
 				D4C9E50F0C7D24CE5EE0BFEB /* TimetableReviewView.swift in Sources */,
 				32421F3B0D4C674879CBB1D9 /* TimetableSheet.swift in Sources */,
+				C4A7C327A39727E78A9A86DC /* TimetableStageMatrixView.swift in Sources */,
 				05B3AF3CC65AD3D18E870BB1 /* TimetableTimePolicy.swift in Sources */,
 				8BD965DA7D028A39E968D632 /* VenueAddressAutocomplete.swift in Sources */,
 				5A8AF2CF74CA5D6E9A78E2B4 /* WidgetCoverCache.swift in Sources */,

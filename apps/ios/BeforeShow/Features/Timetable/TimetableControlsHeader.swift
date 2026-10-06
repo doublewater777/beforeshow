@@ -29,11 +29,6 @@ struct TimetableControlsHeader: View {
             if viewMode == .timeline {
                 periodFilterBar
             }
-
-            // Stage filter bar (when in byStage mode)
-            if viewMode == .byStage {
-                stageFilterBar(stages: currentDayStages)
-            }
         }
     }
 

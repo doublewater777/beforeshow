@@ -4,7 +4,7 @@ import SwiftUI
 
 enum TimetableViewMode: String, CaseIterable, Identifiable {
     case timeline
-    case byStage
+    case stageMatrix
 
     var id: String { rawValue }
 
@@ -12,8 +12,8 @@ enum TimetableViewMode: String, CaseIterable, Identifiable {
         switch self {
         case .timeline:
             return BSLocalization.text("时间流")
-        case .byStage:
-            return BSLocalization.text("按舞台")
+        case .stageMatrix:
+            return BSLocalization.text("舞台矩阵")
         }
     }
 }
@@ -55,7 +55,7 @@ struct TimetableExperienceView: View {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
         if args.contains("--timetable-view-stage") {
-            initialViewMode = .byStage
+            initialViewMode = .stageMatrix
         }
         if args.contains("--timetable-filter-interested") {
             initialPeriod = .interested
@@ -125,7 +125,7 @@ struct TimetableExperienceView: View {
         let all = currentDayPerformances
 
         return all.filter { perf in
-            if viewMode == .byStage {
+            if viewMode == .stageMatrix {
                 if let stageID = selectedStageID {
                     return perf.stage?.id == stageID
                 }
@@ -156,14 +156,23 @@ struct TimetableExperienceView: View {
                     interestedCount: interestedPerformances.count
                 )
 
-                if totalClashesCount > 0 {
-                    clashSummaryBanner
-                }
-
-                if filteredPerformances.isEmpty {
-                    emptyFilterView
+                if viewMode == .stageMatrix {
+                    TimetableStageMatrixView(
+                        day: currentDay,
+                        referenceNow: referenceNow,
+                        timeZone: timeZone,
+                        onToggleInterested: toggleInterested
+                    )
                 } else {
-                    performanceList
+                    if totalClashesCount > 0 {
+                        clashSummaryBanner
+                    }
+
+                    if filteredPerformances.isEmpty {
+                        emptyFilterView
+                    } else {
+                        performanceList
+                    }
                 }
             }
             .padding(.horizontal, BSSpacing.md)
