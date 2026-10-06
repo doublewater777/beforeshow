@@ -48,8 +48,26 @@ struct TimetableExperienceView: View {
         self.originalImagesCount = originalImagesCount
 
         let days = timetable.orderedDays
-        let initialDayID = days.first?.id ?? UUID()
+        var initialDayID = days.first?.id ?? UUID()
+        var initialViewMode: TimetableViewMode = .timeline
+        var initialPeriod: TimetablePeriodFilter = .all
+
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--timetable-view-stage") {
+            initialViewMode = .byStage
+        }
+        if args.contains("--timetable-filter-interested") {
+            initialPeriod = .interested
+        }
+        if args.contains("--timetable-day-2"), days.count > 1 {
+            initialDayID = days[1].id
+        }
+        #endif
+
         _selectedDayID = State(initialValue: initialDayID)
+        _viewMode = State(initialValue: initialViewMode)
+        _periodFilter = State(initialValue: initialPeriod)
     }
 
     private var currentDay: TimetableDay? {

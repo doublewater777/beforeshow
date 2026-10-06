@@ -89,6 +89,10 @@ struct CurrentShowManagementSection: View {
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 presentedSheet = .memory
             }
+            if ProcessInfo.processInfo.arguments.contains("--open-timetable") {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                presentedSheet = .asset(.timetable)
+            }
         }
         #endif
         .sheet(item: $presentedSheet, onDismiss: presentedSheetDidDismiss) { sheet in
@@ -304,6 +308,7 @@ struct CurrentShowManagementSection: View {
 
         ZStack(alignment: .top) {
             ScrollView(.vertical, showsIndicators: false) {
+                ScrollViewReader { scrollProxy in
                 LazyVStack(spacing: 0) {
                     Color.clear
                         .frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
@@ -334,6 +339,7 @@ struct CurrentShowManagementSection: View {
                             state: liveState,
                             onOpenTimetable: { presentedSheet = .asset(.timetable) }
                         )
+                        .id("live-section")
                         .padding(.horizontal, 21)
                         .padding(.top, 20)
                         .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
@@ -405,6 +411,17 @@ struct CurrentShowManagementSection: View {
                 }
                 .padding(.bottom, BSLayout.tabBarContentInset)
                 .frame(maxWidth: .infinity)
+                #if DEBUG
+                .task {
+                    if ProcessInfo.processInfo.arguments.contains("--scroll-to-live-section") {
+                        try? await Task.sleep(nanoseconds: 1_200_000_000)
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            scrollProxy.scrollTo("live-section", anchor: .top)
+                        }
+                    }
+                }
+                #endif
+                }
             }
             .modifier(HomeHeaderScrollObserver(isOverContent: $isHeaderOverContent))
 

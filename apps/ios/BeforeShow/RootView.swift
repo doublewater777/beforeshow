@@ -81,6 +81,7 @@ struct RootView: View {
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
+            TimetableDebugSeeder.seedIfRequested(in: modelContext)
             FootprintDebugSeeder.seedIfRequested(in: modelContext)
             let args = ProcessInfo.processInfo.arguments
             if args.contains("--open-listening") || args.contains("--listen-fixture") { selectedTab = .listen }

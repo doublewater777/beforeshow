@@ -352,6 +352,7 @@
 		B873B3271FAB6E781590F727 /* LocalDataInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859ABDE91690C2F3A061F2AB /* LocalDataInventory.swift */; };
 		B8E928528DE9237FDEA9C40B /* CompanionPendingInviteDrainPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E75E1CBD66CC4A663A1964 /* CompanionPendingInviteDrainPolicy.swift */; };
 		B8EDEF780D7F04E461B8EF82 /* CurrentShowCompanionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59153E7457D318B5DDFD1885 /* CurrentShowCompanionView.swift */; };
+		BA47158676F4D95BFCE36466 /* TimetableDebugSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A644C1E4C2024637F3D0CA2 /* TimetableDebugSeeder.swift */; };
 		BA8FFCFDC791D184272AB7BC /* CurrentShowSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BC0D41B89058E361123A3F /* CurrentShowSelectionTests.swift */; };
 		BAE533CB3937E54A93C7869F /* ShowAssetCleanupRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D203B4A349DDA82CE893F020 /* ShowAssetCleanupRetry.swift */; };
 		BAF0D95A229D0ED6190304D2 /* ListeningDiscTrackRowState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5D2988ACF887A50524C033 /* ListeningDiscTrackRowState.swift */; };
@@ -726,6 +727,7 @@
 		6771BBFDDF8F146A5BB772CC /* HomeHeroPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHeroPresentation.swift; sourceTree = "<group>"; };
 		68C40AF8AD11DBEBCB29DDC1 /* BeforeShowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowApp.swift; sourceTree = "<group>"; };
 		697EFAA942B8BD5B37C63D98 /* BeforeShow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BeforeShow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6A644C1E4C2024637F3D0CA2 /* TimetableDebugSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableDebugSeeder.swift; sourceTree = "<group>"; };
 		6A6C0B246754220795B4AF16 /* FootprintDashboardSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDashboardSections.swift; sourceTree = "<group>"; };
 		6AA0AF8154B5EBEE9411F582 /* ListeningRoomHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningRoomHeader.swift; sourceTree = "<group>"; };
 		6B4598A90A4B87490D2AB557 /* CountdownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidgetViews.swift; sourceTree = "<group>"; };
@@ -1828,6 +1830,7 @@
 			children = (
 				DB64C1CA1C660E4A20FBF7D9 /* AppStoreWidgetPreviewView.swift */,
 				C44BEEF212FB83909D3F65D1 /* DebugSampleShowSeeder.swift */,
+				6A644C1E4C2024637F3D0CA2 /* TimetableDebugSeeder.swift */,
 			);
 			path = Debug;
 			sourceTree = "<group>";
@@ -2400,6 +2403,7 @@
 				253B15AE42009FAB9D16187D /* Timetable.swift in Sources */,
 				BCA8D49E59C413641670D6BD /* TimetableClashPolicy.swift in Sources */,
 				E74A0C07C01F66649609EA45 /* TimetableControlsHeader.swift in Sources */,
+				BA47158676F4D95BFCE36466 /* TimetableDebugSeeder.swift in Sources */,
 				B203E3D34F4489D52DF883C2 /* TimetableDraft.swift in Sources */,
 				151F804F47E7DDEC6103164C /* TimetableExperienceView.swift in Sources */,
 				4795736DCE2E92816151763E /* TimetableImageRecognizer.swift in Sources */,
