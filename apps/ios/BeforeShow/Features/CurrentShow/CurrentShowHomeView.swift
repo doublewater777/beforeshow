@@ -199,7 +199,7 @@ struct CurrentShowHomeView: View {
                 .preferredColorScheme(.dark)
             }
             .fullScreenCover(isPresented: $isShowingWidgetPreview) {
-                AppStoreWidgetPreviewView()
+                LiveAndWidgetShowcaseView()
             }
             #endif
             .task(id: widgetSyncFingerprint) {
