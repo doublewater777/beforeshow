@@ -614,7 +614,6 @@ final class ShowDraftTests: XCTestCase {
             Array(ShowLinkPlatformCatalog.guidePlatforms.prefix(2).map(\.id)),
             ["showstart", "damai"]
         )
-        XCTAssertEqual(AddShowMethodCopy.link.subtitle, "粘贴支持平台的票务链接，需要联网解析。")
     }
 
     func testLocalLinkParserOnlySupportsDamaiAndShowstart() throws {

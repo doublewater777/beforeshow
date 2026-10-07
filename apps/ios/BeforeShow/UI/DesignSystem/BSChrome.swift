@@ -150,10 +150,11 @@ extension BSNavigationBackSwipeController: UIGestureRecognizerDelegate {
 
 struct BSChromeToolbarCloseButton: ToolbarContent {
     var accessibilityLabel: String = "关闭"
+    var placement: ToolbarItemPlacement = .topBarLeading
     let action: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: placement) {
             Button(action: action) {
                 Image(systemName: "xmark")
             }

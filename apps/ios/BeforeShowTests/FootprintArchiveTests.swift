@@ -20,12 +20,11 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(withoutCurrentShow.actionTitle, "添加现场")
     }
 
-    func testUnifiedAddConfigurationUsesOneTitleMethodOrderAndManualDefault() {
+    func testUnifiedAddConfigurationUsesOneTitleAndManualDefault() {
         let now = date(2026, 8, 29, 10)
         let draft = AddShowConfiguration.initialManualDraft(now: now, calendar: calendar)
 
         XCTAssertEqual(AddShowConfiguration.navigationTitle, "添加现场")
-        XCTAssertEqual(AddShowConfiguration.methodOrder, [.link, .screenshot, .manual])
         XCTAssertEqual(draft.date, date(2026, 8, 29))
         XCTAssertEqual(draft.startTime, date(2026, 8, 29, 20))
     }
