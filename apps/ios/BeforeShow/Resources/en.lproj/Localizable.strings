@@ -1816,3 +1816,17 @@ First show: %@";
 
 "舞台矩阵" = "Stage Matrix";
 "该日期下没有排期数据" = "No schedule data for this date";
+
+// In-app browser link guide
+"打开平台总览" = "Open the ticket platform";
+"以秀动为例，点击搜索栏。" = "Using ShowStart as an example, tap the search bar.";
+"搜索你要添加的演出" = "Search for your show";
+"输入艺人或演出名称，点击对应结果。" = "Enter the artist or show name, then tap its result.";
+"进入演出详情" = "Open the show details";
+"确认是你要添加的演出。" = "Check that this is the show you want to add.";
+"点击底部分享" = "Tap Share at the bottom";
+"点击浏览器底部标出的分享按钮。" = "Tap the highlighted Share button at the bottom.";
+"点击拷贝" = "Tap Copy";
+"拷贝后关闭浏览器，返回粘贴。" = "Copy, close the browser, then paste here.";
+"开始添加" = "Start adding";
+"下一步" = "Next";

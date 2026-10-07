@@ -31,6 +31,9 @@ struct AddShowFlowView: View {
     @State private var hasImportedDraft = false
     @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
+    @AppStorage("addShow.hasSeenLinkGuide") private var hasSeenLinkGuide = false
+    @State private var showsFirstLinkGuide = false
+    @State private var didInitializeLinkGuide = false
     @State private var showsLinkGuide = false
     /// 引导页里点过「打开 XX」才置真；关闭引导页时才读剪贴板内容，换平台名。
     /// 进入链接页只用 hasStrings 出 chip，避免一进来就弹系统粘贴横幅。
@@ -84,55 +87,63 @@ struct AddShowFlowView: View {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                        methodContent
-
-                        if hasImportedDraft {
-                            AddShowImportedBanner(source: sheet)
-                        }
-
-                        if shouldShowDraftFields {
-                            ShowDraftFormFields(
-                                draft: $draft,
-                                recognizedHighlight: hasImportedDraft,
-                                coverEmptyPlaceholder: true,
-                                requiresDateConfirmation: needsDateConfirmation,
-                                onConfirmFallbackDate: {
-                                    fallbackDateConfirmed = true
-                                },
-                                onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
-                                artistSearch: artistSearch,
-                                userEditedFields: $userEditedFields
-                            )
-                            // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
-                            .id(importRevision)
-                            // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
-                            .disabled(isImportingDraft)
-                            .opacity(isImportingDraft ? 0.55 : 1)
-                            .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
-
-                            currentShowToggleCard
-                        }
-
-                        if let message {
-                            AddShowNoteCard(text: message, iconName: "info.circle")
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
+            if showsFirstLinkGuide {
+                AddShowLinkGuideStepsView {
+                    hasSeenLinkGuide = true
+                    showsFirstLinkGuide = false
                 }
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.interactively)
+                .onAppear { hasSeenLinkGuide = true }
+            } else {
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                            methodContent
 
-                if shouldShowDraftFields {
-                    addSaveBar
+                            if hasImportedDraft {
+                                AddShowImportedBanner(source: sheet)
+                            }
+
+                            if shouldShowDraftFields {
+                                ShowDraftFormFields(
+                                    draft: $draft,
+                                    recognizedHighlight: hasImportedDraft,
+                                    coverEmptyPlaceholder: true,
+                                    requiresDateConfirmation: needsDateConfirmation,
+                                    onConfirmFallbackDate: {
+                                        fallbackDateConfirmed = true
+                                    },
+                                    onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
+                                    artistSearch: artistSearch,
+                                    userEditedFields: $userEditedFields
+                                )
+                                // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
+                                .id(importRevision)
+                                // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
+                                .disabled(isImportingDraft)
+                                .opacity(isImportingDraft ? 0.55 : 1)
+                                .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
+
+                                currentShowToggleCard
+                            }
+
+                            if let message {
+                                AddShowNoteCard(text: message, iconName: "info.circle")
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 24)
+                    }
+                    .scrollIndicators(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
+
+                    if shouldShowDraftFields {
+                        addSaveBar
+                    }
                 }
             }
         }
-        .navigationTitle(AddShowConfiguration.navigationTitle)
+        .navigationTitle(showsFirstLinkGuide ? BSLocalization.text("如何获取链接？") : AddShowConfiguration.navigationTitle)
         .toolbar {
             if shouldShowDraftFields {
                 ToolbarItem(placement: .topBarLeading) {
@@ -213,6 +224,10 @@ struct AddShowFlowView: View {
         }
         .onAppear {
             refreshPasteOffer(inspectContents: false)
+            if sheet == .link, !didInitializeLinkGuide {
+                showsFirstLinkGuide = !hasSeenLinkGuide
+                didInitializeLinkGuide = true
+            }
         }
         .sheet(isPresented: $showsLinkGuide, onDismiss: {
             if didOpenPlatformFromGuide {
