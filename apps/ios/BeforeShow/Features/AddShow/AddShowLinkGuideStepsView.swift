@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AddShowLinkGuideStepsView: View {
-    var completionTitle = "开始添加"
+    var completionTitle = "前往购票平台"
     var onComplete: () -> Void
 
     @State private var page = 0
@@ -16,18 +16,42 @@ struct AddShowLinkGuideStepsView: View {
 
     var body: some View {
         VStack(spacing: BSSpacing.md) {
+            // 顶栏：随时可返回平台列表，右侧显示当前步骤进度
+            HStack {
+                Button {
+                    onComplete()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(BSLocalization.text("平台列表"))
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(BSColor.Accent.violet)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(BSLocalization.text("返回平台列表"))
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Text(BSLocalization.text("秀动示例"))
+                        .foregroundStyle(BSColor.textTertiary)
+                    Text("·")
+                        .foregroundStyle(BSColor.textTertiary)
+                    Text("\(page + 1) / \(steps.count)")
+                        .foregroundStyle(BSColor.Accent.violet)
+                }
+                .font(BSFont.tag)
+            }
+            .padding(.horizontal, BSSpacing.lg)
+            .padding(.top, BSSpacing.xs)
+
             TabView(selection: $page) {
                 ForEach(steps.indices, id: \.self) { index in
                     VStack(alignment: .leading, spacing: BSSpacing.compact) {
-                        HStack {
-                            Text(BSLocalization.text("秀动示例"))
-                                .foregroundStyle(BSColor.textTertiary)
-                            Spacer()
-                            Text("\(index + 1) / \(steps.count)")
-                                .foregroundStyle(BSColor.Accent.violet)
-                        }
-                        .font(BSFont.tag)
-
                         Text(BSLocalization.text(steps[index].title))
                             .font(BSFont.headline)
                             .foregroundStyle(BSColor.textPrimary)
@@ -39,6 +63,10 @@ struct AddShowLinkGuideStepsView: View {
                             .resizable()
                             .scaledToFit()
                             .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: BSRadius.lg)
+                                    .stroke(BSColor.border, lineWidth: 1)
+                            )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                     .padding(.horizontal, BSSpacing.lg)
@@ -68,6 +96,6 @@ struct AddShowLinkGuideStepsView: View {
             .buttonStyle(EditShowSaveButtonStyle())
             .padding(.horizontal, BSSpacing.lg)
         }
-        .padding(.vertical, BSSpacing.md)
+        .padding(.bottom, BSSpacing.md)
     }
 }

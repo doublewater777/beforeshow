@@ -31,8 +31,6 @@ struct AddShowFlowView: View {
     @State private var hasImportedDraft = false
     @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
-    @AppStorage("addShow.hasSeenLinkGuide") private var hasSeenLinkGuide = false
-    @State private var showsFirstLinkGuide = false
     @State private var showsLinkGuide = false
     /// 引导页里点过「打开 XX」才置真；关闭引导页时才读剪贴板内容，换平台名。
     /// 进入链接页只用 hasStrings 出 chip，避免一进来就弹系统粘贴横幅。
@@ -63,10 +61,6 @@ struct AddShowFlowView: View {
         prefilledDraft: ShowDraft? = nil,
         onSaved: ((UUID) -> Void)? = nil
     ) {
-        _showsFirstLinkGuide = State(initialValue:
-            sheet == .link && prefilledDraft == nil
-                && !UserDefaults.standard.bool(forKey: "addShow.hasSeenLinkGuide")
-        )
         _sheet = State(initialValue: sheet)
         self.linkParser = linkParser
         self.onSaved = onSaved
@@ -90,63 +84,55 @@ struct AddShowFlowView: View {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            if showsFirstLinkGuide {
-                AddShowLinkGuideStepsView {
-                    hasSeenLinkGuide = true
-                    showsFirstLinkGuide = false
-                }
-                .onAppear { hasSeenLinkGuide = true }
-            } else {
-                VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                            methodContent
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        methodContent
 
-                            if hasImportedDraft {
-                                AddShowImportedBanner(source: sheet)
-                            }
-
-                            if shouldShowDraftFields {
-                                ShowDraftFormFields(
-                                    draft: $draft,
-                                    recognizedHighlight: hasImportedDraft,
-                                    coverEmptyPlaceholder: true,
-                                    requiresDateConfirmation: needsDateConfirmation,
-                                    onConfirmFallbackDate: {
-                                        fallbackDateConfirmed = true
-                                    },
-                                    onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
-                                    artistSearch: artistSearch,
-                                    userEditedFields: $userEditedFields
-                                )
-                                // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
-                                .id(importRevision)
-                                // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
-                                .disabled(isImportingDraft)
-                                .opacity(isImportingDraft ? 0.55 : 1)
-                                .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
-
-                                currentShowToggleCard
-                            }
-
-                            if let message {
-                                AddShowNoteCard(text: message, iconName: "info.circle")
-                            }
+                        if hasImportedDraft {
+                            AddShowImportedBanner(source: sheet)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, 24)
-                    }
-                    .scrollIndicators(.hidden)
-                    .scrollDismissesKeyboard(.interactively)
 
-                    if shouldShowDraftFields {
-                        addSaveBar
+                        if shouldShowDraftFields {
+                            ShowDraftFormFields(
+                                draft: $draft,
+                                recognizedHighlight: hasImportedDraft,
+                                coverEmptyPlaceholder: true,
+                                requiresDateConfirmation: needsDateConfirmation,
+                                onConfirmFallbackDate: {
+                                    fallbackDateConfirmed = true
+                                },
+                                onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
+                                artistSearch: artistSearch,
+                                userEditedFields: $userEditedFields
+                            )
+                            // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
+                            .id(importRevision)
+                            // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
+                            .disabled(isImportingDraft)
+                            .opacity(isImportingDraft ? 0.55 : 1)
+                            .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
+
+                            currentShowToggleCard
+                        }
+
+                        if let message {
+                            AddShowNoteCard(text: message, iconName: "info.circle")
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+                }
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+
+                if shouldShowDraftFields {
+                    addSaveBar
                 }
             }
         }
-        .navigationTitle(showsFirstLinkGuide ? BSLocalization.text("如何获取链接？") : AddShowConfiguration.navigationTitle)
+        .navigationTitle(AddShowConfiguration.navigationTitle)
         .toolbar {
             if shouldShowDraftFields {
                 ToolbarItem(placement: .topBarLeading) {
@@ -390,11 +376,14 @@ struct AddShowFlowView: View {
                         showsLinkGuide = true
                     } label: {
                         HStack(spacing: 7) {
-                            Image(systemName: "questionmark.circle")
+                            Image(systemName: "globe")
                                 .font(.system(size: 13, weight: .semibold))
-                            Text("如何获取链接？")
+                            Text(BSLocalization.text("打开购票平台"))
                                 .font(.system(size: 13, weight: .semibold))
                             Spacer(minLength: 0)
+                            Text(BSLocalization.text("如何获取链接？"))
+                                .font(.system(size: 12))
+                                .foregroundColor(BSColor.textTertiary)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 11, weight: .semibold))
                         }
@@ -404,7 +393,7 @@ struct AddShowFlowView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("查看如何获取票务链接")
+                    .accessibilityLabel(BSLocalization.text("打开购票平台并查看如何获取链接"))
                 }
 
                 if let linkFailure, !isParsingLink {
