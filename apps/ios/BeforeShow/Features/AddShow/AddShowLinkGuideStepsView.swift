@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AddShowLinkGuideStepsView: View {
+    var completionTitle = "开始添加"
     var onComplete: () -> Void
 
     @State private var page = 0
@@ -17,14 +18,23 @@ struct AddShowLinkGuideStepsView: View {
         VStack(spacing: BSSpacing.md) {
             TabView(selection: $page) {
                 ForEach(steps.indices, id: \.self) { index in
-                    VStack(spacing: BSSpacing.compact) {
+                    VStack(alignment: .leading, spacing: BSSpacing.compact) {
+                        HStack {
+                            Text(BSLocalization.text("秀动示例"))
+                                .foregroundStyle(BSColor.textTertiary)
+                            Spacer()
+                            Text("\(index + 1) / \(steps.count)")
+                                .foregroundStyle(BSColor.Accent.violet)
+                        }
+                        .font(BSFont.tag)
+
                         Text(BSLocalization.text(steps[index].title))
-                            .font(BSFont.title)
+                            .font(BSFont.headline)
                             .foregroundStyle(BSColor.textPrimary)
                         Text(BSLocalization.text(steps[index].detail))
                             .font(BSFont.caption)
                             .foregroundStyle(BSColor.textSecondary)
-                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         Image(steps[index].image)
                             .resizable()
                             .scaledToFit()
@@ -43,9 +53,6 @@ struct AddShowLinkGuideStepsView: View {
                         .fill(index == page ? BSColor.Accent.violet : BSColor.border)
                         .frame(width: BSSpacing.sm, height: BSSpacing.sm)
                 }
-                Text("\(page + 1) / \(steps.count)")
-                    .font(BSFont.tag)
-                    .foregroundStyle(BSColor.textTertiary)
             }
 
             Button {
@@ -55,7 +62,7 @@ struct AddShowLinkGuideStepsView: View {
                     withAnimation { page += 1 }
                 }
             } label: {
-                Text(BSLocalization.text(page == steps.count - 1 ? "开始添加" : "下一步"))
+                Text(BSLocalization.text(page == steps.count - 1 ? completionTitle : "下一步"))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())

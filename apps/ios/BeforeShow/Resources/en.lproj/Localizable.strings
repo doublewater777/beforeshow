@@ -1830,3 +1830,5 @@ First show: %@";
 "拷贝后关闭浏览器，返回粘贴。" = "Copy, close the browser, then paste here.";
 "开始添加" = "Start adding";
 "下一步" = "Next";
+"秀动示例" = "ShowStart example";
+"打开购票平台" = "Open a ticket platform";

@@ -27,7 +27,7 @@ struct AddShowLinkGuideView: View {
                         pickerContent
                     }
                 } else {
-                    AddShowLinkGuideStepsView {
+                    AddShowLinkGuideStepsView(completionTitle: "打开购票平台") {
                         showsPlatforms = true
                     }
                 }

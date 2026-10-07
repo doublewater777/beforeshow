@@ -33,7 +33,6 @@ struct AddShowFlowView: View {
     @State private var toast: BSToastPayload?
     @AppStorage("addShow.hasSeenLinkGuide") private var hasSeenLinkGuide = false
     @State private var showsFirstLinkGuide = false
-    @State private var didInitializeLinkGuide = false
     @State private var showsLinkGuide = false
     /// 引导页里点过「打开 XX」才置真；关闭引导页时才读剪贴板内容，换平台名。
     /// 进入链接页只用 hasStrings 出 chip，避免一进来就弹系统粘贴横幅。
@@ -64,6 +63,10 @@ struct AddShowFlowView: View {
         prefilledDraft: ShowDraft? = nil,
         onSaved: ((UUID) -> Void)? = nil
     ) {
+        _showsFirstLinkGuide = State(initialValue:
+            sheet == .link && prefilledDraft == nil
+                && !UserDefaults.standard.bool(forKey: "addShow.hasSeenLinkGuide")
+        )
         _sheet = State(initialValue: sheet)
         self.linkParser = linkParser
         self.onSaved = onSaved
@@ -224,10 +227,6 @@ struct AddShowFlowView: View {
         }
         .onAppear {
             refreshPasteOffer(inspectContents: false)
-            if sheet == .link, !didInitializeLinkGuide {
-                showsFirstLinkGuide = !hasSeenLinkGuide
-                didInitializeLinkGuide = true
-            }
         }
         .sheet(isPresented: $showsLinkGuide, onDismiss: {
             if didOpenPlatformFromGuide {
