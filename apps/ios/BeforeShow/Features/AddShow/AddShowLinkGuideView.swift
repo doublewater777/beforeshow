@@ -39,7 +39,7 @@ struct AddShowLinkGuideView: View {
                         .transition(.opacity)
                 }
             }
-            .navigationTitle(showingTutorial ? BSLocalization.text("如何获取链接？") : BSLocalization.text("打开购票平台"))
+            .navigationTitle(showingTutorial ? BSLocalization.text("如何获取链接？") : BSLocalization.text("购票平台"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -94,14 +94,20 @@ struct AddShowLinkGuideView: View {
                             onOpenPlatform?()
                             browserPage = BSInAppBrowserPage(url: url)
                         } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(BSLocalization.format("打开 %@", platform.displayName))
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(BSColor.textPrimary)
-                                Text(URL(string: platform.overviewURL)?.host() ?? platform.overviewURL)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(BSColor.textTertiary)
-                                    .lineLimit(1)
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(platform.displayName)
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundColor(BSColor.textPrimary)
+                                    Text(URL(string: platform.overviewURL)?.host() ?? platform.overviewURL)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(BSColor.textTertiary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 4)
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(BSColor.textTertiary.opacity(0.6))
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
@@ -114,7 +120,7 @@ struct AddShowLinkGuideView: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(BSLocalization.format("打开 %@", platform.displayName))
+                        .accessibilityLabel(platform.displayName)
                     }
                 }
             }
