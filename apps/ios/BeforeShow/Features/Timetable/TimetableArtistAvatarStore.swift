@@ -9,6 +9,7 @@ final class TimetableArtistAvatarStore {
     private(set) var urls: [String: URL] = [:]
     @ObservationIgnored private let search: any ArtistSearchServicing
     @ObservationIgnored private var loadedKey: Set<String> = []
+    @ObservationIgnored private var loadedLineup: [ArtistSlot] = []
 
     init(search: any ArtistSearchServicing = AppleMusicArtistSearchService()) {
         self.search = search
@@ -20,7 +21,7 @@ final class TimetableArtistAvatarStore {
 
     func load(artistNames: [String], lineup: [ArtistSlot]) async {
         let names = Set(artistNames.map(ArtistNameMatching.normalized).filter { !$0.isEmpty })
-        guard names != loadedKey else { return }
+        guard names != loadedKey || lineup != loadedLineup else { return }
 
         var found = urls
         var lineupAvatars: [String: URL] = [:]
@@ -56,6 +57,7 @@ final class TimetableArtistAvatarStore {
         }
         urls = found
         loadedKey = names
+        loadedLineup = lineup
     }
 
     static func candidateQueries(for name: String) -> [String] {

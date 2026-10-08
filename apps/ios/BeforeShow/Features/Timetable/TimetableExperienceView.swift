@@ -7,14 +7,14 @@ struct TimetableExperienceView: View {
     let timetable: Timetable
     let show: Show?
     @Binding var selectedDayID: UUID
-    let avatarURL: (String) -> URL?
+    let avatarURL: (TimetablePerformance) -> URL?
 
     @Environment(\.modelContext) private var modelContext
     @State private var wantOnly: Bool
     @State private var isSharing = false
     @Namespace private var dockIndicator
 
-    init(timetable: Timetable, show: Show?, selectedDayID: Binding<UUID>, avatarURL: @escaping (String) -> URL?) {
+    init(timetable: Timetable, show: Show?, selectedDayID: Binding<UUID>, avatarURL: @escaping (TimetablePerformance) -> URL?) {
         self.timetable = timetable
         self.show = show
         _selectedDayID = selectedDayID

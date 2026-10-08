@@ -43,6 +43,9 @@ final class TimetablePersistenceTests: XCTestCase {
                     XCTAssertEqual(day.timetable?.id, timetable.id)
                     XCTAssertEqual(day.orderedStages.map(\.name), ["Main", "River"])
                     XCTAssertEqual(day.orderedStages[0].orderedPerformances.map(\.artistName), ["Same Artist", "Late Artist"])
+                    XCTAssertEqual(day.orderedStages[0].orderedPerformances[0].appleMusicArtistID, "123")
+                    XCTAssertEqual(day.orderedStages[0].orderedPerformances[0].artistAvatarURL, "https://example.com/artist.jpg")
+                    XCTAssertNil(day.orderedStages[1].orderedPerformances[0].appleMusicArtistID)
                     for stage in day.stages {
                         XCTAssertEqual(stage.day?.id, day.id)
                         XCTAssertTrue(stage.performances.allSatisfy { $0.stage?.id == stage.id })
@@ -157,7 +160,10 @@ final class TimetablePersistenceTests: XCTestCase {
     private func makeDay(dayOffset: Int, officialDate: Date? = nil) throws -> TimetableDay {
         let offset = dayOffset * 24
         let late = try TimetablePerformance(artistName: "Late Artist", startsAt: date(offset + 23), endsAt: date(offset + 25))
-        let first = try TimetablePerformance(artistName: "Same Artist", startsAt: date(offset + 20), endsAt: date(offset + 21))
+        var firstDraft = TimetableDraftPerformance(artistName: "Same Artist", startsAt: date(offset + 20), endsAt: date(offset + 21))
+        firstDraft.connectArtist(RecognizedArtist(id: "123", canonicalName: "Same Artist",
+                                                  avatarURL: URL(string: "https://example.com/artist.jpg"), appleMusicURL: nil))
+        let first = try firstDraft.buildPerformance()
         let parallel = try TimetablePerformance(artistName: "Same Artist", startsAt: date(offset + 20), endsAt: date(offset + 22))
         let main = try TimetableStage(name: "Main", sortOrder: 0, performances: [late, first])
         let river = try TimetableStage(name: "River", sortOrder: 1, performances: [parallel])

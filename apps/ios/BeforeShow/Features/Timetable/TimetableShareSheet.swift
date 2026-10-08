@@ -8,14 +8,14 @@ struct TimetableShareSheet: View {
 
     let timetable: Timetable
     let show: Show?
-    let avatarURL: (String) -> URL?
+    let avatarURL: (TimetablePerformance) -> URL?
 
     @State private var mode: Mode
     @State private var images: [Mode: Image] = [:]
     @Environment(\.dismiss) private var dismiss
     @Namespace private var knob
 
-    init(timetable: Timetable, show: Show?, avatarURL: @escaping (String) -> URL?) {
+    init(timetable: Timetable, show: Show?, avatarURL: @escaping (TimetablePerformance) -> URL?) {
         self.timetable = timetable
         self.show = show
         self.avatarURL = avatarURL
@@ -156,7 +156,7 @@ struct TimetableShareSheet: View {
         guard images[mode] == nil else { return }
         let days = timetable.orderedDays
         let performers = days.flatMap(\.performances).filter { mode == .full || $0.isInterested }
-        var urls = Set(performers.compactMap { avatarURL($0.artistName) })
+        var urls = Set(performers.compactMap { avatarURL($0) })
         if let cover = show?.coverImageURL.flatMap(URL.init(string:)) { urls.insert(cover) }
         await withTaskGroup(of: Void.self) { group in
             for url in urls {
@@ -166,8 +166,8 @@ struct TimetableShareSheet: View {
         // Only hand over avatars that actually loaded; a failed one falls back to
         // the initial instead of a blank placeholder baked into the image.
         let avatarURL = self.avatarURL
-        let loadedAvatar: (String) -> URL? = { name in
-            avatarURL(name).flatMap { ShowCoverImageCache.shared.memoryImage(for: $0) == nil ? nil : $0 }
+        let loadedAvatar: (TimetablePerformance) -> URL? = { performance in
+            avatarURL(performance).flatMap { ShowCoverImageCache.shared.memoryImage(for: $0) == nil ? nil : $0 }
         }
 
         let identity = TimetableShareIdentity(name: show?.name ?? "", coverURL: show?.coverImageURL)
@@ -336,7 +336,7 @@ private struct TimetableShareStageLine: View {
 struct TimetablePicksPoster: View {
     let identity: TimetableShareIdentity
     let days: [TimetableDay]
-    let avatarURL: (String) -> URL?
+    let avatarURL: (TimetablePerformance) -> URL?
     let timeZone: TimeZone
 
     private struct Group: Identifiable {
@@ -463,7 +463,7 @@ struct TimetablePicksPoster: View {
 
     private func pickRow(_ pick: TimetablePerformance) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            TimetableArtistAvatar(name: pick.artistName, url: avatarURL(pick.artistName), size: 30)
+            TimetableArtistAvatar(name: pick.artistName, url: avatarURL(pick), size: 30)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: "heart.fill")
@@ -493,7 +493,7 @@ struct TimetablePicksPoster: View {
 struct TimetableFullPoster: View {
     let identity: TimetableShareIdentity
     let days: [TimetableDay]
-    let avatarURL: (String) -> URL?
+    let avatarURL: (TimetablePerformance) -> URL?
     let timeZone: TimeZone
 
     private static let width: CGFloat = 390
@@ -611,7 +611,7 @@ struct TimetableFullPoster: View {
                     .offset(y: Self.capHeight + mark.y - 6)
             }
             ForEach(layout.cards) { card in
-                cell(card, width: lane - 6)
+                cell(card, width: lane - 6, avatar: day.performances.first { $0.id == card.id }.flatMap(avatarURL))
                     .frame(width: lane - 6, height: max(card.height - 1, 18), alignment: .topLeading)
                     .offset(x: Self.ruler + CGFloat(card.laneIndex) * (lane + Self.laneGap) + 3, y: Self.capHeight + card.top + 2)
             }
@@ -621,7 +621,7 @@ struct TimetableFullPoster: View {
 
     /// Avatar above the name on tall cards, beside it on short wide ones, and text
     /// only where an avatar would squeeze the name.
-    private func cell(_ card: TimetableMatrixLayout.Card, width: CGFloat) -> some View {
+    private func cell(_ card: TimetableMatrixLayout.Card, width: CGFloat, avatar: URL?) -> some View {
         let height = max(card.height - 1, 18)
         let stacked = height >= 63
         let inline = !stacked && height >= 30 && width >= 110
@@ -629,14 +629,14 @@ struct TimetableFullPoster: View {
         return Group {
             if stacked {
                 VStack(alignment: .leading, spacing: 0) {
-                    TimetableArtistAvatar(name: card.artistName, url: avatarURL(card.artistName), size: 18)
+                    TimetableArtistAvatar(name: card.artistName, url: avatar, size: 18)
                     cellName(card, lines: height >= 77 ? 2 : 1, clearsHeart: false)
                         .padding(.top, 4)
                     cellTime(card).padding(.top, 2)
                 }
             } else if inline {
                 HStack(alignment: .top, spacing: 6) {
-                    TimetableArtistAvatar(name: card.artistName, url: avatarURL(card.artistName), size: 18)
+                    TimetableArtistAvatar(name: card.artistName, url: avatar, size: 18)
                     VStack(alignment: .leading, spacing: 2) {
                         cellName(card, lines: height >= 55 ? 2 : 1, clearsHeart: card.isInterested)
                         if showsTime { cellTime(card) }
