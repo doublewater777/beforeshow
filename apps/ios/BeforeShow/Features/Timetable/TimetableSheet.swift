@@ -26,7 +26,8 @@ struct TimetableSheet: View {
     @State private var loadedAssetImages: [UIImage] = []
     @State private var pendingImages: [UIImage] = []
     @State private var selectedDayID: UUID?
-    @State private var avatars = TimetableArtistAvatarStore()
+    @State private var avatars: TimetableArtistAvatarStore
+    @State private var artistLinker: TimetableArtistLinker
 
     init(
         showID: UUID,
@@ -36,6 +37,9 @@ struct TimetableSheet: View {
         self.showID = showID
         self.showName = showName
         self.onDetailVisibilityChange = onDetailVisibilityChange
+        let artistSearch = AppleMusicArtistSearchService()
+        _avatars = State(initialValue: TimetableArtistAvatarStore(search: artistSearch))
+        _artistLinker = State(initialValue: TimetableArtistLinker(search: artistSearch))
         _shows = Query(filter: #Predicate<Show> { $0.id == showID })
         let kindRaw = ShowAssetKind.timetable.rawValue
         _timetableAssets = Query(filter: #Predicate<ShowAsset> {
@@ -53,9 +57,9 @@ struct TimetableSheet: View {
     /// Performers on screen: the draft under review, else the saved timetable.
     private var avatarArtistNames: [String] {
         if let draft = activeReviewDraft {
-            return draft.days.flatMap { $0.stages.flatMap { $0.performances.map(\.artistName) } }
+            return draft.days.flatMap { $0.stages.flatMap { $0.performances.filter { $0.appleMusicArtistID == nil }.map(\.artistName) } }
         }
-        return currentShow?.timetable?.orderedDays.flatMap(\.performances).map(\.artistName) ?? []
+        return currentShow?.timetable?.orderedDays.flatMap(\.performances).filter { $0.appleMusicArtistID == nil }.map(\.artistName) ?? []
     }
 
     private var showsTimetable: Bool {
@@ -77,6 +81,7 @@ struct TimetableSheet: View {
                         ),
                         originalThumbnail: originalImages.first,
                         avatarURL: avatars.url(for:),
+                        artistLinker: artistLinker,
                         isOriginalVisible: $isOriginalVisible,
                         isSaving: coordinator.isSaving,
                         onSave: save,
@@ -92,7 +97,7 @@ struct TimetableSheet: View {
                         timetable: timetable,
                         show: currentShow,
                         selectedDayID: dayBinding(for: timetable),
-                        avatarURL: avatars.url(for:)
+                        avatarURL: avatarURL(for:)
                     )
                 } else if hasSavedImages {
                     legacyImagesContent
@@ -150,10 +155,11 @@ struct TimetableSheet: View {
             }
         }
         .task {
+            try? artistLinker.loadKnownArtists(in: modelContext)
             await loadSavedImages()
         }
-        .task(id: avatarArtistNames) {
-            await avatars.load(artistNames: avatarArtistNames, lineup: currentShow?.artists ?? [])
+        .task(id: avatarArtistNames + artistLinker.avatarLineup.map { $0.name + ($0.avatarURL ?? "") }) {
+            await avatars.load(artistNames: avatarArtistNames, lineup: artistLinker.avatarLineup + (currentShow?.artists ?? []))
         }
         .alert(
             BSLocalization.text("删除时刻表"),
@@ -233,6 +239,19 @@ struct TimetableSheet: View {
         )
     }
 
+    private func importingDraft(_ draft: TimetableDraft) -> TimetableDraft {
+        var draft = draft
+        artistLinker.reuseKnownArtists(in: &draft)
+        return draft
+    }
+
+    private func avatarURL(for performance: TimetablePerformance) -> URL? {
+        if performance.appleMusicArtistID != nil {
+            return performance.artistAvatarURL.flatMap(URL.init(string:))
+        }
+        return avatars.url(for: performance.artistName)
+    }
+
     private func save() {
         Task {
             guard let show = currentShow, let draft = activeReviewDraft else { return }
@@ -278,7 +297,7 @@ struct TimetableSheet: View {
                         guard let show = currentShow else { return }
                         await coordinator.recognizeFromExistingAssets(assets: timetableAssets, show: show)
                         if let d = coordinator.draft {
-                            activeReviewDraft = d
+                            activeReviewDraft = importingDraft(d)
                         }
                     }
                 } label: {
@@ -334,7 +353,7 @@ struct TimetableSheet: View {
         pendingImages = images
         await coordinator.recognize(images: images, show: show)
         if let d = coordinator.draft {
-            activeReviewDraft = d
+            activeReviewDraft = importingDraft(d)
         } else {
             pendingImagesData = []
             pendingImages = []

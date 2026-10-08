@@ -7,7 +7,7 @@ struct TimetableStageMatrixView: View {
     let now: Date
     let timeZone: TimeZone
     let wantOnly: Bool
-    let avatarURL: (String) -> URL?
+    let avatarURL: (TimetablePerformance) -> URL?
     let onToggleInterested: (TimetablePerformance) -> Void
 
     @State private var position = ScrollPosition(edge: .top)
@@ -148,7 +148,7 @@ struct TimetableStageMatrixView: View {
                 TimetableMatrixCard(
                     card: card,
                     width: lane,
-                    avatarURL: avatarURL(card.artistName),
+                    avatarURL: performances[card.id].flatMap(avatarURL),
                     isGhost: wantOnly && !card.isInterested,
                     nowOffset: card.status == .live ? layout.nowY.map { $0 - card.top } : nil,
                     stageTint: TimetableStageLight.color(day.orderedStages[card.laneIndex].sortOrder),

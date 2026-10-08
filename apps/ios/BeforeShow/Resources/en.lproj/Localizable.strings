@@ -1869,3 +1869,7 @@ First show: %@";
 "辛苦了，%@继续" = "Rest up. Back %@.";
 "%@ %@ 继续" = "Back %1$@ at %2$@";
 "还有 %d 天" = "In %d days";
+
+"连接艺人（可选）" = "Connect artist (optional)";
+
+"解除艺人连接" = "Disconnect artist";

@@ -151,13 +151,18 @@ final class TimetableStage {
 final class TimetablePerformance {
     private(set) var id: UUID
     private(set) var artistName: String
+    private(set) var appleMusicArtistID: String?
+    private(set) var artistAvatarURL: String?
     private(set) var startsAt: Date
     private(set) var endsAt: Date
     /// Explicit intent for this performance only; never inferred from listening or attendance.
     var isInterested: Bool = false
     var stage: TimetableStage?
 
-    init(id: UUID = UUID(), artistName: String, startsAt: Date, endsAt: Date) throws {
+    init(
+        id: UUID = UUID(), artistName: String, startsAt: Date, endsAt: Date,
+        appleMusicArtistID: String? = nil, artistAvatarURL: String? = nil
+    ) throws {
         let artistName = artistName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !artistName.isEmpty else { throw TimetableValidationError.emptyArtistName }
         guard startsAt.timeIntervalSince1970.isFinite,
@@ -166,6 +171,10 @@ final class TimetablePerformance {
         }
         self.id = id
         self.artistName = artistName
+        let artistID = appleMusicArtistID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasArtistID = artistID?.isEmpty == false
+        self.appleMusicArtistID = hasArtistID ? artistID : nil
+        self.artistAvatarURL = hasArtistID ? artistAvatarURL : nil
         self.startsAt = startsAt
         self.endsAt = endsAt
     }
