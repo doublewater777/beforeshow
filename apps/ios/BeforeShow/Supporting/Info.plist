@@ -4,12 +4,6 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>zh-Hans</string>
-		<string>zh-Hant</string>
-		<string>en</string>
-	</array>
 	<key>CFBundleDisplayName</key>
 	<string>开场前</string>
 	<key>CFBundleExecutable</key>
@@ -18,8 +12,18 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hans</string>
+		<string>zh-Hant</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -31,21 +35,36 @@
 			</array>
 		</dict>
 	</array>
-	<key>CFBundlePackageType</key>
-	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSRequiresIPhoneOS</key>
+	<key>CKSharingSupported</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>iosamap</string>
 		<string>baidumap</string>
 		<string>comgooglemaps</string>
 	</array>
-
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>用于获取 Apple Music 艺人和歌曲信息，并根据你的授权提供可用的试听或播放能力。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>用于拍摄并保存当前现场的记忆碎片。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>用于录制当前现场记忆碎片中的视频声音。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>用于把现场封面和足迹卡保存到照片。</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>PostHogAPIKey</key>
+	<string>$(POSTHOG_API_KEY)</string>
+	<key>PostHogHost</key>
+	<string>$(POSTHOG_HOST)</string>
+	<key>RevenueCatAPIKey</key>
+	<string>$(REVENUECAT_API_KEY)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -63,51 +82,26 @@
 			</array>
 		</dict>
 	</dict>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
 	<key>UIApplicationShortcutItems</key>
 	<array>
 		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>com.doublewaterapps.beforeshow.pro-discount</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Pro 限时优惠</string>
 			<key>UIApplicationShortcutItemSubtitle</key>
 			<string>最高 40% OFF</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Pro 限时优惠</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.doublewaterapps.beforeshow.pro-discount</string>
 		</dict>
-	</array>
-	<!-- PostHog analytics configuration. Values are injected from POSTHOG_API_KEY
-	     and POSTHOG_HOST build settings defined in project.yml. -->
-	<key>PostHogAPIKey</key>
-	<string>$(POSTHOG_API_KEY)</string>
-	<key>PostHogHost</key>
-	<string>$(POSTHOG_HOST)</string>
-	<!-- RevenueCat subscription configuration. Value is injected from
-	     REVENUECAT_API_KEY build setting defined in project.yml. -->
-	<key>RevenueCatAPIKey</key>
-	<string>$(REVENUECAT_API_KEY)</string>
-
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>CKSharingSupported</key>
-	<true/>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>用于把现场封面和足迹卡保存到照片。</string>
-	<key>NSCameraUsageDescription</key>
-	<string>用于拍摄并保存当前现场的记忆碎片。</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>用于录制当前现场记忆碎片中的视频声音。</string>
-	<key>NSAppleMusicUsageDescription</key>
-	<string>用于获取 Apple Music 艺人和歌曲信息，并根据你的授权提供可用的试听或播放能力。</string>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 </dict>
 </plist>
