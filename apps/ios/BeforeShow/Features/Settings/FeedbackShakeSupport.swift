@@ -114,6 +114,7 @@ final class FeedbackShakeResponderView: UIView {
 struct FeedbackShakeShortcutModifier: ViewModifier {
     @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeEnabled = true
     @State private var isShowingFeedback = false
+    @State private var toast: BSToastPayload?
 
     func body(content: Content) -> some View {
         content
@@ -125,8 +126,20 @@ struct FeedbackShakeShortcutModifier: ViewModifier {
                 .frame(width: 0, height: 0)
             }
             .sheet(isPresented: $isShowingFeedback) {
-                FeedbackShakeSheet()
+                FeedbackShakeSheet {
+                    presentToast(BSLocalization.text("已收到，谢谢你的反馈"))
+                }
             }
+            .bsToastOverlay(toast, bottomPadding: 100)
+    }
+
+    private func presentToast(_ message: String) {
+        let payload = BSToastPayload(tone: .success, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if toast == payload { toast = nil }
+        }
     }
 
     @MainActor
@@ -141,6 +154,7 @@ struct FeedbackShakeShortcutModifier: ViewModifier {
 }
 
 private struct FeedbackShakeSheet: View {
+    var onSubmitted: (() -> Void)? = nil
     @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeEnabled = true
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingForm = false
@@ -148,7 +162,10 @@ private struct FeedbackShakeSheet: View {
     var body: some View {
         if isShowingForm {
             NavigationStack {
-                FeedbackView()
+                FeedbackView {
+                    dismiss()
+                    onSubmitted?()
+                }
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)

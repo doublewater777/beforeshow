@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeFeedbackEnabled = true
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingProPaywall = false
+    @State private var toast: BSToastPayload?
 
     var body: some View {
         List {
@@ -64,7 +65,9 @@ struct SettingsView: View {
             // 交互与支持
             Section {
                 NavigationLink {
-                    FeedbackView()
+                    FeedbackView {
+                        presentToast(BSLocalization.text("已收到，谢谢你的反馈"))
+                    }
                 } label: {
                     BSSettingsRow(
                         icon: "bubble.left.and.bubble.right.fill",
@@ -156,6 +159,16 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $isShowingProPaywall) {
             ProPaywallSheetView()
+        }
+        .bsToastOverlay(toast, bottomPadding: 28)
+    }
+
+    private func presentToast(_ message: String) {
+        let payload = BSToastPayload(tone: .success, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if toast == payload { toast = nil }
         }
     }
 
