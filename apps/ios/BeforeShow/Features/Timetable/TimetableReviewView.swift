@@ -1,328 +1,424 @@
 import SwiftUI
+import UIKit
 
+/// Check and correct the recognized schedule. Suspicious rows are marked in
+/// place; every fix happens inline in the row itself.
 struct TimetableReviewView: View {
     @Binding var draft: TimetableDraft
+    let originalThumbnail: UIImage?
+    let avatarURL: (String) -> URL?
+    @Binding var isOriginalVisible: Bool
+    let isSaving: Bool
     let onSave: () -> Void
     let onCancel: () -> Void
 
-    @State private var selectedDayIndex = 0
-    @State private var editingPerformanceID: UUID?
-    @State private var editingArtistName = ""
-    @State private var editingStartsAt = Date()
-    @State private var editingEndsAt = Date()
+    @State private var dayIndex = 0
+    @State private var editingID: UUID?
+    @State private var renamingStageID: UUID?
+    @State private var onlyIssues = false
+    @FocusState private var focusedStageID: UUID?
 
-    @State private var editingStageID: UUID?
-    @State private var editingStageName = ""
-    @State private var isEditingStagePresented = false
+    private var day: TimetableDraftDay? {
+        draft.days.indices.contains(dayIndex) ? draft.days[dayIndex] : nil
+    }
 
-    private var summary: TimetableDraftSummary { draft.summary }
+    private var timeZone: TimeZone { TimeZone(identifier: draft.timeZoneIdentifier) ?? .current }
+
+    private var issues: [UUID: TimetableReviewIssues.Stage] {
+        Dictionary(uniqueKeysWithValues: (day?.stages ?? []).map { ($0.id, TimetableReviewIssues.evaluate($0)) })
+    }
 
     var body: some View {
+        let issues = issues
+        let issueCount = issues.values.reduce(0) { $0 + $1.count }
         VStack(spacing: 0) {
-            headerBar
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: BSSpacing.lg) {
-                    summaryCard
-                    if draft.days.count > 1 {
-                        dayPicker
-                    }
-                    if draft.days.indices.contains(selectedDayIndex) {
-                        dayStagesView(day: draft.days[selectedDayIndex])
-                    }
-                }
-                .padding(.horizontal, BSSpacing.lg)
-                .padding(.top, BSSpacing.sm)
-                .padding(.bottom, 120)
-            }
+            header
+            controls
+            summary(issueCount: issueCount)
+            list(issues: issues)
         }
-        .background(Color.black.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom) {
-            bottomBar
-        }
-        .alert(BSLocalization.text("修改舞台名称"), isPresented: $isEditingStagePresented) {
-            TextField(BSLocalization.text("舞台名称"), text: $editingStageName)
-            Button(BSLocalization.text("确定")) {
-                if let sID = editingStageID {
-                    draft.updateStageName(stageID: sID, newName: editingStageName)
-                }
-                editingStageID = nil
-            }
-            Button(BSLocalization.text("取消"), role: .cancel) {
-                editingStageID = nil
-            }
+        .background(TimetableStyle.background.ignoresSafeArea())
+        .onChange(of: issueCount) { _, count in
+            if count == 0 { onlyIssues = false }
         }
     }
 
-    private var headerBar: some View {
+    // MARK: - Header
+
+    private var header: some View {
         HStack {
             Button(action: onCancel) {
-                Text(BSLocalization.text("取消"))
-                    .font(BSFont.body)
-                    .foregroundColor(BSColor.textSecondary)
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(TimetableStyle.muted)
+                    .frame(width: 44, height: 44)
             }
+            .accessibilityLabel(BSLocalization.text("取消"))
             Spacer()
-            Text(BSLocalization.text("检查时刻表"))
-                .font(BSFont.headline)
-                .foregroundColor(BSColor.textPrimary)
+            Text(BSLocalization.text("核对时刻表"))
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(TimetableStyle.foreground)
             Spacer()
             Button(action: onSave) {
-                Text(BSLocalization.text("保存"))
-                    .font(BSFont.headline)
-                    .foregroundColor(BSColor.Accent.warm)
+                Group {
+                    if isSaving {
+                        ProgressView().tint(TimetableStyle.background)
+                    } else {
+                        Image(systemName: "checkmark").font(.system(size: 15, weight: .heavy))
+                    }
+                }
+                .foregroundStyle(TimetableStyle.background)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(TimetableStyle.foreground))
+                .frame(width: 44, height: 44)
             }
+            .buttonStyle(TimetablePressStyle())
+            .disabled(isSaving)
+            .accessibilityLabel(BSLocalization.text("保存"))
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.sm)
+        .padding(.horizontal, 6)
     }
 
-    private var summaryCard: some View {
-        HStack(spacing: BSSpacing.md) {
-            summaryItem(
-                title: BSLocalization.text("日期"),
-                value: summary.dateRangeDescription.isEmpty ? "-" : summary.dateRangeDescription,
-                icon: "calendar"
-            )
-            Divider().frame(height: 32).overlay(Color.white.opacity(0.12))
-            summaryItem(
-                title: BSLocalization.text("舞台数"),
-                value: "\(summary.stageCount)",
-                icon: "music.mic"
-            )
-            Divider().frame(height: 32).overlay(Color.white.opacity(0.12))
-            summaryItem(
-                title: BSLocalization.text("演出数"),
-                value: "\(summary.performanceCount)",
-                icon: "guitars"
-            )
+    private var controls: some View {
+        HStack {
+            if draft.days.count > 1 {
+                TimetableDaySwitcher(items: dayItems, selection: dayBinding)
+            }
+            Spacer()
+            if let originalThumbnail {
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isOriginalVisible.toggle() }
+                } label: {
+                    Image(uiImage: originalThumbnail)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 34, height: 45)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(isOriginalVisible ? TimetableStyle.mine : Color.white.opacity(0.18), lineWidth: isOriginalVisible ? 2 : 1)
+                        )
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel(BSLocalization.text("原图对照"))
+            }
         }
-        .padding(.vertical, BSSpacing.md)
-        .padding(.horizontal, BSSpacing.lg)
-        .frame(maxWidth: .infinity)
-        .background(BSColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+    }
+
+    private func summary(issueCount: Int) -> some View {
+        HStack {
+            Text(BSLocalization.format("%d 舞台 · %d 场", day?.stages.count ?? 0, day?.stages.reduce(0) { $0 + $1.performances.count } ?? 0))
+                .font(.system(size: 13, weight: .medium).monospacedDigit())
+                .foregroundStyle(TimetableStyle.muted)
+            Spacer()
+            if issueCount > 0 {
+                Button {
+                    withAnimation(.easeOut(duration: 0.25)) { onlyIssues.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle().frame(width: 6, height: 6)
+                        Text(BSLocalization.format("%d 处待确认", issueCount))
+                    }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(onlyIssues ? TimetableStyle.background : TimetableStyle.attention)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(Capsule().fill(onlyIssues ? TimetableStyle.attention : TimetableStyle.attention.opacity(0.14)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(height: 46)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - List
+
+    private func list(issues: [UUID: TimetableReviewIssues.Stage]) -> some View {
+        ScrollView {
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                ForEach(Array((day?.stages ?? []).enumerated()), id: \.element.id) { stageIndex, stage in
+                    let stageIssues = issues[stage.id] ?? .init()
+                    let rows = stage.performances
+                        .sorted { $0.startsAt < $1.startsAt }
+                        .filter { !onlyIssues || stageIssues.flagged($0.id) || editingID == $0.id }
+                    if !onlyIssues || !rows.isEmpty {
+                        Section {
+                            ForEach(rows) { perf in
+                                if editingID == perf.id, let binding = performanceBinding(stageIndex: stageIndex, id: perf.id) {
+                                    TimetableReviewEditor(
+                                        performance: binding,
+                                        avatarURL: avatarURL(perf.artistName),
+                                        hasOverlap: stageIssues.overlapping.contains(perf.id),
+                                        timeZone: timeZone,
+                                        onDelete: { delete(perf.id) },
+                                        onDone: { withAnimation(.snappy) { editingID = nil } }
+                                    )
+                                } else {
+                                    row(perf, issues: stageIssues)
+                                }
+                            }
+                            if !onlyIssues {
+                                addButton(stageID: stage.id)
+                            }
+                        } header: {
+                            stageHeader(stage, stageIndex: stageIndex)
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 140)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func stageHeader(_ stage: TimetableDraftStage, stageIndex: Int) -> some View {
+        HStack(spacing: 8) {
+            if renamingStageID == stage.id {
+                TextField(BSLocalization.text("舞台名称"), text: stageNameBinding(stageIndex))
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundStyle(TimetableStyle.foreground)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .frame(maxWidth: 170)
+                    .background(RoundedRectangle(cornerRadius: 9).fill(TimetableStyle.card))
+                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(TimetableStyle.mine.opacity(0.55)))
+                    .focused($focusedStageID, equals: stage.id)
+                    .submitLabel(.done)
+                    .onSubmit { renamingStageID = nil }
+                    .onChange(of: focusedStageID) { _, focused in
+                        if focused != stage.id { renamingStageID = nil }
+                    }
+            } else {
+                Button {
+                    editingID = nil
+                    renamingStageID = stage.id
+                    focusedStageID = stage.id
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(stage.name)
+                            .font(.system(size: 15, weight: .heavy))
+                            .tracking(0.3)
+                            .foregroundStyle(TimetableStyle.foreground)
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(TimetableStyle.dim)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            Text("\(stage.performances.count)")
+                .font(TimetableStyle.mono(12))
+                .foregroundStyle(TimetableStyle.dim)
+            Spacer()
+        }
+        .frame(height: 44)
+        .padding(.horizontal, 20)
+        .background(.bar)
+    }
+
+    private func row(_ perf: TimetableDraftPerformance, issues: TimetableReviewIssues.Stage) -> some View {
+        let overlap = issues.overlapping.contains(perf.id)
+        let invalid = issues.invalid.contains(perf.id)
+        return Button {
+            withAnimation(.snappy) {
+                renamingStageID = nil
+                editingID = perf.id
+            }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(TimetableTimeFormat.range(perf.startsAt, perf.endsAt, timeZone: timeZone))
+                    .font(TimetableStyle.mono(13))
+                    .foregroundStyle(overlap || invalid ? TimetableStyle.attention : TimetableStyle.muted)
+                    .frame(width: 104, alignment: .leading)
+                TimetableArtistAvatar(name: perf.artistName, url: avatarURL(perf.artistName), size: 28)
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5 }
+                Text(perf.artistName.isEmpty ? BSLocalization.text("艺人名称") : perf.artistName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(perf.artistName.isEmpty ? TimetableStyle.dim : TimetableStyle.foreground)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if overlap || invalid {
+                    Circle()
+                        .fill(TimetableStyle.attention)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: TimetableStyle.attention.opacity(0.6), radius: 4)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 15)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1)
+        }
+    }
+
+    private func addButton(stageID: UUID) -> some View {
+        Button {
+            let id = draft.addPerformance(stageID: stageID)
+            withAnimation(.snappy) { editingID = id }
+        } label: {
+            Label(BSLocalization.text("添加演出"), systemImage: "plus")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(TimetableStyle.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .frame(height: 46)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
+        .padding(.bottom, 22)
+    }
+
+    // MARK: - Bindings & actions
+
+    private var dayItems: [TimetableDaySwitcher.Item] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return draft.days.enumerated().map { index, day in
+            let parts = calendar.dateComponents([.month, .day], from: day.date)
+            return .init(id: day.id, label: BSLocalization.format("第%d天", index + 1), date: "\(parts.month ?? 0)/\(parts.day ?? 0)")
+        }
+    }
+
+    private var dayBinding: Binding<UUID> {
+        Binding(
+            get: { day?.id ?? UUID() },
+            set: { id in
+                dayIndex = draft.days.firstIndex { $0.id == id } ?? 0
+                editingID = nil
+                renamingStageID = nil
+            }
         )
     }
 
-    private func summaryItem(title: String, value: String, icon: String) -> some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .foregroundColor(BSColor.textTertiary)
-                Text(title)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-            }
-            Text(value)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundColor(BSColor.textPrimary)
-        }
-        .frame(maxWidth: .infinity)
+    private func stageNameBinding(_ stageIndex: Int) -> Binding<String> {
+        let dayIndex = dayIndex
+        return Binding(
+            get: { draft.days[dayIndex].stages[stageIndex].name },
+            set: { draft.days[dayIndex].stages[stageIndex].name = $0 }
+        )
     }
 
-    private var dayPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+    private func performanceBinding(stageIndex: Int, id: UUID) -> Binding<TimetableDraftPerformance>? {
+        let dayIndex = dayIndex
+        guard let index = draft.days[dayIndex].stages[stageIndex].performances.firstIndex(where: { $0.id == id }) else { return nil }
+        return Binding(
+            get: { draft.days[dayIndex].stages[stageIndex].performances[index] },
+            set: { draft.days[dayIndex].stages[stageIndex].performances[index] = $0 }
+        )
+    }
+
+    private func delete(_ id: UUID) {
+        withAnimation(.snappy) {
+            editingID = nil
+            draft.removePerformance(id: id)
+            dayIndex = min(dayIndex, max(draft.days.count - 1, 0))
+        }
+    }
+}
+
+/// Inline editor for one performance row.
+private struct TimetableReviewEditor: View {
+    @Binding var performance: TimetableDraftPerformance
+    let avatarURL: URL?
+    let hasOverlap: Bool
+    let timeZone: TimeZone
+    let onDelete: () -> Void
+    let onDone: () -> Void
+
+    @FocusState private var nameFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+            TimetableArtistAvatar(name: performance.artistName, url: avatarURL, size: 32)
+            TextField(BSLocalization.text("艺人名称"), text: $performance.artistName)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(TimetableStyle.foreground)
+                .focused($nameFocused)
+                .submitLabel(.done)
+                .padding(.vertical, 6)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(nameFocused ? TimetableStyle.mine : Color.white.opacity(0.14))
+                        .frame(height: 1)
+                }
+            }
+
             HStack(spacing: 8) {
-                ForEach(draft.days.indices, id: \.self) { idx in
-                    let day = draft.days[idx]
-                    let isSelected = idx == selectedDayIndex
-                    Button {
-                        selectedDayIndex = idx
-                    } label: {
-                        Text(formatDayTab(day.date))
-                            .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
-                            .foregroundColor(isSelected ? .black : BSColor.textSecondary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                isSelected ? Color.white : Color.white.opacity(0.08)
-                            )
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-        }
-    }
-
-    private func dayStagesView(day: TimetableDraftDay) -> some View {
-        VStack(spacing: BSSpacing.lg) {
-            ForEach(day.stages) { stage in
-                VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                    HStack {
-                        Label(stage.name, systemImage: "music.mic")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(BSColor.Accent.warm)
-
-                        Spacer()
-
-                        Button {
-                            editingStageID = stage.id
-                            editingStageName = stage.name
-                            isEditingStagePresented = true
-                        } label: {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 12))
-                                .foregroundColor(BSColor.textTertiary)
-                                .padding(6)
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(Circle())
-                        }
-                    }
-
-                    VStack(spacing: 8) {
-                        ForEach(stage.performances) { perf in
-                            performanceRow(perf: perf, dayDate: day.date)
-                        }
-                    }
-                }
-                .padding(BSSpacing.md)
-                .background(BSColor.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-            }
-        }
-    }
-
-    private func performanceRow(perf: TimetableDraftPerformance, dayDate: Date) -> some View {
-        let isEditing = editingPerformanceID == perf.id
-
-        return VStack(spacing: 8) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(formatTimeRange(start: perf.startsAt, end: perf.endsAt))
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(BSColor.Accent.prepare)
-                    Text(perf.artistName)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
-                }
-
+                timePicker($performance.startsAt)
+                Text("–").foregroundStyle(TimetableStyle.dim)
+                timePicker($performance.endsAt)
                 Spacer()
-
-                HStack(spacing: 8) {
-                    Button {
-                        if isEditing {
-                            saveInlineEdit(for: perf.id)
-                        } else {
-                            startInlineEdit(perf: perf)
-                        }
-                    } label: {
-                        Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil")
-                            .font(.system(size: 14))
-                            .foregroundColor(isEditing ? BSColor.Accent.warm : BSColor.textTertiary)
-                            .frame(width: 32, height: 32)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Circle())
-                    }
-
-                    Button {
-                        withAnimation(.snappy) {
-                            draft.removePerformance(id: perf.id)
-                        }
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 13))
-                            .foregroundColor(Color.red.opacity(0.75))
-                            .frame(width: 32, height: 32)
-                            .background(Color.red.opacity(0.10))
-                            .clipShape(Circle())
-                    }
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(TimetableStyle.now)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(TimetableStyle.now.opacity(0.1)))
                 }
-            }
-
-            if isEditing {
-                VStack(spacing: 10) {
-                    Divider().overlay(Color.white.opacity(0.08))
-                    HStack {
-                        Text(BSLocalization.text("艺人"))
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                            .frame(width: 44, alignment: .leading)
-                        TextField(BSLocalization.text("艺人名称"), text: $editingArtistName)
-                            .font(BSFont.body)
-                            .foregroundColor(BSColor.textPrimary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    HStack {
-                        Text(BSLocalization.text("时间"))
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                            .frame(width: 44, alignment: .leading)
-                        DatePicker("", selection: $editingStartsAt, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                        Text("-")
-                            .foregroundColor(BSColor.textTertiary)
-                        DatePicker("", selection: $editingEndsAt, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                        Spacer()
-                    }
+                .buttonStyle(TimetablePressStyle())
+                .accessibilityLabel(BSLocalization.text("删除"))
+                Button(action: onDone) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(TimetableStyle.background)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(TimetableStyle.foreground))
                 }
-                .padding(.top, 4)
+                .buttonStyle(TimetablePressStyle())
+                .accessibilityLabel(BSLocalization.text("完成"))
             }
         }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TimetableStyle.card))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.08)))
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(isEditing ? 0.05 : 0.02))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, 6)
+        .transition(.scale(scale: 0.98).combined(with: .opacity))
     }
 
-    private var bottomBar: some View {
-        VStack(spacing: 8) {
-            Button(action: onSave) {
-                Label(BSLocalization.text("保存时刻表"), systemImage: "checkmark")
+    private func timePicker(_ selection: Binding<Date>) -> some View {
+        DatePicker("", selection: selection, displayedComponents: .hourAndMinute)
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .tint(hasOverlap ? TimetableStyle.attention : TimetableStyle.mine)
+            .environment(\.locale, Locale(identifier: "en_GB"))
+            .environment(\.timeZone, timeZone)
+    }
+}
+
+/// Signals worth a second look after OCR: two sets on one stage at the same
+/// time, an end before its start, or a missing name.
+enum TimetableReviewIssues {
+    struct Stage {
+        var overlapping: Set<UUID> = []
+        var invalid: Set<UUID> = []
+        var count = 0
+
+        func flagged(_ id: UUID) -> Bool { overlapping.contains(id) || invalid.contains(id) }
+    }
+
+    static func evaluate(_ stage: TimetableDraftStage) -> Stage {
+        var result = Stage()
+        let ordered = stage.performances.sorted { $0.startsAt < $1.startsAt }
+        for (i, a) in ordered.enumerated() {
+            if a.endsAt <= a.startsAt || a.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                result.invalid.insert(a.id)
+                result.count += 1
             }
-            .buttonStyle(BSPrimaryButtonStyle())
+            for b in ordered[(i + 1)...] where b.startsAt < a.endsAt && a.startsAt < b.endsAt {
+                result.overlapping.formUnion([a.id, b.id])
+                result.count += 1
+            }
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.vertical, BSSpacing.md)
-        .background(
-            Color.black.opacity(0.85)
-                .background(.ultraThinMaterial)
-                .ignoresSafeArea(edges: .bottom)
-        )
-    }
-
-    private func startInlineEdit(perf: TimetableDraftPerformance) {
-        editingPerformanceID = perf.id
-        editingArtistName = perf.artistName
-        editingStartsAt = perf.startsAt
-        editingEndsAt = perf.endsAt
-    }
-
-    private func saveInlineEdit(for id: UUID) {
-        var end = editingEndsAt
-        if end <= editingStartsAt {
-            end = Calendar.current.date(byAdding: .minute, value: 45, to: editingStartsAt) ?? editingStartsAt.addingTimeInterval(2700)
-        }
-        draft.updatePerformance(
-            id: id,
-            artistName: editingArtistName.isEmpty ? "未知艺人" : editingArtistName,
-            startsAt: editingStartsAt,
-            endsAt: end
-        )
-        editingPerformanceID = nil
-    }
-
-    private func formatDayTab(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日"
-        return formatter.string(from: date)
-    }
-
-    private func formatTimeRange(start: Date, end: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
+        return result
     }
 }

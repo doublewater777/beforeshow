@@ -97,6 +97,8 @@ enum LiveActivityPlanner {
                         hasStarted: true,
                         currentArtistName: current?.artistName,
                         currentStageName: current?.stageName,
+                        currentStartsAt: current?.startsAt,
+                        currentEndsAt: current?.endsAt,
                         nextArtistName: upcoming?.artistName,
                         nextStageName: upcoming?.stageName,
                         nextStartsAt: upcoming?.startsAt,

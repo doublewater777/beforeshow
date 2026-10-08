@@ -11,6 +11,9 @@ struct HomeCountdownLockup: View {
     /// 当前阶段的功能推荐（由主卡 owner 每天定一次）。
     var recommendation: RecommendedFeature? = nil
     var onRecommendation: ((RecommendedFeature) -> Void)? = nil
+    /// 有时刻表且处于现场模式时，卡片主体换成现场内容（谁在演、接下来、明天几点）。
+    var liveTimetable: LiveModeState? = nil
+    var onOpenTimetable: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -32,67 +35,74 @@ struct HomeCountdownLockup: View {
             statusRow(phase: phase, timeState: timeState, now: now)
                 .padding(.bottom, 8)
 
-            let identity = ShowIdentityCopy(
-                name: show.name,
-                venueName: show.venueName,
-                city: show.city
-            )
+            if let liveTimetable {
+                HomeLiveTimetableContent(state: liveTimetable)
+            } else {
+                let identity = ShowIdentityCopy(
+                    name: show.name,
+                    venueName: show.venueName,
+                    city: show.city
+                )
 
-            Text(identity.title)
-                .font(.system(size: 22, weight: .semibold))
-                .tracking(-0.45)
-                .foregroundColor(BSColor.Stage.foreground)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+                Text(identity.title)
+                    .font(.system(size: 22, weight: .semibold))
+                    .tracking(-0.45)
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
 
-            let dateText = HomeShowIdentityPresentation.dateText(for: show, timeState: timeState)
-            let venueSummary = identity.venueSummary
+                let dateText = HomeShowIdentityPresentation.dateText(for: show, timeState: timeState)
+                let venueSummary = identity.venueSummary
 
-            if dateText != nil || venueSummary != nil {
-                ViewThatFits(in: .horizontal) {
-                    identityDetails(
-                        dateText: dateText,
-                        venueSummary: venueSummary,
-                        opensRoute: onOpenRoute != nil,
-                        stacked: false
-                    )
-                    // Keep the inline candidate unwrapped so ViewThatFits can
-                    // choose the stacked layout before a date breaks in half.
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                if dateText != nil || venueSummary != nil {
+                    ViewThatFits(in: .horizontal) {
+                        identityDetails(
+                            dateText: dateText,
+                            venueSummary: venueSummary,
+                            opensRoute: onOpenRoute != nil,
+                            stacked: false
+                        )
+                        // Keep the inline candidate unwrapped so ViewThatFits can
+                        // choose the stacked layout before a date breaks in half.
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
 
-                    identityDetails(
-                        dateText: dateText,
-                        venueSummary: venueSummary,
-                        opensRoute: onOpenRoute != nil,
-                        stacked: true
-                    )
-                }
-                .padding(.top, 5)
-            }
-
-            VStack(alignment: .leading, spacing: 0) {
-                switch phase {
-                case .pre:
-                    preCountdown(timeState: timeState, now: now)
-                case .live:
-                    liveStatus(timeState: timeState, now: now)
-                case .ended:
-                    if timeState.kind == .dayEnded {
-                        endedStatus(timeState: timeState)
-                    } else if show.endedAt == nil {
-                        askingEndStatus
-                    } else {
-                        endedStatus(timeState: timeState)
+                        identityDetails(
+                            dateText: dateText,
+                            venueSummary: venueSummary,
+                            opensRoute: onOpenRoute != nil,
+                            stacked: true
+                        )
                     }
-                case .inactive:
-                    inactiveStatus(timeState: timeState)
+                    .padding(.top, 5)
                 }
-            }
-            .padding(.top, 10)
 
-            if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
+                VStack(alignment: .leading, spacing: 0) {
+                    switch phase {
+                    case .pre:
+                        preCountdown(timeState: timeState, now: now)
+                    case .live:
+                        liveStatus(timeState: timeState, now: now)
+                    case .ended:
+                        if timeState.kind == .dayEnded {
+                            endedStatus(timeState: timeState)
+                        } else if show.endedAt == nil {
+                            askingEndStatus
+                        } else {
+                            endedStatus(timeState: timeState)
+                        }
+                    case .inactive:
+                        inactiveStatus(timeState: timeState)
+                    }
+                }
+                .padding(.top, 10)
+            }
+
+            // 现场模式下主按钮统一为「完整时刻表」。
+            if liveTimetable != nil, let onOpenTimetable {
+                timetableEntry(action: onOpenTimetable)
+            } else if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
                 primaryActionButton(action)
             }
         }
@@ -426,6 +436,21 @@ struct HomeCountdownLockup: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint(action.accessibilityHint)
+        .padding(.top, 8)
+    }
+
+    private func timetableEntry(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(BSLocalization.text("完整时刻表"))
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundColor(BSColor.Stage.accent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(BSColor.Stage.accent.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(BSColor.Stage.accent.opacity(0.32), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
         .padding(.top, 8)
     }
 

@@ -212,6 +212,24 @@ struct TimetableDraft: Equatable, Sendable {
         days.removeAll { $0.stages.isEmpty }
     }
 
+    /// Appends a blank 45-minute set 15 minutes after the stage's last one; returns its id.
+    @discardableResult
+    mutating func addPerformance(stageID: UUID) -> UUID? {
+        for dIndex in days.indices {
+            guard let sIndex = days[dIndex].stages.firstIndex(where: { $0.id == stageID }) else { continue }
+            let lastEnd = days[dIndex].stages[sIndex].performances.map(\.endsAt).max()
+                ?? days[dIndex].date.addingTimeInterval(18 * 3600)
+            let performance = TimetableDraftPerformance(
+                artistName: "",
+                startsAt: lastEnd.addingTimeInterval(15 * 60),
+                endsAt: lastEnd.addingTimeInterval(60 * 60)
+            )
+            days[dIndex].stages[sIndex].performances.append(performance)
+            return performance.id
+        }
+        return nil
+    }
+
     mutating func removeStage(id: UUID) {
         for dIndex in days.indices {
             days[dIndex].stages.removeAll { $0.id == id }

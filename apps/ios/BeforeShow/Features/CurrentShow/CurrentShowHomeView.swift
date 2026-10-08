@@ -444,7 +444,8 @@ struct CurrentShowHomeView: View {
         }
 
         do {
-            let didSync = try await ShowMutationCoordinator.commitCurrentShowChange(
+            // The lights-out / ceremony that follows is the feedback; no toast in front of it.
+            _ = try await ShowMutationCoordinator.commitCurrentShowChange(
                 shows: shows,
                 selections: selections,
                 notificationStates: notificationStates,
@@ -453,12 +454,6 @@ struct CurrentShowHomeView: View {
             ) {
                 show.markEnded(at: date)
             }
-            presentToast(
-                didSync ? .success : .neutral,
-                message: didSync
-                    ? BSLocalization.text("已落幕，散场时间已计入现场记录")
-                    : BSLocalization.text("散场时间已保存，同步暂未更新")
-            )
             return show.endedAt != nil
         } catch {
             presentToast(.failure, message: BSLocalization.text("散场时间没有保存，请重试"))

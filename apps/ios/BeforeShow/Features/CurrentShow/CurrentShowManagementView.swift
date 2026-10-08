@@ -36,6 +36,8 @@ struct CurrentShowManagementSection: View {
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var isHeaderOverContent = false
+    @State private var isLiveCollapsed = false
+    @Namespace private var coverNamespace
     @State private var homeArrivalFlags = CurrentShowHomeArrivalFlags.arrived
     /// SwiftUI may nil an item binding before the dismissal animation has ended.
     /// Keep this raised until the corresponding onDismiss fires so a pending
@@ -305,14 +307,18 @@ struct CurrentShowManagementSection: View {
         let phase = HomeShowPhase(timeState: timeState, now: now)
         // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
         let coverWidth = min(352, max(0, UIScreen.main.bounds.width - 40))
+        let liveState = show.timetable.flatMap { resolveLiveModeState(timetable: $0, now: now) }
+        let isLiveLayout = liveState != nil && isLiveCollapsed
 
         ZStack(alignment: .top) {
+            if isLiveLayout { HomeLiveBackdrop(show: show) }
             ScrollView(.vertical, showsIndicators: false) {
                 ScrollViewReader { scrollProxy in
                 LazyVStack(spacing: 0) {
                     Color.clear
                         .frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
 
+                    if !isLiveLayout {
                     NavigationLink {
                         ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
                     } label: {
@@ -326,57 +332,56 @@ struct CurrentShowManagementSection: View {
                             onChooseVideo: onChooseDynamicCover,
                             opensDetail: true
                         )
+                        .matchedGeometryEffect(id: "home-cover", in: coverNamespace)
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 18)
                     .opacity(homeArrivalFlags.hasArrivedHero ? 1 : 0)
                     .scaleEffect(homeArrivalFlags.hasArrivedHero ? 1 : 0.94)
                     .offset(y: homeArrivalFlags.hasArrivedHero ? 0 : 24)
+                    }
 
-                    if let timetable = show.timetable,
-                       let liveState = resolveLiveModeState(timetable: timetable, now: now) {
-                        HomeLiveTimetableSection(
-                            state: liveState,
-                            onOpenTimetable: { presentedSheet = .asset(.timetable) }
-                        )
-                        .id("live-section")
-                        .padding(.horizontal, 21)
-                        .padding(.top, 20)
-                        .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
-                        .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
+                    if let liveState, isLiveLayout, let timetable = show.timetable {
+                        HomeLiveModeView(show: show, timetable: timetable, state: liveState, onEndShow: canRecordEnd ? { presentedSheet = .endConfirmation } : nil) { presentedSheet = .asset(.timetable) }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+                            .transition(.opacity.combined(with: .offset(y: 40)))
                     } else {
-                        CurrentShowCountdownCard(
-                            show: show,
-                            snapshot: snapshot,
-                            candidateShows: candidateShows,
-                            isVisible: isHeroPlaybackActive,
-                            onRecommendation: performRecommendation,
-                            onEndShow: canRecordEnd
-                                ? { presentedSheet = .endConfirmation }
-                                : nil,
-                            onCompanion: { presentedSheet = .companion },
-                            onMemoryFragments: {
-                                pendingMemoryCreate = nil
-                                presentedSheet = .memory
-                            },
-                            onMemoryCreate: {
-                                pendingMemoryCreate = nil
-                                presentedSheet = .memoryCreate
-                            },
-                            onOpenRoute: embedsRouteInLocation
-                                ? { openRouteChooser() }
-                                : nil
-                        )
-                        .padding(.horizontal, 21)
-                        .padding(.top, 20)
-                        .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
-                        .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
+                    CurrentShowCountdownCard(
+                        show: show,
+                        snapshot: snapshot,
+                        candidateShows: candidateShows,
+                        isVisible: isHeroPlaybackActive,
+                        onRecommendation: performRecommendation,
+                        onEndShow: canRecordEnd
+                            ? { presentedSheet = .endConfirmation }
+                            : nil,
+                        onCompanion: { presentedSheet = .companion },
+                        onMemoryFragments: {
+                            pendingMemoryCreate = nil
+                            presentedSheet = .memory
+                        },
+                        onMemoryCreate: {
+                            pendingMemoryCreate = nil
+                            presentedSheet = .memoryCreate
+                        },
+                        onOpenRoute: embedsRouteInLocation
+                            ? { openRouteChooser() }
+                            : nil,
+                        liveTimetable: liveState,
+                        onOpenTimetable: { presentedSheet = .asset(.timetable) }
+                    )
+                    .id("live-section")
+                    .padding(.horizontal, 21)
+                    .padding(.top, 20)
+                    .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
+                    .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
                     }
 
                     quickActionRow(
                         CurrentShowQuickAction.actions(
                             for: phase,
-                            canRecordEnd: canRecordEnd,
+                            canRecordEnd: canRecordEnd && !(isLiveLayout && liveState?.phase == .fullyEnded),
                             embedsRouteInLocation: embedsRouteInLocation,
                             isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
                             hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
@@ -441,41 +446,24 @@ struct CurrentShowManagementSection: View {
                 .allowsHitTesting(false)
             }
 
-            managementHeader
+            CurrentShowHomeHeader(
+                show: show,
+                live: isLiveLayout ? liveState : nil,
+                coverNamespace: coverNamespace,
+                onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { isLiveCollapsed.toggle() } },
+                onOpenSettings: onOpenSettings,
+                onAddShow: onAddShow
+            )
                 .padding(.horizontal, contentInset)
                 .padding(.top, BSLayout.pageHeaderTopPadding)
                 .zIndex(1)
         }
-    }
-
-    private var managementHeader: some View {
-        HStack {
-            Text(BSLocalization.text("当前"))
-                .font(.system(size: 32, weight: .bold))
-                .tracking(-0.5)
-                .foregroundColor(BSColor.Stage.foreground)
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 8) {
-                headerButton(icon: "gearshape", label: BSLocalization.text("设置"), action: onOpenSettings)
-                headerButton(icon: "plus", label: BSLocalization.text("添加现场"), action: onAddShow)
-            }
+        .animation(.smooth(duration: 0.6), value: isLiveLayout)
+        .task(id: liveState != nil) {
+            guard liveState != nil else { withAnimation(.smooth(duration: 0.6)) { isLiveCollapsed = false }; return }
+            try? await Task.sleep(for: .milliseconds(700))
+            withAnimation(.spring(response: 0.75, dampingFraction: 0.86)) { isLiveCollapsed = true }
         }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func headerButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                .background(Color.white.opacity(0.07), in: Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
     }
 
     private var embedsRouteInLocation: Bool {
@@ -553,6 +541,7 @@ struct CurrentShowManagementSection: View {
             pendingConfirmedEndDate = nil
             pendingEndIntent = nil
             isPresentationVisibilityLatched = true
+            let wasLive = isLiveCollapsed
             Task { @MainActor in
                 let didConfirm = await onConfirmEnd(date)
                 guard didConfirm else {
@@ -561,6 +550,7 @@ struct CurrentShowManagementSection: View {
                 }
                 switch intent {
                 case .justEnded:
+                    if wasLive { try? await Task.sleep(for: .milliseconds(700)) }
                     ceremonyLightsOutShowID = show.id
                 case .backfill:
                     ceremonySheetShowID = show.id
@@ -608,8 +598,12 @@ struct CurrentShowManagementSection: View {
         switch state.phase {
         case .active, .dayEnded:
             return state
-        case .upcoming, .fullyEnded:
-            return nil
+        case .upcoming(let first):
+            // 演出日当天开场前也进现场模式：首场时间 + 头两场。
+            return Calendar.current.isDate(first, inSameDayAs: now) ? state : nil
+        case .fullyEnded:
+            // 全部演出结束、用户确认散场前，保持现场模式收尾。
+            return timetable.show?.endedAt == nil && timetable.orderedDays.contains { !$0.performances.isEmpty } ? state : nil
         }
     }
 }

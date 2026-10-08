@@ -55,7 +55,50 @@ struct LiveDayInput: Equatable, Sendable {
     let performances: [LivePerformanceInput]
 }
 
+/// Festival-day arithmetic for day-ended copy. A night that runs past midnight
+/// still belongs to the day it started, so a festival day turns at 06:00.
+enum FestivalDay {
+    static let turnHour = 6
+
+    /// Festival days from `from` to `to`: 0 = the same festival day, 1 = the next one.
+    static func distance(from: Date, to: Date, calendar: Calendar) -> Int {
+        let start = calendar.startOfDay(for: shifted(from))
+        let end = calendar.startOfDay(for: shifted(to))
+        return calendar.dateComponents([.day], from: start, to: end).day ?? 0
+    }
+
+    /// 「今天」「明天」or「10月14日」 for a day `distance` festival days out.
+    static func word(for date: Date, distance: Int, calendar: Calendar) -> String {
+        switch distance {
+        case ...0: return BSLocalization.text("今天")
+        case 1: return BSLocalization.text("明天")
+        default:
+            let parts = calendar.dateComponents([.month, .day], from: shifted(date))
+            return BSLocalization.format("%d月%d日", parts.month ?? 1, parts.day ?? 1)
+        }
+    }
+
+    /// The 06:00 turns in `(after, through]`, so timelines refresh the wording on time.
+    static func turns(after start: Date, through end: Date, calendar: Calendar) -> [Date] {
+        var turns: [Date] = []
+        var day = calendar.startOfDay(for: start)
+        while let turn = calendar.date(bySettingHour: turnHour, minute: 0, second: 0, of: day), turn <= end {
+            if turn > start { turns.append(turn) }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return turns
+    }
+
+    private static func shifted(_ date: Date) -> Date {
+        date.addingTimeInterval(-TimeInterval(turnHour * 3600))
+    }
+}
+
 enum LiveModeStateEngine {
+    /// How long before a later festival day's first set the state flips back to `.upcoming`.
+    static let nextDayLead: TimeInterval = 4 * 3600
+
     /// Pure, deterministic function: (Timetable data, reference time) -> LiveModeState.
     /// Never infers location/walking ETA. Strictly uses actual scheduled times.
     static func calculate(
@@ -141,10 +184,10 @@ enum LiveModeStateEngine {
             if nextIndex < daySpans.count {
                 let nextSpan = daySpans[nextIndex]
                 let upcoming = selectUpcoming(from: nextSpan.day.performances, now: now)
-                let hoursToNext = nextSpan.start.timeIntervalSince(now) / 3600
+                let leadToNext = nextSpan.start.timeIntervalSince(now)
 
                 // If within 4 hours of next festival day starting, transition to upcoming so activity can restart!
-                if hoursToNext <= 4 && hoursToNext > 0 {
+                if leadToNext <= Self.nextDayLead && leadToNext > 0 {
                     return LiveModeState(
                         phase: .upcoming(firstStartsAt: nextSpan.start),
                         activeDayID: nextSpan.day.id,

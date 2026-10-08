@@ -18,6 +18,8 @@ enum WidgetTheme {
     static let heroWarmGold = Color(red: 0.941, green: 0.863, blue: 0.714)
     static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
     static let liveTitle = Color(red: 1.000, green: 0.816, blue: 0.827)
+    /// 音乐节「今日已结束」的夜色。
+    static let night = Color(red: 0.686, green: 0.765, blue: 0.933)
     static let widgetCoverCornerRadius: CGFloat = 12
     /// 中号封面按 App 海报 3:4 收住,不再把高度拉满把间距撑开。
     static let mediumCoverSize = CGSize(width: 81, height: 108)
@@ -118,7 +120,9 @@ struct CountdownTimelineProvider: TimelineProvider {
             endBoundary: endBoundary,
             calendar: calendar
         )
-        let entries = plan.dates.map {
+        // 时刻表每一场的开演/结束都是一个刷新点，主现场与下一场准点切换。
+        let dates = Set(plan.dates + WidgetFestivalNow.boundaries(in: snapshot, from: now, to: plan.windowEnd)).sorted()
+        let entries = dates.map {
             CountdownEntry(
                 date: $0,
                 snapshot: snapshot,

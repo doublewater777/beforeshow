@@ -18,23 +18,55 @@ struct CountdownWidgetView: View {
     var body: some View {
         switch family {
         case .systemSmall:
-            SmallCountdownView(presentation: presentation)
+            Group {
+                if let phase = presentation.festivalPhase {
+                    FestivalSmallView(phase: phase, showName: presentation.showName)
+                } else {
+                    SmallCountdownView(presentation: presentation)
+                }
+            }
                 .containerBackground(for: .widget) {
                     CoverAmbientBloom(ambient: entry.ambientColor)
                 }
         case .systemMedium:
-            MediumCountdownView(presentation: presentation, coverImagePath: entry.coverImagePath)
+            Group {
+                if let phase = presentation.festivalPhase {
+                    FestivalMediumView(phase: phase, showName: presentation.showName) {
+                        WidgetCoverImage(path: entry.coverImagePath)
+                    }
+                } else {
+                    MediumCountdownView(presentation: presentation, coverImagePath: entry.coverImagePath)
+                }
+            }
                 .containerBackground(for: .widget) {
                     CoverAmbientBloom(ambient: entry.ambientColor)
                 }
         case .accessoryInline:
-            InlineCountdownView(presentation: presentation)
+            Group {
+                if let phase = presentation.festivalPhase {
+                    FestivalInlineView(phase: phase)
+                } else {
+                    InlineCountdownView(presentation: presentation)
+                }
+            }
                 .containerBackground(for: .widget) {}
         case .accessoryCircular:
-            CircularCountdownView(presentation: presentation)
+            Group {
+                if let phase = presentation.festivalPhase {
+                    FestivalCircularView(phase: phase)
+                } else {
+                    CircularCountdownView(presentation: presentation)
+                }
+            }
                 .containerBackground(for: .widget) {}
         case .accessoryRectangular:
-            RectangularCountdownView(presentation: presentation)
+            Group {
+                if let phase = presentation.festivalPhase {
+                    FestivalRectangularView(phase: phase, showName: presentation.showName)
+                } else {
+                    RectangularCountdownView(presentation: presentation)
+                }
+            }
                 .containerBackground(for: .widget) {}
         default:
             EmptyView()
@@ -65,6 +97,11 @@ struct CountdownPresentation {
     let endedTitle: String
     /// 距开场的秒数(entry 时刻),给圆形进度环用
     let remainingSeconds: Int
+    /// 有时刻表时的现场切片(主现场 / 下一场 / 第一场想看)。
+    let festival: WidgetFestivalNow?
+
+    /// 音乐节现场模式的状态;非 nil 时各尺寸换成现场版式。
+    var festivalPhase: WidgetFestivalNow.Phase? { festival?.phase }
 
     var hasShow: Bool { hero != .empty }
     var showName: String { identity.title }
@@ -78,9 +115,11 @@ struct CountdownPresentation {
             calendar = .current
             endedTitle = ""
             remainingSeconds = 0
+            festival = nil
             return
         }
 
+        festival = WidgetFestivalNow(snapshot: snapshot, now: entry.date)
         identity = ShowIdentityCopy(
             name: snapshot.name,
             venueName: snapshot.venueName,
@@ -243,6 +282,11 @@ private struct SmallCountdownView: View {
 
                 Spacer(minLength: 8)
 
+                if case .near = presentation.hero, let pick = presentation.festival?.firstPick {
+                    FestivalNextLine(performance: pick)
+                        .padding(.bottom, 4)
+                }
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text(presentation.showName)
                         .font(.system(size: 12, weight: .semibold))
@@ -331,6 +375,11 @@ private struct MediumCountdownView: View {
 
                     Spacer(minLength: 8)
 
+                    if case .near = presentation.hero, let pick = presentation.festival?.firstPick {
+                        FestivalNextLine(performance: pick, showsStage: true)
+                            .padding(.bottom, 4)
+                    }
+
                     VStack(alignment: .leading, spacing: 1) {
                         Text(presentation.showName)
                             .font(.system(size: 13, weight: .semibold))
@@ -416,32 +465,28 @@ private struct MediumCountdownView: View {
         }
     }
 
-    @ViewBuilder
     private var coverView: some View {
-        if let coverImagePath, let image = UIImage(contentsOfFile: coverImagePath) {
-            widgetCover(Image(uiImage: image))
-        } else {
-            // 无封面兜底:与 app 一致用 default_cover(扩展自带 asset)
-            widgetCover(Image("default_cover"))
-        }
+        WidgetCoverImage(path: coverImagePath)
+    }
+}
+
+/// 中号右侧 3:4 封面；无封面用 default_cover。
+struct WidgetCoverImage: View {
+    let path: String?
+
+    private var image: Image {
+        if let path, let image = UIImage(contentsOfFile: path) { return Image(uiImage: image) }
+        return Image("default_cover")
     }
 
-    private func widgetCover(_ image: Image) -> some View {
+    var body: some View {
         image
-            .resizable()
-            .widgetAccentedRenderingMode(.fullColor)
-            .scaledToFill()
-            .frame(
-                width: WidgetTheme.mediumCoverSize.width,
-                height: WidgetTheme.mediumCoverSize.height
-            )
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: WidgetTheme.widgetCoverCornerRadius,
-                    style: .continuous
-                )
-            )
-            .accessibilityHidden(true)
+        .resizable()
+        .widgetAccentedRenderingMode(.fullColor)
+        .scaledToFill()
+        .frame(width: WidgetTheme.mediumCoverSize.width, height: WidgetTheme.mediumCoverSize.height)
+        .clipShape(RoundedRectangle(cornerRadius: WidgetTheme.widgetCoverCornerRadius, style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 

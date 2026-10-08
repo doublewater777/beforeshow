@@ -1,358 +1,288 @@
 import SwiftUI
 
+/// Stage-per-column matrix, each stage lit in its own colour;
+/// stages playing right now are lit from their header.
 struct TimetableStageMatrixView: View {
-    let day: TimetableDay?
-    let referenceNow: Date
+    let day: TimetableDay
+    let now: Date
     let timeZone: TimeZone
+    let wantOnly: Bool
+    let avatarURL: (String) -> URL?
     let onToggleInterested: (TimetablePerformance) -> Void
 
-    private let hourHeight: CGFloat = 100.0
-    private let timeRulerWidth: CGFloat = 46.0
+    @State private var position = ScrollPosition(edge: .top)
+    @State private var scrolledDayID: UUID?
+
+    private static let ruler: CGFloat = 48
+    private static let trailing: CGFloat = 12
+    private static let laneGap: CGFloat = 6
+    private static let minLane: CGFloat = 104
+    private static let capHeight: CGFloat = 38
 
     private var calendar: Calendar {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = timeZone
-        return cal
-    }
-
-    private var allPerformances: [TimetablePerformance] {
-        day?.performances ?? []
-    }
-
-    private var stages: [TimetableStage] {
-        day?.orderedStages ?? []
-    }
-
-    private var dayStart: Date {
-        guard let earliest = allPerformances.map(\.startsAt).min() else {
-            return referenceNow
-        }
-        let hour = calendar.component(.hour, from: earliest)
-        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: earliest) ?? earliest
-    }
-
-    private var dayEnd: Date {
-        guard let latest = allPerformances.map(\.endsAt).max() else {
-            return referenceNow
-        }
-        let hour = calendar.component(.hour, from: latest)
-        let min = calendar.component(.minute, from: latest)
-        let endHour = min > 0 ? hour + 1 : hour
-        return calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: latest) ?? latest
-    }
-
-    private var totalHours: Int {
-        let hours = calendar.dateComponents([.hour], from: dayStart, to: dayEnd).hour ?? 4
-        return max(2, hours)
-    }
-
-    private var totalHeight: CGFloat {
-        CGFloat(totalHours) * hourHeight
-    }
-
-    // Detected overlaps between interested performances
-    private var interestedClashIntervals: [(start: Date, end: Date)] {
-        let interested = allPerformances.filter(\.isInterested)
-        guard interested.count > 1 else { return [] }
-
-        var intervals: [(start: Date, end: Date)] = []
-        for i in 0..<interested.count {
-            for j in (i + 1)..<interested.count {
-                let p1 = interested[i]
-                let p2 = interested[j]
-                guard p1.stage?.id != p2.stage?.id else { continue }
-                let overlapStart = max(p1.startsAt, p2.startsAt)
-                let overlapEnd = min(p1.endsAt, p2.endsAt)
-                if overlapStart < overlapEnd {
-                    intervals.append((start: overlapStart, end: overlapEnd))
-                }
-            }
-        }
-        return intervals
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
     }
 
     var body: some View {
-        if stages.isEmpty || allPerformances.isEmpty {
-            emptyMatrixView
-        } else {
-            GeometryReader { geo in
-                let availableWidth = geo.size.width - timeRulerWidth - 12
-                let columnWidth = stages.count <= 2
-                    ? max(130, availableWidth / CGFloat(stages.count))
-                    : max(145, availableWidth / 2.2)
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Sticky stage headers
-                            stageHeaderRow(columnWidth: columnWidth)
-                                .padding(.leading, timeRulerWidth)
-                                .padding(.bottom, 8)
-
-                            // Matrix body: Time ruler on left + Grid columns on right
-                            HStack(alignment: .top, spacing: 0) {
-                                timeRulerColumn
-
-                                ZStack(alignment: .topLeading) {
-                                    // Background grid lines
-                                    gridBackground(totalColumns: stages.count, columnWidth: columnWidth)
-
-                                    // Amber bands for interested clashes
-                                    ForEach(interestedClashIntervals.indices, id: \.self) { idx in
-                                        let interval = interestedClashIntervals[idx]
-                                        clashBand(interval: interval, totalWidth: columnWidth * CGFloat(stages.count))
-                                    }
-
-                                    // Columns with performances
-                                    HStack(spacing: 8) {
-                                        ForEach(stages, id: \.id) { stage in
-                                            stageColumn(stage: stage, width: columnWidth)
-                                        }
-                                    }
-
-                                    // Live current time indicator
-                                    if shouldShowLiveLine {
-                                        liveCurrentTimeLine(totalWidth: columnWidth * CGFloat(stages.count))
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.vertical, 8)
-                    }
-                }
-            }
-            .frame(minHeight: totalHeight + 80)
-        }
-    }
-
-    // MARK: - Subviews
-
-    private var emptyMatrixView: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 28))
-                .foregroundColor(BSColor.textTertiary)
-            Text(BSLocalization.text("该日期下没有排期数据"))
-                .font(.system(size: 14))
-                .foregroundColor(BSColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 200)
-    }
-
-    private func stageHeaderRow(columnWidth: CGFloat) -> some View {
-        HStack(spacing: 8) {
-            ForEach(stages, id: \.id) { stage in
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(stageColor(for: stage.sortOrder))
-                        .frame(width: 7, height: 7)
-                    Text(stage.name)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(BSColor.textPrimary)
-                        .lineLimit(1)
-                }
-                .frame(width: columnWidth, height: 32)
-                .background(BSColor.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-            }
-        }
-    }
-
-    private var timeRulerColumn: some View {
-        VStack(alignment: .trailing, spacing: 0) {
-            ForEach(0..<totalHours, id: \.self) { hourOffset in
-                let hourDate = calendar.date(byAdding: .hour, value: hourOffset, to: dayStart) ?? dayStart
-                Text(formatHour(hourDate))
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundColor(BSColor.textTertiary)
-                    .frame(width: timeRulerWidth - 8, height: hourHeight, alignment: .topTrailing)
-                    .padding(.top, -6)
-            }
-        }
-        .frame(width: timeRulerWidth)
-    }
-
-    private func gridBackground(totalColumns: Int, columnWidth: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
-            // Horizontal hour gridlines
-            VStack(spacing: 0) {
-                ForEach(0..<totalHours, id: \.self) { _ in
-                    Rectangle()
-                        .fill(Color.white.opacity(0.05))
-                        .frame(height: 1)
-                        .frame(width: (columnWidth + 8) * CGFloat(totalColumns))
-                        .padding(.bottom, hourHeight - 1)
-                }
-            }
-        }
-    }
-
-    private func stageColumn(stage: TimetableStage, width: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
-            Color.clear.frame(width: width, height: totalHeight)
-
-            ForEach(stage.performances, id: \.id) { perf in
-                let y = yOffset(for: perf.startsAt)
-                let h = height(from: perf.startsAt, to: perf.endsAt)
-
-                performanceBlock(perf: perf, stageOrder: stage.sortOrder)
-                    .frame(width: width, height: h)
-                    .offset(y: y)
-            }
-        }
-        .frame(width: width, height: totalHeight)
-    }
-
-    private func performanceBlock(perf: TimetablePerformance, stageOrder: Int) -> some View {
-        let isNow = TimetablePeriodPolicy.isNow(
-            startsAt: perf.startsAt,
-            endsAt: perf.endsAt,
-            at: referenceNow
+        let stages = day.orderedStages
+        let performances = Dictionary(uniqueKeysWithValues: day.performances.map { ($0.id, $0) })
+        let layout = TimetableMatrixLayout(
+            stages: stages.map { stage in
+                .init(id: stage.id, name: stage.name, performances: stage.performances.map {
+                    .init(id: $0.id, artistName: $0.artistName, startsAt: $0.startsAt, endsAt: $0.endsAt, isInterested: $0.isInterested)
+                })
+            },
+            now: now,
+            calendar: calendar
         )
 
-        return Button {
-            onToggleInterested(perf)
-        } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .top, spacing: 4) {
-                    if isNow {
-                        Circle()
-                            .fill(BSColor.Accent.prepare)
-                            .frame(width: 6, height: 6)
-                            .padding(.top, 4)
-                    }
+        GeometryReader { geo in
+            let count = CGFloat(max(stages.count, 1))
+            let lane = max(Self.minLane, (geo.size.width - Self.ruler - Self.trailing - Self.laneGap * (count - 1)) / count)
+            let width = Self.ruler + lane * count + Self.laneGap * (count - 1) + Self.trailing
 
-                    Text(perf.artistName)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(BSColor.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Spacer(minLength: 0)
-
-                    if perf.isInterested {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.red)
+            ScrollView([.vertical, .horizontal], showsIndicators: false) {
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        canvas(layout: layout, lane: lane, performances: performances)
+                            .frame(width: width, height: layout.contentHeight, alignment: .topLeading)
+                    } header: {
+                        caps(stages: stages, layout: layout, lane: lane)
+                            .frame(width: width, height: Self.capHeight, alignment: .topLeading)
                     }
                 }
-
-                Spacer(minLength: 0)
-
-                Text(formatTimeRange(start: perf.startsAt, end: perf.endsAt))
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundColor(isNow ? BSColor.Accent.prepare : BSColor.textSecondary)
-                    .lineLimit(1)
             }
-            .padding(8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(blockBackground(isNow: isNow, isInterested: perf.isInterested, stageOrder: stageOrder))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(
-                        perf.isInterested
-                            ? Color.red.opacity(0.6)
-                            : (isNow ? BSColor.Accent.prepare : Color.white.opacity(0.12)),
-                        lineWidth: perf.isInterested || isNow ? 1.5 : 1
-                    )
-            )
+            .scrollPosition($position)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            // The sheet reports a tiny height while presenting; wait for the real one.
+            .onChange(of: [day.id.hashValue, Int(geo.size.height)], initial: true) {
+                guard geo.size.height > 300, scrolledDayID != day.id else { return }
+                scrolledDayID = day.id
+                scrollToNow(layout, viewport: geo.size.height)
+            }
         }
-        .buttonStyle(.plain)
+        .clipped()
     }
 
-    private func clashBand(interval: (start: Date, end: Date), totalWidth: CGFloat) -> some View {
-        let y = yOffset(for: interval.start)
-        let h = height(from: interval.start, to: interval.end)
+    private func laneX(_ index: Int, lane: CGFloat) -> CGFloat {
+        Self.ruler + CGFloat(index) * (lane + Self.laneGap)
+    }
 
-        return Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.12),
-                        Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.06)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
+    /// Puts the now line at ~40% of the viewport: what just happened above, the next hour or two below.
+    private func scrollToNow(_ layout: TimetableMatrixLayout, viewport: CGFloat) {
+        guard let nowY = layout.nowY else { position.scrollTo(edge: .top); return }
+        position.scrollTo(y: max(0, nowY + Self.capHeight - viewport * 0.4))
+    }
+
+    // MARK: - Header
+
+    private func caps(stages: [TimetableStage], layout: TimetableMatrixLayout, lane: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            TimetableStyle.background
+            ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
+                let activity = layout.activity.indices.contains(index) ? layout.activity[index] : .idle
+                let tint = TimetableStageLight.color(stage.sortOrder)
+                HStack(spacing: 6) {
+                    if activity == .live {
+                        TimetableEqualizer(color: tint)
+                    } else {
+                        TimetableStageLight.marker(stage.sortOrder).fill(tint).frame(width: 7, height: 7)
+                    }
+                    Text(stage.name)
+                        .font(.system(size: 13, weight: .bold))
+                        .tracking(0.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .foregroundStyle(activity == .live ? TimetableStyle.foreground : TimetableStyle.muted)
+                .shadow(color: tint.opacity(activity == .live ? 0.55 : 0), radius: 6)
+                .frame(width: lane, height: Self.capHeight)
+                .background(
+                    UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12)
+                        .fill(activity == .live ? AnyShapeStyle(tint.opacity(0.12)) : AnyShapeStyle(TimetableStyle.lane))
                 )
-            )
-            .overlay(
-                Rectangle()
-                    .stroke(
-                        Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.35),
-                        style: StrokeStyle(lineWidth: 1, dash: [4, 4])
-                    )
-            )
-            .frame(width: totalWidth, height: max(16, h))
-            .offset(y: y)
-            .allowsHitTesting(false)
-    }
-
-    private var shouldShowLiveLine: Bool {
-        referenceNow >= dayStart && referenceNow <= dayEnd
-    }
-
-    private func liveCurrentTimeLine(totalWidth: CGFloat) -> some View {
-        let y = yOffset(for: referenceNow)
-
-        return HStack(spacing: 0) {
-            Circle()
-                .fill(BSColor.Accent.prepare)
-                .frame(width: 7, height: 7)
-            Rectangle()
-                .fill(BSColor.Accent.prepare)
-                .frame(width: totalWidth, height: 1.5)
+                .overlay(alignment: .top) {
+                    if activity != .idle {
+                        TimetableStageBeam(isLive: activity == .live, color: tint)
+                            .frame(width: lane + 36, height: 260)
+                    }
+                }
+                .offset(x: laneX(index, lane: lane))
+            }
         }
-        .offset(x: -3, y: y - 3.5)
+    }
+
+    // MARK: - Canvas
+
+    private func canvas(layout: TimetableMatrixLayout, lane: CGFloat, performances: [UUID: TimetablePerformance]) -> some View {
+        let laneCount = day.orderedStages.count
+        return ZStack(alignment: .topLeading) {
+            ForEach(0..<laneCount, id: \.self) { index in
+                UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12)
+                    .fill(TimetableStyle.lane)
+                    .frame(width: lane, height: layout.laneHeight)
+                    .offset(x: laneX(index, lane: lane))
+                if let midnight = layout.midnightY {
+                    UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12)
+                        .fill(BSColor.Stage.glowBlue.opacity(0.09))
+                        .frame(width: lane, height: layout.laneHeight - midnight)
+                        .offset(x: laneX(index, lane: lane), y: midnight)
+                }
+            }
+
+            ForEach(layout.hours, id: \.date) { mark in
+                hourMark(mark, lanesWidth: laneX(laneCount, lane: lane) - Self.laneGap - Self.ruler)
+            }
+
+            ForEach(Array(layout.gaps.enumerated()), id: \.offset) { _, gap in
+                changeover(height: gap.height)
+                    .frame(width: lane, height: gap.height)
+                    .offset(x: laneX(gap.laneIndex, lane: lane), y: gap.top)
+                    .opacity(wantOnly ? 0 : 1)
+            }
+
+            ForEach(layout.cards) { card in
+                let x = laneX(card.laneIndex, lane: lane)
+                TimetableMatrixCard(
+                    card: card,
+                    width: lane,
+                    avatarURL: avatarURL(card.artistName),
+                    isGhost: wantOnly && !card.isInterested,
+                    nowOffset: card.status == .live ? layout.nowY.map { $0 - card.top } : nil,
+                    stageTint: TimetableStageLight.color(day.orderedStages[card.laneIndex].sortOrder),
+                    timeZone: timeZone,
+                    onToggle: {
+                        if let performance = performances[card.id] { onToggleInterested(performance) }
+                    }
+                )
+                .offset(x: x, y: card.top)
+            }
+
+            if let nowY = layout.nowY {
+                nowLine(width: laneX(laneCount, lane: lane) - Self.laneGap - 46)
+                    .offset(y: nowY - 9)
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.easeOut(duration: 0.35), value: wantOnly)
+    }
+
+    private func hourMark(_ mark: TimetableMatrixLayout.HourMark, lanesWidth: CGFloat) -> some View {
+        let label = TimetableTimeFormat.time(mark.date, timeZone: timeZone)
+        let lineColor = mark.isMidnight ? TimetableStyle.night.opacity(0.4) : Color.white.opacity(0.045)
+        return ZStack(alignment: .topLeading) {
+            Group {
+                if mark.isMidnight {
+                    Line().stroke(lineColor, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                } else {
+                    Line().stroke(lineColor, lineWidth: 1)
+                }
+            }
+            .frame(width: lanesWidth, height: 1)
+            .offset(x: Self.ruler, y: mark.y)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text("\(Text(label.prefix(2)).foregroundStyle(mark.isMidnight ? TimetableStyle.night : TimetableStyle.muted))\(Text(label.dropFirst(2)).foregroundStyle(mark.isMidnight ? TimetableStyle.night : TimetableStyle.dim))")
+                    .font(TimetableStyle.mono(11))
+                if mark.isMidnight {
+                    Image(systemName: "moon.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(TimetableStyle.night)
+                }
+            }
+            .frame(width: 40, alignment: .trailing)
+            .offset(y: mark.y - 8)
+        }
         .allowsHitTesting(false)
     }
 
-    // MARK: - Helpers
-
-    private func yOffset(for date: Date) -> CGFloat {
-        let minutes = date.timeIntervalSince(dayStart) / 60.0
-        return CGFloat(minutes) * (hourHeight / 60.0)
+    private func changeover(height: CGFloat) -> some View {
+        ZStack {
+            Line(vertical: true)
+                .stroke(Color.white.opacity(0.07), style: StrokeStyle(lineWidth: 1, dash: [3, 5]))
+                .frame(width: 1)
+                .padding(.vertical, 10)
+            if height > 96 {
+                let label = BSLocalization.text("换场")
+                Group {
+                    if label.unicodeScalars.allSatisfy({ $0.value > 0x2E7F }) {
+                        VStack(spacing: 6) {
+                            ForEach(Array(label.enumerated()), id: \.offset) { _, character in
+                                Text(String(character))
+                            }
+                        }
+                    } else {
+                        Text(label)
+                            .fixedSize()
+                            .rotationEffect(.degrees(90))
+                            .frame(width: 14, height: 70)
+                    }
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(TimetableStyle.dim.opacity(0.55))
+                .padding(.vertical, 8)
+                .background(TimetableStyle.lane)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
-    private func height(from start: Date, to end: Date) -> CGFloat {
-        let durationMinutes = max(15.0, end.timeIntervalSince(start) / 60.0)
-        return CGFloat(durationMinutes) * (hourHeight / 60.0)
+    private func nowLine(width: CGFloat) -> some View {
+        ZStack(alignment: .leading) {
+            Rectangle()
+                .fill(TimetableStyle.now)
+                .frame(width: width, height: 1.5)
+                .shadow(color: TimetableStyle.now.opacity(0.75), radius: 5)
+                .offset(x: 46)
+            Text(TimetableTimeFormat.time(now, timeZone: timeZone))
+                .font(TimetableStyle.mono(11, weight: .bold))
+                .foregroundStyle(TimetableStyle.background)
+                .frame(width: 40, height: 18)
+                .background(Capsule().fill(TimetableStyle.now))
+                .shadow(color: TimetableStyle.now.opacity(0.6), radius: 6)
+                .offset(x: 2)
+        }
+        .frame(height: 18)
     }
+}
 
-    private func stageColor(for order: Int) -> Color {
-        switch order % 3 {
-        case 0: return Color(red: 0.35, green: 0.65, blue: 1.0) // Strawberry blue
-        case 1: return Color(red: 1.0, green: 0.45, blue: 0.6)  // Love pink
-        default: return BSColor.Accent.warm
+/// Soft stage light falling from a lit stage header.
+private struct TimetableStageBeam: View {
+    let isLive: Bool
+    let color: Color
+    @State private var breathe = false
+
+    var body: some View {
+        EllipticalGradient(
+            colors: [color.opacity(0.28), color.opacity(0.08), .clear],
+            center: .top,
+            startRadiusFraction: 0,
+            endRadiusFraction: 0.78
+        )
+        .blendMode(.screen)
+        .opacity(isLive ? (breathe ? 1 : 0.7) : 0.36)
+        .allowsHitTesting(false)
+        .onAppear {
+            guard isLive else { return }
+            withAnimation(.easeInOut(duration: 2.75).repeatForever(autoreverses: true)) { breathe = true }
         }
     }
+}
 
-    private func blockBackground(isNow: Bool, isInterested: Bool, stageOrder: Int) -> Color {
-        if isNow {
-            return BSColor.surfaceElevated
-        } else if isInterested {
-            return Color(red: 0.14, green: 0.08, blue: 0.10)
+private struct Line: Shape {
+    var vertical = false
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        if vertical {
+            path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         } else {
-            return BSColor.surface.opacity(0.9)
+            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
         }
-    }
-
-    private func formatHour(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
-    }
-
-    private func formatTimeRange(start: Date, end: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        formatter.timeZone = timeZone
-        return "\(formatter.string(from: start))-\(formatter.string(from: end))"
+        return path
     }
 }
