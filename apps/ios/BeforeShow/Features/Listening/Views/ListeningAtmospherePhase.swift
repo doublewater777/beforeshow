@@ -23,20 +23,4 @@ enum ListeningAtmospherePhase: Equatable {
         case .playing: BSColor.Stage.accent
         }
     }
-
-    var opacity: Double {
-        switch self {
-        case .resting: BSListeningTokens.haloRestingOpacity
-        case .placing: BSListeningTokens.haloPlacingOpacity
-        case .playing: BSListeningTokens.haloPlayingOpacity
-        }
-    }
-
-    var scale: CGFloat {
-        switch self {
-        case .resting: BSListeningTokens.haloRestingScale
-        case .placing: BSListeningTokens.haloPlacingScale
-        case .playing: 1
-        }
-    }
 }

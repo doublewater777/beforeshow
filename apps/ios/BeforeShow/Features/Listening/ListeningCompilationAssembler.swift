@@ -22,7 +22,7 @@ enum ListeningCompilationAssembler {
         return batches.enumerated().map { index, tracks in
             ListeningDisc(
                 id: "compilation-\(showID)-\(index + 1)",
-                title: BSLocalization.format("热门合辑 %02d", index + 1),
+                title: ListeningCopy.format("现场预习 %02d", index + 1),
                 artworkURL: nil,
                 tracks: tracks,
                 origin: .compilation(showID: showID, number: index + 1)

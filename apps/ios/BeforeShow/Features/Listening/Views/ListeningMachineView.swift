@@ -79,25 +79,6 @@ struct ListeningMachineView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ListeningPlayerAmbientHalo(
-                artworkURL: hardware.artworkURL,
-                phase: room.atmospherePhase
-            )
-            .frame(
-                width: geometry.discDiameter * BSListeningTokens.haloWidth,
-                height: geometry.discDiameter * BSListeningTokens.haloHeight
-            )
-            .position(
-                x: geometry.discCenter.x,
-                y: geometry.projectedY(geometry.discCenter.y) + geometry.discDiameter * 0.10
-            )
-
-            Ellipse()
-                .fill(BSColor.Stage.accent.opacity(room.display.player.isPlaybackActive ? 0.14 : 0.07))
-                .frame(width: geometry.body.width * 0.90, height: 110)
-                .position(x: geometry.body.midX, y: geometry.body.maxY - 20)
-                .blur(radius: 38)
-
             Ellipse()
                 .fill(.black.opacity(0.45)).blur(radius: 22)
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
@@ -429,15 +410,18 @@ private struct CDPlayerLidView: View {
             .mask(Image(configuration.assets.lidOuter).resizable())
             .opacity(transparencyProgress)
 
-            // Keep the acrylic rim readable as the cover clears over the disc.
-            Ellipse()
-                .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
-                .padding(2)
-                .opacity(transparencyProgress)
-            Ellipse()
-                .strokeBorder(.black.opacity(0.16), lineWidth: 1)
-                .padding(5)
-                .opacity(transparencyProgress)
+            // Keep the acrylic rim readable as the cover clears over the disc,
+            // clipped to the lid silhouette so it never rings outside the body.
+            ZStack {
+                Ellipse()
+                    .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
+                    .padding(2)
+                Ellipse()
+                    .strokeBorder(.black.opacity(0.16), lineWidth: 1)
+                    .padding(5)
+            }
+            .mask(Image(configuration.assets.lidOuter).resizable())
+            .opacity(transparencyProgress)
 
             LinearGradient(
                 colors: [

@@ -331,7 +331,7 @@ private struct ListeningCompactPlaybackControl: View {
     @State private var isCompletingSwipe = false
     @State private var swipeFeedbackCount = 0
 
-    private let spinDegreesPerSecond = 128.0
+    private let spinDegreesPerSecond = 360.0 * BSListeningTokens.discRotationRPM / 60
 
     private var showsPlayingState: Bool {
         ListeningMiniPlayerPlaybackAppearance.showsPlayingState(

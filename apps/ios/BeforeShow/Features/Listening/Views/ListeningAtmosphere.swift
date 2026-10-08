@@ -2,10 +2,8 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-/// Listen keeps the same dark stage language as Current / Footprints, but the
-/// distant room light belongs to the Current Show instead of a fixed palette.
-/// The player has its own disc-bound halo (see `ListeningPlayerAmbientHalo`), so
-/// changing artists does not repaint the whole page.
+/// Listen keeps the same dark stage language as Current / Footprints. A single room
+/// light takes the loaded disc's colour, falling back to the Current Show cover.
 struct ListeningStageBackground: View {
     let artworkURL: URL?
     let phase: ListeningAtmospherePhase
@@ -21,6 +19,10 @@ struct ListeningStageBackground: View {
         return shows.first { $0.id == id }
     }
 
+    private var lightColor: Color {
+        discAmbientColor ?? showAmbientColor ?? phase.color.opacity(BSListeningTokens.roomLightOpacity)
+    }
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -34,61 +36,27 @@ struct ListeningStageBackground: View {
             )
 
             GeometryReader { geometry in
-                ZStack {
-                    if let showAmbientColor {
-                        Ellipse()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        showAmbientColor.opacity(0.42),
-                                        showAmbientColor.opacity(0.16),
-                                        .clear
-                                    ],
-                                    center: .center,
-                                    startRadius: 0,
-                                    endRadius: geometry.size.width * 0.72
-                                )
-                            )
-                            .frame(
-                                width: geometry.size.width * 1.48,
-                                height: geometry.size.height * 0.58
-                            )
-                            .position(x: geometry.size.width * 0.50, y: geometry.size.height * 0.07)
-                            .blur(radius: 56)
-                            .transition(.opacity)
-                    } else {
-                        fallbackStageGlows(in: geometry)
-                    }
-
-                    if let discAmbientColor {
-                        Ellipse()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        discAmbientColor.opacity(isPlaying ? 0.50 : 0.34),
-                                        discAmbientColor.opacity(isPlaying ? 0.24 : 0.15),
-                                        .clear
-                                    ],
-                                    center: .center,
-                                    startRadius: 0,
-                                    endRadius: geometry.size.width * 0.82
-                                )
-                            )
-                            .frame(
-                                width: geometry.size.width * 1.70,
-                                height: geometry.size.height * 0.72
-                            )
-                            .position(x: geometry.size.width * 0.50, y: geometry.size.height * 0.34)
-                            .blur(radius: isPlaying ? 68 : 58)
-                            .transition(.opacity)
-                    }
-                }
-                .compositingGroup()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // One room light from above, falling across the shelf and the player.
+                Ellipse()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                lightColor.opacity(isPlaying ? 0.48 : 0.34),
+                                lightColor.opacity(isPlaying ? 0.20 : 0.13),
+                                .clear
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: geometry.size.width * 0.8
+                        )
+                    )
+                    .frame(width: geometry.size.width * 1.6, height: geometry.size.height * 0.78)
+                    .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.26)
+                    .blur(radius: 60)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .blendMode(.screen)
-            .animation(.easeInOut(duration: 0.75), value: showAmbientColor)
-            .animation(.easeInOut(duration: 0.80), value: discAmbientColor)
+            .animation(.easeInOut(duration: 0.8), value: lightColor)
             .animation(.easeInOut(duration: 0.55), value: isPlaying)
 
             LinearGradient(
@@ -111,14 +79,6 @@ struct ListeningStageBackground: View {
         }
     }
 
-    @ViewBuilder
-    private func fallbackStageGlows(in geometry: GeometryProxy) -> some View {
-        listeningGlow(color: phase.color.opacity(phase.opacity * BSListeningTokens.roomLightOpacity))
-            .frame(width: geometry.size.width * 1.4, height: geometry.size.height * 0.72)
-            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.60)
-            .animation(.easeInOut(duration: BSListeningTokens.lightDuration), value: phase)
-    }
-
     private static func loadAmbientColor(for urlString: String?) async -> Color? {
         guard let urlString, let url = URL(string: urlString) else { return nil }
         return await loadAmbientColor(for: url)
@@ -132,19 +92,6 @@ struct ListeningStageBackground: View {
         }
         return Color(ambient)
     }
-}
-
-private func listeningGlow(color: Color) -> some View {
-    Ellipse()
-        .fill(
-            RadialGradient(
-                colors: [color, color.opacity(0.55), .clear],
-                center: .center,
-                startRadius: 0,
-                endRadius: 230
-            )
-        )
-        .blur(radius: 22)
 }
 
 // MARK: - Root playback chrome

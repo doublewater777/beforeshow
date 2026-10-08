@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// The case lifted off the shelf: centred jewel case with its disc slid out, then the credits.
 struct ListeningDiscDetailHero: View {
     let disc: ListeningDisc
     let show: Show?
@@ -10,22 +11,25 @@ struct ListeningDiscDetailHero: View {
     let containsHeardSongs: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var size: CGFloat { BSListeningTokens.detailArtwork }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.lg) {
-            ZStack(alignment: .leading) {
-                ListeningPeekingDisc(disc: disc, size: BSListeningTokens.detailArtwork * BSListeningTokens.detailDiscFraction)
-                    .offset(x: BSListeningTokens.detailArtwork * (1 - BSListeningTokens.detailDiscFraction + BSListeningTokens.detailDiscReveal))
+        VStack(spacing: BSSpacing.lg) {
+            ZStack {
+                ListeningPeekingDisc(disc: disc, size: size * BSListeningTokens.detailDiscFraction)
+                    .offset(x: isLoaded ? 0 : size * BSListeningTokens.detailDiscReveal)
                     .opacity(isLoaded ? 0 : 1)
                     .animation(reduceMotion ? nil : BSListeningTokens.selectionAnimation, value: isLoaded)
                 ListeningDiscCover(disc: disc, show: show)
-                    .frame(width: BSListeningTokens.detailArtwork, height: BSListeningTokens.detailArtwork)
+                    .frame(width: size, height: size)
+                    .overlay { ListeningJewelCaseFinish() }
+                    .shadow(color: .black.opacity(0.55), radius: 22, y: 16)
             }
-            .frame(width: BSListeningTokens.detailArtwork * (1 + BSListeningTokens.detailDiscReveal),
-                   height: BSListeningTokens.detailArtwork, alignment: .leading)
+            .offset(x: isLoaded ? 0 : -size * BSListeningTokens.detailDiscReveal / 2)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, BSSpacing.lg)
+            .padding(.top, BSSpacing.lg)
 
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            VStack(spacing: BSSpacing.sm) {
                 if isLoaded {
                     ListeningDiscStatusBadge(isPlaying: isPlaying)
                         .accessibilityIdentifier("listening.loadedDiscStatus")
@@ -33,18 +37,20 @@ struct ListeningDiscDetailHero: View {
                 Text(disc.title)
                     .font(BSListeningTokens.detailTitle)
                     .foregroundStyle(BSColor.Stage.foreground)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 if !artists.isEmpty {
                     Text(artists)
                         .font(BSFont.body)
                         .foregroundStyle(BSColor.Stage.accent)
+                        .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                HStack(spacing: BSSpacing.sm) {
+                HStack(spacing: BSSpacing.xs) {
                     Text(metadata)
                         .font(BSListeningTokens.caption)
                         .foregroundStyle(BSColor.Stage.muted)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.center)
                     if containsHeardSongs {
                         Image(systemName: "checkmark.seal.fill")
                             .font(BSListeningTokens.badge)
@@ -53,7 +59,7 @@ struct ListeningDiscDetailHero: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
     }
 }

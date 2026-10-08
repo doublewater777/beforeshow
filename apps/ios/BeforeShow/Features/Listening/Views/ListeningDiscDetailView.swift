@@ -12,6 +12,7 @@ struct ListeningDiscDetailView: View {
     var onLoad: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
+    @State private var tone: Color?
 
     private let isMultiArtist: Bool
     private let metadataSummary: String
@@ -101,7 +102,17 @@ struct ListeningDiscDetailView: View {
                 .padding(.top, BSSpacing.sm)
                 .padding(.bottom, BSSpacing.xl)
             }
-            .background(ListeningSheetBackground(tint: ListeningSleeveIdentity(disc: disc).color))
+            .background(
+                ListeningSheetBackground(
+                    tint: tone ?? ListeningSleeveIdentity(disc: disc).color,
+                    intensity: BSListeningTokens.detailGlowOpacity
+                )
+                .animation(.easeInOut(duration: 0.5), value: tone)
+            )
+            .task(id: disc.artworkURL) {
+                guard let url = disc.artworkURL else { return }
+                tone = await ListeningArtworkTone.tone(for: url).map(Color.init(uiColor:))
+            }
             .safeAreaInset(edge: .bottom) {
                 actionSection
                     .padding(.horizontal, BSSpacing.roomy)
@@ -236,8 +247,8 @@ struct ListeningDiscDetailView: View {
                     .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.muted)
             }
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, BSSpacing.compact)
+            .padding(.horizontal, BSSpacing.xs)
+            .padding(.bottom, BSSpacing.sm)
 
             VStack(spacing: 0) {
                 ForEach(indexedTracks) { item in
@@ -260,8 +271,16 @@ struct ListeningDiscDetailView: View {
                     }
                 }
             }
+            .padding(.vertical, BSSpacing.xs)
+            .background(
+                BSColor.Stage.surface.opacity(0.62),
+                in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                    .stroke(BSColor.Stage.border, lineWidth: BSListeningTokens.hairline)
+            )
         }
-
     }
 
     private var trackListStatusText: String {

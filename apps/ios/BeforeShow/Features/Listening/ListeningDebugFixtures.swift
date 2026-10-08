@@ -66,7 +66,7 @@ enum ListeningFixtureScenario: String, CaseIterable {
         }
         return ListeningDisc(
             id: "seed-compilation",
-            title: "热门合辑 01",
+            title: "现场预习 01",
             artworkURL: nil,
             tracks: tracks,
             origin: .compilation(showID: UUID(), number: 1)
