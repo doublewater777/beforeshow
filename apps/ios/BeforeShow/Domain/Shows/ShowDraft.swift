@@ -204,6 +204,7 @@ extension ShowDraft {
         }
         if !userEdited.contains(.date) {
             date = incoming.date
+            recognizedFields.remove(.date)
         }
         if !userEdited.contains(.startTime) {
             startTime = incoming.startTime

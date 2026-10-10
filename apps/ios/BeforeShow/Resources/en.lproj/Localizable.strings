@@ -1816,6 +1816,30 @@ First show: %@";
 "舞台矩阵" = "Stage Matrix";
 "该日期下没有排期数据" = "No schedule data for this date";
 
+// In-app browser link guide
+"打开平台总览" = "Open the ticket platform";
+"以秀动为例，点击搜索栏。" = "Using ShowStart as an example, tap the search bar.";
+"搜索你要添加的演出" = "Search for your show";
+"输入艺人或演出名称，点击对应结果。" = "Enter the artist or show name, then tap its result.";
+"进入演出详情" = "Open the show details";
+"确认是你要添加的演出。" = "Check that this is the show you want to add.";
+"点击底部分享" = "Tap Share at the bottom";
+"点击浏览器底部标出的分享按钮。" = "Tap the highlighted Share button at the bottom.";
+"点击拷贝" = "Tap Copy";
+"拷贝后关闭浏览器，返回粘贴。" = "Copy, close the browser, then paste here.";
+"开始添加" = "Start adding";
+"下一步" = "Next";
+"秀动示例" = "ShowStart example";
+"打开购票平台" = "Open a ticket platform";
+"打开购票平台并查看如何获取链接" = "Open ticket platform and view how to get link";
+"平台列表" = "Platforms";
+"查看教程" = "View guide";
+"查看秀动示例教程（搜索、分享与拷贝）" = "ShowStart example (search, share & copy)";
+"前往购票平台" = "Go to ticket platforms";
+"返回平台列表" = "Back to platforms";
+"查看如何获取链接教程" = "View how to get link guide";
+"购票平台" = "Ticket Platforms";
+
 /* Timetable redesign */
 "%d 分钟后" = "in %d min";
 "%d 处待确认" = "%d to check";

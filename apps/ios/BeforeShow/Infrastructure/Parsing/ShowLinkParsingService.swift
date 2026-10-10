@@ -92,7 +92,7 @@ enum ShowLinkPlatformCatalog {
 
     /// 「如何获取链接」引导页的平台总览入口；与网页版 link-guide 保持同一份数据。
     static let guidePlatforms: [ShowLinkGuidePlatform] = [
-        ShowLinkGuidePlatform(id: "showstart", displayName: "秀动", overviewURL: "https://showstart.com/", isDomestic: true),
+        ShowLinkGuidePlatform(id: "showstart", displayName: "秀动", overviewURL: "https://wap.showstart.com/", isDomestic: true),
         ShowLinkGuidePlatform(id: "damai", displayName: "大麦", overviewURL: "https://m.damai.cn/shows/home.html", isDomestic: true),
         ShowLinkGuidePlatform(id: "maoyan", displayName: "猫眼", overviewURL: "https://show.maoyan.com/qqw/", isDomestic: true),
         ShowLinkGuidePlatform(id: "piaoxingqiu", displayName: "票星球", overviewURL: "https://e.piaoxingqiu.com/", isDomestic: true),

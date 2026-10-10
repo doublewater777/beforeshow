@@ -15,7 +15,7 @@ struct AddShowFlowView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
 
-    let sheet: AddShowSheet
+    @State private var sheet: AddShowSheet
     let linkParser: ShowLinkDraftParser
     private let onSaved: ((UUID) -> Void)?
 
@@ -29,7 +29,6 @@ struct AddShowFlowView: View {
     @State private var isParsingLink = false
     @State private var isSaving = false
     @State private var hasImportedDraft = false
-    @State private var showsManualFallback = false
     @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
     @State private var showsLinkGuide = false
@@ -40,7 +39,6 @@ struct AddShowFlowView: View {
     @State private var linkPasteSuggestion: AddShowPasteOffer?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
-    @State private var didSwitchToManual = false
     @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
     @State private var importRevision = 0
@@ -63,7 +61,7 @@ struct AddShowFlowView: View {
         prefilledDraft: ShowDraft? = nil,
         onSaved: ((UUID) -> Void)? = nil
     ) {
-        self.sheet = sheet
+        _sheet = State(initialValue: sheet)
         self.linkParser = linkParser
         self.onSaved = onSaved
         if let prefilledDraft {
@@ -134,12 +132,29 @@ struct AddShowFlowView: View {
                 }
             }
         }
-        .navigationTitle(flowNavTitle)
+        .navigationTitle(AddShowConfiguration.navigationTitle)
+        .toolbar {
+            if shouldShowDraftFields {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(BSLocalization.text("返回"), systemImage: "chevron.left") {
+                        dismissKeyboard()
+                        sheet = .link
+                        hasImportedDraft = false
+                        message = nil
+                        refreshPasteOffer(inspectContents: false)
+                    }
+                    .disabled(isSaving || isImportingDraft)
+                }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled(isSaving)
         .preferredColorScheme(.dark)
         .onChange(of: selectedScreenshotItem) { _, newItem in
             guard let newItem else { return }
+            sheet = .screenshot
+            linkFailure = nil
+            message = nil
             beginImportTask {
                 await recognizeScreenshot(from: newItem)
             }
@@ -212,11 +227,6 @@ struct AddShowFlowView: View {
         .bsToastOverlay(toast, bottomPadding: 28)
     }
 
-    /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
-    private var flowNavTitle: String {
-        didSwitchToManual ? BSLocalization.text("手动填写") : sheet.navigationTitle
-    }
-
     /// 粘贴即识别链接来源，不用等一次失败往返。
     /// 只匹配官方域名及其子域名，避免查询参数或仿冒域名误报。
     /// 与 `ShowLinkDraftParser.normalizedLink` 使用同一套规范化，避免 chip 成功但提交失败。
@@ -241,16 +251,25 @@ struct AddShowFlowView: View {
 
     @ViewBuilder
     private var methodContent: some View {
-        if didSwitchToManual {
-            EmptyView()
-        } else {
-            switch sheet {
-            case .manual:
-                EmptyView()
-            case .link:
-                linkContent
-            case .screenshot:
+        if !shouldShowDraftFields {
+            if isRecognizingScreenshot {
                 screenshotContent
+            } else {
+                linkContent
+                HStack(spacing: BSSpacing.compact) {
+                    PhotosPicker(selection: $selectedScreenshotItem, matching: .images) {
+                        Label(BSLocalization.text("截图识别"), systemImage: "photo")
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+
+                    Button {
+                        switchToManual()
+                    } label: {
+                        Label(BSLocalization.text("手动填写"), systemImage: "square.and.pencil")
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                }
+                .disabled(isImportingDraft)
             }
         }
     }
@@ -357,11 +376,14 @@ struct AddShowFlowView: View {
                         showsLinkGuide = true
                     } label: {
                         HStack(spacing: 7) {
-                            Image(systemName: "questionmark.circle")
+                            Image(systemName: "globe")
                                 .font(.system(size: 13, weight: .semibold))
-                            Text("如何获取链接？")
+                            Text(BSLocalization.text("打开购票平台"))
                                 .font(.system(size: 13, weight: .semibold))
                             Spacer(minLength: 0)
+                            Text(BSLocalization.text("如何获取链接？"))
+                                .font(.system(size: 12))
+                                .foregroundColor(BSColor.textTertiary)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 11, weight: .semibold))
                         }
@@ -371,11 +393,7 @@ struct AddShowFlowView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("查看如何获取票务链接")
-
-                    if linkFailure == nil {
-                        switchToManualButton
-                    }
+                    .accessibilityLabel(BSLocalization.text("打开购票平台并查看如何获取链接"))
                 }
 
                 if let linkFailure, !isParsingLink {
@@ -385,9 +403,7 @@ struct AddShowFlowView: View {
                             guard !isParsingLink else { return }
                             self.linkFailure = nil
                         },
-                        onManual: {
-                            didSwitchToManual = true
-                        }
+                        onManual: switchToManual
                     )
                 }
             }
@@ -395,102 +411,31 @@ struct AddShowFlowView: View {
     }
 
     private var screenshotContent: some View {
-        let isRecognizing = isRecognizingScreenshot
-        // 识别成功后只留结果表单，不再占位「点选截图」和隐私说明
-        let showsPicker = !hasImportedDraft
-
-        return VStack(alignment: .leading, spacing: BSSpacing.md) {
-            if isRecognizing {
-                EditShowFormCard(
-                    title: BSLocalization.text("识别进度"),
-                    icon: "text.viewfinder",
-                    tint: BSColor.Accent.violet,
-                    pillText: "设备端 · 不上传",
-                    pillTint: BSColor.Accent.violet
-                ) {
-                    AddShowOCRStepsView(activeStep: ocrActiveStep)
-                }
-            }
-
-            if showsPicker {
-                PhotosPicker(selection: $selectedScreenshotItem, matching: .images) {
-                    VStack(spacing: BSSpacing.md) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(BSColor.Accent.violet.opacity(0.13))
-                                .frame(width: 64, height: 64)
-                            Image(systemName: isRecognizing ? "text.viewfinder" : "camera.fill")
-                                .font(.system(size: 26, weight: .semibold))
-                                .foregroundColor(BSColor.Accent.violet)
-                        }
-
-                        Text(isRecognizing ? "重新选择截图" : "点击选择截图")
-                            .font(.system(size: 14.5, weight: .semibold))
-                            .foregroundColor(BSColor.textSecondary)
-
-                        Text("建议包含现场名称、日期、场馆的页面")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: isRecognizing ? 200 : 280)
-                    .padding(.vertical, BSSpacing.xl)
-                    .background(Color.white.opacity(0.025))
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24)
-                            .stroke(
-                                BSColor.Accent.violet.opacity(0.40),
-                                style: StrokeStyle(lineWidth: 2, dash: [7, 7])
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(isRecognizing)
-                .simultaneousGesture(TapGesture().onEnded {
-                    dismissKeyboard()
-                })
-
-                if showsManualFallback && sheet == .screenshot {
-                    BSEmptyPanel(
-                        iconName: "text.viewfinder",
-                        title: BSLocalization.text("截图识别失败"),
-                        message: BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。"),
-                        buttonTitle: BSLocalization.text("改用手动填写"),
-                        buttonIconName: "square.and.pencil"
-                    ) {
-                        didSwitchToManual = true
-                    }
-                }
-            }
+        EditShowFormCard(
+            title: BSLocalization.text("识别进度"),
+            icon: "text.viewfinder",
+            tint: BSColor.Accent.violet,
+            pillText: "设备端 · 不上传",
+            pillTint: BSColor.Accent.violet
+        ) {
+            AddShowOCRStepsView(activeStep: ocrActiveStep)
         }
     }
 
-    private var switchToManualButton: some View {
-        Button {
-            dismissKeyboard()
-            didSwitchToManual = true
-        } label: {
-            HStack(spacing: 7) {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 13, weight: .semibold))
-                Text(BSLocalization.text("改用手动填写"))
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundColor(BSColor.Stage.accent)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: BSLayout.minTouchTarget)
-            .contentShape(Rectangle())
+    private func switchToManual() {
+        dismissKeyboard()
+        draft.source = .manual
+        if draft.startTime == nil {
+            let calendar = draft.timingCalendar()
+            draft.startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: draft.date)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(BSLocalization.text("改用手动填写"))
+        sheet = .manual
+        message = nil
+        linkFailure = nil
     }
 
     private var shouldShowDraftFields: Bool {
-        sheet == .manual || didSwitchToManual || hasImportedDraft
+        sheet == .manual || hasImportedDraft
     }
 
     // MARK: - 吸底保存栏：按钮始终可见，仅在需要处理时显示状态行
@@ -687,7 +632,7 @@ struct AddShowFlowView: View {
                 // 不保留上一次识别成功的标题 / 横幅 / 标记
                 draft.source = .manual
                 hasImportedDraft = false
-                showsManualFallback = true
+                sheet = .link
                 message = BSLocalization.text("没有读到这张截图，请改用手动填写。")
                 presentToast(.failure, message: BSLocalization.text("读取失败"))
                 return
@@ -706,7 +651,6 @@ struct AddShowFlowView: View {
             draft.mergeRespectingUserEdits(from: recognized, userEdited: userEditedFields)
             userEditedFields = []
             hasImportedDraft = true
-            showsManualFallback = false
             importRevision += 1
             fallbackDateConfirmed = false
             if !recognized.recognizedFields.contains(.date) {
@@ -726,7 +670,7 @@ struct AddShowFlowView: View {
             guard isActiveImportRequest(requestRevision) else { return }
             draft.source = .manual
             hasImportedDraft = false
-            showsManualFallback = true
+            sheet = .link
             message = BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。")
             presentToast(.failure, message: BSLocalization.text("识别失败"))
         }
@@ -774,6 +718,7 @@ struct AddShowFlowView: View {
     private func parseLink() async {
         guard !isParsingLink else { return }
         dismissKeyboard()
+        sheet = .link
         let requestedLink = linkText
         linkFailure = nil
         isParsingLink = true
@@ -792,7 +737,6 @@ struct AddShowFlowView: View {
             draft.mergeRespectingUserEdits(from: parsed, userEdited: userEditedFields)
             userEditedFields = []
             hasImportedDraft = true
-            showsManualFallback = false
             linkFailure = nil
             importRevision += 1
             fallbackDateConfirmed = false
@@ -807,7 +751,6 @@ struct AddShowFlowView: View {
             guard isActiveImportRequest(requestRevision) else { return }
             draft.source = .manual
             hasImportedDraft = false
-            showsManualFallback = true
             linkFailure = AddShowLinkFailurePresentation.resolve(error)
             message = nil
             presentToast(.failure, message: BSLocalization.text("解析失败"))

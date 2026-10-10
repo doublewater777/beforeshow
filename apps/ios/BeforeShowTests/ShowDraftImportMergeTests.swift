@@ -2,6 +2,27 @@ import XCTest
 @testable import BeforeShow
 
 final class ShowDraftImportMergeTests: XCTestCase {
+    func testReimportedFallbackDateDoesNotRetainPreviousRecognition() {
+        let fallbackDate = Date(timeIntervalSince1970: 1_800_000_000)
+        var draft = ShowDraft(
+            name: "Dated show",
+            date: fallbackDate.addingTimeInterval(86400),
+            source: .link,
+            recognizedFields: [.name, .date]
+        )
+        let incoming = ShowDraft(
+            name: "Undated screenshot",
+            date: fallbackDate,
+            source: .screenshotOCR,
+            recognizedFields: [.name]
+        )
+
+        draft.mergeRespectingUserEdits(from: incoming, userEdited: [])
+
+        XCTAssertEqual(draft.date, fallbackDate)
+        XCTAssertFalse(draft.recognizedFields.contains(.date))
+    }
+
     func testEmptyUserEditedBehavesLikeFullReplace() {
         let now = Date()
         var draft = ShowDraft(
