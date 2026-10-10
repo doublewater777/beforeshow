@@ -632,6 +632,7 @@ struct AddShowFlowView: View {
                 // 不保留上一次识别成功的标题 / 横幅 / 标记
                 draft.source = .manual
                 hasImportedDraft = false
+                sheet = .link
                 message = BSLocalization.text("没有读到这张截图，请改用手动填写。")
                 presentToast(.failure, message: BSLocalization.text("读取失败"))
                 return
@@ -669,6 +670,7 @@ struct AddShowFlowView: View {
             guard isActiveImportRequest(requestRevision) else { return }
             draft.source = .manual
             hasImportedDraft = false
+            sheet = .link
             message = BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。")
             presentToast(.failure, message: BSLocalization.text("识别失败"))
         }
