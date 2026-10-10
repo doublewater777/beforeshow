@@ -59,6 +59,7 @@ struct TimetableMatrixCard: View {
             if !isGhost {
                 content
                     .frame(width: width, height: card.height, alignment: .topLeading)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .opacity(isEnded ? 0.6 : 1)
             }
 
@@ -180,68 +181,85 @@ struct TimetableMatrixCard: View {
         }
     }
 
-    private var avatarSize: CGFloat {
-        card.height < 52 ? 22 : 28
-    }
-
-    private var topPadding: CGFloat {
-        card.height < 64 ? 10 : 15
-    }
-
     private var horizontalPadding: CGFloat {
-        width < 155 ? 12 : 16
-    }
-
-    private var actionToTitleSpacing: CGFloat {
-        card.height < 64 ? 6 : 11
-    }
-
-    private var titleToMetaSpacing: CGFloat {
-        5
+        width < TimetableStyle.MatrixCard.narrowWidth ? TimetableStyle.MatrixCard.narrowHorizontalPadding : TimetableStyle.MatrixCard.horizontalPadding
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ViewThatFits(in: .vertical) {
+            cardContent(compact: false, titleLines: 2)
+            cardContent(compact: true, titleLines: 2)
+            compactDetails(titleLines: 2)
+            compactDetails(titleLines: 1)
+            // Very short sets keep their name and interest action on one row.
+            HStack(spacing: TimetableStyle.MatrixCard.compactActionSpacing) {
+                name(compact: true, lines: 1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                heartButton(size: TimetableStyle.MatrixCard.compactControlSize)
+            }
+            .padding(.horizontal, TimetableStyle.MatrixCard.compactPadding)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func compactDetails(titleLines: Int) -> some View {
+        VStack(alignment: .leading, spacing: TimetableStyle.MatrixCard.compactMetaSpacing) {
+            name(compact: true, lines: titleLines)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            meta
+        }
+        .padding(.trailing, TimetableStyle.MatrixCard.compactControlSize + TimetableStyle.MatrixCard.compactActionSpacing)
+        .overlay(alignment: .topTrailing) {
+            heartButton(size: TimetableStyle.MatrixCard.compactControlSize)
+        }
+        .padding(TimetableStyle.MatrixCard.compactPadding)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func cardContent(compact: Bool, titleLines: Int) -> some View {
+        let compactControls = compact || width < TimetableStyle.MatrixCard.narrowWidth
+        let avatarSize = compactControls ? TimetableStyle.MatrixCard.compactAvatarSize : TimetableStyle.MatrixCard.avatarSize
+        let controlSize = compactControls ? TimetableStyle.MatrixCard.compactControlSize : TimetableStyle.MatrixCard.controlSize
+        return VStack(alignment: .leading, spacing: 0) {
             // 顶部操作区：左侧头像 + 紧跟播放按钮，右侧固定贴齐爱心，整体垂直居中
             HStack(alignment: .center, spacing: 0) {
-                HStack(alignment: .center, spacing: 9) {
+                HStack(alignment: .center, spacing: compactControls ? TimetableStyle.MatrixCard.compactActionSpacing : TimetableStyle.MatrixCard.actionSpacing) {
                     TimetableArtistAvatar(name: card.artistName, url: avatarURL, size: avatarSize)
                         .allowsHitTesting(false)
-                    playPreviewButton
+                    playPreviewButton(size: controlSize)
                 }
 
                 Spacer(minLength: 4)
 
-                heartButton
+                heartButton(size: controlSize)
             }
-            .frame(height: max(avatarSize, 28))
+            .frame(height: max(avatarSize, controlSize))
 
             // 艺人名称
-            name
-                .padding(.top, actionToTitleSpacing)
+            name(compact: compact, lines: titleLines)
+                .padding(.top, compact ? TimetableStyle.MatrixCard.compactTitleSpacing : TimetableStyle.MatrixCard.titleSpacing)
 
             // 时间信息
-            if card.height >= 56 {
-                meta
-                    .padding(.top, titleToMetaSpacing)
-            }
+            meta
+                .padding(.top, compact ? TimetableStyle.MatrixCard.compactMetaSpacing : TimetableStyle.MatrixCard.metaSpacing)
         }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.top, topPadding)
-        .padding(.bottom, 8)
+        .padding(.horizontal, compact ? TimetableStyle.MatrixCard.compactPadding : horizontalPadding)
+        .padding(.top, compact ? TimetableStyle.MatrixCard.compactPadding : TimetableStyle.MatrixCard.topPadding)
+        .padding(.bottom, compact ? TimetableStyle.MatrixCard.compactPadding : TimetableStyle.MatrixCard.bottomPadding)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var heartButton: some View {
+    private func heartButton(size: CGFloat) -> some View {
         Button(action: onToggle) {
             heartIcon
-                .frame(width: 28, height: 28, alignment: .trailing)
+                .frame(width: size, height: size, alignment: .trailing)
                 .contentShape(Rectangle())
         }
         .buttonStyle(TimetableHeartButtonStyle())
         .accessibilityLabel(BSLocalization.text(card.isInterested ? "取消想看" : "想看"))
     }
 
-    private var playPreviewButton: some View {
+    private func playPreviewButton(size: CGFloat) -> some View {
         Button {
             TimetablePreviewPlayer.shared.toggle(performanceID: card.id, artistName: card.artistName, artistID: artistID)
         } label: {
@@ -264,21 +282,21 @@ struct TimetableMatrixCard: View {
                         .offset(x: 0.5)
                 }
             }
-            .frame(width: 28, height: 28)
+            .frame(width: size, height: size)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(BSLocalization.text(isPlayingPreview ? "暂停试听" : "试听"))
     }
 
-    private var name: some View {
+    private func name(compact: Bool, lines: Int) -> some View {
         Text(card.artistName)
-            .font(.system(size: 14.5, weight: .heavy))
+            .font(compact ? TimetableStyle.MatrixCard.compactTitleFont : TimetableStyle.MatrixCard.titleFont)
             .tracking(-0.15)
             .foregroundStyle(isEnded ? Color.white.opacity(0.72) : Color.white)
             .shadow(color: Color.black.opacity(0.4), radius: 1, y: 0.5)
             .lineSpacing(1)
-            .lineLimit(2)
+            .lineLimit(lines)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .allowsHitTesting(false)

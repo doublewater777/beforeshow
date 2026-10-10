@@ -24,6 +24,26 @@ enum TimetableStyle {
     static let matrixHeaderHeight: CGFloat = 40
     static let matrixLaneRadius: CGFloat = 12
     static let matrixLaneTintOpacity: Double = 0.04
+    enum MatrixCard {
+        static let narrowWidth: CGFloat = 155
+        static let avatarSize: CGFloat = 28
+        static let compactAvatarSize: CGFloat = 22
+        static let controlSize: CGFloat = 28
+        static let compactControlSize: CGFloat = 24
+        static let horizontalPadding: CGFloat = 16
+        static let narrowHorizontalPadding: CGFloat = 12
+        static let compactPadding: CGFloat = 4
+        static let topPadding: CGFloat = 15
+        static let bottomPadding: CGFloat = 8
+        static let actionSpacing: CGFloat = 9
+        static let compactActionSpacing: CGFloat = 4
+        static let titleSpacing: CGFloat = 11
+        static let compactTitleSpacing: CGFloat = 3
+        static let metaSpacing: CGFloat = 5
+        static let compactMetaSpacing: CGFloat = 2
+        static let titleFont = Font.system(size: 14.5, weight: .heavy)
+        static let compactTitleFont = Font.system(size: 13.5, weight: .heavy)
+    }
     static let dockActionSize: CGFloat = 52
     static let dockActionFont = Font.system(size: 18, weight: .semibold)
 
