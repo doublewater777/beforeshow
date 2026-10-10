@@ -112,6 +112,6 @@ enum AppReviewPrompt {
         guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
             return
         }
-        SKStoreReviewController.requestReview(in: scene)
+        AppStore.requestReview(in: scene)
     }
 }

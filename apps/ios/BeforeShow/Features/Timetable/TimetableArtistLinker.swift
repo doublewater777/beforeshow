@@ -36,19 +36,82 @@ final class TimetableArtistLinker {
         }
     }
 
-    func candidates(for query: String) async throws -> [RecognizedArtist] {
-        let known = existingMatches(for: query)
-        if !known.isEmpty { return known }
+    func candidates(for query: String, includingRemote: Bool = false) async throws -> [RecognizedArtist] {
+        let known = savedCandidates(for: query)
+        if !includingRemote && !known.isEmpty { return known }
         let key = ArtistNameMatching.normalized(query)
-        if let cached = searchResults[key] { return cached }
-        let found = try await search.searchArtists(query: query)
-        try Task.checkCancellation()
-        searchResults[key] = found
-        return found
+        let found: [RecognizedArtist]
+        if let cached = searchResults[key] {
+            found = cached
+        } else {
+            found = try await search.searchArtists(query: query)
+            try Task.checkCancellation()
+            searchResults[key] = found
+        }
+        var merged = known
+        var identities = Set(known.map(\.id))
+        for artist in found where identities.insert(artist.id).inserted { merged.append(artist) }
+        return merged
     }
 
     func rememberConnectedArtist(_ artist: RecognizedArtist) {
         knownArtists.append(artist)
+    }
+
+    /// Automatically search and match artist IDs for all unlinked performers in a draft.
+    func autoMatchArtists(in draft: inout TimetableDraft) async {
+        reuseKnownArtists(in: &draft)
+        var slots: [ArtistSlot] = []
+        var paths: [(dayIndex: Int, stageIndex: Int, perfIndex: Int)] = []
+
+        for d in draft.days.indices {
+            for s in draft.days[d].stages.indices {
+                for p in draft.days[d].stages[s].performances.indices {
+                    let perf = draft.days[d].stages[s].performances[p]
+                    if perf.appleMusicArtistID == nil && !perf.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        slots.append(ArtistSlot(name: perf.artistName, avatarURL: nil))
+                        paths.append((d, s, p))
+                    }
+                }
+            }
+        }
+
+        guard !slots.isEmpty else { return }
+        let matcher = ArtistIdentityMatcher(search: search)
+        if let matches = try? await matcher.matches(for: slots) {
+            for (index, artist) in matches {
+                let (d, s, p) = paths[index]
+                draft.days[d].stages[s].performances[p].connectArtist(artist)
+                rememberConnectedArtist(artist)
+            }
+        }
+    }
+
+    /// Automatically match unlinked performances in a persisted Timetable.
+    func autoMatchPersistedPerformances(in timetable: Timetable, context: ModelContext) async {
+        var slots: [ArtistSlot] = []
+        var perfs: [TimetablePerformance] = []
+
+        for day in timetable.days {
+            for stage in day.stages {
+                for perf in stage.performances {
+                    if perf.appleMusicArtistID == nil && !perf.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        slots.append(ArtistSlot(name: perf.artistName, avatarURL: nil))
+                        perfs.append(perf)
+                    }
+                }
+            }
+        }
+
+        guard !slots.isEmpty else { return }
+        let matcher = ArtistIdentityMatcher(search: search)
+        guard let matches = try? await matcher.matches(for: slots), !matches.isEmpty else { return }
+
+        for (index, artist) in matches {
+            perfs[index].connectArtist(artist)
+            rememberConnectedArtist(artist)
+        }
+        try? context.save()
     }
 
     /// Only reuse an unambiguous saved identity when importing a new timetable.
@@ -59,7 +122,7 @@ final class TimetableArtistLinker {
                 for index in draft.days[day].stages[stage].performances.indices {
                     let performance = draft.days[day].stages[stage].performances[index]
                     guard performance.appleMusicArtistID == nil else { continue }
-                    let matches = existingMatches(for: performance.artistName)
+                    let matches = savedCandidates(for: performance.artistName)
                     if matches.count == 1, let artist = matches.first {
                         draft.days[day].stages[stage].performances[index].connectArtist(artist)
                     }
@@ -68,7 +131,7 @@ final class TimetableArtistLinker {
         }
     }
 
-    private func existingMatches(for name: String) -> [RecognizedArtist] {
+    func savedCandidates(for name: String) -> [RecognizedArtist] {
         var matches: [RecognizedArtist] = []
         for (index, query) in TimetableArtistAvatarStore.candidateQueries(for: name).enumerated() {
             let normalized = ArtistNameMatching.normalized(query)

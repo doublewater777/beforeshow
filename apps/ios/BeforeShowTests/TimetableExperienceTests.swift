@@ -295,6 +295,82 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertTrue(p2.isInterested)
     }
 
+
+    // MARK: - 8. In-Situ Matrix Editing & Stage Migration
+
+    func testInSituPerformanceMutationsAndStageMoving() throws {
+        let p1 = try TimetablePerformance(artistName: "Radiohead", startsAt: date(2026, 8, 15, 18, 0), endsAt: date(2026, 8, 15, 19, 0))
+        let stage1 = try TimetableStage(name: "Moon Stage", sortOrder: 0, performances: [p1])
+        p1.stage = stage1
+
+        let p2 = try TimetablePerformance(artistName: "Massive Attack", startsAt: date(2026, 8, 15, 19, 30), endsAt: date(2026, 8, 15, 20, 30))
+        let stage2 = try TimetableStage(name: "Sun Stage", sortOrder: 1, performances: [p2])
+        p2.stage = stage2
+
+        let day = try TimetableDay(date: date(2026, 8, 15, 0, 0), stages: [stage1, stage2])
+        stage1.day = day
+        stage2.day = day
+
+        // 1. Shift time by +10 minutes
+        p1.shiftTimes(by: 600)
+        XCTAssertEqual(p1.startsAt, date(2026, 8, 15, 18, 10))
+        XCTAssertEqual(p1.endsAt, date(2026, 8, 15, 19, 10))
+
+        // 2. Move p1 to stage2
+        p1.moveTo(stage: stage2)
+        XCTAssertEqual(p1.stage?.id, stage2.id)
+
+        // 3. Rename stage
+        try stage1.updateName("Earth Stage")
+        XCTAssertEqual(stage1.name, "Earth Stage")
+
+        // 4. Update details
+        try p1.updateDetails(
+            artistName: "The Smile",
+            startsAt: date(2026, 8, 15, 18, 30),
+            endsAt: date(2026, 8, 15, 19, 45)
+        )
+        XCTAssertEqual(p1.artistName, "The Smile")
+        XCTAssertEqual(p1.startsAt, date(2026, 8, 15, 18, 30))
+        XCTAssertEqual(p1.endsAt, date(2026, 8, 15, 19, 45))
+
+        // 5. Add stage to day
+        let newStage = try day.addStage(name: "Star Stage")
+        XCTAssertEqual(newStage.name, "Star Stage")
+        XCTAssertTrue(day.stages.contains { $0.id == newStage.id })
+    }
+
+    func testMatrixLayoutYToDateMapping() throws {
+        let dayStart = date(2026, 8, 15, 12, 0)
+        let perf = try TimetablePerformance(
+            artistName: "Artist",
+            startsAt: date(2026, 8, 15, 14, 0),
+            endsAt: date(2026, 8, 15, 15, 0)
+        )
+        let stage = try TimetableStage(name: "Main", performances: [perf])
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let layout = TimetableMatrixLayout(
+            stages: [.init(id: stage.id, name: stage.name, performances: [
+                .init(id: perf.id, artistName: perf.artistName, startsAt: perf.startsAt, endsAt: perf.endsAt, isInterested: false)
+            ])],
+            now: dayStart,
+            calendar: cal
+        )
+
+        let yStart = layout.y(for: layout.start)
+        XCTAssertEqual(yStart, TimetableMatrixLayout.topInset, accuracy: 0.1)
+
+        let mappedStart = layout.date(for: yStart)
+        XCTAssertEqual(mappedStart.timeIntervalSince(layout.start), 0, accuracy: 1)
+
+        let oneHourLater = layout.start.addingTimeInterval(3600)
+        let yOneHour = layout.y(for: oneHourLater)
+        XCTAssertEqual(yOneHour, TimetableMatrixLayout.topInset + 60 * TimetableMatrixLayout.pointsPerMinute, accuracy: 0.1)
+        let mappedHour = layout.date(for: yOneHour)
+        XCTAssertEqual(mappedHour.timeIntervalSince(oneHourLater), 0, accuracy: 1)
+    }
+
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
         var components = DateComponents()
         components.year = year

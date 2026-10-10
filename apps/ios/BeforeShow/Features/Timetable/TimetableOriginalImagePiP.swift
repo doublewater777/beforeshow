@@ -2,17 +2,30 @@ import SwiftUI
 import UIKit
 
 /// Floating original-image window for comparing against the parsed schedule.
-/// Drag to move (snaps to the nearest corner), tap to resize.
+/// Preserves exact aspect ratio (scaledToFit), zero cropping.
+/// Drag to move, tap to open full-screen pinch-to-zoom viewer.
 struct TimetableOriginalImagePiP: View {
     let images: [UIImage]
+    @Binding var page: Int
+    let onExpandFullScreen: () -> Void
     let onClose: () -> Void
+
+    init(
+        images: [UIImage],
+        page: Binding<Int>? = nil,
+        onExpandFullScreen: @escaping () -> Void = {},
+        onClose: @escaping () -> Void
+    ) {
+        self.images = images
+        self._page = page ?? .constant(0)
+        self.onExpandFullScreen = onExpandFullScreen
+        self.onClose = onClose
+    }
 
     private enum Corner { case topLeading, topTrailing, bottomLeading, bottomTrailing }
 
     @State private var corner: Corner = .bottomTrailing
-    @State private var isLarge = false
     @State private var drag: CGSize = .zero
-    @State private var page = 0
 
     private static let margin: CGFloat = 14
     private static let topInset: CGFloat = 56
@@ -20,7 +33,7 @@ struct TimetableOriginalImagePiP: View {
 
     var body: some View {
         GeometryReader { geo in
-            let size = isLarge ? CGSize(width: 228, height: 304) : CGSize(width: 120, height: 160)
+            let size = CGSize(width: 140, height: 190)
             let origin = position(for: corner, size: size, in: geo.size)
 
             window(size: size)
@@ -40,31 +53,40 @@ struct TimetableOriginalImagePiP: View {
                         }
                 )
                 .onTapGesture {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isLarge.toggle() }
+                    onExpandFullScreen()
                 }
         }
         .transition(.scale(scale: 0.85).combined(with: .opacity))
     }
 
     private func window(size: CGSize) -> some View {
-        Image(uiImage: images[min(page, images.count - 1)])
-            .resizable()
-            .scaledToFill()
-            .frame(width: size.width, height: size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.16), lineWidth: 1))
-            .overlay(alignment: .topLeading) {
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .padding(6)
-                .accessibilityLabel(BSLocalization.text("关闭原图"))
+        ZStack {
+            Color.black.opacity(0.88)
+
+            if !images.isEmpty {
+                let img = images[min(page, images.count - 1)]
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: size.width, maxHeight: size.height)
             }
-            .overlay(alignment: .bottomTrailing) {
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.2), lineWidth: 1))
+        .overlay(alignment: .topLeading) {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .padding(6)
+            .accessibilityLabel(BSLocalization.text("关闭原图"))
+        }
+        .overlay(alignment: .bottomTrailing) {
+            HStack(spacing: 4) {
                 if images.count > 1 {
                     Button {
                         page = (page + 1) % images.count
@@ -76,10 +98,19 @@ struct TimetableOriginalImagePiP: View {
                             .padding(.vertical, 2)
                             .background(.ultraThinMaterial, in: Capsule())
                     }
-                    .padding(6)
                 }
+                Button(action: onExpandFullScreen) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(5)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel(BSLocalization.text("全屏查看"))
             }
-            .shadow(color: .black.opacity(0.65), radius: 20, y: 18)
+            .padding(6)
+        }
+        .shadow(color: .black.opacity(0.65), radius: 20, y: 18)
     }
 
     private func position(for corner: Corner, size: CGSize, in container: CGSize) -> CGPoint {

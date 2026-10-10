@@ -100,9 +100,7 @@ private struct LiveActivityTimerText: View {
             .multilineTextAlignment(.trailing)
             // 阶段 + 动态计时一起读:开场前「距开场 + 倒数」,开场后「已开场 + 正计时」
             .accessibilityLabel(
-                Text(LiveActivityCopy.statusLabel(isLive: isLive, state: state))
-                    + Text(" ")
-                    + Text(state.currentArtistName == nil ? state.startDate : (state.currentEndsAt ?? state.startDate), style: .timer)
+                Text("\(LiveActivityCopy.statusLabel(isLive: isLive, state: state)) \(Text(state.currentArtistName == nil ? state.startDate : (state.currentEndsAt ?? state.startDate), style: .timer))")
             )
     }
 }

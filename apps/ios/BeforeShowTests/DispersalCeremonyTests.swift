@@ -235,6 +235,7 @@ final class DispersalCeremonyTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testDispersalCeremonySheetExplicitInitialStep() throws {
         let show = try Self.makeShow()
         try show.setClosingRitual(rating: 4, note: "棒", markCeremonyCompleted: true)

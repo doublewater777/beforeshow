@@ -81,6 +81,8 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         }
         guard player.currentItem != nil else { throw ListeningPlaybackError.emptyQueue }
         AppAudioSession.configureMusicPlayback()
+        await AppAudioSession.waitForPendingOperations()
+        try Task.checkCancellation()
         player.play()
         let nowPlaying = nowPlaying
         Task { _ = await nowPlaying.becomeActiveIfPossible() }

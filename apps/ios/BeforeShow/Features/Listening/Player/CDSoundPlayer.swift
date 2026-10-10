@@ -10,7 +10,7 @@ import AVFoundation
 /// stays silent; its files remain in Resources/Sounds as `cd-<name>.caf`.
 /// Sounds mix with music playback and never duck it; when no music plays the
 /// ambient session keeps them on the silent switch.
-@MainActor final class CDSoundPlayer {
+final class CDSoundPlayer: @unchecked Sendable {
     static let shared = CDSoundPlayer()
 
     /// Output trim per enabled audio asset so effects sit under the music.
@@ -19,6 +19,7 @@ import AVFoundation
         "read": 0.3,
     ]
 
+    // Every player access is confined to AppAudioSession.workQueue.
     private var players: [String: AVAudioPlayer] = [:]
 
     private init() {}
@@ -39,18 +40,25 @@ import AVFoundation
     /// Create and prepare every enabled player up front; the first lazy load
     /// otherwise lands noticeably after the first button press.
     func warmup() {
-        for transition in Self.gains.keys { _ = player(for: transition) }
+        AppAudioSession.workQueue.async { [self] in
+            for transition in Self.gains.keys { _ = player(for: transition) }
+        }
     }
 
     func play(_ transition: String) {
-        for cue in Self.audioCues(for: transition) {
-            guard let player = player(for: cue) else { continue }
-            player.currentTime = 0
-            player.play()
+        let cues = Self.audioCues(for: transition)
+        guard !cues.isEmpty else { return }
+        AppAudioSession.workQueue.async { [self] in
+            for cue in cues {
+                guard let player = player(for: cue) else { continue }
+                player.currentTime = 0
+                player.play()
+            }
         }
     }
 
     private func player(for transition: String) -> AVAudioPlayer? {
+        dispatchPrecondition(condition: .onQueue(AppAudioSession.workQueue))
         if let cached = players[transition] { return cached }
         guard Self.gains[transition] != nil,
               let url = Bundle.main.url(forResource: "cd-\(transition)", withExtension: "caf"),

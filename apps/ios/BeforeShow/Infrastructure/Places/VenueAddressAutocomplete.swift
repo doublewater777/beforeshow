@@ -66,17 +66,11 @@ enum MapKitAddressFormatter {
     }
 
     static func displayAddress(for mapItem: MKMapItem) -> String {
-        let placemark = mapItem.placemark
-        let name = mapItem.name ?? placemark.name ?? ""
-        let district = [placemark.administrativeArea, placemark.locality, placemark.subLocality]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined()
-        let street = [placemark.thoroughfare, placemark.subThoroughfare]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined()
-        return displayAddress(name: name, address: street, district: district)
+        let address = mapItem.addressRepresentations?.fullAddress(includingRegion: false, singleLine: true)
+            ?? mapItem.address?.fullAddress
+            ?? mapItem.name
+            ?? ""
+        return address.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -110,35 +104,29 @@ struct MapKitAddressSuggestionProvider: AddressSuggestionProviding {
 
 private extension AddressSuggestion {
     init?(mapItem: MKMapItem) {
-        let placemark = mapItem.placemark
-        let name = (mapItem.name ?? placemark.name ?? "")
+        let name = (mapItem.name ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let district = [placemark.administrativeArea, placemark.locality, placemark.subLocality]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined()
-        let street = [placemark.thoroughfare, placemark.subThoroughfare]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined()
+        let district = (mapItem.addressRepresentations?.cityName ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let address = MapKitAddressFormatter.displayAddress(for: mapItem)
 
-        guard !name.isEmpty || !district.isEmpty || !street.isEmpty else {
+        guard !name.isEmpty || !district.isEmpty || !address.isEmpty else {
             return nil
         }
 
         let identifier = [
             name,
             district,
-            street,
-            "\(placemark.coordinate.latitude)",
-            "\(placemark.coordinate.longitude)"
+            address,
+            "\(mapItem.location.coordinate.latitude)",
+            "\(mapItem.location.coordinate.longitude)"
         ].joined(separator: "|")
 
         self.init(
             id: identifier,
             name: name.isEmpty ? district : name,
-            address: street,
-            district: district
+            address: address,
+            district: address.contains(district) ? "" : district
         )
     }
 }

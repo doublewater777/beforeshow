@@ -6,9 +6,11 @@ struct TimetableReviewEditor: View {
     let avatarURL: URL?
     let artistLinker: TimetableArtistLinker
     let hasOverlap: Bool
+    let saveError: TimetableValidationError?
     let timeZone: TimeZone
     let onDelete: () -> Void
     let onDone: () -> Void
+    let onRevealArtistSearch: () -> Void
 
     @FocusState private var nameFocused: Bool
 
@@ -17,6 +19,8 @@ struct TimetableReviewEditor: View {
             HStack(spacing: 10) {
                 TimetableArtistAvatar(name: performance.artistName, url: performance.appleMusicArtistID == nil ? avatarURL : performance.artistAvatarURL.flatMap(URL.init(string:)), size: 32)
                 TextField(BSLocalization.text("艺人名称"), text: $performance.artistName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(TimetableStyle.foreground)
                     .focused($nameFocused)
@@ -29,7 +33,13 @@ struct TimetableReviewEditor: View {
                     }
             }
 
-            TimetableArtistConnectionView(performance: $performance, linker: artistLinker)
+            TimetableArtistConnectionView(performance: $performance, linker: artistLinker, onRevealSearch: onRevealArtistSearch)
+
+            if let error = inlineError {
+                Text(BSLocalization.text(error))
+                    .font(BSFont.caption)
+                    .foregroundStyle(TimetableStyle.attention)
+            }
 
             HStack(spacing: 8) {
                 timePicker($performance.startsAt)
@@ -45,15 +55,7 @@ struct TimetableReviewEditor: View {
                 }
                 .buttonStyle(TimetablePressStyle())
                 .accessibilityLabel(BSLocalization.text("删除"))
-                Button(action: onDone) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 15, weight: .heavy))
-                        .foregroundStyle(TimetableStyle.background)
-                        .frame(width: 40, height: 40)
-                        .background(Circle().fill(TimetableStyle.foreground))
-                }
-                .buttonStyle(TimetablePressStyle())
-                .accessibilityLabel(BSLocalization.text("完成"))
+                TimetableTextActionButton(title: BSLocalization.text("完成"), action: onDone)
             }
         }
         .padding(14)
@@ -62,6 +64,13 @@ struct TimetableReviewEditor: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .transition(.scale(scale: 0.98).combined(with: .opacity))
+    }
+
+    private var inlineError: String? {
+        if performance.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "请输入艺人名称" }
+        if performance.endsAt <= performance.startsAt { return "结束时间需要晚于开始时间" }
+        if let saveError { return TimetableReviewIssues.message(for: saveError) }
+        return hasOverlap ? "同舞台演出时间重叠" : nil
     }
 
     private func timePicker(_ selection: Binding<Date>) -> some View {

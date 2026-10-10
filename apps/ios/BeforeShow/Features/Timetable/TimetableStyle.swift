@@ -1,20 +1,31 @@
 import SwiftUI
 
 /// Visual tokens for the timetable feature. Gold means "mine" (interested),
-/// red means "now"; everything else stays neutral.
+/// red means "now"; stage colors provide warm atmospheric illumination.
 enum TimetableStyle {
-    static let background = BSColor.Stage.background
-    static let lane = Color(red: 0.055, green: 0.055, blue: 0.067)
-    static let card = Color(red: 0.086, green: 0.086, blue: 0.102)
-    static let cardMine = Color(red: 0.122, green: 0.106, blue: 0.075)
+    /// Deep atmospheric stage background with rich midnight indigo-slate tone (#0C0E14)
+    static let background = Color(red: 0.047, green: 0.055, blue: 0.078)
+    /// Distinct elevated stage lane column with subtle dark navy tone (#13161F)
+    static let lane = Color(red: 0.075, green: 0.086, blue: 0.122)
+    /// Elevated performance card surface (#1D202A)
+    static let card = Color(red: 0.114, green: 0.125, blue: 0.165)
+    /// Luminous warm gold for interested cards (#2A2317)
+    static let cardMine = Color(red: 0.165, green: 0.137, blue: 0.090)
+    static let liveCardBackgroundSaturation: Double = 0.8
     static let foreground = BSColor.Stage.foreground
-    static let muted = Color(red: 0.604, green: 0.604, blue: 0.635)
-    static let dim = Color(red: 0.369, green: 0.369, blue: 0.400)
+    static let muted = Color(red: 0.680, green: 0.680, blue: 0.720)
+    static let dim = Color(red: 0.440, green: 0.440, blue: 0.480)
     static let mine = BSColor.Stage.accent
     static let now = BSColor.Stage.live
     static let nowSoft = Color(red: 1.0, green: 0.604, blue: 0.631)
     static let night = Color(red: 0.686, green: 0.765, blue: 0.933)
     static let attention = BSColor.Accent.warm
+    static let matrixRulerWidth: CGFloat = 42
+    static let matrixHeaderHeight: CGFloat = 40
+    static let matrixLaneRadius: CGFloat = 12
+    static let matrixLaneTintOpacity: Double = 0.04
+    static let dockActionSize: CGFloat = 52
+    static let dockActionFont = Font.system(size: 18, weight: .semibold)
 
     static func mono(_ size: CGFloat, weight: Font.Weight = .medium) -> Font {
         .system(size: size, weight: weight, design: .monospaced)
@@ -30,14 +41,13 @@ struct TimetableDaySwitcher: View {
         let label: String
         let date: String
         var isToday = false
+        var issueCount = 0
     }
 
     let items: [Item]
     @Binding var selection: UUID
     @Namespace private var indicator
 
-    /// Two days keep the one-line pills; three or more stack the date under the
-    /// day so they fit the nav bar; five or more scroll, centred on the selection.
     var body: some View {
         if items.count <= 2 {
             track(compact: false)
@@ -75,6 +85,7 @@ struct TimetableDaySwitcher: View {
                                 HStack(spacing: 3) {
                                     Text(item.date).font(TimetableStyle.mono(10.5))
                                     if item.isToday { todayDot }
+                                    if item.issueCount > 0 { issueBadge(item.issueCount) }
                                 }
                                 .opacity(0.85)
                             }
@@ -85,6 +96,7 @@ struct TimetableDaySwitcher: View {
                                 Text(item.label).font(.system(size: 14, weight: .bold))
                                 Text(item.date).font(TimetableStyle.mono(13))
                                 if item.isToday { todayDot }
+                                if item.issueCount > 0 { issueBadge(item.issueCount) }
                             }
                             .padding(.horizontal, 14)
                             .frame(height: 38)
@@ -107,8 +119,8 @@ struct TimetableDaySwitcher: View {
             }
         }
         .padding(3)
-        .background(Capsule().fill(Color.white.opacity(0.05)))
-        .overlay(Capsule().stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .background(Capsule().fill(Color.white.opacity(0.08)))
+        .overlay(Capsule().stroke(Color.white.opacity(0.06), lineWidth: 1))
     }
 
     private var todayDot: some View {
@@ -116,6 +128,14 @@ struct TimetableDaySwitcher: View {
             .fill(TimetableStyle.now)
             .frame(width: 5, height: 5)
             .shadow(color: TimetableStyle.now.opacity(0.9), radius: 3)
+    }
+
+    private func issueBadge(_ count: Int) -> some View {
+        Text("\(count)")
+            .font(BSFont.V3.caption.weight(.bold))
+            .foregroundStyle(TimetableStyle.background)
+            .padding(.horizontal, BSSpacing.xs)
+            .background(Capsule().fill(TimetableStyle.attention))
     }
 }
 
@@ -180,16 +200,6 @@ struct TimetablePressStyle: ButtonStyle {
     }
 }
 
-/// Lock line shown under import actions; recognition never leaves the device.
-struct TimetableOnDeviceNote: View {
-    var body: some View {
-        Label(BSLocalization.text("仅在本机识别"), systemImage: "lock")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(TimetableStyle.dim)
-            .labelStyle(.titleAndIcon)
-    }
-}
-
 /// Artist avatar for timetable surfaces: the matched photo, or the artist's
 /// first character so unmatched performers stay recognisable at a glance.
 struct TimetableArtistAvatar: View {
@@ -202,14 +212,24 @@ struct TimetableArtistAvatar: View {
             ArtistAvatarThumb(url: url, size: size)
         } else {
             Circle()
-                .fill(Color.white.opacity(0.1))
-                .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+                .fill(Color.white.opacity(0.12))
+                .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
                 .overlay(
                     Text(String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1)).uppercased())
-                        .font(.system(size: size * 0.45, weight: .semibold))
-                        .foregroundStyle(TimetableStyle.foreground.opacity(0.75))
+                        .font(.system(size: size * 0.45, weight: .bold))
+                        .foregroundStyle(TimetableStyle.foreground.opacity(0.85))
                 )
                 .frame(width: size, height: size)
         }
+    }
+}
+
+/// Lock line shown under import actions; recognition never leaves the device.
+struct TimetableOnDeviceNote: View {
+    var body: some View {
+        Label(BSLocalization.text("仅在本机识别"), systemImage: "lock")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(TimetableStyle.dim)
+            .labelStyle(.titleAndIcon)
     }
 }

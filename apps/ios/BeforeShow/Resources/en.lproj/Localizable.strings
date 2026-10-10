@@ -1873,3 +1873,51 @@ First show: %@";
 "连接艺人（可选）" = "Connect artist (optional)";
 
 "解除艺人连接" = "Disconnect artist";
+"横屏观看" = "View in landscape";
+"返回竖屏" = "Back to portrait";
+"时刻表保存失败，请重试" = "Could not save the timetable. Try again.";
+"已连接：%@" = "Connected: %@";
+"搜索更多艺人" = "Search more artists";
+"请输入艺人名称" = "Enter an artist name";
+"请输入舞台名称" = "Enter a stage name";
+"同舞台演出时间重叠" = "Sets on this stage overlap";
+"演出开始日期与当天不一致" = "The set starts on a different date";
+"结束时间与下一天的演出重叠" = "The set ends after the next day starts";
+"请至少保留一场演出" = "Keep at least one set";
+"时刻表数据无效，请重新导入" = "Invalid timetable. Import it again.";
+"回到现在" = "Back to now";
+
+"演出检视" = "Performance Details";
+"已关联 Apple Music" = "Linked to Apple Music";
+"关联艺人" = "Link Artist";
+"搜索艺人" = "Search Artist";
+"所属舞台" = "Stage";
+"演出时段" = "Set Time";
+"平移时间" = "Shift Time";
+"开始" = "Start";
+"结束" = "End";
+"删除此演出" = "Delete This Set";
+"确定要从时刻表中移除这场演出吗？" = "Are you sure you want to remove this set from the timetable?";
+"重命名舞台" = "Rename Stage";
+"新增舞台" = "Add Stage";
+"舞台" = "Stage";
+"全屏查看" = "View Fullscreen";
+"取消想看" = "Remove from Want";
+"新演出" = "New Set";
+"待定演出" = "TBA";
+
+"在此舞台添加演出" = "Add Set to This Stage";
+"删除此舞台" = "Delete This Stage";
+"删除舞台" = "Delete Stage";
+"删除舞台及演出" = "Delete Stage & Sets";
+"确认删除「%@」及其全部演出吗？" = "Are you sure you want to delete \"%@\" and all its sets?";
+"试听" = "Preview";
+"暂停试听" = "Pause Preview";
+"暂无试听" = "No preview available";
+"解除关联" = "Unlink";
+
+"隐藏原图对照" = "Hide Original Poster";
+"查看原图对照" = "View Original Poster";
+
+"暂停试听" = "Pause Preview";
+"正在试听 · %@" = "Previewing · %@";

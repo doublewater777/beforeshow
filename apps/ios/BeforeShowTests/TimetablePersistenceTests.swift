@@ -4,6 +4,42 @@ import XCTest
 
 @MainActor
 final class TimetablePersistenceTests: XCTestCase {
+    func testReloadedTimetableLeavesHomeLiveModeAtFestivalDayBoundary() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("timetable.store")
+        let showID: UUID
+        do {
+            let container = try diskContainer(at: url)
+            let show = try makeShow()
+            showID = show.id
+            show.timetable = try makeTimetable(dayCount: 1)
+            container.mainContext.insert(show)
+            container.mainContext.insert(CurrentShowSelection(selectedShowID: show.id))
+            try container.mainContext.save()
+        }
+
+        let reloaded = try diskContainer(at: url)
+        let context = reloaded.mainContext
+        AppPersistenceMigrationRunner.run(in: context, now: date(72))
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        let selection = CurrentShowSelectionStore.canonical(in: try context.fetch(FetchDescriptor<CurrentShowSelection>()))
+        let show = try XCTUnwrap(CurrentShowSession().selectCurrentShow(from: shows, manualSelection: selection))
+        XCTAssertEqual(show.id, showID)
+        XCTAssertNotNil(show.timetable)
+        XCTAssertNil(show.endedAt)
+
+        // The last set ends at 01:00. Keep the finale overnight, then leave
+        // live mode at 06:00 even if the user has not confirmed dispersal.
+        for (now, expected) in [(date(25), LiveModePhase.fullyEnded), (date(30).addingTimeInterval(-1), .fullyEnded)] {
+            XCTAssertEqual(CurrentShowLiveTimetablePolicy.resolve(for: show, now: now)?.phase, expected)
+        }
+        for now in [date(30), date(72)] {
+            XCTAssertNil(CurrentShowLiveTimetablePolicy.resolve(for: show, now: now))
+        }
+    }
+
     func testSingleAndMultiDayGraphsSurviveDiskReloadWithIndependentInterestAndSourceImage() throws {
         for dayCount in [1, 2] {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -141,6 +177,22 @@ final class TimetablePersistenceTests: XCTestCase {
         ])
         XCTAssertThrowsError(try Timetable(timeZoneIdentifier: "Asia/Taipei", days: [firstDay, overlapping])) {
             XCTAssertEqual($0 as? TimetableValidationError, .overlappingDays)
+        }
+    }
+
+    func testDayStageRemovalCascadesPerformancesAndEnforcesMinimumOneStage() throws {
+        let day = try makeDay(dayOffset: 0)
+        XCTAssertEqual(day.stages.count, 2)
+        let riverStage = try XCTUnwrap(day.stages.first { $0.name == "River" })
+        try day.removeStage(riverStage)
+        XCTAssertEqual(day.stages.count, 1)
+        XCTAssertEqual(day.orderedStages.first?.name, "Main")
+        XCTAssertNil(riverStage.day)
+
+        // Cannot remove the last remaining stage
+        let mainStage = try XCTUnwrap(day.stages.first { $0.name == "Main" })
+        XCTAssertThrowsError(try day.removeStage(mainStage)) {
+            XCTAssertEqual($0 as? TimetableValidationError, .emptyDay)
         }
     }
 

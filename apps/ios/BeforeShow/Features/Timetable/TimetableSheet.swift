@@ -11,6 +11,7 @@ struct TimetableSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     @Query private var shows: [Show]
     @Query private var timetableAssets: [ShowAsset]
@@ -19,15 +20,17 @@ struct TimetableSheet: View {
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var pendingImagesData: [Data] = []
     @State private var isPhotosPickerPresented = false
-    @State private var isReviewPresented = false
-    @State private var activeReviewDraft: TimetableDraft?
     @State private var isConfirmingDelete = false
     @State private var isOriginalVisible = false
+    @State private var isFullScreenImagePresented = false
+    @State private var originalImagePage = 0
+    @State private var addPerformanceTrigger = 0
     @State private var loadedAssetImages: [UIImage] = []
     @State private var pendingImages: [UIImage] = []
     @State private var selectedDayID: UUID?
     @State private var avatars: TimetableArtistAvatarStore
     @State private var artistLinker: TimetableArtistLinker
+    @State private var orientation = TimetableOrientationController()
 
     init(
         showID: UUID,
@@ -50,20 +53,15 @@ struct TimetableSheet: View {
     private var currentShow: Show? { shows.first }
     private var hasStructuredTimetable: Bool { currentShow?.timetable != nil }
     private var hasSavedImages: Bool { !timetableAssets.isEmpty }
-    private var isReviewing: Bool { activeReviewDraft != nil }
     /// Freshly picked images take precedence while they are being reviewed.
     private var originalImages: [UIImage] { pendingImages.isEmpty ? loadedAssetImages : pendingImages }
 
-    /// Performers on screen: the draft under review, else the saved timetable.
     private var avatarArtistNames: [String] {
-        if let draft = activeReviewDraft {
-            return draft.days.flatMap { $0.stages.flatMap { $0.performances.filter { $0.appleMusicArtistID == nil }.map(\.artistName) } }
-        }
-        return currentShow?.timetable?.orderedDays.flatMap(\.performances).filter { $0.appleMusicArtistID == nil }.map(\.artistName) ?? []
+        currentShow?.timetable?.orderedDays.flatMap(\.performances).filter { $0.appleMusicArtistID == nil }.map(\.artistName) ?? []
     }
 
     private var showsTimetable: Bool {
-        !coordinator.isRecognizing && !isReviewing && hasStructuredTimetable
+        !coordinator.isRecognizing && hasStructuredTimetable
     }
 
     var body: some View {
@@ -73,30 +71,13 @@ struct TimetableSheet: View {
 
                 if coordinator.isRecognizing {
                     TimetableRecognizingView(image: originalImages.first, imageCount: originalImages.count)
-                } else if let draft = activeReviewDraft {
-                    TimetableReviewView(
-                        draft: Binding(
-                            get: { draft },
-                            set: { activeReviewDraft = $0 }
-                        ),
-                        originalThumbnail: originalImages.first,
-                        avatarURL: avatars.url(for:),
-                        artistLinker: artistLinker,
-                        isOriginalVisible: $isOriginalVisible,
-                        isSaving: coordinator.isSaving,
-                        onSave: save,
-                        onCancel: {
-                            activeReviewDraft = nil
-                            pendingImagesData = []
-                            pendingImages = []
-                            isOriginalVisible = false
-                        }
-                    )
                 } else if let timetable = currentShow?.timetable {
                     TimetableExperienceView(
                         timetable: timetable,
                         show: currentShow,
                         selectedDayID: dayBinding(for: timetable),
+                        linker: artistLinker,
+                        addPerformanceRequest: addPerformanceTrigger,
                         avatarURL: avatarURL(for:)
                     )
                 } else if hasSavedImages {
@@ -108,14 +89,32 @@ struct TimetableSheet: View {
                 }
 
                 if isOriginalVisible && !originalImages.isEmpty && !coordinator.isRecognizing {
-                    TimetableOriginalImagePiP(images: originalImages) {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isOriginalVisible = false }
-                    }
+                    TimetableOriginalImagePiP(
+                        images: originalImages,
+                        page: $originalImagePage,
+                        onExpandFullScreen: {
+                            isFullScreenImagePresented = true
+                        },
+                        onClose: {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isOriginalVisible = false }
+                        }
+                    )
+                }
+
+                if isFullScreenImagePresented && !originalImages.isEmpty {
+                    TimetableOriginalImageViewer(
+                        images: originalImages,
+                        currentIndex: $originalImagePage,
+                        onDismiss: { isFullScreenImagePresented = false }
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .zIndex(100)
                 }
             }
             .navigationTitle(showsTimetable && (currentShow?.timetable?.days.count ?? 0) > 1 ? "" : BSLocalization.text("时刻表"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(isReviewing ? .hidden : .visible, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .bsClearNavigationContainer()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -141,6 +140,9 @@ struct TimetableSheet: View {
                 }
             }
         }
+        .background {
+            TimetableOrientationHost(controller: orientation, isEnabled: showsTimetable && !isPhotosPickerPresented)
+        }
         .bsToastOverlay(coordinator.toast, bottomPadding: 36)
         .photosPicker(
             isPresented: $isPhotosPickerPresented,
@@ -157,6 +159,14 @@ struct TimetableSheet: View {
         .task {
             try? artistLinker.loadKnownArtists(in: modelContext)
             await loadSavedImages()
+            if let timetable = currentShow?.timetable {
+                await artistLinker.autoMatchPersistedPerformances(in: timetable, context: modelContext)
+            }
+        }
+        .onAppear { orientation.setViewingEnabled(showsTimetable && !isPhotosPickerPresented) }
+        .onDisappear {
+            orientation.setViewingEnabled(false)
+            TimetablePreviewPlayer.shared.stop()
         }
         .task(id: avatarArtistNames + artistLinker.avatarLineup.map { $0.name + ($0.avatarURL ?? "") }) {
             await avatars.load(artistNames: avatarArtistNames, lineup: artistLinker.avatarLineup + (currentShow?.artists ?? []))
@@ -169,6 +179,7 @@ struct TimetableSheet: View {
                 Task {
                     guard let show = currentShow else { return }
                     isOriginalVisible = false
+                    isFullScreenImagePresented = false
                     await coordinator.deleteTimetable(show: show, modelContext: modelContext)
                 }
             }
@@ -183,18 +194,21 @@ struct TimetableSheet: View {
 
     private var managementMenu: some View {
         Menu {
+            Button {
+                addPerformanceTrigger += 1
+            } label: {
+                Label(BSLocalization.text("添加演出"), systemImage: "plus")
+            }
             if !loadedAssetImages.isEmpty {
                 Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isOriginalVisible = true }
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        isOriginalVisible.toggle()
+                    }
                 } label: {
-                    Label(BSLocalization.text("原图对照"), systemImage: "pip")
-                }
-            }
-            if let timetable = currentShow?.timetable {
-                Button {
-                    activeReviewDraft = TimetableDraft(from: timetable)
-                } label: {
-                    Label(BSLocalization.text("校对修正"), systemImage: "text.viewfinder")
+                    Label(
+                        BSLocalization.text(isOriginalVisible ? "隐藏原图对照" : "查看原图对照"),
+                        systemImage: "pip"
+                    )
                 }
             }
             Button {
@@ -252,25 +266,6 @@ struct TimetableSheet: View {
         return avatars.url(for: performance.artistName)
     }
 
-    private func save() {
-        Task {
-            guard let show = currentShow, let draft = activeReviewDraft else { return }
-            let success = await coordinator.commit(
-                draft: draft,
-                newImagesData: pendingImagesData,
-                show: show,
-                modelContext: modelContext
-            )
-            if success {
-                activeReviewDraft = nil
-                pendingImagesData = []
-                pendingImages = []
-                isOriginalVisible = false
-                await loadSavedImages()
-            }
-        }
-    }
-
     private var legacyImagesContent: some View {
         VStack(spacing: BSSpacing.lg) {
             ScrollView(.horizontal, showsIndicators: false) {
@@ -278,8 +273,9 @@ struct TimetableSheet: View {
                     ForEach(loadedAssetImages, id: \.self) { img in
                         Image(uiImage: img)
                             .resizable()
-                            .scaledToFill()
+                            .scaledToFit()
                             .frame(width: 220, height: 300)
+                            .background(Color.black.opacity(0.6))
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
                     }
@@ -297,7 +293,20 @@ struct TimetableSheet: View {
                         guard let show = currentShow else { return }
                         await coordinator.recognizeFromExistingAssets(assets: timetableAssets, show: show)
                         if let d = coordinator.draft {
-                            activeReviewDraft = importingDraft(d)
+                            var imported = importingDraft(d)
+                            await artistLinker.autoMatchArtists(in: &imported)
+                            let success = await coordinator.commit(
+                                draft: imported,
+                                newImagesData: [],
+                                show: show,
+                                modelContext: modelContext
+                            )
+                            if success {
+                                await loadSavedImages()
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    isOriginalVisible = true
+                                }
+                            }
                         }
                     }
                 } label: {
@@ -353,7 +362,22 @@ struct TimetableSheet: View {
         pendingImages = images
         await coordinator.recognize(images: images, show: show)
         if let d = coordinator.draft {
-            activeReviewDraft = importingDraft(d)
+            var imported = importingDraft(d)
+            await artistLinker.autoMatchArtists(in: &imported)
+            let success = await coordinator.commit(
+                draft: imported,
+                newImagesData: datas,
+                show: show,
+                modelContext: modelContext
+            )
+            if success {
+                pendingImagesData = []
+                pendingImages = []
+                await loadSavedImages()
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isOriginalVisible = true
+                }
+            }
         } else {
             pendingImagesData = []
             pendingImages = []
@@ -373,17 +397,5 @@ struct TimetableSheet: View {
             }
         }
         loadedAssetImages = loaded
-    }
-
-    private func formatDay(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日"
-        return formatter.string(from: date)
-    }
-
-    private func formatTimeRange(start: Date, end: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
     }
 }

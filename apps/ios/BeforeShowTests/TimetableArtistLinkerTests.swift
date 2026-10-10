@@ -76,6 +76,20 @@ final class TimetableArtistLinkerTests: XCTestCase {
         XCTAssertNil(disconnected.artistAvatarURL)
     }
 
+    func testExpandedSearchOffersAlternativesToSavedIdentityAndDeduplicatesResults() async throws {
+        let search = AlternativeSearch()
+        let linker = TimetableArtistLinker(search: search)
+        linker.rememberConnectedArtist(RecognizedArtist(id: "123", canonicalName: "Same Name", avatarURL: nil, appleMusicURL: nil))
+        let saved = try await linker.candidates(for: "Same Name")
+        XCTAssertEqual(saved.map(\.id), ["123"])
+        let expanded = try await linker.candidates(for: "Same Name", includingRemote: true)
+        XCTAssertEqual(expanded.map(\.id), ["123", "999"])
+        let again = try await linker.candidates(for: "Same Name", includingRemote: true)
+        XCTAssertEqual(again.map(\.id), ["123", "999"])
+        let requests = await search.queries
+        XCTAssertEqual(requests, ["Same Name"])
+    }
+
     private var date: Date { Date(timeIntervalSince1970: 1790956800) }
 
     private func performance(_ name: String) -> TimetableDraftPerformance {
@@ -88,6 +102,17 @@ final class TimetableArtistLinkerTests: XCTestCase {
         func searchArtists(query: String) async throws -> [RecognizedArtist] {
             queries.append(query)
             return [RecognizedArtist(id: "999", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+        }
+    }
+
+    private actor AlternativeSearch: ArtistSearchServicing {
+        private(set) var queries: [String] = []
+
+        func searchArtists(query: String) async throws -> [RecognizedArtist] {
+            queries.append(query)
+            return ["123", "999", "999"].map {
+                RecognizedArtist(id: $0, canonicalName: query, avatarURL: nil, appleMusicURL: nil)
+            }
         }
     }
 }

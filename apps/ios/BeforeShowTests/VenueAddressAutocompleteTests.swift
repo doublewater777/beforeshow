@@ -1,3 +1,4 @@
+import MapKit
 import XCTest
 @testable import BeforeShow
 
@@ -32,6 +33,23 @@ final class VenueAddressAutocompleteTests: XCTestCase {
         )
 
         XCTAssertEqual(formatted, "浙江省杭州市上城区中山南路77号")
+    }
+
+    func testMapItemAddressKeepsFullAddressInsteadOfShortLabel() throws {
+        let address = try XCTUnwrap(MKAddress(
+            fullAddress: "1 Apple Park Way, Cupertino, CA 95014",
+            shortAddress: "Apple Park"
+        ))
+        let mapItem = MKMapItem(
+            location: CLLocation(latitude: 37.3349, longitude: -122.0090),
+            address: address
+        )
+        mapItem.name = "Apple Park"
+
+        XCTAssertEqual(
+            MapKitAddressFormatter.displayAddress(for: mapItem),
+            "1 Apple Park Way, Cupertino, CA 95014"
+        )
     }
 
     func testVenueAddressSearchPolicyRejectsStaleOrCanceledResults() {

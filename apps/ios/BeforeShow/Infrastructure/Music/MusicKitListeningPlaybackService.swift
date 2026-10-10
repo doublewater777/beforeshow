@@ -78,6 +78,8 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         player.state.shuffleMode = .off
         player.queue = ApplicationMusicPlayer.Queue(for: songs, startingAt: songsByID[startID])
         AppAudioSession.configureMusicPlayback()
+        await AppAudioSession.waitForPendingOperations()
+        try Task.checkCancellation()
         try await player.prepareToPlay()
         if time > 0 {
             player.playbackTime = time
@@ -86,6 +88,8 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
 
     func play() async throws {
         AppAudioSession.configureMusicPlayback()
+        await AppAudioSession.waitForPendingOperations()
+        try Task.checkCancellation()
         try await player.play()
     }
 

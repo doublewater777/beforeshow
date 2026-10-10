@@ -13,14 +13,15 @@ struct TimetableReviewView: View {
     let onSave: () -> Void
     let onCancel: () -> Void
 
-    @State private var dayIndex = 0
-    @State private var editingID: UUID?
+    @State private var session = TimetableReviewSession()
     @State private var renamingStageID: UUID?
     @State private var onlyIssues = false
+    @State private var isConfirmingExit = false
+    @State private var scrollRequest = 0
     @FocusState private var focusedStageID: UUID?
 
     private var day: TimetableDraftDay? {
-        draft.days.indices.contains(dayIndex) ? draft.days[dayIndex] : nil
+        draft.days.indices.contains(session.dayIndex) ? draft.days[session.dayIndex] : nil
     }
 
     private var timeZone: TimeZone { TimeZone(identifier: draft.timeZoneIdentifier) ?? .current }
@@ -35,10 +36,25 @@ struct TimetableReviewView: View {
         VStack(spacing: 0) {
             header
             controls
-            summary(issueCount: issueCount)
+            summary(issueCount: totalIssueCount)
+            if isConfirmingExit {
+                TimetableReviewExitNotice(onContinue: { isConfirmingExit = false }, onDiscard: onCancel)
+            }
+            if let error = session.saveError, session.errorPerformanceID == nil, session.errorStageID == nil {
+                Text(BSLocalization.text(TimetableReviewIssues.message(for: error)))
+                    .font(BSFont.caption)
+                    .foregroundStyle(TimetableStyle.attention)
+                    .padding(BSSpacing.compact)
+            }
             list(issues: issues)
         }
         .background(TimetableStyle.background.ignoresSafeArea())
+        .onAppear { session.captureInitialDraft(draft) }
+        .interactiveDismissDisabled()
+        .onChange(of: draft) { _, _ in
+            session.clearSaveError()
+            isConfirmingExit = false
+        }
         .onChange(of: issueCount) { _, count in
             if count == 0 { onlyIssues = false }
         }
@@ -48,34 +64,20 @@ struct TimetableReviewView: View {
 
     private var header: some View {
         HStack {
-            Button(action: onCancel) {
+            Button(action: cancel) {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(TimetableStyle.muted)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel(BSLocalization.text("取消"))
+            .disabled(isSaving)
             Spacer()
             Text(BSLocalization.text("核对时刻表"))
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(TimetableStyle.foreground)
             Spacer()
-            Button(action: onSave) {
-                Group {
-                    if isSaving {
-                        ProgressView().tint(TimetableStyle.background)
-                    } else {
-                        Image(systemName: "checkmark").font(.system(size: 15, weight: .heavy))
-                    }
-                }
-                .foregroundStyle(TimetableStyle.background)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(TimetableStyle.foreground))
-                .frame(width: 44, height: 44)
-            }
-            .buttonStyle(TimetablePressStyle())
-            .disabled(isSaving)
-            .accessibilityLabel(BSLocalization.text("保存"))
+            TimetableTextActionButton(title: BSLocalization.text("保存"), isLoading: isSaving, action: save)
         }
         .padding(.horizontal, 6)
     }
@@ -116,7 +118,14 @@ struct TimetableReviewView: View {
             Spacer()
             if issueCount > 0 {
                 Button {
-                    withAnimation(.easeOut(duration: 0.25)) { onlyIssues.toggle() }
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        if !onlyIssues && issues.values.allSatisfy({ $0.count == 0 }),
+                           let index = draft.days.firstIndex(where: { $0.stages.contains { TimetableReviewIssues.evaluate($0).count > 0 } }) {
+                            session.finishEditing()
+                            session.dayIndex = index
+                        }
+                        onlyIssues.toggle()
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Circle().frame(width: 6, height: 6)
@@ -138,86 +147,108 @@ struct TimetableReviewView: View {
     // MARK: - List
 
     private func list(issues: [UUID: TimetableReviewIssues.Stage]) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                ForEach(Array((day?.stages ?? []).enumerated()), id: \.element.id) { stageIndex, stage in
-                    let stageIssues = issues[stage.id] ?? .init()
-                    let rows = stage.performances
-                        .sorted { $0.startsAt < $1.startsAt }
-                        .filter { !onlyIssues || stageIssues.flagged($0.id) || editingID == $0.id }
-                    if !onlyIssues || !rows.isEmpty {
-                        Section {
-                            ForEach(rows) { perf in
-                                if editingID == perf.id, let binding = performanceBinding(stageIndex: stageIndex, id: perf.id) {
-                                    TimetableReviewEditor(
-                                        performance: binding,
-                                        avatarURL: avatarURL(perf.artistName),
-                                        artistLinker: artistLinker,
-                                        hasOverlap: stageIssues.overlapping.contains(perf.id),
-                                        timeZone: timeZone,
-                                        onDelete: { delete(perf.id) },
-                                        onDone: { withAnimation(.snappy) { editingID = nil } }
-                                    )
-                                } else {
-                                    row(perf, issues: stageIssues)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    ForEach(Array((day?.stages ?? []).enumerated()), id: \.element.id) { stageIndex, stage in
+                        let stageIssues = issues[stage.id] ?? .init()
+                        let rows = session.orderedPerformances(in: stage)
+                            .filter { !onlyIssues || stageIssues.hasInvalidName || stageIssues.flagged($0.id) || session.editingID == $0.id }
+                        if !onlyIssues || !rows.isEmpty {
+                            Section {
+                                ForEach(rows) { perf in
+                                    if session.editingID == perf.id, let binding = performanceBinding(stageIndex: stageIndex, id: perf.id) {
+                                        TimetableReviewEditor(
+                                            performance: binding,
+                                            avatarURL: avatarURL(perf.artistName),
+                                            artistLinker: artistLinker,
+                                            hasOverlap: stageIssues.overlapping.contains(perf.id),
+                                            saveError: session.errorPerformanceID == perf.id ? session.saveError : nil,
+                                            timeZone: timeZone,
+                                            onDelete: { delete(perf.id) },
+                                            onDone: { withAnimation(.snappy) { session.finishEditing() } },
+                                            onRevealArtistSearch: {
+                                                withAnimation(.snappy) { proxy.scrollTo("artist-search-\(perf.id)", anchor: .center) }
+                                            }
+                                        )
+                                        .id(perf.id)
+                                    } else {
+                                        row(perf, issues: stageIssues)
+                                            .id(perf.id)
+                                    }
                                 }
+                                if !onlyIssues {
+                                    addButton(stageID: stage.id)
+                                }
+                            } header: {
+                                stageHeader(stage, stageIndex: stageIndex)
+                                    .id(stage.id)
                             }
-                            if !onlyIssues {
-                                addButton(stageID: stage.id)
-                            }
-                        } header: {
-                            stageHeader(stage, stageIndex: stageIndex)
                         }
                     }
                 }
+                .padding(.bottom, 140)
             }
-            .padding(.bottom, 140)
+            .scrollDismissesKeyboard(.interactively)
+            .task(id: scrollRequest) {
+                guard let id = session.editingID ?? session.errorStageID else { return }
+                await Task.yield()
+                withAnimation(.snappy) { proxy.scrollTo(id, anchor: .center) }
+            }
         }
-        .scrollDismissesKeyboard(.interactively)
     }
 
     private func stageHeader(_ stage: TimetableDraftStage, stageIndex: Int) -> some View {
-        HStack(spacing: 8) {
-            if renamingStageID == stage.id {
-                TextField(BSLocalization.text("舞台名称"), text: stageNameBinding(stageIndex))
-                    .font(.system(size: 15, weight: .heavy))
-                    .foregroundStyle(TimetableStyle.foreground)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .frame(maxWidth: 170)
-                    .background(RoundedRectangle(cornerRadius: 9).fill(TimetableStyle.card))
-                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(TimetableStyle.mine.opacity(0.55)))
-                    .focused($focusedStageID, equals: stage.id)
-                    .submitLabel(.done)
-                    .onSubmit { renamingStageID = nil }
-                    .onChange(of: focusedStageID) { _, focused in
-                        if focused != stage.id { renamingStageID = nil }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                if renamingStageID == stage.id {
+                    TextField(BSLocalization.text("舞台名称"), text: stageNameBinding(stageIndex))
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(TimetableStyle.foreground)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: 170)
+                        .background(RoundedRectangle(cornerRadius: 9).fill(TimetableStyle.card))
+                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(TimetableStyle.mine.opacity(0.55)))
+                        .focused($focusedStageID, equals: stage.id)
+                        .submitLabel(.done)
+                        .onSubmit { renamingStageID = nil }
+                        .onChange(of: focusedStageID) { _, focused in
+                            if focused != stage.id { renamingStageID = nil }
+                        }
+                } else {
+                    Button {
+                        session.finishEditing()
+                        renamingStageID = stage.id
+                        focusedStageID = stage.id
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(stage.name)
+                                .font(.system(size: 15, weight: .heavy))
+                                .tracking(0.3)
+                                .foregroundStyle(TimetableStyle.foreground)
+                            Image(systemName: "pencil")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(TimetableStyle.dim)
+                        }
                     }
-            } else {
-                Button {
-                    editingID = nil
-                    renamingStageID = stage.id
-                    focusedStageID = stage.id
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(stage.name)
-                            .font(.system(size: 15, weight: .heavy))
-                            .tracking(0.3)
-                            .foregroundStyle(TimetableStyle.foreground)
-                        Image(systemName: "pencil")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(TimetableStyle.dim)
-                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                Text("\(stage.performances.count)")
+                    .font(TimetableStyle.mono(12))
+                    .foregroundStyle(TimetableStyle.dim)
+                Spacer()
             }
-            Text("\(stage.performances.count)")
-                .font(TimetableStyle.mono(12))
-                .foregroundStyle(TimetableStyle.dim)
-            Spacer()
+            .frame(height: 44)
+            .padding(.horizontal, 20)
+            if stage.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(BSLocalization.text("请输入舞台名称"))
+                    .font(BSFont.caption)
+                    .foregroundStyle(TimetableStyle.attention)
+                    .padding(.horizontal, BSSpacing.roomy)
+                    .padding(.bottom, BSSpacing.sm)
+            }
         }
-        .frame(height: 44)
-        .padding(.horizontal, 20)
         .background(.bar)
     }
 
@@ -227,7 +258,8 @@ struct TimetableReviewView: View {
         return Button {
             withAnimation(.snappy) {
                 renamingStageID = nil
-                editingID = perf.id
+                session.beginEditing(perf.id, in: draft)
+                scrollRequest += 1
             }
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -262,7 +294,10 @@ struct TimetableReviewView: View {
     private func addButton(stageID: UUID) -> some View {
         Button {
             let id = draft.addPerformance(stageID: stageID)
-            withAnimation(.snappy) { editingID = id }
+            withAnimation(.snappy) {
+                session.beginEditing(id, in: draft)
+                scrollRequest += 1
+            }
         } label: {
             Label(BSLocalization.text("添加演出"), systemImage: "plus")
                 .font(.system(size: 14, weight: .semibold))
@@ -285,7 +320,7 @@ struct TimetableReviewView: View {
         calendar.timeZone = timeZone
         return draft.days.enumerated().map { index, day in
             let parts = calendar.dateComponents([.month, .day], from: day.date)
-            return .init(id: day.id, label: BSLocalization.format("第%d天", index + 1), date: "\(parts.month ?? 0)/\(parts.day ?? 0)")
+            return .init(id: day.id, label: BSLocalization.format("第%d天", index + 1), date: "\(parts.month ?? 0)/\(parts.day ?? 0)", issueCount: day.stages.reduce(0) { $0 + TimetableReviewIssues.evaluate($1).count })
         }
     }
 
@@ -293,15 +328,15 @@ struct TimetableReviewView: View {
         Binding(
             get: { day?.id ?? UUID() },
             set: { id in
-                dayIndex = draft.days.firstIndex { $0.id == id } ?? 0
-                editingID = nil
+                session.dayIndex = draft.days.firstIndex { $0.id == id } ?? 0
+                session.finishEditing()
                 renamingStageID = nil
             }
         )
     }
 
     private func stageNameBinding(_ stageIndex: Int) -> Binding<String> {
-        let dayIndex = dayIndex
+        let dayIndex = session.dayIndex
         return Binding(
             get: { draft.days[dayIndex].stages[stageIndex].name },
             set: { draft.days[dayIndex].stages[stageIndex].name = $0 }
@@ -309,7 +344,7 @@ struct TimetableReviewView: View {
     }
 
     private func performanceBinding(stageIndex: Int, id: UUID) -> Binding<TimetableDraftPerformance>? {
-        let dayIndex = dayIndex
+        let dayIndex = session.dayIndex
         guard let index = draft.days[dayIndex].stages[stageIndex].performances.firstIndex(where: { $0.id == id }) else { return nil }
         return Binding(
             get: { draft.days[dayIndex].stages[stageIndex].performances[index] },
@@ -317,39 +352,32 @@ struct TimetableReviewView: View {
         )
     }
 
+    private func save() {
+        isConfirmingExit = false
+        if session.prepareSave(draft) {
+            onSave()
+        } else {
+            onlyIssues = false
+            renamingStageID = session.errorStageID
+            focusedStageID = session.errorStageID
+            scrollRequest += 1
+        }
+    }
+
+    private var totalIssueCount: Int {
+        draft.days.flatMap(\.stages).reduce(0) { $0 + TimetableReviewIssues.evaluate($1).count }
+    }
+
+    private func cancel() {
+        if session.hasChanges(in: draft) { isConfirmingExit = true }
+        else { onCancel() }
+    }
+
     private func delete(_ id: UUID) {
         withAnimation(.snappy) {
-            editingID = nil
+            session.finishEditing()
             draft.removePerformance(id: id)
-            dayIndex = min(dayIndex, max(draft.days.count - 1, 0))
+            session.dayIndex = min(session.dayIndex, max(draft.days.count - 1, 0))
         }
-    }
-}
-
-/// Signals worth a second look after OCR: two sets on one stage at the same
-/// time, an end before its start, or a missing name.
-enum TimetableReviewIssues {
-    struct Stage {
-        var overlapping: Set<UUID> = []
-        var invalid: Set<UUID> = []
-        var count = 0
-
-        func flagged(_ id: UUID) -> Bool { overlapping.contains(id) || invalid.contains(id) }
-    }
-
-    static func evaluate(_ stage: TimetableDraftStage) -> Stage {
-        var result = Stage()
-        let ordered = stage.performances.sorted { $0.startsAt < $1.startsAt }
-        for (i, a) in ordered.enumerated() {
-            if a.endsAt <= a.startsAt || a.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                result.invalid.insert(a.id)
-                result.count += 1
-            }
-            for b in ordered[(i + 1)...] where b.startsAt < a.endsAt && a.startsAt < b.endsAt {
-                result.overlapping.formUnion([a.id, b.id])
-                result.count += 1
-            }
-        }
-        return result
     }
 }

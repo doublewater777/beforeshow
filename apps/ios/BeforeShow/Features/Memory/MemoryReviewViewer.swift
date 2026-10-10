@@ -1,4 +1,5 @@
 import AVKit
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -229,6 +230,7 @@ struct MemoryMediaViewer: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var index: Int
+    @State private var isAudioConfigured = false
 
     init(
         fragment: MemoryFragment,
@@ -251,7 +253,7 @@ struct MemoryMediaViewer: View {
             TabView(selection: $index) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                     ZStack {
-                        mediaPage(item: item, isActive: itemIndex == index)
+                        mediaPage(item: item, isActive: itemIndex == index && isAudioConfigured)
                         MemoryMediaInteractionSurface(
                             kind: item.kind,
                             onDismiss: { dismiss() },
@@ -269,8 +271,17 @@ struct MemoryMediaViewer: View {
         .preferredColorScheme(.dark)
         // The viewer plays video with sound, so it needs `playback`; restore the
         // ambient policy on exit so covers stay non-interrupting.
-        .onAppear { AppAudioSession.configureSoundPlayback() }
-        .onDisappear { AppAudioSession.configureAmbient() }
+        .task {
+            guard !Task.isCancelled else { return }
+            AppAudioSession.configureSoundPlayback()
+            await AppAudioSession.waitForPendingOperations()
+            guard !Task.isCancelled else { return }
+            isAudioConfigured = true
+        }
+        .onDisappear {
+            isAudioConfigured = false
+            AppAudioSession.configureAmbient()
+        }
     }
 
     @ViewBuilder

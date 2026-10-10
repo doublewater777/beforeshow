@@ -3,9 +3,8 @@ import SwiftUI
 struct TimetableArtistConnectionView: View {
     @Binding var performance: TimetableDraftPerformance
     let linker: TimetableArtistLinker
+    let onRevealSearch: () -> Void
 
-    @State private var isSearching = false
-    @State private var query = ""
     @State private var candidates: [RecognizedArtist] = []
     @State private var isLoading = false
     @State private var failure: ArtistSearchFailureMessage?
@@ -14,21 +13,9 @@ struct TimetableArtistConnectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             if performance.appleMusicArtistID != nil {
-                Button(BSLocalization.text("解除艺人连接"), systemImage: "link.badge.minus") {
-                    performance.disconnectArtist()
-                }
-            } else {
-                Button(BSLocalization.text("连接艺人（可选）"), systemImage: "link") {
-                    query = performance.artistName
-                    isSearching.toggle()
-                }
-            }
-            if isSearching {
-                TextField(BSLocalization.text("艺人名称"), text: $query)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .onSubmit { attempt += 1 }
+                Label(BSLocalization.format("已连接：%@", performance.artistName), systemImage: "link")
+                    .foregroundStyle(TimetableStyle.muted)
+            } else if !performance.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 ArtistSearchPicker(
                     options: candidates,
                     isLoading: isLoading,
@@ -36,35 +23,46 @@ struct TimetableArtistConnectionView: View {
                     onRecovery: { attempt += 1 },
                     onPick: connect
                 )
+                .id("artist-search-\(performance.id)")
             }
         }
         .font(BSFont.caption)
         .foregroundStyle(TimetableStyle.mine)
         .buttonStyle(.plain)
-        .task(id: "\(isSearching)|\(ArtistNameMatching.normalized(query))|\(attempt)") {
+        .task(id: "\(performance.artistName)|\(performance.appleMusicArtistID ?? "")|\(attempt)") {
             await search()
+        }
+        .task(id: candidates.count) {
+            guard !candidates.isEmpty, performance.appleMusicArtistID == nil else { return }
+            await Task.yield()
+            onRevealSearch()
         }
     }
 
     private func connect(_ artist: RecognizedArtist) {
         performance.connectArtist(artist)
         linker.rememberConnectedArtist(artist)
-        isSearching = false
     }
 
     private func search() async {
         candidates = []
         failure = nil
         isLoading = false
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isSearching, !query.isEmpty else { return }
+        let name = performance.artistName
+        let query = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard performance.appleMusicArtistID == nil, !query.isEmpty else { return }
+        candidates = linker.savedCandidates(for: query)
         isLoading = true
         do {
             try await Task.sleep(for: .milliseconds(350))
-            let found = try await linker.candidates(for: query)
+            let found = try await linker.candidates(for: query, includingRemote: true)
             try Task.checkCancellation()
+            guard performance.artistName == name, performance.appleMusicArtistID == nil else { return }
             candidates = found
             isLoading = false
+            if let match = ArtistNameMatching.uniqueExactMatch(for: query, among: found) {
+                connect(match)
+            }
         } catch {
             guard !Task.isCancelled else { return }
             failure = ArtistSearchFailureMessage(error: error)

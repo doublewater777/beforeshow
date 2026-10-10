@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import XCTest
+import UIKit
 @testable import BeforeShow
 
 @MainActor
@@ -18,6 +19,63 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         container = nil
         context = nil
         try await super.tearDown()
+    }
+
+    func testFailedTimetableReplacementPreservesOriginalFilesAndRemovesPartialImport() async throws {
+        let show = try Show(name: "Festival", date: date(0, 0), startTime: date(18, 0))
+        let performance = try TimetablePerformance(artistName: "Original Artist", startsAt: date(18, 0), endsAt: date(20, 0))
+        let stage = try TimetableStage(name: "Main", performances: [performance])
+        let timetable = try Timetable(timeZoneIdentifier: "Asia/Taipei", days: [TimetableDay(date: date(0, 0), stages: [stage])])
+        show.timetable = timetable
+        context.insert(show)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 20)).image { renderer in
+            UIColor.red.setFill()
+            renderer.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+        }
+        let data = try XCTUnwrap(image.jpegData(compressionQuality: 0.8))
+        let store = ShowAssetMediaStore.shared
+        let originalPath = try await store.saveImage(data: data, showID: show.id, kind: .timetable, assetID: UUID())
+        let originalURL = try await store.absoluteURL(for: originalPath, showID: show.id, kind: .timetable)
+        defer { try? FileManager.default.removeItem(at: originalURL.deletingLastPathComponent().deletingLastPathComponent()) }
+        let originalData = try Data(contentsOf: originalURL)
+        let asset = ShowAsset(showID: show.id, kind: .timetable, relativePath: originalPath)
+        asset.show = show
+        context.insert(asset)
+        try context.save()
+        var draft = TimetableDraft(from: timetable)
+        draft.updatePerformance(id: performance.id, artistName: "Replacement Artist", startsAt: date(18, 0), endsAt: date(20, 0))
+
+        let coordinator = TimetableManagementCoordinator()
+        let succeeded = await coordinator.commit(
+            draft: draft,
+            newImagesData: [data, Data("invalid image".utf8)],
+            show: show,
+            modelContext: context
+        )
+
+        XCTAssertFalse(succeeded)
+        let reloaded = ModelContext(container)
+        let restored = try XCTUnwrap(reloaded.fetch(FetchDescriptor<Show>()).first)
+        XCTAssertEqual(restored.timetable?.id, timetable.id)
+        XCTAssertEqual(restored.assets.map(\.relativePath), [originalPath])
+        XCTAssertEqual(try Data(contentsOf: originalURL), originalData)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: originalURL.deletingLastPathComponent().path), [originalURL.lastPathComponent])
+
+        let retried = await coordinator.commit(draft: draft, newImagesData: [data], show: restored, modelContext: reloaded)
+        XCTAssertTrue(retried)
+        XCTAssertEqual(restored.timetable?.orderedDays.first?.performances.first?.artistName, "Replacement Artist")
+        XCTAssertEqual(restored.assets.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalURL.path))
+        let replacement = try XCTUnwrap(restored.assets.first)
+        let replacementURL = try await store.absoluteURL(for: replacement.relativePath, showID: show.id, kind: .timetable)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: replacementURL.path))
+        XCTAssertEqual(try reloaded.fetchCount(FetchDescriptor<Timetable>()), 1)
+
+        await coordinator.deleteTimetable(show: restored, modelContext: reloaded)
+        XCTAssertNil(restored.timetable)
+        XCTAssertTrue(restored.assets.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: replacementURL.path))
+        XCTAssertEqual(try reloaded.fetchCount(FetchDescriptor<Show>()), 1)
     }
 
     // MARK: - 1. Multi-Day Festival End Policy: Only Final Day Can Disperse

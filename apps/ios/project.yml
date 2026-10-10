@@ -16,7 +16,7 @@ options:
   bundleIdPrefix: com.doublewaterapps
   deploymentTarget:
     iOS: "26.4"
-  xcodeVersion: "26.0"
+  xcodeVersion: "27.0"
 settings:
   base:
     CURRENT_PROJECT_VERSION: 27
@@ -25,6 +25,8 @@ settings:
     DEVELOPMENT_LANGUAGE: zh-Hans
     DEVELOPMENT_TEAM: 29C8MS76CZ
     CODE_SIGN_STYLE: Automatic
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: true
+    STRING_CATALOG_GENERATE_SYMBOLS: true
 targets:
   BeforeShow:
     type: application

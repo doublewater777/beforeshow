@@ -1,6 +1,5 @@
 import SwiftData
 import SwiftUI
-import UIKit
 
 // MARK: - Current Show Management
 
@@ -36,7 +35,7 @@ struct CurrentShowManagementSection: View {
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var isHeaderOverContent = false
-    @State private var isLiveCollapsed = false
+    @State private var prefersExpandedCover = false
     @Namespace private var coverNamespace
     @State private var homeArrivalFlags = CurrentShowHomeArrivalFlags.arrived
     /// SwiftUI may nil an item binding before the dismissal animation has ended.
@@ -83,7 +82,9 @@ struct CurrentShowManagementSection: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            homeContent(now: context.date)
+            GeometryReader { geometry in
+                homeContent(now: context.date, availableWidth: geometry.size.width)
+            }
         }
         #if DEBUG
         .task {
@@ -290,7 +291,7 @@ struct CurrentShowManagementSection: View {
     }
 
     @ViewBuilder
-    private func homeContent(now: Date) -> some View {
+    private func homeContent(now: Date, availableWidth: CGFloat) -> some View {
         let snapshot = HomeHeroSnapshot(show: show, now: now)
         let timeState = snapshot.timeState
         let followUpShows = CurrentShowFollowUpPolicy.laterShows(
@@ -306,9 +307,9 @@ struct CurrentShowManagementSection: View {
         )
         let phase = HomeShowPhase(timeState: timeState, now: now)
         // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
-        let coverWidth = min(352, max(0, UIScreen.main.bounds.width - 40))
-        let liveState = show.timetable.flatMap { resolveLiveModeState(timetable: $0, now: now) }
-        let isLiveLayout = liveState != nil && isLiveCollapsed
+        let coverWidth = min(352, max(0, availableWidth - 40))
+        let liveState = CurrentShowLiveTimetablePolicy.resolve(for: show, now: now)
+        let isLiveLayout = liveState != nil && !prefersExpandedCover
 
         ZStack(alignment: .top) {
             if isLiveLayout { HomeLiveBackdrop(show: show) }
@@ -450,7 +451,7 @@ struct CurrentShowManagementSection: View {
                 show: show,
                 live: isLiveLayout ? liveState : nil,
                 coverNamespace: coverNamespace,
-                onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { isLiveCollapsed.toggle() } },
+                onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { prefersExpandedCover.toggle() } },
                 onOpenSettings: onOpenSettings,
                 onAddShow: onAddShow
             )
@@ -459,10 +460,10 @@ struct CurrentShowManagementSection: View {
                 .zIndex(1)
         }
         .animation(.smooth(duration: 0.6), value: isLiveLayout)
-        .task(id: liveState != nil) {
-            guard liveState != nil else { withAnimation(.smooth(duration: 0.6)) { isLiveCollapsed = false }; return }
-            try? await Task.sleep(for: .milliseconds(700))
-            withAnimation(.spring(response: 0.75, dampingFraction: 0.86)) { isLiveCollapsed = true }
+        .onChange(of: liveState != nil) { _, isLive in
+            if !isLive {
+                prefersExpandedCover = false
+            }
         }
     }
 
@@ -541,7 +542,7 @@ struct CurrentShowManagementSection: View {
             pendingConfirmedEndDate = nil
             pendingEndIntent = nil
             isPresentationVisibilityLatched = true
-            let wasLive = isLiveCollapsed
+            let wasLive = !prefersExpandedCover
             Task { @MainActor in
                 let didConfirm = await onConfirmEnd(date)
                 guard didConfirm else {
@@ -590,22 +591,6 @@ struct CurrentShowManagementSection: View {
         )
     }
 
-    private func resolveLiveModeState(timetable: Timetable, now: Date) -> LiveModeState? {
-        let state = LiveModeStateEngine.calculate(
-            days: LiveModeStateEngine.buildInputs(from: timetable),
-            now: now
-        )
-        switch state.phase {
-        case .active, .dayEnded:
-            return state
-        case .upcoming(let first):
-            // 演出日当天开场前也进现场模式：首场时间 + 头两场。
-            return Calendar.current.isDate(first, inSameDayAs: now) ? state : nil
-        case .fullyEnded:
-            // 全部演出结束、用户确认散场前，保持现场模式收尾。
-            return timetable.show?.endedAt == nil && timetable.orderedDays.contains { !$0.performances.isEmpty } ? state : nil
-        }
-    }
 }
 
 private struct HomeHeaderScrollObserver: ViewModifier {

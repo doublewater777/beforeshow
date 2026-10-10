@@ -1,7 +1,6 @@
 import PhotosUI
 import SwiftData
 import SwiftUI
-import UIKit
 
 // MARK: - Current Show Home
 
@@ -95,7 +94,7 @@ struct CurrentShowHomeView: View {
 
     var body: some View {
         NavigationStack {
-            // AmbientBackground 的理想宽度可能超过屏幕，这里封顶以免内容被顶出。
+            // AmbientBackground 的理想宽度可能超过容器，这里封顶以免内容被顶出。
             Group {
                 if let show = currentShow {
                     CurrentShowManagementSection(
@@ -158,7 +157,7 @@ struct CurrentShowHomeView: View {
                     .animation(.easeOut(duration: 0.35), value: homeArrival)
                     .ignoresSafeArea()
             }
-            .frame(maxWidth: UIScreen.main.bounds.width)
+            .containerRelativeFrame(.horizontal)
             .bsToastOverlay(toast, bottomPadding: 90)
             .toolbar(.hidden, for: .navigationBar)
             .photosPicker(

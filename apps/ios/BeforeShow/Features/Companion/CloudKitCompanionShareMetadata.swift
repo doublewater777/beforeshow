@@ -31,8 +31,8 @@ extension CloudKitCompanionSharingService {
             let operation = CKFetchShareMetadataOperation(shareURLs: [shareURL])
             operation.shouldFetchRootRecord = true
             operation.qualityOfService = .userInitiated
-            operation.timeoutIntervalForRequest = 10
-            operation.timeoutIntervalForResource = 15
+            operation.configuration.timeoutIntervalForRequest = 10
+            operation.configuration.timeoutIntervalForResource = 15
             operation.perShareMetadataResultBlock = { _, result in
                 if completion.finish(result.mapError { Self.mapError($0, fallback: .acceptFailed) }),
                    case .failure(let error) = result {

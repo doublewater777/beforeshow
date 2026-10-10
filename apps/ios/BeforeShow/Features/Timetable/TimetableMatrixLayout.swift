@@ -76,6 +76,11 @@ struct TimetableMatrixLayout {
         Self.topInset + CGFloat(date.timeIntervalSince(start) / 60) * pointsPerMinute
     }
 
+    func date(for y: CGFloat) -> Date {
+        let minutes = max(0, (y - Self.topInset) / pointsPerMinute)
+        return start.addingTimeInterval(Double(minutes) * 60)
+    }
+
     init(stages: [Stage], now: Date, calendar: Calendar, pointsPerMinute: CGFloat = Self.pointsPerMinute) {
         let all = stages.flatMap(\.performances)
         let earliest = all.map(\.startsAt).min() ?? now

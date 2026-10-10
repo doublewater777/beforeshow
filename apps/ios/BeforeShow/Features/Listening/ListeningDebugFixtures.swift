@@ -53,7 +53,7 @@ enum ListeningFixtureScenario: String, CaseIterable {
         let urls = args[index + 1].split(separator: ",").map(String.init)
         guard !urls.isEmpty else { return nil }
         let tracks = (0..<4).map { number in
-            var song = CatalogSong(
+            let song = CatalogSong(
                 appleMusicSongID: "seed-song-" + String(number),
                 title: ["夜色", "最后一班车", "微光", "蓝色时刻"][number],
                 artistName: "夜航",

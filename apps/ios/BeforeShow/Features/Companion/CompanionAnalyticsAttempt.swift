@@ -38,7 +38,7 @@ final class CompanionAnalyticsAttempt {
             .map { String(format: "%02x", $0) }.joined()
     }
 
-    func withCloudDiagnostics<T>(_ body: () async throws -> T) async rethrows -> T {
+    func withCloudDiagnostics<T>(_ body: nonisolated(nonsending) () async throws -> T) async rethrows -> T {
         let context = CompanionCloudDiagnostics.Context(
             attemptID: attemptID, operation: operation.rawValue, source: source
         )
