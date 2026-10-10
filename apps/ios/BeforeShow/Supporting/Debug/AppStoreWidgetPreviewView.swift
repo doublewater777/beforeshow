@@ -1,6 +1,5 @@
 import SwiftData
 import SwiftUI
-import UIKit
 import UniformTypeIdentifiers
 
 #if DEBUG
@@ -98,7 +97,7 @@ struct AppStoreWidgetPreviewView: View {
         }
         .padding(.leading, 16)
         .padding(.vertical, 14)
-        .frame(height: (UIScreen.main.bounds.width - 44) * (170.0 / 364.0))
+        .aspectRatio(364.0 / 170.0, contentMode: .fit)
         .background {
             Image("default_cover")
                 .resizable()

@@ -1,4 +1,5 @@
 import PostHog
+import SwiftData
 import SwiftUI
 
 enum OnboardingCompletionStore {

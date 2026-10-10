@@ -388,7 +388,7 @@ final class CompanionSharingCoordinator {
         do {
             let sessions = try await service.listAcceptedSharedSessions()
             for session in sessions where session.status == .accepted {
-                try? CompanionAcceptedSessionImporter.apply(session, in: modelContext)
+                _ = try? CompanionAcceptedSessionImporter.apply(session, in: modelContext)
             }
         } catch {
             CompanionDebugLog.write("refreshAllLinkedShows: \(error)")

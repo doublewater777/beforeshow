@@ -154,4 +154,24 @@ final class TimetableOCRRecognitionTests: XCTestCase {
             XCTAssertEqual(error as? TimetableRecognitionError, .noTimetableFound)
         }
     }
+
+    func testFailedRecognitionClearsThePreviousImportDraft() async throws {
+        let day = Date(timeIntervalSince1970: 1790956800)
+        let show = try Show(name: "Festival", date: day, startTime: day.addingTimeInterval(20 * 3600))
+        let performance = TimetableDraftPerformance(artistName: "Previous Artist", startsAt: day.addingTimeInterval(20 * 3600), endsAt: day.addingTimeInterval(21 * 3600))
+        let coordinator = TimetableManagementCoordinator()
+        coordinator.draft = TimetableDraft(timeZoneIdentifier: "Asia/Shanghai", days: [
+            TimetableDraftDay(date: day, stages: [TimetableDraftStage(name: "Main", sortOrder: 0, performances: [performance])])
+        ])
+        let blank = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 100)).image { context in
+            UIColor.black.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+        }
+
+        await coordinator.recognize(images: [blank], show: show)
+
+        XCTAssertNotNil(coordinator.recognitionError)
+        XCTAssertNil(coordinator.draft)
+        XCTAssertFalse(coordinator.isRecognizing)
+    }
 }

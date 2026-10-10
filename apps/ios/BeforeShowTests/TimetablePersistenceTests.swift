@@ -4,6 +4,42 @@ import XCTest
 
 @MainActor
 final class TimetablePersistenceTests: XCTestCase {
+    func testReloadedTimetableLeavesHomeLiveModeAtFestivalDayBoundary() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("timetable.store")
+        let showID: UUID
+        do {
+            let container = try diskContainer(at: url)
+            let show = try makeShow()
+            showID = show.id
+            show.timetable = try makeTimetable(dayCount: 1)
+            container.mainContext.insert(show)
+            container.mainContext.insert(CurrentShowSelection(selectedShowID: show.id))
+            try container.mainContext.save()
+        }
+
+        let reloaded = try diskContainer(at: url)
+        let context = reloaded.mainContext
+        AppPersistenceMigrationRunner.run(in: context, now: date(72))
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        let selection = CurrentShowSelectionStore.canonical(in: try context.fetch(FetchDescriptor<CurrentShowSelection>()))
+        let show = try XCTUnwrap(CurrentShowSession().selectCurrentShow(from: shows, manualSelection: selection))
+        XCTAssertEqual(show.id, showID)
+        XCTAssertNotNil(show.timetable)
+        XCTAssertNil(show.endedAt)
+
+        // The last set ends at 01:00. Keep the finale overnight, then leave
+        // live mode at 06:00 even if the user has not confirmed dispersal.
+        for (now, expected) in [(date(25), LiveModePhase.fullyEnded), (date(30).addingTimeInterval(-1), .fullyEnded)] {
+            XCTAssertEqual(CurrentShowLiveTimetablePolicy.resolve(for: show, now: now)?.phase, expected)
+        }
+        for now in [date(30), date(72)] {
+            XCTAssertNil(CurrentShowLiveTimetablePolicy.resolve(for: show, now: now))
+        }
+    }
+
     func testSingleAndMultiDayGraphsSurviveDiskReloadWithIndependentInterestAndSourceImage() throws {
         for dayCount in [1, 2] {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -43,6 +79,9 @@ final class TimetablePersistenceTests: XCTestCase {
                     XCTAssertEqual(day.timetable?.id, timetable.id)
                     XCTAssertEqual(day.orderedStages.map(\.name), ["Main", "River"])
                     XCTAssertEqual(day.orderedStages[0].orderedPerformances.map(\.artistName), ["Same Artist", "Late Artist"])
+                    XCTAssertEqual(day.orderedStages[0].orderedPerformances[0].appleMusicArtistID, "123")
+                    XCTAssertEqual(day.orderedStages[0].orderedPerformances[0].artistAvatarURL, "https://example.com/artist.jpg")
+                    XCTAssertNil(day.orderedStages[1].orderedPerformances[0].appleMusicArtistID)
                     for stage in day.stages {
                         XCTAssertEqual(stage.day?.id, day.id)
                         XCTAssertTrue(stage.performances.allSatisfy { $0.stage?.id == stage.id })
@@ -141,6 +180,22 @@ final class TimetablePersistenceTests: XCTestCase {
         }
     }
 
+    func testDayStageRemovalCascadesPerformancesAndEnforcesMinimumOneStage() throws {
+        let day = try makeDay(dayOffset: 0)
+        XCTAssertEqual(day.stages.count, 2)
+        let riverStage = try XCTUnwrap(day.stages.first { $0.name == "River" })
+        try day.removeStage(riverStage)
+        XCTAssertEqual(day.stages.count, 1)
+        XCTAssertEqual(day.orderedStages.first?.name, "Main")
+        XCTAssertNil(riverStage.day)
+
+        // Cannot remove the last remaining stage
+        let mainStage = try XCTUnwrap(day.stages.first { $0.name == "Main" })
+        XCTAssertThrowsError(try day.removeStage(mainStage)) {
+            XCTAssertEqual($0 as? TimetableValidationError, .emptyDay)
+        }
+    }
+
     private func diskContainer(at url: URL) throws -> ModelContainer {
         let appContainer = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         return try ModelContainer(for: appContainer.schema, configurations: ModelConfiguration(url: url, cloudKitDatabase: .none))
@@ -157,7 +212,10 @@ final class TimetablePersistenceTests: XCTestCase {
     private func makeDay(dayOffset: Int, officialDate: Date? = nil) throws -> TimetableDay {
         let offset = dayOffset * 24
         let late = try TimetablePerformance(artistName: "Late Artist", startsAt: date(offset + 23), endsAt: date(offset + 25))
-        let first = try TimetablePerformance(artistName: "Same Artist", startsAt: date(offset + 20), endsAt: date(offset + 21))
+        var firstDraft = TimetableDraftPerformance(artistName: "Same Artist", startsAt: date(offset + 20), endsAt: date(offset + 21))
+        firstDraft.connectArtist(RecognizedArtist(id: "123", canonicalName: "Same Artist",
+                                                  avatarURL: URL(string: "https://example.com/artist.jpg"), appleMusicURL: nil))
+        let first = try firstDraft.buildPerformance()
         let parallel = try TimetablePerformance(artistName: "Same Artist", startsAt: date(offset + 20), endsAt: date(offset + 22))
         let main = try TimetableStage(name: "Main", sortOrder: 0, performances: [late, first])
         let river = try TimetableStage(name: "River", sortOrder: 1, performances: [parallel])

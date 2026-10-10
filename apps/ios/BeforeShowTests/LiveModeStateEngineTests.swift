@@ -220,6 +220,40 @@ final class LiveModeStateEngineTests: XCTestCase {
         XCTAssertEqual(state.currentPerformances.first?.artistName, "Slowdive")
     }
 
+    // MARK: - 7. Festival Day Wording (turns at 06:00)
+
+    func testFestivalDayTurnsAtSixInTheMorning() {
+        let nextSet = at(2026, 10, 8, 18, 30)
+        XCTAssertEqual(FestivalDay.distance(from: at(2026, 10, 7, 23, 30), to: nextSet, calendar: shanghai), 1)
+        // Past midnight after a late set is still the same festival night.
+        XCTAssertEqual(FestivalDay.distance(from: at(2026, 10, 8, 1, 30), to: nextSet, calendar: shanghai), 1)
+        XCTAssertEqual(FestivalDay.distance(from: at(2026, 10, 8, 10, 0), to: nextSet, calendar: shanghai), 0)
+    }
+
+    func testFestivalDayWordUsesDateBeyondTomorrow() {
+        let nextWeekend = at(2026, 10, 14, 18, 30)
+        let distance = FestivalDay.distance(from: at(2026, 10, 8, 23, 0), to: nextWeekend, calendar: shanghai)
+        XCTAssertEqual(distance, 6)
+        XCTAssertEqual(FestivalDay.word(for: nextWeekend, distance: distance, calendar: shanghai), BSLocalization.format("%d月%d日", 10, 14))
+        XCTAssertEqual(FestivalDay.word(for: nextWeekend, distance: 1, calendar: shanghai), BSLocalization.text("明天"))
+        XCTAssertEqual(FestivalDay.word(for: nextWeekend, distance: 0, calendar: shanghai), BSLocalization.text("今天"))
+    }
+
+    func testFestivalDayTurnsListEachSixAMInRange() {
+        let turns = FestivalDay.turns(after: at(2026, 10, 7, 22, 0), through: at(2026, 10, 9, 7, 0), calendar: shanghai)
+        XCTAssertEqual(turns, [at(2026, 10, 8, 6, 0), at(2026, 10, 9, 6, 0)])
+    }
+
+    private var shanghai: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        return calendar
+    }
+
+    private func at(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        shanghai.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
+    }
+
     private func date(_ hour: Int, _ minute: Int) -> Date {
         Date(timeIntervalSince1970: 1790956800 + Double(hour) * 3_600 + Double(minute) * 60)
     }

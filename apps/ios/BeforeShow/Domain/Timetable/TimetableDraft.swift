@@ -2,7 +2,15 @@ import Foundation
 
 struct TimetableDraftPerformance: Identifiable, Equatable, Hashable, Sendable {
     var id: UUID
-    var artistName: String
+    var artistName: String {
+        didSet {
+            if ArtistNameMatching.normalized(oldValue) != ArtistNameMatching.normalized(artistName) {
+                disconnectArtist()
+            }
+        }
+    }
+    private(set) var appleMusicArtistID: String?
+    private(set) var artistAvatarURL: String?
     var startsAt: Date
     var endsAt: Date
     var isInterested: Bool
@@ -24,6 +32,8 @@ struct TimetableDraftPerformance: Identifiable, Equatable, Hashable, Sendable {
     init(from performance: TimetablePerformance) {
         self.id = performance.id
         self.artistName = performance.artistName
+        self.appleMusicArtistID = performance.appleMusicArtistID
+        self.artistAvatarURL = performance.artistAvatarURL
         self.startsAt = performance.startsAt
         self.endsAt = performance.endsAt
         self.isInterested = performance.isInterested
@@ -34,10 +44,23 @@ struct TimetableDraftPerformance: Identifiable, Equatable, Hashable, Sendable {
             id: id,
             artistName: artistName,
             startsAt: startsAt,
-            endsAt: endsAt
+            endsAt: endsAt,
+            appleMusicArtistID: appleMusicArtistID,
+            artistAvatarURL: artistAvatarURL
         )
         performance.isInterested = isInterested
         return performance
+    }
+
+    mutating func connectArtist(_ artist: RecognizedArtist) {
+        artistName = artist.canonicalName
+        appleMusicArtistID = artist.id
+        artistAvatarURL = artist.avatarURL?.absoluteString
+    }
+
+    mutating func disconnectArtist() {
+        appleMusicArtistID = nil
+        artistAvatarURL = nil
     }
 }
 
@@ -210,6 +233,24 @@ struct TimetableDraft: Equatable, Sendable {
             days[dIndex].stages.removeAll { $0.performances.isEmpty }
         }
         days.removeAll { $0.stages.isEmpty }
+    }
+
+    /// Appends a blank 45-minute set 15 minutes after the stage's last one; returns its id.
+    @discardableResult
+    mutating func addPerformance(stageID: UUID) -> UUID? {
+        for dIndex in days.indices {
+            guard let sIndex = days[dIndex].stages.firstIndex(where: { $0.id == stageID }) else { continue }
+            let lastEnd = days[dIndex].stages[sIndex].performances.map(\.endsAt).max()
+                ?? days[dIndex].date.addingTimeInterval(18 * 3600)
+            let performance = TimetableDraftPerformance(
+                artistName: "",
+                startsAt: lastEnd.addingTimeInterval(15 * 60),
+                endsAt: lastEnd.addingTimeInterval(60 * 60)
+            )
+            days[dIndex].stages[sIndex].performances.append(performance)
+            return performance.id
+        }
+        return nil
     }
 
     mutating func removeStage(id: UUID) {

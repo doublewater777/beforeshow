@@ -42,15 +42,6 @@ struct ListeningPeekingDisc: View {
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: size * 0.08)
                 .padding(size * 0.26)
 
-            // Spindle hub ring
-            Circle()
-                .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                .frame(width: size * 0.28, height: size * 0.28)
-
-            Circle()
-                .fill(Color(white: 0.08))
-                .frame(width: size * 0.18, height: size * 0.18)
-
             // Center disc artwork label or metallic spindle hub
             if let centerImage {
                 Image(uiImage: centerImage)
@@ -63,6 +54,7 @@ struct ListeningPeekingDisc: View {
                     .stroke(BSColor.Stage.accent.opacity(0.45), lineWidth: 1)
                     .frame(width: size * 0.32, height: size * 0.32)
             }
+            ListeningDiscHub(size: size)
         }
         .frame(width: size, height: size)
         .compositingGroup()

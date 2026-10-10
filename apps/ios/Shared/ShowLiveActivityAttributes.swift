@@ -30,6 +30,9 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var hasStarted: Bool = false
         var currentArtistName: String? = nil
         var currentStageName: String? = nil
+        /// 主现场这一场的起止;有值时计时改为「本场剩余」。
+        var currentStartsAt: Date? = nil
+        var currentEndsAt: Date? = nil
         var nextArtistName: String? = nil
         var nextStageName: String? = nil
         var nextStartsAt: Date? = nil

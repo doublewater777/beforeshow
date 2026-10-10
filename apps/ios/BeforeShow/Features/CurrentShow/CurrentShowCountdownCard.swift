@@ -14,6 +14,8 @@ struct CurrentShowCountdownCard: View {
     var onMemoryFragments: (() -> Void)? = nil
     var onMemoryCreate: (() -> Void)? = nil
     var onOpenRoute: (() -> Void)? = nil
+    var liveTimetable: LiveModeState? = nil
+    var onOpenTimetable: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Query private var recommendationRecords: [FeatureRecommendationRecord]
@@ -33,7 +35,9 @@ struct CurrentShowCountdownCard: View {
             onMemoryCreate: onMemoryCreate,
             onOpenRoute: onOpenRoute,
             recommendation: recommendation,
-            onRecommendation: handle
+            onRecommendation: handle,
+            liveTimetable: liveTimetable,
+            onOpenTimetable: onOpenTimetable
         )
         .task(id: "\(show.id.uuidString)|\(recommendation?.rawValue ?? "-")|\(todayKey)|\(isVisible)") {
             recordExposure(recommendation, todayKey: todayKey)

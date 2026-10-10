@@ -113,13 +113,38 @@ final class TimetableDay {
     var performances: [TimetablePerformance] {
         stages.flatMap(\.performances).sorted(by: TimetablePerformance.chronologicalOrder)
     }
+
+    @discardableResult
+    func addStage(name: String, placeholderArtistName: String = "待定演出") throws -> TimetableStage {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw TimetableValidationError.emptyStageName }
+        let nextOrder = (stages.map(\.sortOrder).max() ?? -1) + 1
+        let defaultStart = performances.map(\.startsAt).min() ?? date.addingTimeInterval(14 * 3600)
+        let defaultEnd = defaultStart.addingTimeInterval(45 * 60)
+        let initialPerf = try TimetablePerformance(
+            artistName: placeholderArtistName,
+            startsAt: defaultStart,
+            endsAt: defaultEnd
+        )
+        let stage = try TimetableStage(name: trimmed, sortOrder: nextOrder, performances: [initialPerf])
+        initialPerf.stage = stage
+        stage.day = self
+        self.stages.append(stage)
+        return stage
+    }
+
+    func removeStage(_ stage: TimetableStage) throws {
+        guard stages.count > 1 else { throw TimetableValidationError.emptyDay }
+        stages.removeAll { $0.id == stage.id }
+        stage.day = nil
+    }
 }
 
 @Model
 final class TimetableStage {
     private(set) var id: UUID
-    private(set) var name: String
-    private(set) var sortOrder: Int
+    var name: String
+    var sortOrder: Int
     var day: TimetableDay?
 
     @Relationship(deleteRule: .cascade, inverse: \TimetablePerformance.stage)
@@ -145,19 +170,30 @@ final class TimetableStage {
     var orderedPerformances: [TimetablePerformance] {
         performances.sorted(by: TimetablePerformance.chronologicalOrder)
     }
+
+    func updateName(_ newName: String) throws {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw TimetableValidationError.emptyStageName }
+        self.name = trimmed
+    }
 }
 
 @Model
 final class TimetablePerformance {
     private(set) var id: UUID
-    private(set) var artistName: String
-    private(set) var startsAt: Date
-    private(set) var endsAt: Date
+    var artistName: String
+    var appleMusicArtistID: String?
+    var artistAvatarURL: String?
+    var startsAt: Date
+    var endsAt: Date
     /// Explicit intent for this performance only; never inferred from listening or attendance.
     var isInterested: Bool = false
     var stage: TimetableStage?
 
-    init(id: UUID = UUID(), artistName: String, startsAt: Date, endsAt: Date) throws {
+    init(
+        id: UUID = UUID(), artistName: String, startsAt: Date, endsAt: Date,
+        appleMusicArtistID: String? = nil, artistAvatarURL: String? = nil
+    ) throws {
         let artistName = artistName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !artistName.isEmpty else { throw TimetableValidationError.emptyArtistName }
         guard startsAt.timeIntervalSince1970.isFinite,
@@ -166,6 +202,10 @@ final class TimetablePerformance {
         }
         self.id = id
         self.artistName = artistName
+        let artistID = appleMusicArtistID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasArtistID = artistID?.isEmpty == false
+        self.appleMusicArtistID = hasArtistID ? artistID : nil
+        self.artistAvatarURL = hasArtistID ? artistAvatarURL : nil
         self.startsAt = startsAt
         self.endsAt = endsAt
     }
@@ -174,5 +214,49 @@ final class TimetablePerformance {
         if lhs.startsAt != rhs.startsAt { return lhs.startsAt < rhs.startsAt }
         if lhs.endsAt != rhs.endsAt { return lhs.endsAt < rhs.endsAt }
         return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    func updateDetails(
+        artistName: String,
+        startsAt: Date,
+        endsAt: Date,
+        appleMusicArtistID: String? = nil,
+        artistAvatarURL: String? = nil
+    ) throws {
+        let trimmed = artistName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw TimetableValidationError.emptyArtistName }
+        guard startsAt.timeIntervalSince1970.isFinite,
+              endsAt.timeIntervalSince1970.isFinite, startsAt < endsAt else {
+            throw TimetableValidationError.invalidPerformanceInterval
+        }
+        self.artistName = trimmed
+        let artistID = appleMusicArtistID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasArtistID = artistID?.isEmpty == false
+        self.appleMusicArtistID = hasArtistID ? artistID : nil
+        self.artistAvatarURL = hasArtistID ? artistAvatarURL : nil
+        self.startsAt = startsAt
+        self.endsAt = endsAt
+    }
+
+    func shiftTimes(by interval: TimeInterval) {
+        guard interval.isFinite && interval != 0 else { return }
+        self.startsAt = self.startsAt.addingTimeInterval(interval)
+        self.endsAt = self.endsAt.addingTimeInterval(interval)
+    }
+
+    func moveTo(stage targetStage: TimetableStage) {
+        guard self.stage?.id != targetStage.id else { return }
+        self.stage = targetStage
+    }
+
+    func connectArtist(_ artist: RecognizedArtist) {
+        self.artistName = artist.canonicalName
+        self.appleMusicArtistID = artist.id
+        self.artistAvatarURL = artist.avatarURL?.absoluteString
+    }
+
+    func disconnectArtist() {
+        self.appleMusicArtistID = nil
+        self.artistAvatarURL = nil
     }
 }

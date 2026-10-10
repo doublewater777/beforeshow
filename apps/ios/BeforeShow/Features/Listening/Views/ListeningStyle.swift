@@ -24,6 +24,61 @@ enum ListeningStyle {
     static let woodBack = Color(red: 0.08, green: 0.05, blue: 0.035)
     static let caseHighlight = Color.white.opacity(0.32)
     static let caseShadow = Color.black.opacity(0.55)
+    static let rackFloorFront = Color(red: 0.17, green: 0.13, blue: 0.125)
+    static let rackFloorBack = Color(red: 0.07, green: 0.06, blue: 0.063)
+    static let rackLipTop = Color(red: 0.23, green: 0.19, blue: 0.17)
+    static let rackLipBottom = Color(red: 0.13, green: 0.106, blue: 0.098)
+    static let rackLight = Color(red: 1, green: 0.925, blue: 0.84)
+    static let liveSpine = Color(red: 0.08, green: 0.067, blue: 0.05)
+    static let plateTop = Color(red: 0.18, green: 0.15, blue: 0.137)
+    static let plateBottom = Color(red: 0.106, green: 0.086, blue: 0.082)
+    static let plateInk = Color(red: 0.937, green: 0.89, blue: 0.8)
+}
+
+/// The clear clamping ring and centre hole of a CD, kept small so the disc reads first.
+struct ListeningDiscHub: View {
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.white.opacity(0.16))
+                .overlay(Circle().stroke(Color.white.opacity(0.32), lineWidth: 0.75))
+                .frame(width: size * 0.15, height: size * 0.15)
+            Circle()
+                .fill(Color(white: 0.62))
+                .overlay(Circle().stroke(Color.black.opacity(0.18), lineWidth: 0.5))
+                .frame(width: size * 0.045, height: size * 0.045)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Hinge strip and a single plastic glare over a cover, read as a jewel case.
+struct ListeningJewelCaseFinish: View {
+    var body: some View {
+        ZStack(alignment: .leading) {
+            LinearGradient(
+                stops: [
+                    .init(color: .white.opacity(0.2), location: 0),
+                    .init(color: .white.opacity(0.05), location: 0.32),
+                    .init(color: .clear, location: 0.33)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            LinearGradient(
+                colors: [.white.opacity(0.18), .white.opacity(0.05), .black.opacity(0.28)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 10)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous))
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
 }
 
 struct ListeningDiscArtwork: View {
@@ -81,14 +136,8 @@ struct ListeningDiscArtwork: View {
                         .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
                 }
 
-                Circle()
-                    .stroke(Color.white.opacity(0.24), lineWidth: 1)
-                    .frame(
-                        width: size * BSListeningTokens.discHubRadiusFraction * 2,
-                        height: size * BSListeningTokens.discHubRadiusFraction * 2
-                    )
-                    .accessibilityHidden(true)
-
+                // The disc texture runs to the centre; only a small clear hub sits on top.
+                ListeningDiscHub(size: size)
                 // High-contrast specular wedge highlights
                 AngularGradient(
                     gradient: Gradient(stops: [

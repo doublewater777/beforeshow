@@ -5,6 +5,8 @@ import XCTest
 
 @MainActor
 final class ListeningDeckTests: XCTestCase {
+    private var persistenceAvailable = false
+
     // MARK: - Commands read back immediately
 
     func testPlayShowsPauseImmediatelyAndKeepsItWhileTheSourceLoads() async throws {
@@ -334,12 +336,11 @@ final class ListeningDeckTests: XCTestCase {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
-        var persistenceAvailable = false
         let evidence = try ListeningPlaybackEvidenceCoordinator(
             modelContext: context,
             persistActualFamiliarity: { songID, date in
                 _ = try ListeningRepository(modelContext: context).confirmActualFamiliarity(songID: songID, at: date)
-                guard persistenceAvailable else { throw DeckTestError.persistence }
+                guard self.persistenceAvailable else { throw DeckTestError.persistence }
                 try context.save()
             }
         )

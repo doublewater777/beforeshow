@@ -14,12 +14,20 @@ final class DynamicCoverTests: XCTestCase {
         try await Self.makeTestVideo(at: url)
 
         AppAudioSession.configureMusicPlayback()
+        await AppAudioSession.waitForPendingOperations()
         defer { AppAudioSession.releaseMusicPlayback() }
         let soundURL = try XCTUnwrap(Bundle.main.url(forResource: "cd-read", withExtension: "caf"))
         let audio = try AVAudioPlayer(contentsOf: soundURL)
         audio.numberOfLoops = -1
-        XCTAssertTrue(audio.play())
-        defer { audio.stop() }
+        let didStartAudio = await Task.detached(priority: .utility) { audio.play() }.value
+        XCTAssertTrue(didStartAudio)
+        defer { Task.detached(priority: .utility) { audio.stop() } }
+
+        CDSoundPlayer.shared.warmup()
+        CDSoundPlayer.shared.play("seat")
+        AppAudioSession.configureSoundPlayback()
+        AppAudioSession.configureAmbient()
+        await AppAudioSession.waitForPendingOperations()
 
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)

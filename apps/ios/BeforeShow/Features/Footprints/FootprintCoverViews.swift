@@ -74,7 +74,7 @@ private struct FootprintCoverLocalImage<Fallback: View>: View {
         .clipped()
         .task(id: url) {
             guard image == nil else { return }
-            image = await Task.detached(priority: .userInitiated) {
+            image = await Task.detached(priority: .userInitiated) { [url] in
                 UIImage(contentsOfFile: url.path)
             }.value
         }

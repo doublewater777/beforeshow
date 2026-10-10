@@ -18,6 +18,8 @@ struct BSDrawerSheet<Content: View>: View {
     @State private var fittedContentHeight: CGFloat = 300
     @State private var selectedFittedDetent: PresentationDetent = .height(300)
     @State private var contentExceedsAvailableHeight = false
+    @State private var measuredContentHeight: CGFloat = 0
+    @State private var windowHeight: CGFloat?
 
     init(
         detent: PresentationDetent,
@@ -74,12 +76,8 @@ struct BSDrawerSheet<Content: View>: View {
                             }
                         }
                         .onPreferenceChange(BSDrawerContentHeightKey.self) { height in
-                            guard height > 0 else { return }
-                            let maxHeight = maxFittedContentHeight
-                            let fittedHeight = min(max(180, height), maxHeight)
-                            contentExceedsAvailableHeight = height > maxHeight
-                            fittedContentHeight = fittedHeight
-                            selectedFittedDetent = .height(fittedHeight)
+                            measuredContentHeight = height
+                            updateFittedContentHeight()
                         }
                         .presentationDetents(
                             [.height(fittedContentHeight)],
@@ -92,6 +90,10 @@ struct BSDrawerSheet<Content: View>: View {
                     .presentationDetents(Set(detents))
             }
         }
+        .background {
+            BSDrawerWindowHeightReader { windowHeight = $0 }
+        }
+        .onChange(of: windowHeight) { updateFittedContentHeight() }
         .presentationDragIndicator(.visible)
         .preferredColorScheme(.dark)
     }
@@ -105,7 +107,51 @@ struct BSDrawerSheet<Content: View>: View {
     }
 
     private var maxFittedContentHeight: CGFloat {
-        max(180, UIScreen.main.bounds.height - 120)
+        max(180, (windowHeight ?? .infinity) - 120)
+    }
+
+    private func updateFittedContentHeight() {
+        guard fitsContent, measuredContentHeight > 0 else { return }
+        let maxHeight = maxFittedContentHeight
+        let fittedHeight = min(max(180, measuredContentHeight), maxHeight)
+        contentExceedsAvailableHeight = measuredContentHeight > maxHeight
+        fittedContentHeight = fittedHeight
+        selectedFittedDetent = .height(fittedHeight)
+    }
+}
+
+private struct BSDrawerWindowHeightReader: UIViewRepresentable {
+    let onChange: (CGFloat) -> Void
+
+    func makeUIView(context: Context) -> WindowHeightView {
+        let view = WindowHeightView()
+        view.onChange = onChange
+        return view
+    }
+
+    func updateUIView(_ uiView: WindowHeightView, context: Context) {
+        uiView.onChange = onChange
+    }
+
+    final class WindowHeightView: UIView {
+        var onChange: ((CGFloat) -> Void)?
+        private var lastHeight: CGFloat?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            reportWindowHeight()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            reportWindowHeight()
+        }
+
+        private func reportWindowHeight() {
+            guard let height = window?.bounds.height, height != lastHeight else { return }
+            lastHeight = height
+            Task { @MainActor in onChange?(height) }
+        }
     }
 }
 

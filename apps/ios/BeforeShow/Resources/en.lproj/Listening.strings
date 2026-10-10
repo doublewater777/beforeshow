@@ -21,7 +21,8 @@
 "当前仅提供歌曲信息" = "Song information is available here";
 "当前暂不可播放" = "Nothing is playable right now";
 "请先合上播放器上盖" = "Close the player lid first";
-"热门合辑" = "Popular Mix";
+"现场预习" = "Live Prep";
+"现场预习 %02d" = "Live Prep %02d";
 "仅提供歌曲信息" = "Song information only";
 "授权后载入唱片" = "Allow access to load records.";
 "放置唱片中…" = "Placing the disc…";

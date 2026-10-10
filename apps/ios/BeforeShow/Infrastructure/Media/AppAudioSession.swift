@@ -16,6 +16,10 @@ enum AppAudioSession {
 
     private static var owners: Set<Owner> = []
 
+    // Session changes and short sound effects share one queue so configuration
+    // always precedes playback without waiting for audio hardware on the UI thread.
+    nonisolated static let workQueue = DispatchQueue(label: "BeforeShow.audio", qos: .utility)
+
     static var currentCategory: AVAudioSession.Category {
         AVAudioSession.sharedInstance().category
     }
@@ -41,6 +45,12 @@ enum AppAudioSession {
         apply()
     }
 
+    static func waitForPendingOperations() async {
+        await withCheckedContinuation { continuation in
+            workQueue.async { continuation.resume() }
+        }
+    }
+
     private static func acquire(_ owner: Owner) {
         owners.insert(owner)
         apply()
@@ -52,7 +62,6 @@ enum AppAudioSession {
     }
 
     private static func apply() {
-        let session = AVAudioSession.sharedInstance()
         let category: AVAudioSession.Category
         let mode: AVAudioSession.Mode
         let options: AVAudioSession.CategoryOptions
@@ -70,11 +79,12 @@ enum AppAudioSession {
             options = [.mixWithOthers]
         }
 
-        // Resuming music or releasing another owner's audio must not reconfigure
-        // an unchanged session. The players activate it when playback starts;
-        // synchronous setActive here blocks the main actor on every resume.
-        guard session.category != category || session.mode != mode
-            || session.categoryOptions != options else { return }
-        try? session.setCategory(category, mode: mode, options: options)
+        workQueue.async {
+            let session = AVAudioSession.sharedInstance()
+            // Releasing another owner must not reconfigure an unchanged session.
+            guard session.category != category || session.mode != mode
+                || session.categoryOptions != options else { return }
+            try? session.setCategory(category, mode: mode, options: options)
+        }
     }
 }

@@ -156,7 +156,7 @@ final class MapNavigationCoordinateCache: @unchecked Sendable {
     func prepareActiveQuery() async {
         let snapshot = activeQuerySnapshot()
         guard let query = snapshot.query, !snapshot.alreadyResolved else { return }
-        guard let coordinate = try? await CoreLocationGeocoding().resolve(city: nil, address: query) else {
+        guard let coordinate = try? await MapKitGeocoding().resolve(city: nil, address: query) else {
             return
         }
         store(coordinate, for: query)

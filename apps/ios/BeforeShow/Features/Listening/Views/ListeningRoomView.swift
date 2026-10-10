@@ -174,7 +174,6 @@ struct ListeningRoomView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var showsCabinet = false
     @State private var matchingSlotIndex: Int?
     @State private var matchingArtistName: String = ""
 
@@ -188,28 +187,28 @@ struct ListeningRoomView: View {
                 )
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        if !room.browseArtists.isEmpty {
-                            ListeningArtistSelector(
-                                artists: room.browseArtists,
-                                selection: room.browser.scope,
-                                select: room.selectScope,
-                                onConnect: { index, name in
+                        let geometry = room.hardwareGeometry
+                        let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
+                        let groups = room.rackGroups
+                        Group {
+                            if groups.contains(where: { $0.head != nil }) {
+                                ListeningRackView(room: room, groups: groups, scale: scale) { index, name in
                                     matchingSlotIndex = index
                                     matchingArtistName = name
                                 }
-                            )
-                            .padding(.horizontal, -BSSpacing.roomy)
-                            .opacity(room.display.player.isPlaybackActive ? BSListeningTokens.selectionRestingOpacity : 1)
-                            .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: room.display.player.isPlaybackActive)
+                                .padding(.horizontal, -BSSpacing.roomy)
+                            } else if room.display.catalogChrome == .preparing {
+                                ListeningRackSkeleton()
+                                    .padding(.horizontal, -BSSpacing.roomy)
+                            } else {
+                                catalogStatus
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                                    .padding(.top, BSSpacing.md)
+                            }
                         }
-
-                        let geometry = room.hardwareGeometry
-                        let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
-                        ListeningCabinetView(room: room, scale: scale, showAll: { showsCabinet = true }, showDetails: { room.browser.open($0) }) {
-                            catalogStatus
-                        }
-                        .opacity(room.display.player.isPlaybackActive ? BSListeningTokens.selectionRestingOpacity : 1)
-                        .animation(reduceMotion ? nil : BSListeningTokens.selectionAnimation, value: room.display.player.isPlaybackActive)
+                        .frame(height: ListeningRackLayout.slotHeight, alignment: .top)
+                        .listeningFrame("cabinet")
+                        .padding(.top, BSSpacing.sm)
 
                         ListeningMachineView(room: room, scale: scale, showDetails: { room.browser.open($0) })
                             .coordinateSpace(name: "playerStage")
@@ -232,6 +231,7 @@ struct ListeningRoomView: View {
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.xs)
                 }
+                .scrollClipDisabled()
             }
         }
         .onPreferenceChange(ListeningFramesKey.self) { room.applyListeningFrames($0) }
@@ -240,7 +240,6 @@ struct ListeningRoomView: View {
             ListeningDiscDetailView(room: room, disc: disc)
                 .presentationDetents([.large])
         }
-        .sheet(isPresented: $showsCabinet) { ListeningCabinetSheet(room: room) }
         .sheet(isPresented: Binding(
             get: { matchingSlotIndex != nil },
             set: { if !$0 { matchingSlotIndex = nil } }
@@ -273,7 +272,7 @@ struct ListeningRoomView: View {
     private var catalogStatus: some View {
         switch room.display.catalogChrome {
         case .preparing:
-            ListeningShelfSkeleton()
+            ListeningRackSkeleton()
         case .needsMusicAccess(let prompt):
             ListeningCatalogStatusView(
                 title: BSLocalization.text("连接 Apple Music"),

@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 struct FeedbackView: View {
+    var onSubmitted: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var message = ""
     @State private var sendState: FeedbackSendState = .idle
@@ -138,8 +139,8 @@ struct FeedbackView: View {
                 sendState = .sent
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 message = ""
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
                 dismiss()
+                onSubmitted?()
             } catch let error as FeedbackSubmissionError {
                 sendState = .failed(error)
             } catch {

@@ -4,6 +4,9 @@ import XCTest
 
 @MainActor
 final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
+    private var persistenceAvailable = false
+    private var failSongID: String?
+
     func testThresholdPersistsActualEvidenceOnlyOnce() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -91,13 +94,12 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
-        var persistenceAvailable = false
         let coordinator = try ListeningPlaybackEvidenceCoordinator(
             modelContext: context,
             persistActualFamiliarity: { songID, date in
                 _ = try ListeningRepository(modelContext: context)
                     .confirmActualFamiliarity(songID: songID, at: date)
-                guard persistenceAvailable else {
+                guard self.persistenceAvailable else {
                     throw EvidencePersistenceTestError.expectedFailure
                 }
                 try context.save()
@@ -135,8 +137,6 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
-        var persistenceAvailable = false
-        var failSongID: String?
         var attempts: [String] = []
         let coordinator = try ListeningPlaybackEvidenceCoordinator(
             modelContext: context,
@@ -144,7 +144,7 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
                 attempts.append(songID)
                 _ = try ListeningRepository(modelContext: context)
                     .confirmActualFamiliarity(songID: songID, at: date)
-                guard persistenceAvailable, failSongID != songID else {
+                guard self.persistenceAvailable, self.failSongID != songID else {
                     throw EvidencePersistenceTestError.expectedFailure
                 }
                 try context.save()

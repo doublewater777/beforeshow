@@ -113,7 +113,7 @@ final class FootprintCityCoordinateResolver {
         do {
             let response = try await MKLocalSearch(request: request).start()
             guard let mapItem = response.mapItems.first else { return nil }
-            let coordinate = mapItem.placemark.coordinate
+            let coordinate = mapItem.location.coordinate
             return FootprintCityCoordinate(
                 name: name,
                 latitude: coordinate.latitude,

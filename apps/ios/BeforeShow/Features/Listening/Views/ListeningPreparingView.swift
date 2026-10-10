@@ -3,35 +3,17 @@ import SwiftUI
 struct ListeningPreparingView: View {
     let show: Show
 
-    private var artists: [ListeningBrowseArtist] {
-        let artists = show.artists.enumerated().map { index, artist in
-            ListeningBrowseArtist(
-                slotIndex: index, id: artist.appleMusicArtistID ?? "unconnected-\(index)", name: artist.name,
-                artworkURL: artist.avatarURL.flatMap(URL.init(string:)),
-                appleMusicArtistID: artist.appleMusicArtistID, albums: []
-            )
-        }
-        return artists.filter(\.isConnected) + artists.filter { !$0.isConnected }
-    }
-
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
                 ListeningRoomHeader(mode: .connecting)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        if !artists.isEmpty {
-                            ListeningArtistSelector(artists: artists, selection: .all, select: { _ in }, onConnect: { _, _ in })
-                        }
-                        ListeningShelfView(
-                            title: BSLocalization.text("BeforeShow 热门合辑"),
-                            count: BSLocalization.format("%d 张唱片", 0),
-                            isLoading: true,
-                            showsCount: true
-                        ) {
-                            ListeningShelfSkeleton()
-                        }
-                        .listeningFrame("cabinet")
+                        ListeningRackSkeleton()
+                            .padding(.horizontal, -BSSpacing.roomy)
+                            .frame(height: ListeningRackLayout.slotHeight, alignment: .top)
+                            .listeningFrame("cabinet")
+                            .padding(.top, BSSpacing.sm)
                         let geometry = CDPlayerConfiguration.standard.geometry
                         let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
                        ListeningPreparingMachineView(scale: scale)

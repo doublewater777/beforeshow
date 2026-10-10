@@ -39,13 +39,15 @@ struct ArtistSearchPicker: View {
                 .font(BSFont.caption)
                 .padding(.horizontal, BSSpacing.xs)
                 .padding(.vertical, BSSpacing.xs)
-            } else if options.isEmpty && !isLoading {
+            }
+            if options.isEmpty && !isLoading && failure == nil {
                 Text(BSLocalization.text("暂无匹配，可直接保存手输名字"))
                     .font(BSFont.V3.small)
                     .foregroundStyle(BSColor.textTertiary)
                     .padding(.horizontal, BSSpacing.xs)
                     .padding(.vertical, BSSpacing.xs)
-            } else if !options.isEmpty {
+            }
+            if !options.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
                         if index > 0 {

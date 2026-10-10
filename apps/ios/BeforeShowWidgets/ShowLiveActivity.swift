@@ -90,7 +90,8 @@ private struct LiveActivityTimerText: View {
     var fontSize: CGFloat
 
     var body: some View {
-        Text(state.startDate, style: .timer)
+        // 主现场进行中:倒数到本场结束;否则沿用开场计时。
+        Text(state.currentArtistName == nil ? state.startDate : (state.currentEndsAt ?? state.startDate), style: .timer)
             .font(.system(size: fontSize, weight: .semibold))
             .monospacedDigit()
             .foregroundStyle(LiveActivityCopy.phaseColor(isLive: isLive))
@@ -99,9 +100,7 @@ private struct LiveActivityTimerText: View {
             .multilineTextAlignment(.trailing)
             // 阶段 + 动态计时一起读:开场前「距开场 + 倒数」,开场后「已开场 + 正计时」
             .accessibilityLabel(
-                Text(LiveActivityCopy.statusLabel(isLive: isLive))
-                    + Text(" ")
-                    + Text(state.startDate, style: .timer)
+                Text("\(LiveActivityCopy.statusLabel(isLive: isLive, state: state)) \(Text(state.currentArtistName == nil ? state.startDate : (state.currentEndsAt ?? state.startDate), style: .timer))")
             )
     }
 }
@@ -196,10 +195,7 @@ private enum LiveActivityCopy {
     /// expanded 岛与锁屏卡片的详情行:演出名 + 场馆;若在现场模式优先展示正在演出的艺人与舞台。
     static func detailLine(for state: ShowLiveActivityAttributes.ContentState) -> String {
         if let current = state.currentArtistName {
-            if let stage = state.currentStageName, !stage.isEmpty {
-                return BSLocalization.format("正在演: %1$@ · %2$@", current, stage)
-            }
-            return BSLocalization.format("正在演: %@", current)
+            return current
         }
         guard let venue = state.venueName, !venue.isEmpty else { return state.showName }
         return BSLocalization.format("%1$@ · %2$@", state.showName, venue)
@@ -208,15 +204,17 @@ private enum LiveActivityCopy {
     /// 时间元数据合并为一行:现场模式展示下一场想看/客观安排;普通现场展示开场与散场时刻。
     static func timeLine(for state: ShowLiveActivityAttributes.ContentState, isLive: Bool) -> String? {
         if let next = state.nextArtistName {
-            let prefix = state.isInterestedNext ? "❤️ " : ""
+            let prefix = ""
             let status = state.isNextStartingSoon ? BSLocalization.text("快开始了") : ""
             let clock = state.nextStartsAt.map { clockText($0, calendar: state.startCalendar) } ?? ""
             let stage = state.nextStageName.map { " · \($0)" } ?? ""
-            if !status.isEmpty {
-                return BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@) · %5$@", prefix, next, clock, stage, status)
-            } else {
-                return BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@)", prefix, next, clock, stage)
+            let line = status.isEmpty
+                ? BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@)", prefix, next, clock, stage)
+                : BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@) · %5$@", prefix, next, clock, stage, status)
+            if let currentStage = state.currentStageName, state.currentArtistName != nil {
+                return "\(currentStage) · \(line)"
             }
+            return line
         }
         let end = state.endDate.map { clockText($0, calendar: state.endCalendar) }
         if isLive {
@@ -228,8 +226,9 @@ private enum LiveActivityCopy {
         return BSLocalization.format("%@ 开场 · 预计 %@ 散场", start, end)
     }
 
-    static func statusLabel(isLive: Bool) -> String {
-        BSLocalization.text(isLive ? "已开场" : "距开场")
+    static func statusLabel(isLive: Bool, state: ShowLiveActivityAttributes.ContentState? = nil) -> String {
+        if state?.currentEndsAt != nil, state?.currentArtistName != nil { return BSLocalization.text("剩余") }
+        return BSLocalization.text(isLive ? "已开场" : "距开场")
     }
 
     static func phaseColor(isLive: Bool) -> Color {
@@ -273,7 +272,7 @@ private struct LiveActivityExpandedDetails: View {
 
                 VStack(alignment: .trailing, spacing: 5) {
                     LiveActivityTimerText(state: state, isLive: isLive, fontSize: 23)
-                    Text(LiveActivityCopy.statusLabel(isLive: isLive))
+                    Text(LiveActivityCopy.statusLabel(isLive: isLive, state: state))
                         .font(.system(size: 12))
                         .foregroundStyle(WidgetTheme.dim)
                         .accessibilityHidden(true)
@@ -339,7 +338,7 @@ private struct LiveActivityBannerView: View {
 
                 VStack(alignment: .trailing, spacing: 5) {
                     LiveActivityTimerText(state: state, isLive: isLive, fontSize: 23)
-                    Text(LiveActivityCopy.statusLabel(isLive: isLive))
+                    Text(LiveActivityCopy.statusLabel(isLive: isLive, state: state))
                         .font(.system(size: 12))
                         .foregroundStyle(WidgetTheme.dim)
                         .accessibilityHidden(true)
