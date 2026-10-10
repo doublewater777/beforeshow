@@ -35,22 +35,22 @@ struct CurrentShowLibraryCoverCard: View {
                         }
                         .padding(BSSpacing.sm)
 
-                        VStack {
-                            Spacer()
-                            LinearGradient(
-                                colors: [Color.clear, Color.black.opacity(0.85)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 38)
-                            .overlay(alignment: .bottomLeading) {
-                                Text(show.name)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.92))
-                                    .lineLimit(1)
-                                    .padding(.horizontal, 7)
-                                    .padding(.bottom, 6)
-                            }
+                        // Anchor the caption to the cover's bottom edge, not to
+                        // a flexible VStack, so every grid card shares the same baseline.
+                        LinearGradient(
+                            colors: [Color.clear, Color.black.opacity(0.85)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 38)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .overlay(alignment: .bottomLeading) {
+                            Text(show.name)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.white.opacity(0.92))
+                                .lineLimit(1)
+                                .padding(.horizontal, 7)
+                                .padding(.bottom, 6)
                         }
                     }
                     .clipped()
