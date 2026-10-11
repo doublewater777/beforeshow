@@ -30,6 +30,7 @@ extension ArtistSearchServicing {
 }
 
 typealias ArtistSearchOperation = @Sendable (_ query: String, _ limit: Int, _ exactMatchRequired: Bool) async throws -> [RecognizedArtist]
+private typealias ArtistMarketSearchOperation = @Sendable (_ query: String, _ limit: Int, _ exactMatchRequired: Bool, _ country: String) async throws -> [RecognizedArtist]
 
 /// Production artist search.
 ///
@@ -45,7 +46,10 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
     let session: URLSession
 
     private let catalogSearch: ArtistSearchOperation
-    private let fallbackSearch: ArtistSearchOperation
+    private let fallbackSearch: ArtistMarketSearchOperation
+    private let countryResolver: @Sendable () async -> String
+    /// Explicit market searches use iTunes exclusively: MusicKit always uses the account storefront.
+    private let hasCountryOverride: Bool
     private var cachedAuthorization: MusicAuthorization.Status?
     private var cache: [String: (expiresAt: ContinuousClock.Instant, candidates: [RecognizedArtist], isComplete: Bool)] = [:]
 
@@ -54,9 +58,10 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         self.country = country
         self.session = session
         self.catalogSearch = Self.searchMusicKitCatalog
-        self.fallbackSearch = { query, limit, exactMatchRequired in
-            let region = await Self.currentFallbackCountry(preferred: country)
-            return try await Self.searchITunesFallback(
+        self.countryResolver = { await Self.currentFallbackCountry(preferred: country) }
+        self.hasCountryOverride = Self.validCountry(country) != nil
+        self.fallbackSearch = { query, limit, exactMatchRequired, region in
+            try await Self.searchITunesFallback(
                 query: query,
                 limit: limit,
                 country: region,
@@ -70,13 +75,18 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
     init(
         limit: Int = 8,
         catalogSearch: @escaping ArtistSearchOperation,
-        fallbackSearch: @escaping ArtistSearchOperation
+        fallbackSearch: @escaping ArtistSearchOperation,
+        countryResolver: @escaping @Sendable () async -> String = { "US" }
     ) {
         self.limit = limit
         self.country = nil
         self.session = .shared
         self.catalogSearch = catalogSearch
-        self.fallbackSearch = fallbackSearch
+        self.countryResolver = countryResolver
+        self.hasCountryOverride = false
+        self.fallbackSearch = { query, limit, exactMatchRequired, _ in
+            try await fallbackSearch(query, limit, exactMatchRequired)
+        }
     }
 
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
@@ -98,11 +108,17 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
             locale: Locale(identifier: "en_US_POSIX")
         ).split { $0.isWhitespace || $0.isNewline }.joined(separator: " ")
-        let key = queryKey + "|" + (country ?? Locale.autoupdatingCurrent.region?.identifier ?? "US")
+        // Resolve the market before looking up cached results. Apple Music's storefront
+        // can change while the device region and Music authorization remain unchanged.
+        let resolvedCountry = await countryResolver()
+        try Task.checkCancellation()
+        let key = queryKey + "|" + resolvedCountry
         if let cached = cache[key], cached.expiresAt > .now, !exactMatchRequired || cached.isComplete {
             return cached.candidates
         }
-        let results = try await searchUncachedArtists(query: trimmed, exactMatchRequired: exactMatchRequired)
+        let results = try await searchUncachedArtists(
+            query: trimmed, exactMatchRequired: exactMatchRequired, country: resolvedCountry
+        )
         try Task.checkCancellation()
         if !results.isEmpty, MusicAuthorization.currentStatus == authorization {
             let now = ContinuousClock.now
@@ -116,36 +132,37 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         return results
     }
 
+    private static func validCountry(_ raw: String?) -> String? {
+        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+              value.count == 2,
+              value.unicodeScalars.allSatisfy({ (65...90).contains($0.value) }) else { return nil }
+        return value
+    }
+
     static func fallbackCountry(preferred: String?, musicStorefront: String?, deviceRegion: String?) -> String {
-        for value in [preferred, musicStorefront, deviceRegion] {
-            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
-                  value.count == 2,
-                  value.unicodeScalars.allSatisfy({ (65...90).contains($0.value) }) else { continue }
-            return value
-        }
-        return "US"
+        validCountry(preferred) ?? validCountry(musicStorefront) ?? validCountry(deviceRegion) ?? "US"
     }
 
     private static func currentFallbackCountry(preferred: String?) async -> String {
-        if let preferred, !preferred.isEmpty {
-            return fallbackCountry(preferred: preferred, musicStorefront: nil, deviceRegion: nil)
-        }
-        // Prefer the user's storefront; never prompt for Music access just to search.
+        if let valid = validCountry(preferred) { return valid }
+        // Prefer the account storefront, without asking for Music authorization.
         let storefront: String?
         if MusicAuthorization.currentStatus == .authorized {
             storefront = try? await MusicDataRequest.currentCountryCode
         } else {
             storefront = nil
         }
-        return fallbackCountry(preferred: nil, musicStorefront: storefront,
+        return fallbackCountry(preferred: preferred, musicStorefront: storefront,
                                deviceRegion: Locale.autoupdatingCurrent.region?.identifier)
     }
 
-    private func searchUncachedArtists(query trimmed: String, exactMatchRequired: Bool) async throws -> [RecognizedArtist] {
+    private func searchUncachedArtists(query trimmed: String, exactMatchRequired: Bool, country: String) async throws -> [RecognizedArtist] {
         var catalogResults: [RecognizedArtist] = []
         var catalogFailure: ArtistSearchError?
         do {
-            catalogResults = try await catalogSearch(trimmed, limit, exactMatchRequired)
+            if !hasCountryOverride {
+                catalogResults = try await catalogSearch(trimmed, limit, exactMatchRequired)
+            }
             try Task.checkCancellation()
             if Self.containsMatch(catalogResults, query: trimmed, exactMatchRequired: exactMatchRequired) {
                 return Self.mergedCandidates(
@@ -166,7 +183,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
 
         do {
             try Task.checkCancellation()
-            let fallbackResults = try await fallbackSearch(trimmed, limit, exactMatchRequired)
+            let fallbackResults = try await fallbackSearch(trimmed, limit, exactMatchRequired, country)
             try Task.checkCancellation()
             if fallbackResults.isEmpty, let catalogFailure { throw catalogFailure }
             return Self.mergedCandidates(
