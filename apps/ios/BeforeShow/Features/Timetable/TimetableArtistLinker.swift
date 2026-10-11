@@ -54,6 +54,14 @@ final class TimetableArtistLinker {
         return merged
     }
 
+    /// The picker and lineup import must share the same complete variant-search
+    /// policy. Saved identities are included when checking for conflicting IDs.
+    func resolveCandidates(for name: String) async throws -> ArtistIdentityResolution {
+        try await ArtistIdentityMatcher(search: search).resolve(
+            for: name, including: savedCandidates(for: name)
+        )
+    }
+
     func rememberConnectedArtist(_ artist: RecognizedArtist) {
         knownArtists.append(artist)
     }
