@@ -1,6 +1,6 @@
 import Foundation
 
-struct ArtistIdentityResolution {
+struct ArtistIdentityResolution: Sendable {
     let candidates: [RecognizedArtist]
     let automaticMatch: RecognizedArtist?
 }
