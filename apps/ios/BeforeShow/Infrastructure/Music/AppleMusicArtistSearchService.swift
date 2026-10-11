@@ -30,7 +30,7 @@ extension ArtistSearchServicing {
 }
 
 typealias ArtistSearchOperation = @Sendable (_ query: String, _ limit: Int, _ exactMatchRequired: Bool) async throws -> [RecognizedArtist]
-private typealias ArtistMarketSearchOperation = @Sendable (_ query: String, _ limit: Int, _ exactMatchRequired: Bool, _ country: String) async throws -> [RecognizedArtist]
+typealias ArtistMarketSearchOperation = @Sendable (_ query: String, _ limit: Int, _ exactMatchRequired: Bool, _ country: String) async throws -> [RecognizedArtist]
 
 /// Production artist search.
 ///
@@ -87,6 +87,23 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         self.fallbackSearch = { query, limit, exactMatchRequired, _ in
             try await fallbackSearch(query, limit, exactMatchRequired)
         }
+    }
+
+    /// Regional test seam: exercise the same country argument that the production
+    /// iTunes request receives, without requiring a live Apple Music account.
+    init(
+        limit: Int = 8,
+        catalogSearch: @escaping ArtistSearchOperation,
+        regionalFallbackSearch: @escaping ArtistMarketSearchOperation,
+        countryResolver: @escaping @Sendable () async -> String
+    ) {
+        self.limit = limit
+        self.country = nil
+        self.session = .shared
+        self.catalogSearch = catalogSearch
+        self.countryResolver = countryResolver
+        self.hasCountryOverride = false
+        self.fallbackSearch = regionalFallbackSearch
     }
 
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
