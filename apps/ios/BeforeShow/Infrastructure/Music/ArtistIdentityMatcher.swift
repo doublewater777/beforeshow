@@ -5,7 +5,7 @@ struct ArtistIdentityResolution {
     let automaticMatch: RecognizedArtist?
 }
 
-struct ArtistIdentityMatcher {
+struct ArtistIdentityMatcher: Sendable {
     let search: any ArtistSearchServicing
 
     /// A single policy for every automatic-link entry point. Candidates can still be
