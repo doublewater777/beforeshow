@@ -3,7 +3,7 @@ import Foundation
 struct ArtistIdentityMatcher {
     let search: any ArtistSearchServicing
 
-    /// Resolve identities without changing the show's names or asking users to connect each artist.
+    /// Resolve identities without rewriting saved display names.
     func matches(for slots: [ArtistSlot]) async throws -> [Int: RecognizedArtist] {
         var result: [Int: RecognizedArtist] = [:]
         var pending: [(indices: [Int], query: String)] = []
@@ -32,16 +32,26 @@ struct ArtistIdentityMatcher {
             func enqueue(_ item: (indices: [Int], query: String)) {
                 group.addTask {
                     try Task.checkCancellation()
-                    do {
-                        let candidates = try await search.searchArtists(query: item.query, exactMatchRequired: true)
+                    var candidates: [RecognizedArtist] = []
+                    var seen = Set<String>()
+                    for query in ArtistNameMatching.searchQueries(for: item.query) {
                         try Task.checkCancellation()
-                        return (item.indices, ArtistNameMatching.uniqueExactMatch(for: item.query, among: candidates))
-                    } catch {
-                        try Task.checkCancellation()
-                        if error is CancellationError { throw error }
-                        // One unavailable artist must not discard the rest of the lineup.
-                        return (item.indices, nil)
+                        do {
+                            let found = try await search.searchArtists(query: query, exactMatchRequired: true)
+                            try Task.checkCancellation()
+                            for candidate in found where seen.insert(candidate.id).inserted { candidates.append(candidate) }
+                            // The full, exact identity is sufficient without searching aliases.
+                            if query == item.query,
+                               let exact = ArtistNameMatching.uniqueExactMatch(for: item.query, among: candidates) {
+                                return (item.indices, exact)
+                            }
+                        } catch {
+                            try Task.checkCancellation()
+                            if error is CancellationError { throw error }
+                            // One failed spelling must not discard another possible identity.
+                        }
                     }
+                    return (item.indices, ArtistNameMatching.uniqueConfidentMatch(for: item.query, among: candidates))
                 }
             }
             for _ in 0..<4 {

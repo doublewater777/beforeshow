@@ -17,6 +17,75 @@ import SwiftData
         XCTAssertEqual(queries, ["the band"])
     }
 
+    func testTraditionalAndSimplifiedNamesCanAutoMatch() async throws {
+        XCTAssertEqual(ArtistNameMatching.normalized("周杰倫"), ArtistNameMatching.normalized("周杰伦"))
+        let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [candidate("jay", "周杰伦")]))
+            .matches(for: [ArtistSlot(name: "周杰倫", avatarURL: nil)])
+        XCTAssertEqual(results[0]?.id, "jay")
+    }
+
+    func testBilingualImportedArtistCanAutoLinkWithoutRewritingName() async throws {
+        let matched = candidate("sunset", "Sunset Rollercoaster")
+        let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [matched]))
+            .matches(for: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
+        XCTAssertEqual(results[0]?.id, "sunset")
+        var draft = ShowDraft(artists: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
+        draft.attachArtistIdentity(matched, at: 0)
+        XCTAssertEqual(draft.artists[0].appleMusicArtistID, "sunset")
+        XCTAssertEqual(draft.artists[0].name, "落日飞车 Sunset Rollercoaster")
+    }
+
+    func testLooseMatchingAcceptsPunctuationAndOneCharacterTypos() {
+        XCTAssertEqual(ArtistNameMatching.uniqueConfidentMatch(
+            for: "Panic at the Disco", among: [candidate("panic", "Panic! at the Disco")]
+        )?.id, "panic")
+        XCTAssertEqual(ArtistNameMatching.uniqueConfidentMatch(
+            for: "Taylor Swfit", among: [candidate("taylor", "Taylor Swift")]
+        )?.id, "taylor")
+        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
+            for: "姜思达", among: [candidate("studio", "姜思达工作室")]
+        ))
+        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
+            for: "A B", among: [candidate("ab", "AB")]
+        ))
+    }
+
+    func testAmbiguousBilingualMatchesStillRequireConfirmation() async throws {
+        let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [
+            candidate("one", "落日飞车"), candidate("two", "Sunset Rollercoaster")
+        ])).matches(for: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func testTraditionalSearchRetriesSimplifiedNameWhenFirstResultIsOnlySimilar() async throws {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { query, _, _ in
+                if query == "周杰倫" {
+                    return [RecognizedArtist(id: "studio", canonicalName: "周杰伦工作室",
+                                             avatarURL: nil, appleMusicURL: nil)]
+                }
+                return [RecognizedArtist(id: "artist", canonicalName: "周杰伦",
+                                         avatarURL: nil, appleMusicURL: nil)]
+            },
+            fallbackSearch: { _, _, _ in [] }
+        )
+        let results = try await ArtistIdentityMatcher(search: service).matches(
+            for: [ArtistSlot(name: "周杰倫", avatarURL: nil)]
+        )
+        XCTAssertEqual(results[0]?.id, "artist")
+    }
+
+    func testFallbackRegionUsesUserStorefrontOrDeviceRegion() {
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: nil, musicStorefront: "jp", deviceRegion: "CN"), "JP")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: nil, musicStorefront: nil, deviceRegion: "tw"), "TW")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: "GB", musicStorefront: "JP", deviceRegion: "CN"), "GB")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: nil, musicStorefront: nil, deviceRegion: "001"), "US")
+    }
+
     func testUsesExistingAppleMusicLinkWithoutSearch() async throws {
         let search = AutoMatchSearchStub(candidates: [])
         let slot = ArtistSlot(name: "Artist", avatarURL: nil, appleMusicURL: "https://music.apple.com/cn/artist/artist/12345")

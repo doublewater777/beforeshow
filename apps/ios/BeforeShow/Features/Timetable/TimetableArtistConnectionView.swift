@@ -60,7 +60,7 @@ struct TimetableArtistConnectionView: View {
             guard performance.artistName == name, performance.appleMusicArtistID == nil else { return }
             candidates = found
             isLoading = false
-            if let match = ArtistNameMatching.uniqueExactMatch(for: query, among: found) {
+            if let match = ArtistNameMatching.uniqueConfidentMatch(for: query, among: found) {
                 connect(match)
             }
         } catch {
