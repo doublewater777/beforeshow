@@ -93,6 +93,24 @@ import SwiftData
         XCTAssertTrue(queriedEnglish)
     }
 
+    func testConflictingSimplifiedAndTraditionalIDsPreventAutoLink() async throws {
+        let search = ArtistVariantSearchStub(results: [
+            "周杰倫": [candidate("one", "周杰倫")],
+            "周杰伦": [candidate("two", "周杰伦")]
+        ])
+        let matches = try await ArtistIdentityMatcher(search: search).matches(
+            for: [ArtistSlot(name: "周杰倫", avatarURL: nil)]
+        )
+        XCTAssertNil(matches[0])
+    }
+
+    func testBilingualSearchSplitsParentheticalNamesWithoutSplittingPlainLatin() {
+        let parenthetical = ArtistNameMatching.searchQueries(for: "落日飞车（Sunset Rollercoaster）")
+        XCTAssertTrue(parenthetical.contains("落日飞车"))
+        XCTAssertTrue(parenthetical.contains("Sunset Rollercoaster"))
+        XCTAssertEqual(ArtistNameMatching.searchQueries(for: "Sunset Rollercoaster"), ["Sunset Rollercoaster"])
+    }
+
     func testFailedNameVariantPreventsPartialAutoLink() async throws {
         let original = "落日飞车 Sunset Rollercoaster"
         let search = ArtistVariantSearchStub(
