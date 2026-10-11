@@ -108,7 +108,7 @@ struct ShowDraft: Equatable {
 
     mutating func attachArtistIdentity(_ artist: RecognizedArtist, at index: Int) {
         guard artists.indices.contains(index),
-              ArtistNameMatching.normalized(artists[index].name) == ArtistNameMatching.normalized(artist.canonicalName) else { return }
+              ArtistNameMatching.isConfidentMatch(artists[index].name, candidateName: artist.canonicalName) else { return }
         if AppleMusicArtistIdentity.artistID(for: artists[index]) != artist.id {
             artists[index].albumArtworkURL = nil
         }
