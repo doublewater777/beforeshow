@@ -64,18 +64,19 @@ enum ArtistNameMatching {
     static func uniqueConfidentMatch(for query: String, among candidates: [RecognizedArtist]) -> RecognizedArtist? {
         let key = normalized(query)
         guard !key.isEmpty else { return nil }
-        let exact = candidates.filter { normalized($0.canonicalName) == key }
-        if !exact.isEmpty { return uniqueID(exact) }
-        let aliases = candidates.filter { isAliasEquivalent(query, $0.canonicalName) }
-        if !aliases.isEmpty { return uniqueID(aliases) }
-        return uniqueID(candidates.filter { isOneEditAway(query, $0.canonicalName) })
+        // The complete candidate set may contain equally trustworthy identities
+        // from other scripts or bilingual aliases. Never let an exact-name ID hide
+        // a conflicting alias ID; fuzzy similarity is only for manual suggestions.
+        let trusted = candidates.filter {
+            normalized($0.canonicalName) == key || isAliasEquivalent(query, $0.canonicalName)
+        }
+        return uniqueID(trusted)
     }
 
     static func isConfidentMatch(_ name: String, candidateName: String) -> Bool {
         guard !normalized(name).isEmpty else { return false }
         return normalized(name) == normalized(candidateName)
             || isAliasEquivalent(name, candidateName)
-            || isOneEditAway(name, candidateName)
     }
 
     private static func isAliasEquivalent(_ lhs: String, _ rhs: String) -> Bool {
@@ -92,35 +93,6 @@ enum ArtistNameMatching {
         }
         let a = withoutPunctuation(lhs)
         return !a.isEmpty && a == withoutPunctuation(rhs)
-    }
-
-    private static func isOneEditAway(_ lhs: String, _ rhs: String) -> Bool {
-        let a = Array(normalized(lhs))
-        let b = Array(normalized(rhs))
-        guard min(a.count, b.count) >= 7, abs(a.count - b.count) <= 1 else { return false }
-        if a.count == b.count {
-            let differences = a.indices.filter { a[$0] != b[$0] }
-            if differences.count == 1 { return true }
-            if differences.count == 2 {
-                let first = differences[0], second = differences[1]
-                return second == first + 1 && a[first] == b[second] && a[second] == b[first]
-            }
-            return false
-        }
-        let longer = a.count > b.count ? a : b
-        let shorter = a.count > b.count ? b : a
-        var i = 0, j = 0, skipped = false
-        while i < longer.count && j < shorter.count {
-            if longer[i] == shorter[j] {
-                i += 1
-                j += 1
-            } else {
-                if skipped { return false }
-                skipped = true
-                i += 1
-            }
-        }
-        return true
     }
 
     private static func uniqueID(_ candidates: [RecognizedArtist]) -> RecognizedArtist? {
