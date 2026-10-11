@@ -33,25 +33,25 @@ struct ArtistIdentityMatcher {
                 group.addTask {
                     try Task.checkCancellation()
                     var candidates: [RecognizedArtist] = []
-                    var seen = Set<String>()
+                    var hasIncompleteSearch = false
                     for query in ArtistNameMatching.searchQueries(for: item.query) {
                         try Task.checkCancellation()
                         do {
                             let found = try await search.searchArtists(query: query, exactMatchRequired: true)
                             try Task.checkCancellation()
-                            for candidate in found where seen.insert(candidate.id).inserted { candidates.append(candidate) }
-                            // The full, exact identity is sufficient without searching aliases.
-                            if query == item.query,
-                               let exact = ArtistNameMatching.uniqueExactMatch(for: item.query, among: candidates) {
-                                return (item.indices, exact)
-                            }
+                            // Keep alternate names for the same ID until confidence is evaluated;
+                            // only the final identity decision deduplicates by Apple Music ID.
+                            candidates.append(contentsOf: found)
                         } catch {
                             try Task.checkCancellation()
                             if error is CancellationError { throw error }
-                            // One failed spelling must not discard another possible identity.
+                            // A missing variant can hide a conflicting identity. Do not
+                            // automatically link using an incomplete candidate set.
+                            hasIncompleteSearch = true
                         }
                     }
-                    return (item.indices, ArtistNameMatching.uniqueConfidentMatch(for: item.query, among: candidates))
+                    return (item.indices, hasIncompleteSearch ? nil :
+                            ArtistNameMatching.uniqueConfidentMatch(for: item.query, among: candidates))
                 }
             }
             for _ in 0..<4 {
