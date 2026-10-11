@@ -45,6 +45,20 @@ final class TimetableArtistAvatarStoreTests: XCTestCase {
         XCTAssertEqual(resolution.candidates.map(\.id), [a.id])
     }
 
+    func testTimetablePickerDoesNotHideConflictingSavedAliases() async throws {
+        let name = "落日飞车 Sunset Rollercoaster"
+        let linker = TimetableArtistLinker(search: VariantArtistSearch(results: [:]))
+        let savedFull = artist(name, avatar: "https://a.test/a.jpg")
+        let savedEnglish = artist("Sunset Rollercoaster", avatar: "https://a.test/b.jpg")
+        linker.rememberConnectedArtist(savedFull)
+        linker.rememberConnectedArtist(savedEnglish)
+
+        let saved = linker.savedCandidates(for: name)
+        XCTAssertEqual(Set(saved.map(\.id)), Set([savedFull.id, savedEnglish.id]))
+        let resolution = try await linker.resolveCandidates(for: name)
+        XCTAssertNil(resolution.automaticMatch)
+    }
+
     func testTimetablePickerKeepsManualCandidatesWhenAnAliasSearchFails() async throws {
         let name = "落日飞车 Sunset Rollercoaster"
         let a = artist(name, avatar: "https://a.test/a.jpg")
