@@ -89,7 +89,8 @@ import SwiftData
             for: [ArtistSlot(name: original, avatarURL: nil)]
         )
         XCTAssertNil(matches[0], "A full-name exact hit must not hide a conflicting English alias")
-        XCTAssertTrue(await search.queried("Sunset Rollercoaster"))
+        let queriedEnglish = await search.queried("Sunset Rollercoaster")
+        XCTAssertTrue(queriedEnglish)
     }
 
     func testFailedNameVariantPreventsPartialAutoLink() async throws {
@@ -123,12 +124,14 @@ import SwiftData
         let cached = try await service.searchArtists(query: "Region Artist")
         XCTAssertEqual(japan.map(\.id), ["JP"])
         XCTAssertEqual(cached.map(\.id), ["JP"])
-        XCTAssertEqual(await region.searchCount(), 1, "Same-region result should use the cache")
+        let initialSearchCount = await region.searchCount()
+        XCTAssertEqual(initialSearchCount, 1, "Same-region result should use the cache")
 
         await region.changeCountry("US")
         let usa = try await service.searchArtists(query: "Region Artist")
         XCTAssertEqual(usa.map(\.id), ["US"], "Changing storefront invalidates the prior market lookup")
-        XCTAssertEqual(await region.searchCount(), 2)
+        let updatedSearchCount = await region.searchCount()
+        XCTAssertEqual(updatedSearchCount, 2)
     }
 
     func testFallbackRegionUsesUserStorefrontOrDeviceRegion() {
