@@ -57,6 +57,24 @@ import SwiftData
         XCTAssertTrue(results.isEmpty)
     }
 
+    func testTraditionalSearchRetriesSimplifiedNameWhenFirstResultIsOnlySimilar() async throws {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { query, _, _ in
+                if query == "周杰倫" {
+                    return [RecognizedArtist(id: "studio", canonicalName: "周杰伦工作室",
+                                             avatarURL: nil, appleMusicURL: nil)]
+                }
+                return [RecognizedArtist(id: "artist", canonicalName: "周杰伦",
+                                         avatarURL: nil, appleMusicURL: nil)]
+            },
+            fallbackSearch: { _, _, _ in [] }
+        )
+        let results = try await ArtistIdentityMatcher(search: service).matches(
+            for: [ArtistSlot(name: "周杰倫", avatarURL: nil)]
+        )
+        XCTAssertEqual(results[0]?.id, "artist")
+    }
+
     func testFallbackRegionUsesUserStorefrontOrDeviceRegion() {
         XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
             preferred: nil, musicStorefront: "jp", deviceRegion: "CN"), "JP")
