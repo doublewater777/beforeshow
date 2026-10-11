@@ -135,7 +135,9 @@ import SwiftData
         let region = ArtistMarketTestState("JP")
         let service = AppleMusicArtistSearchService(
             catalogSearch: { _, _, _ in [] },
-            fallbackSearch: { query, _, _ in [await region.fallbackArtist(query: query)] },
+            regionalFallbackSearch: { query, _, _, country in
+                [await region.fallbackArtist(query: query, requestedCountry: country)]
+            },
             countryResolver: { await region.currentCountry() }
         )
         let japan = try await service.searchArtists(query: "Region Artist")
@@ -150,6 +152,9 @@ import SwiftData
         XCTAssertEqual(usa.map(\.id), ["US"], "Changing storefront invalidates the prior market lookup")
         let updatedSearchCount = await region.searchCount()
         XCTAssertEqual(updatedSearchCount, 2)
+        let requestedCountries = await region.requestedCountries()
+        XCTAssertEqual(requestedCountries, ["JP", "US"],
+                       "The actual iTunes country argument must match the cache market snapshot")
     }
 
     func testFallbackRegionUsesUserStorefrontOrDeviceRegion() {
@@ -616,17 +621,19 @@ private actor ArtistVariantSearchStub: ArtistSearchServicing {
 
 private actor ArtistMarketTestState {
     private var country: String
-    private var calls = 0
+    private var countries: [String] = []
 
     init(_ country: String) { self.country = country }
 
     func currentCountry() -> String { country }
     func changeCountry(_ country: String) { self.country = country }
-    func searchCount() -> Int { calls }
+    func searchCount() -> Int { countries.count }
+    func requestedCountries() -> [String] { countries }
 
-    func fallbackArtist(query: String) -> RecognizedArtist {
-        calls += 1
-        return RecognizedArtist(id: country, canonicalName: query, avatarURL: nil, appleMusicURL: nil)
+    func fallbackArtist(query: String, requestedCountry: String) -> RecognizedArtist {
+        countries.append(requestedCountry)
+        return RecognizedArtist(id: requestedCountry, canonicalName: query,
+                                avatarURL: nil, appleMusicURL: nil)
     }
 }
 
