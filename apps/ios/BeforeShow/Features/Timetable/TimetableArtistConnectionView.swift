@@ -55,12 +55,12 @@ struct TimetableArtistConnectionView: View {
         isLoading = true
         do {
             try await Task.sleep(for: .milliseconds(350))
-            let found = try await linker.candidates(for: query, includingRemote: true)
+            let resolution = try await linker.resolveCandidates(for: query)
             try Task.checkCancellation()
             guard performance.artistName == name, performance.appleMusicArtistID == nil else { return }
-            candidates = found
+            candidates = resolution.candidates
             isLoading = false
-            if let match = ArtistNameMatching.uniqueConfidentMatch(for: query, among: found) {
+            if let match = resolution.automaticMatch {
                 connect(match)
             }
         } catch {
