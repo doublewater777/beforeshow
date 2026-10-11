@@ -1,7 +1,54 @@
 import Foundation
 
+struct ArtistIdentityResolution {
+    let candidates: [RecognizedArtist]
+    let automaticMatch: RecognizedArtist?
+}
+
 struct ArtistIdentityMatcher {
     let search: any ArtistSearchServicing
+
+    /// A single policy for every automatic-link entry point. Candidates can still be
+    /// displayed for manual selection when an alternate spelling fails or IDs conflict.
+    func resolve(for name: String, including knownCandidates: [RecognizedArtist] = []) async throws -> ArtistIdentityResolution {
+        let queries = ArtistNameMatching.searchQueries(for: name)
+        var all = knownCandidates
+        var firstFailure: Error?
+        var incomplete = false
+        var completed = 0
+
+        for query in queries {
+            try Task.checkCancellation()
+            do {
+                let found = try await search.searchArtists(query: query, exactMatchRequired: true)
+                try Task.checkCancellation()
+                all.append(contentsOf: found)
+                completed += 1
+            } catch {
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
+                incomplete = true
+                if firstFailure == nil { firstFailure = error }
+            }
+        }
+
+        // If every remote variant failed, surface the error so manual search
+        // can offer recovery rather than presenting a misleading empty result.
+        if !queries.isEmpty && completed == 0, let firstFailure {
+            throw firstFailure
+        }
+
+        var candidates: [RecognizedArtist] = []
+        var seen = Set<String>()
+        for artist in all where seen.insert(artist.id).inserted {
+            candidates.append(artist)
+        }
+        return ArtistIdentityResolution(
+            candidates: candidates,
+            automaticMatch: incomplete ? nil :
+                ArtistNameMatching.uniqueConfidentMatch(for: name, among: all)
+        )
+    }
 
     /// Resolve identities without rewriting saved display names.
     func matches(for slots: [ArtistSlot]) async throws -> [Int: RecognizedArtist] {
@@ -32,26 +79,15 @@ struct ArtistIdentityMatcher {
             func enqueue(_ item: (indices: [Int], query: String)) {
                 group.addTask {
                     try Task.checkCancellation()
-                    var candidates: [RecognizedArtist] = []
-                    var hasIncompleteSearch = false
-                    for query in ArtistNameMatching.searchQueries(for: item.query) {
+                    do {
+                        let resolution = try await resolve(for: item.query)
+                        return (item.indices, resolution.automaticMatch)
+                    } catch {
                         try Task.checkCancellation()
-                        do {
-                            let found = try await search.searchArtists(query: query, exactMatchRequired: true)
-                            try Task.checkCancellation()
-                            // Keep alternate names for the same ID until confidence is evaluated;
-                            // only the final identity decision deduplicates by Apple Music ID.
-                            candidates.append(contentsOf: found)
-                        } catch {
-                            try Task.checkCancellation()
-                            if error is CancellationError { throw error }
-                            // A missing variant can hide a conflicting identity. Do not
-                            // automatically link using an incomplete candidate set.
-                            hasIncompleteSearch = true
-                        }
+                        if error is CancellationError { throw error }
+                        // One unavailable artist must not discard the rest of the lineup.
+                        return (item.indices, nil)
                     }
-                    return (item.indices, hasIncompleteSearch ? nil :
-                            ArtistNameMatching.uniqueConfidentMatch(for: item.query, among: candidates))
                 }
             }
             for _ in 0..<4 {
