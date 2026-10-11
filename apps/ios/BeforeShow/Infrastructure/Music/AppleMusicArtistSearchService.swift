@@ -92,7 +92,13 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             cache.removeAll()
             cachedAuthorization = authorization
         }
-        let key = ArtistNameMatching.normalized(trimmed) + "|" + (country ?? Locale.autoupdatingCurrent.region?.identifier ?? "US")
+        // Keep script variants distinct: simplified and traditional queries can
+        // return different catalog results even though they compare as the same name.
+        let queryKey = trimmed.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        ).split { $0.isWhitespace || $0.isNewline }.joined(separator: " ")
+        let key = queryKey + "|" + (country ?? Locale.autoupdatingCurrent.region?.identifier ?? "US")
         if let cached = cache[key], cached.expiresAt > .now, !exactMatchRequired || cached.isComplete {
             return cached.candidates
         }
