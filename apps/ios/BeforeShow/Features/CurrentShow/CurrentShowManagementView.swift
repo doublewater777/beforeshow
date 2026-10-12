@@ -367,7 +367,6 @@ struct CurrentShowManagementSection: View {
                     CurrentShowCountdownCard(
                         show: show,
                         snapshot: snapshot,
-                        candidateShows: candidateShows,
                         recommendation: recommendation,
                         isVisible: isHeroPlaybackActive,
                         onRecommendation: performRecommendation,
