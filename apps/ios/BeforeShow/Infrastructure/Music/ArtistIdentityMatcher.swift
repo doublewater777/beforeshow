@@ -1,9 +1,56 @@
 import Foundation
 
-struct ArtistIdentityMatcher {
+struct ArtistIdentityResolution: Sendable {
+    let candidates: [RecognizedArtist]
+    let automaticMatch: RecognizedArtist?
+}
+
+struct ArtistIdentityMatcher: Sendable {
     let search: any ArtistSearchServicing
 
-    /// Resolve identities without changing the show's names or asking users to connect each artist.
+    /// A single policy for every automatic-link entry point. Candidates can still be
+    /// displayed for manual selection when an alternate spelling fails or IDs conflict.
+    func resolve(for name: String, including knownCandidates: [RecognizedArtist] = []) async throws -> ArtistIdentityResolution {
+        let queries = ArtistNameMatching.searchQueries(for: name)
+        var all = knownCandidates
+        var firstFailure: Error?
+        var incomplete = false
+        var completed = 0
+
+        for query in queries {
+            try Task.checkCancellation()
+            do {
+                let found = try await search.searchArtists(query: query, exactMatchRequired: true)
+                try Task.checkCancellation()
+                all.append(contentsOf: found)
+                completed += 1
+            } catch {
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
+                incomplete = true
+                if firstFailure == nil { firstFailure = error }
+            }
+        }
+
+        // If every remote variant failed, surface the error so manual search
+        // can offer recovery rather than presenting a misleading empty result.
+        if !queries.isEmpty && completed == 0, let firstFailure {
+            throw firstFailure
+        }
+
+        var candidates: [RecognizedArtist] = []
+        var seen = Set<String>()
+        for artist in all where seen.insert(artist.id).inserted {
+            candidates.append(artist)
+        }
+        return ArtistIdentityResolution(
+            candidates: candidates,
+            automaticMatch: incomplete ? nil :
+                ArtistNameMatching.uniqueConfidentMatch(for: name, among: all)
+        )
+    }
+
+    /// Resolve identities without rewriting saved display names.
     func matches(for slots: [ArtistSlot]) async throws -> [Int: RecognizedArtist] {
         var result: [Int: RecognizedArtist] = [:]
         var pending: [(indices: [Int], query: String)] = []
@@ -33,9 +80,8 @@ struct ArtistIdentityMatcher {
                 group.addTask {
                     try Task.checkCancellation()
                     do {
-                        let candidates = try await search.searchArtists(query: item.query, exactMatchRequired: true)
-                        try Task.checkCancellation()
-                        return (item.indices, ArtistNameMatching.uniqueExactMatch(for: item.query, among: candidates))
+                        let resolution = try await resolve(for: item.query)
+                        return (item.indices, resolution.automaticMatch)
                     } catch {
                         try Task.checkCancellation()
                         if error is CancellationError { throw error }

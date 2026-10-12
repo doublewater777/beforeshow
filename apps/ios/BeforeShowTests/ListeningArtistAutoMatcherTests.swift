@@ -17,6 +17,163 @@ import SwiftData
         XCTAssertEqual(queries, ["the band"])
     }
 
+    func testTraditionalAndSimplifiedNamesCanAutoMatch() async throws {
+        XCTAssertEqual(ArtistNameMatching.normalized("周杰倫"), ArtistNameMatching.normalized("周杰伦"))
+        let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [candidate("jay", "周杰伦")]))
+            .matches(for: [ArtistSlot(name: "周杰倫", avatarURL: nil)])
+        XCTAssertEqual(results[0]?.id, "jay")
+    }
+
+    func testBilingualImportedArtistCanAutoLinkWithoutRewritingName() async throws {
+        let matched = candidate("sunset", "Sunset Rollercoaster")
+        let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [matched]))
+            .matches(for: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
+        XCTAssertEqual(results[0]?.id, "sunset")
+        var draft = ShowDraft(artists: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
+        draft.attachArtistIdentity(matched, at: 0)
+        XCTAssertEqual(draft.artists[0].appleMusicArtistID, "sunset")
+        XCTAssertEqual(draft.artists[0].name, "落日飞车 Sunset Rollercoaster")
+    }
+
+    func testPunctuationAutoMatchesButTyposRemainSuggestions() {
+        XCTAssertEqual(ArtistNameMatching.uniqueConfidentMatch(
+            for: "Panic at the Disco", among: [candidate("panic", "Panic! at the Disco")]
+        )?.id, "panic")
+        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
+            for: "Taylor Swfit", among: [candidate("taylor", "Taylor Swift")]
+        ))
+        var draft = ShowDraft(artists: [ArtistSlot(name: "Taylor Swfit", avatarURL: nil)])
+        draft.attachArtistIdentity(candidate("taylor", "Taylor Swift"), at: 0)
+        XCTAssertNil(draft.artists[0].appleMusicArtistID)
+        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
+            for: "姜思达", among: [candidate("studio", "姜思达工作室")]
+        ))
+        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
+            for: "A B", among: [candidate("ab", "AB")]
+        ))
+    }
+
+    func testAmbiguousBilingualMatchesStillRequireConfirmation() async throws {
+        let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [
+            candidate("one", "落日飞车"), candidate("two", "Sunset Rollercoaster")
+        ])).matches(for: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func testTraditionalSearchRetriesSimplifiedNameWhenFirstResultIsOnlySimilar() async throws {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { query, _, _ in
+                if query == "周杰倫" {
+                    return [RecognizedArtist(id: "studio", canonicalName: "周杰伦工作室",
+                                             avatarURL: nil, appleMusicURL: nil)]
+                }
+                return [RecognizedArtist(id: "artist", canonicalName: "周杰伦",
+                                         avatarURL: nil, appleMusicURL: nil)]
+            },
+            fallbackSearch: { _, _, _ in [] }
+        )
+        let results = try await ArtistIdentityMatcher(search: service).matches(
+            for: [ArtistSlot(name: "周杰倫", avatarURL: nil)]
+        )
+        XCTAssertEqual(results[0]?.id, "artist")
+    }
+
+    func testConflictingIDsAcrossNameVariantsPreventAutoLink() async throws {
+        let original = "落日飞车 Sunset Rollercoaster"
+        let search = ArtistVariantSearchStub(results: [
+            original: [candidate("exact", original)],
+            "落日飞车": [candidate("exact", "落日飞车")],
+            "Sunset Rollercoaster": [candidate("other", "Sunset Rollercoaster")]
+        ])
+        let matches = try await ArtistIdentityMatcher(search: search).matches(
+            for: [ArtistSlot(name: original, avatarURL: nil)]
+        )
+        XCTAssertNil(matches[0], "A full-name exact hit must not hide a conflicting English alias")
+        let queriedEnglish = await search.queried("Sunset Rollercoaster")
+        XCTAssertTrue(queriedEnglish)
+    }
+
+    func testConflictingSimplifiedAndTraditionalIDsPreventAutoLink() async throws {
+        let search = ArtistVariantSearchStub(results: [
+            "周杰倫": [candidate("one", "周杰倫")],
+            "周杰伦": [candidate("two", "周杰伦")]
+        ])
+        let matches = try await ArtistIdentityMatcher(search: search).matches(
+            for: [ArtistSlot(name: "周杰倫", avatarURL: nil)]
+        )
+        XCTAssertNil(matches[0])
+    }
+
+    func testBilingualSearchSplitsParentheticalNamesWithoutSplittingPlainLatin() {
+        let parenthetical = ArtistNameMatching.searchQueries(for: "落日飞车（Sunset Rollercoaster）")
+        XCTAssertTrue(parenthetical.contains("落日飞车"))
+        XCTAssertTrue(parenthetical.contains("Sunset Rollercoaster"))
+        XCTAssertEqual(ArtistNameMatching.searchQueries(for: "Sunset Rollercoaster"), ["Sunset Rollercoaster"])
+    }
+
+    func testFailedNameVariantPreventsPartialAutoLink() async throws {
+        let original = "落日飞车 Sunset Rollercoaster"
+        let search = ArtistVariantSearchStub(
+            results: [original: [candidate("exact", original)],
+                      "落日飞车": [candidate("exact", "落日飞车")]],
+            failingQueries: ["Sunset Rollercoaster"]
+        )
+        let matches = try await ArtistIdentityMatcher(search: search).matches(
+            for: [ArtistSlot(name: original, avatarURL: nil)]
+        )
+        XCTAssertNil(matches[0], "An unavailable alias search cannot prove identity uniqueness")
+    }
+
+    func testTypoOnlySearchDoesNotAutoLink() async throws {
+        let result = try await ArtistIdentityMatcher(
+            search: AutoMatchSearchStub(candidates: [candidate("similar", "Taylor Swift")])
+        ).matches(for: [ArtistSlot(name: "Taylor Swfit", avatarURL: nil)])
+        XCTAssertNil(result[0])
+    }
+
+    func testFallbackCacheUsesResolvedRegionAndRefreshesWhenStorefrontChanges() async throws {
+        let region = ArtistMarketTestState("JP")
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _, _ in [] },
+            regionalFallbackSearch: { query, _, _, country in
+                [await region.fallbackArtist(query: query, requestedCountry: country)]
+            },
+            countryResolver: { await region.currentCountry() }
+        )
+        let japan = try await service.searchArtists(query: "Region Artist")
+        let cached = try await service.searchArtists(query: "Region Artist")
+        XCTAssertEqual(japan.map(\.id), ["JP"])
+        XCTAssertEqual(cached.map(\.id), ["JP"])
+        let initialSearchCount = await region.searchCount()
+        XCTAssertEqual(initialSearchCount, 1, "Same-region result should use the cache")
+
+        await region.changeCountry("US")
+        let usa = try await service.searchArtists(query: "Region Artist")
+        XCTAssertEqual(usa.map(\.id), ["US"], "Changing storefront invalidates the prior market lookup")
+        let updatedSearchCount = await region.searchCount()
+        XCTAssertEqual(updatedSearchCount, 2)
+        let requestedCountries = await region.requestedCountries()
+        XCTAssertEqual(requestedCountries, ["JP", "US"],
+                       "The actual iTunes country argument must match the cache market snapshot")
+    }
+
+    func testFallbackRegionUsesUserStorefrontOrDeviceRegion() {
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: nil, musicStorefront: "jp", deviceRegion: "CN"), "JP")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: nil, musicStorefront: nil, deviceRegion: "tw"), "TW")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: "GB", musicStorefront: "JP", deviceRegion: "CN"), "GB")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: nil, musicStorefront: nil, deviceRegion: "001"), "US")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: "ZZZ", musicStorefront: "JP", deviceRegion: "CN"), "JP")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: "ZZZ", musicStorefront: nil, deviceRegion: "TW"), "TW")
+        XCTAssertEqual(AppleMusicArtistSearchService.fallbackCountry(
+            preferred: "ZZZ", musicStorefront: nil, deviceRegion: "001"), "US")
+    }
+
     func testUsesExistingAppleMusicLinkWithoutSearch() async throws {
         let search = AutoMatchSearchStub(candidates: [])
         let slot = ArtistSlot(name: "Artist", avatarURL: nil, appleMusicURL: "https://music.apple.com/cn/artist/artist/12345")
@@ -440,6 +597,43 @@ private actor AutoMatchSearchStub: ArtistSearchServicing {
         queries.append(query)
         if delayed { try await Task.sleep(for: .milliseconds(80)) }
         return candidates
+    }
+}
+
+private actor ArtistVariantSearchStub: ArtistSearchServicing {
+    private let results: [String: [RecognizedArtist]]
+    private let failingQueries: Set<String>
+    private var queries: [String] = []
+
+    init(results: [String: [RecognizedArtist]], failingQueries: Set<String> = []) {
+        self.results = results
+        self.failingQueries = failingQueries
+    }
+
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        queries.append(query)
+        if failingQueries.contains(query) { throw ArtistSearchError.network }
+        return results[query] ?? []
+    }
+
+    func queried(_ value: String) -> Bool { queries.contains(value) }
+}
+
+private actor ArtistMarketTestState {
+    private var country: String
+    private var countries: [String] = []
+
+    init(_ country: String) { self.country = country }
+
+    func currentCountry() -> String { country }
+    func changeCountry(_ country: String) { self.country = country }
+    func searchCount() -> Int { countries.count }
+    func requestedCountries() -> [String] { countries }
+
+    func fallbackArtist(query: String, requestedCountry: String) -> RecognizedArtist {
+        countries.append(requestedCountry)
+        return RecognizedArtist(id: requestedCountry, canonicalName: query,
+                                avatarURL: nil, appleMusicURL: nil)
     }
 }
 

@@ -54,6 +54,14 @@ final class TimetableArtistLinker {
         return merged
     }
 
+    /// The picker and lineup import must share the same complete variant-search
+    /// policy. Saved identities are included when checking for conflicting IDs.
+    func resolveCandidates(for name: String) async throws -> ArtistIdentityResolution {
+        try await ArtistIdentityMatcher(search: search).resolve(
+            for: name, including: savedCandidates(for: name)
+        )
+    }
+
     func rememberConnectedArtist(_ artist: RecognizedArtist) {
         knownArtists.append(artist)
     }
@@ -133,7 +141,9 @@ final class TimetableArtistLinker {
 
     func savedCandidates(for name: String) -> [RecognizedArtist] {
         var matches: [RecognizedArtist] = []
-        for (index, query) in TimetableArtistAvatarStore.candidateQueries(for: name).enumerated() {
+        // Resolve every script/bilingual form. Returning the first exact saved
+        // name could hide another known Artist ID under an alternate credit.
+        for query in ArtistNameMatching.searchQueries(for: name) {
             let normalized = ArtistNameMatching.normalized(query)
             for artist in knownArtists where ArtistNameMatching.normalized(artist.canonicalName) == normalized {
                 if let index = matches.firstIndex(where: { $0.id == artist.id }) {
@@ -142,7 +152,6 @@ final class TimetableArtistLinker {
                     matches.append(artist)
                 }
             }
-            if index == 0 && !matches.isEmpty { return matches }
         }
         return matches
     }
