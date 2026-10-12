@@ -16,6 +16,8 @@ struct ListeningRackView: View {
     @State private var placeholderGroupID: String?
     @State private var scrubOrigin: Int?
     @State private var carriedDisc: ListeningDisc?
+    /// Cases the row has travelled under the finger, fractional while a swipe is in flight.
+    @State private var dragShift: Double = 0
 
     private typealias L = ListeningRackLayout
 
@@ -83,11 +85,8 @@ struct ListeningRackView: View {
     private func pose(_ entry: Entry, row: [Entry], focus c: Int, discOut: Bool) -> ListeningRackPose {
         var pose: ListeningRackPose
         if let pos = row.firstIndex(where: { $0.id == entry.id }) {
-            pose = L.pose(at: pos - c, discOut: discOut)
-            if pos == c {
-                pose.lit = 1
-                if revealedID == entry.id, discOut { pose.peek = L.peekOut }
-            }
+            pose = L.pose(following: Double(pos - c) + dragShift, discOut: discOut)
+            if pos == c, dragShift == 0, revealedID == entry.id, discOut { pose.peek = L.peekOut }
             return pose
         }
         if let open = openIndex, entry.groupIndex != open {
@@ -147,7 +146,7 @@ struct ListeningRackView: View {
                             show: room.show
                         )
                         .modifier(ListeningRackBreathing(isActive: entry.isPlaceholder && !reduceMotion))
-                        .zIndex(Double(100 - abs((row.firstIndex { $0.id == entry.id } ?? 50) - c)))
+                        .zIndex(100 - abs(Double((row.firstIndex { $0.id == entry.id } ?? 50) - c) + dragShift))
                     }
                     if let disc = focused?.disc, out {
                         slotMarker(for: disc, width: width, focus: c, row: row)
@@ -296,14 +295,29 @@ struct ListeningRackView: View {
 
     // MARK: Gestures
 
-    /// Like the mock, the row moves on release: a short swipe turns one case, longer ones skip ahead.
+    /// The row follows the finger at the mock's 44pt per case, then settles with a little of the flick.
     private func swipeGesture(row: [Entry], focus c: Int) -> some Gesture {
-        DragGesture(minimumDistance: L.swipeThreshold)
+        DragGesture(minimumDistance: L.followThreshold)
+            .onChanged { value in
+                guard carriedDisc == nil,
+                      dragShift != 0 || abs(value.translation.width) > abs(value.translation.height) else { return }
+                let shift = L.followShift(from: c, translation: value.translation.width, count: focusableCount(row))
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { dragShift = shift == 0 ? .ulpOfOne : shift }
+            }
             .onEnded { value in
-                guard carriedDisc == nil, abs(value.translation.width) > abs(value.translation.height) else { return }
-                let index = L.swipeIndex(from: c, translation: value.translation.width, count: focusableCount(row))
-                guard row.indices.contains(index) else { return }
-                withAnimation(reduceMotion ? nil : L.motion) { focusedID = row[index].id }
+                guard carriedDisc == nil, dragShift != 0 else { return }
+                let index = L.swipeIndex(
+                    from: c,
+                    translation: value.translation.width,
+                    predicted: value.predictedEndTranslation.width,
+                    count: focusableCount(row)
+                )
+                withAnimation(reduceMotion ? nil : L.motion) {
+                    dragShift = 0
+                    if row.indices.contains(index) { focusedID = row[index].id }
+                }
             }
     }
 

@@ -41,6 +41,8 @@ enum ListeningRackLayout {
     static let edgeFade: CGFloat = 0.12
 
     static let swipeThreshold: CGFloat = 14
+    static let followThreshold: CGFloat = 6
+    static let flickWeight: CGFloat = 0.25
     static let swipeStep: CGFloat = 44
     static let scrubThreshold: CGFloat = 8
     static let scrubStep: CGFloat = 12
@@ -77,13 +79,37 @@ enum ListeningRackLayout {
         )
     }
 
+    /// A pose between two resting slots, so the row can sit anywhere under the finger.
+    static func pose(following d: Double, discOut: Bool) -> ListeningRackPose {
+        let lower = Int(d.rounded(.down)), t = d - Double(lower)
+        var result = Self.pose(at: lower, discOut: discOut)
+        if t > 0 {
+            var step = Self.pose(at: lower + 1, discOut: discOut)
+            step -= result
+            step.scale(by: t)
+            result += step
+        }
+        result.lit = max(0, 1 - abs(d))
+        return result
+    }
+
     static func away(side: Double) -> ListeningRackPose {
         ListeningRackPose(x: side * 300, z: -60, rotation: side * 38, opacity: 0)
     }
 
-    static func swipeIndex(from index: Int, translation: CGFloat, count: Int) -> Int {
+    /// Cases travelled for a drag, resisting past either end of the row.
+    static func followShift(from index: Int, translation: CGFloat, count: Int) -> Double {
+        let raw = Double(translation / swipeStep)
+        let low = -Double(max(count - 1 - index, 0)), high = Double(index)
+        if raw > high { let over = raw - high; return high + over / (1 + over * 2) }
+        if raw < low { let over = low - raw; return low - over / (1 + over * 2) }
+        return raw
+    }
+
+    static func swipeIndex(from index: Int, translation: CGFloat, predicted: CGFloat? = nil, count: Int) -> Int {
         guard abs(translation) >= swipeThreshold else { return index }
-        let steps = max(1, Int((abs(translation) / swipeStep).rounded()))
+        let travel = translation + ((predicted ?? translation) - translation) * flickWeight
+        let steps = max(1, Int((abs(travel) / swipeStep).rounded()))
         return clamp(index - Int(translation.sign == .minus ? -1 : 1) * steps, count)
     }
 
