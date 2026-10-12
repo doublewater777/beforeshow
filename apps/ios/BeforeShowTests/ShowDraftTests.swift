@@ -656,9 +656,9 @@ final class ShowDraftTests: XCTestCase {
                 "endTime": "00:30",
                 "venueName": "测试场馆",
                 "venueAddr": "测试地址",
-                "artist": "测试艺人",
+                "artist": "张蔷, DOUDOU（杜冰儿、杜飞儿）, 声音碎片",
                 "coverImageURL": "https://example.com/show-cover.jpg",
-                "artistAvatarURLs": ["https://example.com/artist-a.jpg", "https://example.com/artist-b.jpg"],
+                "artistAvatarURLs": ["https://example.com/artist-a.jpg", "https://example.com/artist-b.jpg", "https://example.com/artist-c.jpg"],
                 "priceRange": "200-400",
                 "source": "showstart"
             }
@@ -687,7 +687,9 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.venueName, "测试场馆")
         XCTAssertEqual(draft.venueAddress, "测试地址")
         XCTAssertEqual(draft.artists, [
-            ArtistSlot(name: "测试艺人", avatarURL: "https://example.com/artist-a.jpg")
+            ArtistSlot(name: "张蔷", avatarURL: "https://example.com/artist-a.jpg"),
+            ArtistSlot(name: "DOUDOU（杜冰儿、杜飞儿）", avatarURL: "https://example.com/artist-b.jpg"),
+            ArtistSlot(name: "声音碎片", avatarURL: "https://example.com/artist-c.jpg")
         ])
         XCTAssertEqual(draft.coverImageURL, "https://example.com/show-cover.jpg")
         XCTAssertEqual(draft.source, .link)

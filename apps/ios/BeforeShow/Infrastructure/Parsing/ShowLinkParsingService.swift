@@ -264,13 +264,24 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         return showDraft
     }
 
-    /// URL query 里的单串艺名 → `[ArtistSlot]` 数组:先按换行,再按 `,，、` 拆,trim 后丢空。
-    /// 与后端返回的 `artistAvatarURLs` 按 index 对齐:多出的 slot 没头像置 `nil`,少则补空 slot。
+    /// 按换行和 `,，、` 拆分艺人，保留括号内的标点，与后端头像按 index 对齐。
     private static func splitLinkArtist(_ raw: String, avatars: [String] = []) -> [ArtistSlot] {
-        let separators = CharacterSet(charactersIn: ",，、")
-        let names = raw
-            .components(separatedBy: .newlines)
-            .flatMap { $0.components(separatedBy: separators) }
+        let separators = CharacterSet(charactersIn: ",，、").union(.newlines)
+        var parenthesisDepth = 0
+        var segments = [""]
+        for character in raw {
+            switch character {
+            case "(", "（": parenthesisDepth += 1
+            case ")", "）": parenthesisDepth = max(0, parenthesisDepth - 1)
+            default: break
+            }
+            if parenthesisDepth == 0 && character.unicodeScalars.allSatisfy(separators.contains) {
+                segments.append("")
+            } else {
+                segments[segments.count - 1].append(character)
+            }
+        }
+        let names = segments
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return names.enumerated().map { index, name in
