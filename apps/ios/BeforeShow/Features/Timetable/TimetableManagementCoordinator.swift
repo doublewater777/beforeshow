@@ -11,10 +11,13 @@ final class TimetableManagementCoordinator: ObservableObject {
     @Published var isSaving = false
     @Published var toast: BSToastPayload?
     @Published var dayManagementError: String?
+    @Published private(set) var importSession: TimetableImportSession?
 
     private let recognizer: TimetableImageRecognizer
+    private let timeZoneIdentifier: String
 
     init(timeZoneIdentifier: String = "Asia/Shanghai") {
+        self.timeZoneIdentifier = timeZoneIdentifier
         self.recognizer = TimetableImageRecognizer(timeZoneIdentifier: timeZoneIdentifier)
     }
 
@@ -136,6 +139,66 @@ final class TimetableManagementCoordinator: ObservableObject {
             presentToast(.failure, message: BSLocalization.text("时刻表保存失败，请重试"))
             return false
         }
+    }
+
+    // MARK: - Import review
+
+    /// Opens review for an import from any source. The saved timetable is only
+    /// read here, to carry over choices for sets that match it exactly.
+    @discardableResult
+    func beginReview(
+        _ result: TimetableImportResult,
+        imagesData: [Data],
+        show: Show,
+        linker: TimetableArtistLinker
+    ) -> TimetableImportSession? {
+        var result = result
+        if let saved = show.timetable {
+            TimetableReimportCarryover.apply(from: TimetableDraft(from: saved), to: &result.draft)
+        }
+        linker.reuseKnownArtists(in: &result.draft)
+        importSession = try? TimetableImportSession(result: result, imagesData: imagesData)
+        if importSession != nil, result.skippedCount > 0 {
+            presentToast(.neutral, message: BSLocalization.format("%d 场信息不完整，未导入", result.skippedCount))
+        }
+        return importSession
+    }
+
+    func reviewImportedText(_ text: String, show: Show, linker: TimetableArtistLinker) throws -> TimetableImportSession {
+        let document = try TimetableImportParser.document(from: text)
+        let result = try TimetableImportMapper.result(
+            from: document,
+            defaultTimeZoneIdentifier: timeZoneIdentifier,
+            fallbackDate: show.date,
+            unnamedStage: { BSLocalization.format("舞台 %d", $0) }
+        )
+        guard let session = beginReview(result, imagesData: [], show: show, linker: linker) else {
+            throw TimetableImportError.invalidFormat
+        }
+        return session
+    }
+
+    func cancelReview() {
+        importSession = nil
+    }
+
+    /// Writes the reviewed timetable over the saved one; on any failure the saved one stays.
+    func saveReview(show: Show, modelContext: ModelContext) async -> Bool {
+        guard let session = importSession else { return false }
+        let draft = session.reviewedDraft()
+        do {
+            _ = try draft.buildTimetable()
+        } catch let error as TimetableValidationError {
+            presentToast(.failure, message: BSLocalization.text(TimetableReviewIssues.message(for: error)))
+            return false
+        } catch {
+            return false
+        }
+        guard await commit(draft: draft, newImagesData: session.imagesData, show: show, modelContext: modelContext) else {
+            return false
+        }
+        importSession = nil
+        return true
     }
 
     func deleteTimetable(show: Show, modelContext: ModelContext) async {

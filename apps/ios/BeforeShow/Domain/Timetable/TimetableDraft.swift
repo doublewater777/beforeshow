@@ -62,6 +62,13 @@ struct TimetableDraftPerformance: Identifiable, Equatable, Hashable, Sendable {
         appleMusicArtistID = nil
         artistAvatarURL = nil
     }
+
+    /// Keeps a link the user already had for the same set; never clears one.
+    mutating func inheritArtistLink(from previous: TimetableDraftPerformance) {
+        guard let id = previous.appleMusicArtistID else { return }
+        appleMusicArtistID = id
+        artistAvatarURL = previous.artistAvatarURL
+    }
 }
 
 struct TimetableDraftStage: Identifiable, Equatable, Hashable, Sendable {

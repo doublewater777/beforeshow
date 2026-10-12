@@ -11,6 +11,7 @@ struct TimetableExperienceView: View {
     let addPerformanceRequest: Int
     let avatarURL: (TimetablePerformance) -> URL?
     let onManage: () -> Void
+    let allowsSharing: Bool
 
     @Environment(\.modelContext) private var modelContext
     @State private var wantOnly: Bool
@@ -28,7 +29,8 @@ struct TimetableExperienceView: View {
         linker: TimetableArtistLinker,
         addPerformanceRequest: Int = 0,
         avatarURL: @escaping (TimetablePerformance) -> URL?,
-        onManage: @escaping () -> Void
+        onManage: @escaping () -> Void,
+        allowsSharing: Bool = true
     ) {
         self.timetable = timetable
         self.show = show
@@ -37,6 +39,7 @@ struct TimetableExperienceView: View {
         self.addPerformanceRequest = addPerformanceRequest
         self.avatarURL = avatarURL
         self.onManage = onManage
+        self.allowsSharing = allowsSharing
         var wantOnly = false
         #if DEBUG
         wantOnly = ProcessInfo.processInfo.arguments.contains("--timetable-filter-interested")
@@ -165,19 +168,21 @@ struct TimetableExperienceView: View {
                 .padding(.leading, BSSpacing.roomy)
             }
 
-            Button {
-                isSharing = true
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(TimetableStyle.dockActionFont)
-                    .foregroundStyle(TimetableStyle.foreground)
-                    .frame(width: TimetableStyle.dockActionSize, height: TimetableStyle.dockActionSize)
+            if allowsSharing {
+                Button {
+                    isSharing = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(TimetableStyle.dockActionFont)
+                        .foregroundStyle(TimetableStyle.foreground)
+                        .frame(width: TimetableStyle.dockActionSize, height: TimetableStyle.dockActionSize)
+                }
+                .buttonStyle(TimetablePressStyle())
+                .glassEffect(.clear, in: Circle())
+                .accessibilityLabel(BSLocalization.text("分享"))
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 20)
             }
-            .buttonStyle(TimetablePressStyle())
-            .glassEffect(.clear, in: Circle())
-            .accessibilityLabel(BSLocalization.text("分享"))
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 20)
         }
         .padding(.bottom, 8)
         .sensoryFeedback(.selection, trigger: wantOnly)
