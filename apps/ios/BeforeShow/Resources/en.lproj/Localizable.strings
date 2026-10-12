@@ -1958,7 +1958,7 @@ First show: %@";
 "添加" = "Add";
 
 /* Timetable AI import */
-"%d 场信息不完整，未导入" = "%d incomplete sets weren’t imported";
+"%d 场缺少艺人名，未导入" = "%d sets without an artist name weren’t imported";
 "AI 导入" = "AI Import";
 "从相册识别" = "Recognize from Photos";
 "确认保存" = "Save";
@@ -1976,5 +1976,5 @@ First show: %@";
 "识别结果中的时区无效，请检查内容" = "The time zone in the result isn’t valid. Check it.";
 "识别结果缺少演出日期，请重新生成或检查内容" = "The result is missing dates. Generate it again or check it.";
 "识别结果中的日期有误，请检查内容" = "A date in the result isn’t valid. Check it.";
-"识别结果中没有完整的演出时间，请检查内容" = "No set in the result has a full time. Check it.";
+"识别结果中没有可导入的演出，请检查内容" = "No sets in the result can be imported. Check it.";
 "识别结果中相邻两天的演出时间重叠，请检查内容" = "Sets on two adjacent days overlap. Check the result.";

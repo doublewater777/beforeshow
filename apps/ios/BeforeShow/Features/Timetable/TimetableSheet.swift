@@ -199,6 +199,7 @@ struct TimetableSheet: View {
             TimetableOrientationHost(controller: orientation, isEnabled: showsTimetable && !isPhotosPickerPresented && !isManagingDays && !isAIImporting)
         }
         .bsToastOverlay(coordinator.toast, bottomPadding: 36)
+        .interactiveDismissDisabled(coordinator.isSaving)
         .photosPicker(
             isPresented: $isPhotosPickerPresented,
             selection: $selectedPhotoItems,

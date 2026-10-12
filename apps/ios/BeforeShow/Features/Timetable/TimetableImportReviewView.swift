@@ -43,6 +43,7 @@ struct TimetableImportReviewView: View {
                     Image(systemName: "xmark")
                         .foregroundColor(BSColor.textSecondary)
                 }
+                .disabled(coordinator.isSaving)
                 .accessibilityLabel(BSLocalization.text("取消"))
             }
             if session.timetable.days.count > 1 {

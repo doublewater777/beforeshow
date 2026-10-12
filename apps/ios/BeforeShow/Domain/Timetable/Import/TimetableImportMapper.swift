@@ -2,13 +2,13 @@ import Foundation
 
 struct TimetableImportResult: Equatable, Sendable {
     var draft: TimetableDraft
-    /// Sets without an artist or a start time; they have no place on the matrix.
+    /// Sets without an artist name; there is nothing to show for them.
     var skippedCount = 0
 }
 
-/// Maps an exchange document onto a reviewable draft. A set without a usable
-/// end runs until the next set on its stage (or a default length); the user
-/// corrects it on the matrix during review.
+/// Maps an exchange document onto a reviewable draft. Missing or unusable
+/// times are filled from neighbouring sets; the user corrects them on the
+/// matrix during review.
 enum TimetableImportMapper {
     static let maxDays = 31
     static let maxStagesPerDay = 30
@@ -21,6 +21,8 @@ enum TimetableImportMapper {
     static let defaultSetMinutes = 45
     /// A missing end only borrows the next set's start when the gap is at most this long.
     static let maxInferredSetMinutes = 3 * 60
+    /// Where a set with no time at all and nothing before it is placed.
+    static let defaultStartMinutes = 18 * 60
 
     private typealias RawStage = (name: String, performances: [TimetableExchangeDocument.Performance])
 
@@ -51,39 +53,49 @@ enum TimetableImportMapper {
             var draftStages: [TimetableDraftStage] = []
 
             for stage in stages {
-                var timed: [(artist: String, start: Int, end: Int?)] = []
+                var entries: [(artist: String, start: Int?, end: Int?)] = []
                 for performance in stage.performances {
                     let artist = performance.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    guard var start = minutes(from: performance.start), !artist.isEmpty else {
-                        if !artist.isEmpty || performance.start != nil || performance.end != nil { skippedCount += 1 }
+                    guard !artist.isEmpty else {
+                        if performance.start != nil || performance.end != nil { skippedCount += 1 }
                         continue
                     }
-                    if hasDaytimeSets, start < lateNightCutoffMinutes { start += 24 * 60 }
-                    var end = minutes(from: performance.end)
-                    if let endValue = end, endValue <= start {
-                        let rolled = endValue + 24 * 60
-                        end = endValue < 24 * 60 && rolled > start && rolled - start <= maxRolloverMinutes ? rolled : nil
-                    }
-                    timed.append((artist, start, end))
+                    var start = minutes(from: performance.start)
+                    if let value = start, hasDaytimeSets, value < lateNightCutoffMinutes { start = value + 24 * 60 }
+                    entries.append((artist, start, minutes(from: performance.end)))
                 }
 
-                let starts = timed.map(\.start).sorted()
+                // Missing times are filled from neighbouring sets so every set lands on
+                // the matrix; the user corrects them there during review.
+                let knownStarts = entries.compactMap(\.start).sorted()
                 var scheduled: [TimetableDraftPerformance] = []
-                for set in timed {
-                    let end = set.end ?? {
-                        if let next = starts.first(where: { $0 > set.start }), next - set.start <= maxInferredSetMinutes {
+                var previousEnd: Int?
+                for entry in entries {
+                    let start: Int
+                    if let known = entry.start {
+                        start = known
+                    } else if let previousEnd, entry.end == nil || rolledEnd(entry.end, after: previousEnd) != nil {
+                        start = previousEnd
+                    } else if let rawEnd = entry.end {
+                        start = max(0, rawEnd - defaultSetMinutes)
+                    } else {
+                        start = defaultStartMinutes
+                    }
+                    let end = rolledEnd(entry.end, after: start) ?? {
+                        if let next = knownStarts.first(where: { $0 > start }), next - start <= maxInferredSetMinutes {
                             return next
                         }
-                        return set.start + defaultSetMinutes
+                        return start + defaultSetMinutes
                     }()
-                    guard let startsAt = calendar.date(byAdding: .minute, value: set.start, to: date),
-                          let endsAt = calendar.date(byAdding: .minute, value: end, to: date) else { continue }
-                    let key = ArtistNameMatching.normalized(set.artist)
+                    previousEnd = end
+                    guard let startsAt = Self.date(minutes: start, on: date, calendar: calendar),
+                          let endsAt = Self.date(minutes: end, on: date, calendar: calendar) else { continue }
+                    let key = ArtistNameMatching.normalized(entry.artist)
                     let isDuplicate = scheduled.contains {
                         ArtistNameMatching.normalized($0.artistName) == key && $0.startsAt == startsAt && $0.endsAt == endsAt
                     }
                     if !isDuplicate {
-                        scheduled.append(TimetableDraftPerformance(artistName: set.artist, startsAt: startsAt, endsAt: endsAt))
+                        scheduled.append(TimetableDraftPerformance(artistName: entry.artist, startsAt: startsAt, endsAt: endsAt))
                     }
                 }
                 if !scheduled.isEmpty {
@@ -111,6 +123,23 @@ enum TimetableImportMapper {
             throw TimetableImportError.invalidFormat
         }
         return TimetableImportResult(draft: draft, skippedCount: skippedCount)
+    }
+
+    /// An end at or before its start counts as after midnight only for a short set; otherwise it is unusable.
+    private static func rolledEnd(_ raw: Int?, after start: Int) -> Int? {
+        guard let raw else { return nil }
+        if raw > start { return raw }
+        let rolled = raw + 24 * 60
+        return raw < 24 * 60 && rolled > start && rolled - start <= maxRolloverMinutes ? rolled : nil
+    }
+
+    /// Wall-clock time on the official day (minutes past 24:00 fall on the next
+    /// calendar day), so daylight-saving changes never shift the printed time.
+    private static func date(minutes: Int, on day: Date, calendar: Calendar) -> Date? {
+        let minutesPerDay = 24 * 60
+        guard let base = calendar.date(byAdding: .day, value: minutes / minutesPerDay, to: day) else { return nil }
+        let clock = minutes % minutesPerDay
+        return calendar.date(bySettingHour: clock / 60, minute: clock % 60, second: 0, of: base)
     }
 
     private static func resolveTimeZone(_ raw: String?, default identifier: String) throws -> String {

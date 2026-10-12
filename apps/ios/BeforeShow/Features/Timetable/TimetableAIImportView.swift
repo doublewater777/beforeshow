@@ -155,7 +155,7 @@ struct TimetableAIImportView: View {
         case .invalidTimeZone: "识别结果中的时区无效，请检查内容"
         case .missingDate: "识别结果缺少演出日期，请重新生成或检查内容"
         case .invalidDate: "识别结果中的日期有误，请检查内容"
-        case .noSchedule: "识别结果中没有完整的演出时间，请检查内容"
+        case .noSchedule: "识别结果中没有可导入的演出，请检查内容"
         case .conflictingDays: "识别结果中相邻两天的演出时间重叠，请检查内容"
         }
         return BSLocalization.text(key)

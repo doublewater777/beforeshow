@@ -13,12 +13,16 @@ final class TimetableManagementCoordinator: ObservableObject {
     @Published var dayManagementError: String?
     @Published private(set) var importSession: TimetableImportSession?
 
-    private let recognizer: TimetableImageRecognizer
-    private let timeZoneIdentifier: String
+    private let fallbackTimeZoneIdentifier: String
 
     init(timeZoneIdentifier: String = "Asia/Shanghai") {
-        self.timeZoneIdentifier = timeZoneIdentifier
-        self.recognizer = TimetableImageRecognizer(timeZoneIdentifier: timeZoneIdentifier)
+        self.fallbackTimeZoneIdentifier = timeZoneIdentifier
+    }
+
+    /// The show's own zone when it has a valid one; times on a timetable are its local clock.
+    private func timeZoneIdentifier(for show: Show) -> String {
+        if let identifier = show.timeZoneIdentifier, TimeZone(identifier: identifier) != nil { return identifier }
+        return fallbackTimeZoneIdentifier
     }
 
     func recognize(images: [UIImage], show: Show) async {
@@ -28,6 +32,7 @@ final class TimetableManagementCoordinator: ObservableObject {
         recognitionError = nil
 
         do {
+            let recognizer = TimetableImageRecognizer(timeZoneIdentifier: timeZoneIdentifier(for: show))
             let parsedDraft = try await recognizer.recognize(
                 images: images,
                 defaultYear: Calendar.current.component(.year, from: show.date),
@@ -159,7 +164,7 @@ final class TimetableManagementCoordinator: ObservableObject {
         linker.reuseKnownArtists(in: &result.draft)
         importSession = try? TimetableImportSession(result: result, imagesData: imagesData)
         if importSession != nil, result.skippedCount > 0 {
-            presentToast(.neutral, message: BSLocalization.format("%d 场信息不完整，未导入", result.skippedCount))
+            presentToast(.neutral, message: BSLocalization.format("%d 场缺少艺人名，未导入", result.skippedCount))
         }
         return importSession
     }
@@ -168,7 +173,7 @@ final class TimetableManagementCoordinator: ObservableObject {
         let document = try TimetableImportParser.document(from: text)
         let result = try TimetableImportMapper.result(
             from: document,
-            defaultTimeZoneIdentifier: timeZoneIdentifier,
+            defaultTimeZoneIdentifier: timeZoneIdentifier(for: show),
             fallbackDate: show.date,
             unnamedStage: { BSLocalization.format("舞台 %d", $0) }
         )
@@ -184,7 +189,7 @@ final class TimetableManagementCoordinator: ObservableObject {
 
     /// Writes the reviewed timetable over the saved one; on any failure the saved one stays.
     func saveReview(show: Show, modelContext: ModelContext) async -> Bool {
-        guard let session = importSession else { return false }
+        guard let session = importSession, !isSaving else { return false }
         let draft = session.reviewedDraft()
         do {
             _ = try draft.buildTimetable()

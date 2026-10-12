@@ -380,7 +380,28 @@ final class TimetableImportTests: XCTestCase {
         XCTAssertEqual(result.draft.days[0].stages[0].performances[0].artistName, "Valid")
     }
 
-    func testMapper_nullStartIsSkippedAndCounted() throws {
+    func testMapper_nullStartFollowsPreviousSetOnStage() throws {
+        let doc = TimetableExchangeDocument(
+            version: 1,
+            timeZone: "Asia/Shanghai",
+            days: [
+                .init(date: "2026-10-17", stages: [
+                    .init(name: "Main", performances: [
+                        .init(artist: "Opener", start: "14:00", end: "15:00"),
+                        .init(artist: "No Start", start: nil, end: "16:00"),
+                        .init(artist: "Late", start: "17:00", end: "18:00")
+                    ])
+                ])
+            ]
+        )
+        let result = try mapDocument(doc)
+        XCTAssertEqual(result.skippedCount, 0)
+        let perf = result.draft.days[0].stages[0].performances.first { $0.artistName == "No Start" }
+        XCTAssertEqual(perf?.startsAt, makeDate(hour: 15))
+        XCTAssertEqual(perf?.endsAt, makeDate(hour: 16))
+    }
+
+    func testMapper_nullStartFirstOnStageEndsAtPrintedEnd() throws {
         let doc = TimetableExchangeDocument(
             version: 1,
             timeZone: "Asia/Shanghai",
@@ -394,8 +415,31 @@ final class TimetableImportTests: XCTestCase {
             ]
         )
         let result = try mapDocument(doc)
-        XCTAssertEqual(result.skippedCount, 1)
-        XCTAssertEqual(result.draft.days[0].stages[0].performances.count, 1)
+        let perf = result.draft.days[0].stages[0].performances.first { $0.artistName == "No Start" }
+        XCTAssertEqual(perf?.startsAt, makeDate(hour: 14, minute: 15))
+        XCTAssertEqual(perf?.endsAt, makeDate(hour: 15))
+    }
+
+    func testMapper_noTimesAtAllIsPlacedAfterPreviousSetOrAtDefault() throws {
+        let doc = TimetableExchangeDocument(
+            version: 1,
+            timeZone: "Asia/Shanghai",
+            days: [
+                .init(date: "2026-10-17", stages: [
+                    .init(name: "Main", performances: [
+                        .init(artist: "Unknown A", start: nil, end: nil),
+                        .init(artist: "Unknown B", start: nil, end: nil)
+                    ])
+                ])
+            ]
+        )
+        let result = try mapDocument(doc)
+        let perfs = result.draft.days[0].stages[0].performances
+        XCTAssertEqual(perfs.map(\.artistName), ["Unknown A", "Unknown B"])
+        XCTAssertEqual(perfs[0].startsAt, makeDate(hour: 18))
+        XCTAssertEqual(perfs[0].endsAt, makeDate(hour: 18, minute: 45))
+        XCTAssertEqual(perfs[1].startsAt, makeDate(hour: 18, minute: 45))
+        XCTAssertEqual(perfs[1].endsAt, makeDate(hour: 19, minute: 30))
     }
 
     func testMapper_fullyBlankPerformanceIsIgnoredAndNotCounted() throws {
@@ -432,7 +476,7 @@ final class TimetableImportTests: XCTestCase {
         }
     }
 
-    func testMapper_invalidStartSkippedAndCounted() throws {
+    func testMapper_invalidStartIsFilledLikeMissingStart() throws {
         let doc = TimetableExchangeDocument(
             version: 1,
             timeZone: "Asia/Shanghai",
@@ -446,8 +490,56 @@ final class TimetableImportTests: XCTestCase {
             ]
         )
         let result = try mapDocument(doc)
-        XCTAssertEqual(result.skippedCount, 1)
-        XCTAssertEqual(result.draft.days[0].stages[0].performances.count, 1)
+        XCTAssertEqual(result.skippedCount, 0)
+        XCTAssertEqual(result.draft.days[0].stages[0].performances.count, 2)
+    }
+
+    func testMapper_springForwardDayKeepsPrintedWallClockTime() throws {
+        let doc = TimetableExchangeDocument(
+            version: 1,
+            timeZone: "Europe/London",
+            days: [
+                .init(date: "2026-03-29", stages: [
+                    .init(name: "Main", performances: [.init(artist: "A", start: "18:00", end: "19:00")])
+                ])
+            ]
+        )
+        let perf = try mapDocument(doc).draft.days[0].stages[0].performances[0]
+        XCTAssertEqual(perf.startsAt, makeDate(month: 3, day: 29, hour: 18, timeZone: "Europe/London"))
+        XCTAssertEqual(perf.endsAt, makeDate(month: 3, day: 29, hour: 19, timeZone: "Europe/London"))
+    }
+
+    func testMapper_fallBackDayKeepsPrintedWallClockTimeAcrossMidnight() throws {
+        let doc = TimetableExchangeDocument(
+            version: 1,
+            timeZone: "Europe/London",
+            days: [
+                .init(date: "2026-10-24", stages: [
+                    .init(name: "Main", performances: [
+                        .init(artist: "A", start: "18:00", end: "19:00"),
+                        .init(artist: "B", start: "23:30", end: "02:00")
+                    ])
+                ])
+            ]
+        )
+        let perfs = try mapDocument(doc).draft.days[0].stages[0].performances
+        XCTAssertEqual(perfs[0].startsAt, makeDate(month: 10, day: 24, hour: 18, timeZone: "Europe/London"))
+        XCTAssertEqual(perfs[1].endsAt, makeDate(month: 10, day: 25, hour: 2, timeZone: "Europe/London"))
+    }
+
+    func testMapper_missingTimeZoneUsesProvidedDefault() throws {
+        let doc = TimetableExchangeDocument(
+            version: 1,
+            timeZone: nil,
+            days: [
+                .init(date: "2026-10-17", stages: [
+                    .init(name: "Main", performances: [.init(artist: "A", start: "18:00", end: "19:00")])
+                ])
+            ]
+        )
+        let result = try mapDocument(doc, defaultTimeZone: "Europe/London")
+        XCTAssertEqual(result.draft.timeZoneIdentifier, "Europe/London")
+        XCTAssertEqual(result.draft.days[0].stages[0].performances[0].startsAt, makeDate(hour: 18, timeZone: "Europe/London"))
     }
 
     func testMapper_invalidEndInfersEnd() throws {
@@ -557,15 +649,15 @@ final class TimetableImportTests: XCTestCase {
         XCTAssertEqual(result.draft.days[0].stages.map(\.name), ["舞台 1", "舞台 2"])
     }
 
-    func testMapper_allPerformancesMissingTimesThrowsNoSchedule() {
+    func testMapper_allPerformancesMissingArtistsThrowsNoSchedule() {
         let doc = TimetableExchangeDocument(
             version: 1,
             timeZone: "Asia/Shanghai",
             days: [
                 .init(date: "2026-10-17", stages: [
                     .init(name: "Main", performances: [
-                        .init(artist: "A", start: nil, end: nil),
-                        .init(artist: "B", start: "25:99", end: "15:00")
+                        .init(artist: nil, start: "14:00", end: "15:00"),
+                        .init(artist: "  ", start: "16:00", end: "17:00")
                     ])
                 ])
             ]
