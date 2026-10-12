@@ -20,6 +20,7 @@ struct TimetableOriginalImageViewer: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: images.count > 1 ? .always : .never))
+                .ignoresSafeArea()
             }
 
             // Top chrome bar
@@ -49,6 +50,7 @@ struct TimetableOriginalImageViewer: View {
                 Spacer()
             }
         }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -57,7 +59,7 @@ struct TimetableZoomableScrollView: UIViewRepresentable {
     let image: UIImage
 
     func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
+        let scrollView = FittingScrollView()
         scrollView.delegate = context.coordinator
         scrollView.minimumZoomScale = 1.0
         scrollView.maximumZoomScale = 5.0
@@ -81,9 +83,17 @@ struct TimetableZoomableScrollView: UIViewRepresentable {
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
         guard let imageView = scrollView.viewWithTag(999) as? UIImageView else { return }
         imageView.image = image
-        // Match bounds to scroll view frame
-        if scrollView.bounds.size != .zero {
-            imageView.frame = scrollView.bounds
+        scrollView.setNeedsLayout()
+    }
+
+    /// Keeps the whole image fitted to the screen whenever it is not zoomed in,
+    /// including the first layout when SwiftUI hands over a zero-sized frame.
+    final class FittingScrollView: UIScrollView {
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard zoomScale == minimumZoomScale, let imageView = viewWithTag(999) else { return }
+            imageView.frame = bounds
+            contentSize = bounds.size
         }
     }
 

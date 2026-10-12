@@ -5,6 +5,7 @@ import UIKit
 struct TimetableEmptyStateView: View {
     let errorMessage: String?
     let onPickPhotos: () -> Void
+    let onAIImport: () -> Void
 
     @State private var breathe = false
 
@@ -61,7 +62,18 @@ struct TimetableEmptyStateView: View {
 
             TimetableOnDeviceNote()
                 .padding(.top, 14)
-                .padding(.bottom, 20)
+
+            Button(action: onAIImport) {
+                Text(BSLocalization.text("AI 导入"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(TimetableStyle.foreground)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: BSLayout.minTouchTarget)
+            }
+            .buttonStyle(TimetablePressStyle())
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity)
         .background(alignment: .top) {

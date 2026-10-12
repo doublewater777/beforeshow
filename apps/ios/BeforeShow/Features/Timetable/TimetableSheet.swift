@@ -20,6 +20,7 @@ struct TimetableSheet: View {
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var pendingImagesData: [Data] = []
     @State private var isPhotosPickerPresented = false
+    @State private var isAIImporting = false
     @State private var isConfirmingDelete = false
     @State private var isManagingDays = false
     @State private var isOriginalVisible = false
@@ -58,11 +59,22 @@ struct TimetableSheet: View {
     private var originalImages: [UIImage] { pendingImages.isEmpty ? loadedAssetImages : pendingImages }
 
     private var avatarArtistNames: [String] {
-        currentShow?.timetable?.orderedDays.flatMap(\.performances).filter { $0.appleMusicArtistID == nil }.map(\.artistName) ?? []
+        let timetable = coordinator.importSession?.timetable ?? currentShow?.timetable
+        return timetable?.orderedDays.flatMap(\.performances).filter { $0.appleMusicArtistID == nil }.map(\.artistName) ?? []
     }
 
+    private var isReviewing: Bool { coordinator.importSession != nil }
+
     private var showsTimetable: Bool {
-        !coordinator.isRecognizing && hasStructuredTimetable
+        !coordinator.isRecognizing && (hasStructuredTimetable || isReviewing)
+    }
+
+    private var navigationTitle: String {
+        if isAIImporting { return BSLocalization.text("AI 导入") }
+        if let session = coordinator.importSession {
+            return session.timetable.days.count > 1 ? "" : BSLocalization.text("核对时刻表")
+        }
+        return showsTimetable && (currentShow?.timetable?.days.count ?? 0) > 1 ? "" : BSLocalization.text("时刻表")
     }
 
     var body: some View {
@@ -72,6 +84,17 @@ struct TimetableSheet: View {
 
                 if coordinator.isRecognizing {
                     TimetableRecognizingView(image: originalImages.first, imageCount: originalImages.count)
+                } else if isAIImporting {
+                    TimetableAIImportView(onImport: importText)
+                } else if let session = coordinator.importSession {
+                    TimetableImportReviewView(
+                        session: session,
+                        coordinator: coordinator,
+                        linker: artistLinker,
+                        avatarURL: avatarURL(for:),
+                        onCancel: cancelReview,
+                        onSave: saveReview
+                    )
                 } else if let timetable = currentShow?.timetable {
                     TimetableExperienceView(
                         timetable: timetable,
@@ -85,9 +108,11 @@ struct TimetableSheet: View {
                 } else if hasSavedImages {
                     legacyImagesContent
                 } else {
-                    TimetableEmptyStateView(errorMessage: coordinator.recognitionError) {
-                        isPhotosPickerPresented = true
-                    }
+                    TimetableEmptyStateView(
+                        errorMessage: coordinator.recognitionError,
+                        onPickPhotos: { isPhotosPickerPresented = true },
+                        onAIImport: openAIImport
+                    )
                 }
 
                 if isOriginalVisible && !originalImages.isEmpty && !coordinator.isRecognizing {
@@ -103,51 +128,54 @@ struct TimetableSheet: View {
                     )
                 }
 
-                if isFullScreenImagePresented && !originalImages.isEmpty {
-                    TimetableOriginalImageViewer(
-                        images: originalImages,
-                        currentIndex: $originalImagePage,
-                        onDismiss: { isFullScreenImagePresented = false }
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                    .zIndex(100)
-                }
             }
-            .navigationTitle(showsTimetable && (currentShow?.timetable?.days.count ?? 0) > 1 ? "" : BSLocalization.text("时刻表"))
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .bsClearNavigationContainer()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundColor(BSColor.textSecondary)
-                    }
-                    .accessibilityLabel(BSLocalization.text("关闭"))
-                }
-                if showsTimetable, let timetable = currentShow?.timetable, timetable.days.count > 1 {
-                    ToolbarItem(placement: .principal) {
-                        TimetableDaySwitcher(
-                            items: TimetableDayItems.make(timetable.orderedDays, timeZone: timeZone(of: timetable)),
-                            selection: dayBinding(for: timetable)
-                        )
-                    }
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if !coordinator.isRecognizing {
-                        if hasStructuredTimetable {
-                            Button {
-                                addPerformanceTrigger += 1
-                            } label: {
-                                Image(systemName: "plus")
-                                    .foregroundColor(BSColor.textSecondary)
-                            }
-                            .accessibilityLabel(BSLocalization.text("添加演出"))
+                if isAIImporting {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            isAIImporting = false
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .foregroundColor(BSColor.textSecondary)
                         }
-                        if hasStructuredTimetable || hasSavedImages {
-                            managementMenu
+                        .accessibilityLabel(BSLocalization.text("返回"))
+                    }
+                } else if !isReviewing {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .foregroundColor(BSColor.textSecondary)
+                        }
+                        .accessibilityLabel(BSLocalization.text("关闭"))
+                    }
+                    if showsTimetable, let timetable = currentShow?.timetable, timetable.days.count > 1 {
+                        ToolbarItem(placement: .principal) {
+                            TimetableDaySwitcher(
+                                items: TimetableDayItems.make(timetable.orderedDays, timeZone: timeZone(of: timetable)),
+                                selection: dayBinding(for: timetable)
+                            )
+                        }
+                    }
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        if !coordinator.isRecognizing {
+                            if hasStructuredTimetable {
+                                Button {
+                                    addPerformanceTrigger += 1
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .foregroundColor(BSColor.textSecondary)
+                                }
+                                .accessibilityLabel(BSLocalization.text("添加演出"))
+                            }
+                            if hasStructuredTimetable || hasSavedImages {
+                                managementMenu
+                            }
                         }
                     }
                 }
@@ -159,9 +187,17 @@ struct TimetableSheet: View {
             }
         }
         .background {
-            TimetableOrientationHost(controller: orientation, isEnabled: showsTimetable && !isPhotosPickerPresented && !isManagingDays)
+            TimetableOrientationHost(controller: orientation, isEnabled: showsTimetable && !isPhotosPickerPresented && !isManagingDays && !isAIImporting)
         }
         .bsToastOverlay(coordinator.toast, bottomPadding: 36)
+        .interactiveDismissDisabled(coordinator.isSaving)
+        .fullScreenCover(isPresented: $isFullScreenImagePresented) {
+            TimetableOriginalImageViewer(
+                images: originalImages,
+                currentIndex: $originalImagePage,
+                onDismiss: { isFullScreenImagePresented = false }
+            )
+        }
         .photosPicker(
             isPresented: $isPhotosPickerPresented,
             selection: $selectedPhotoItems,
@@ -241,8 +277,15 @@ struct TimetableSheet: View {
             }
 
             Section {
-                Button {
-                    isPhotosPickerPresented = true
+                Menu {
+                    Button {
+                        isPhotosPickerPresented = true
+                    } label: {
+                        Label(BSLocalization.text("从相册识别"), systemImage: "photo")
+                    }
+                    Button(action: openAIImport) {
+                        Label(BSLocalization.text("AI 导入"), systemImage: "text.viewfinder")
+                    }
                 } label: {
                     Label(BSLocalization.text("重新导入"), systemImage: "arrow.clockwise")
                 }
@@ -283,10 +326,64 @@ struct TimetableSheet: View {
         )
     }
 
-    private func importingDraft(_ draft: TimetableDraft) -> TimetableDraft {
-        var draft = draft
-        artistLinker.reuseKnownArtists(in: &draft)
-        return draft
+    // MARK: - Import review
+
+    private func openAIImport() {
+        TimetablePreviewPlayer.shared.stop()
+        isOriginalVisible = false
+        isAIImporting = true
+    }
+
+    private func importText(_ text: String) throws {
+        guard let show = currentShow else { return }
+        let session = try coordinator.reviewImportedText(text, show: show, linker: artistLinker)
+        isOriginalVisible = false
+        isAIImporting = false
+        matchArtists(in: session)
+    }
+
+    /// Opens review for photos that were just recognized; nothing is saved yet.
+    private func reviewRecognizedDraft(_ draft: TimetableDraft, imagesData: [Data], show: Show) {
+        guard let session = coordinator.beginReview(
+            TimetableImportResult(draft: draft),
+            imagesData: imagesData,
+            show: show,
+            linker: artistLinker
+        ) else {
+            coordinator.recognitionError = BSLocalization.text("未在图片中识别到演出时刻表，请确保图片清晰或手动重试")
+            pendingImagesData = []
+            pendingImages = []
+            return
+        }
+        matchArtists(in: session)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            isOriginalVisible = true
+        }
+    }
+
+    private func matchArtists(in session: TimetableImportSession) {
+        Task {
+            await artistLinker.autoMatchPersistedPerformances(in: session.timetable, context: session.context)
+        }
+    }
+
+    private func cancelReview() {
+        TimetablePreviewPlayer.shared.stop()
+        coordinator.cancelReview()
+        pendingImagesData = []
+        pendingImages = []
+        isOriginalVisible = false
+    }
+
+    private func saveReview() {
+        guard let show = currentShow else { return }
+        TimetablePreviewPlayer.shared.stop()
+        Task {
+            guard await coordinator.saveReview(show: show, modelContext: modelContext) else { return }
+            pendingImagesData = []
+            pendingImages = []
+            await loadSavedImages()
+        }
     }
 
     private func avatarURL(for performance: TimetablePerformance) -> URL? {
@@ -323,20 +420,7 @@ struct TimetableSheet: View {
                         guard let show = currentShow else { return }
                         await coordinator.recognizeFromExistingAssets(assets: timetableAssets, show: show)
                         if let d = coordinator.draft {
-                            var imported = importingDraft(d)
-                            await artistLinker.autoMatchArtists(in: &imported)
-                            let success = await coordinator.commit(
-                                draft: imported,
-                                newImagesData: [],
-                                show: show,
-                                modelContext: modelContext
-                            )
-                            if success {
-                                await loadSavedImages()
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isOriginalVisible = true
-                                }
-                            }
+                            reviewRecognizedDraft(d, imagesData: [], show: show)
                         }
                     }
                 } label: {
@@ -392,22 +476,7 @@ struct TimetableSheet: View {
         pendingImages = images
         await coordinator.recognize(images: images, show: show)
         if let d = coordinator.draft {
-            var imported = importingDraft(d)
-            await artistLinker.autoMatchArtists(in: &imported)
-            let success = await coordinator.commit(
-                draft: imported,
-                newImagesData: datas,
-                show: show,
-                modelContext: modelContext
-            )
-            if success {
-                pendingImagesData = []
-                pendingImages = []
-                await loadSavedImages()
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    isOriginalVisible = true
-                }
-            }
+            reviewRecognizedDraft(d, imagesData: datas, show: show)
         } else {
             pendingImagesData = []
             pendingImages = []

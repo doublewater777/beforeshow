@@ -1956,3 +1956,25 @@ First show: %@";
 "请至少保留一个舞台" = "Keep at least one stage";
 "修改失败，请重试" = "Couldn’t save. Try again.";
 "添加" = "Add";
+
+/* Timetable AI import */
+"%d 场缺少艺人名，未导入" = "%d sets without an artist name weren’t imported";
+"AI 导入" = "AI Import";
+"从相册识别" = "Recognize from Photos";
+"确认保存" = "Save";
+"舞台 %d" = "Stage %d";
+"复制识别指令" = "Copy Prompt";
+"已复制识别指令" = "Prompt Copied";
+"在 AI 工具中上传时刻表图片并发送指令" = "Send the images and the prompt in ChatGPT, Gemini, Claude or another AI tool";
+"粘贴识别结果" = "Paste the Result";
+"将生成的识别结果粘贴到这里" = "Paste the generated result here";
+"请先粘贴识别结果" = "Paste the result first";
+"未找到有效的时刻表数据" = "No timetable data found";
+"识别结果格式有误，请重新生成或检查内容" = "The result isn’t in the right format. Generate it again or check it.";
+"当前格式暂不支持，请使用新版识别指令重新生成" = "This format isn’t supported. Copy the prompt again and regenerate.";
+"识别结果内容过多，请分批导入" = "The result is too long. Import it in parts.";
+"识别结果中的时区无效，请检查内容" = "The time zone in the result isn’t valid. Check it.";
+"识别结果缺少演出日期，请重新生成或检查内容" = "The result is missing dates. Generate it again or check it.";
+"识别结果中的日期有误，请检查内容" = "A date in the result isn’t valid. Check it.";
+"识别结果中没有可导入的演出，请检查内容" = "No sets in the result can be imported. Check it.";
+"识别结果中相邻两天的演出时间重叠，请检查内容" = "Sets on two adjacent days overlap. Check the result.";
