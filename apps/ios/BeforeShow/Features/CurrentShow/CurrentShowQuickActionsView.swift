@@ -62,7 +62,8 @@ enum CurrentShowQuickAction: Hashable {
                     .dispersal(completed: hasCompletedDispersalCeremony),
                     .memoryFragments,
                     .companion,
-                    .ticket
+                    .ticket,
+                    .timetable
                 ]
             } else {
                 actions = [.memoryFragments, .companion, .route, .ticket, .timetable]
@@ -71,6 +72,39 @@ enum CurrentShowQuickAction: Hashable {
             actions = [.route, .companion, .ticket, .timetable, .memoryFragments]
         }
         return embedsRouteInLocation ? actions.filter { $0 != .route } : actions
+    }
+    /// 只移除与页面实际可见操作相同的快捷入口，不依赖文案或推荐候选。
+    static func deduplicated(
+        _ actions: [Self],
+        primaryAction: HomeCountdownLockup.PrimaryAction?,
+        hasInlineTimetableEntry: Bool = false
+    ) -> [Self] {
+        actions.filter { action in
+            // 现场模式显示「完整时刻表」，即使它不是推荐主操作也不重复展示。
+            if hasInlineTimetableEntry && action == .timetable { return false }
+            switch primaryAction {
+            case .some(.end(live: _)):
+                return action != .endShow
+            case .some(.memoryFragments):
+                return action != .memoryFragments
+            case .some(.memoryCreate), .none:
+                // 新增记忆与查看现有记忆碎片是两个不同操作。
+                return true
+            case .some(.route):
+                return action != .route
+            case .some(.recommendation(let feature)):
+                switch feature {
+                case .companion: return action != .companion
+                case .timetable: return action != .timetable
+                case .memoryFragments: return action != .memoryFragments
+                case .dispersal:
+                    if case .dispersal = action { return false }
+                    return true
+                case .widget, .listen, .footprint, .nextShow, .addShow:
+                    return true
+                }
+            }
+        }
     }
 }
 

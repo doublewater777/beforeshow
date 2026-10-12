@@ -29,6 +29,10 @@ struct CurrentShowManagementSection: View {
     @Environment(\.openURL) private var openURL
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Environment(\.scenePhase) private var scenePhase
+    @Query private var recommendationRecords: [FeatureRecommendationRecord]
+    @Query private var notificationRecords: [ShowNotificationScheduleRecord]
+    @AppStorage(FeatureUsageEnvironment.widgetKey) private var hasInstalledWidget = false
+    @AppStorage(FeatureUsageEnvironment.iCloudKey) private var isICloudAvailable = false
     @State var presentedSheet: CurrentShowPresentedSheet?
     @State var pendingMemoryCreate: MemoryCreateSourceOption?
     @State private var pendingConfirmedEndDate: Date?
@@ -310,6 +314,18 @@ struct CurrentShowManagementSection: View {
         let coverWidth = min(352, max(0, availableWidth - 40))
         let liveState = CurrentShowLiveTimetablePolicy.resolve(for: show, now: now)
         let isLiveLayout = liveState != nil && !prefersExpandedCover
+        // 与倒计时卡共用同一次推荐决策；现场模式只展示时刻表，不消费推荐。
+        let recommendation = liveState == nil ? resolvedRecommendation(snapshot: snapshot) : nil
+        let displayedPrimaryAction: HomeCountdownLockup.PrimaryAction? = liveState == nil
+            ? HomeCountdownLockup.primaryAction(
+                phase: phase,
+                timeState: timeState,
+                hasConfirmedEnd: show.endedAt != nil,
+                hasEndHandler: canRecordEnd,
+                hasRouteHandler: embedsRouteInLocation,
+                recommendation: recommendation
+            )
+            : nil
 
         ZStack(alignment: .top) {
             if isLiveLayout { HomeLiveBackdrop(show: show) }
@@ -351,7 +367,7 @@ struct CurrentShowManagementSection: View {
                     CurrentShowCountdownCard(
                         show: show,
                         snapshot: snapshot,
-                        candidateShows: candidateShows,
+                        recommendation: recommendation,
                         isVisible: isHeroPlaybackActive,
                         onRecommendation: performRecommendation,
                         onEndShow: canRecordEnd
@@ -380,12 +396,16 @@ struct CurrentShowManagementSection: View {
                     }
 
                     quickActionRow(
-                        CurrentShowQuickAction.actions(
-                            for: phase,
-                            canRecordEnd: canRecordEnd && !(isLiveLayout && liveState?.phase == .fullyEnded),
-                            embedsRouteInLocation: embedsRouteInLocation,
-                            isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
-                            hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
+                        CurrentShowQuickAction.deduplicated(
+                            CurrentShowQuickAction.actions(
+                                for: phase,
+                                canRecordEnd: canRecordEnd && !(isLiveLayout && liveState?.phase == .fullyEnded),
+                                embedsRouteInLocation: embedsRouteInLocation,
+                                isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
+                                hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
+                            ),
+                            primaryAction: displayedPrimaryAction,
+                            hasInlineTimetableEntry: liveState != nil
                         )
                     )
                         .padding(.horizontal, contentInset)
@@ -501,6 +521,41 @@ struct CurrentShowManagementSection: View {
         let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let city, !city.isEmpty { return city }
         return show.name
+    }
+
+    private func resolvedRecommendation(snapshot: HomeHeroSnapshot) -> RecommendedFeature? {
+        let todayKey = FeatureRecommendationDay.key(for: snapshot.now)
+        guard let slot = CurrentShowCardRecommendation.slot(
+            timeState: snapshot.timeState,
+            hasConfirmedEnd: show.endedAt != nil
+        ) else {
+            return nil
+        }
+        let facts = FeatureUsageFacts(hasInstalledWidget: hasInstalledWidget, isICloudAvailable: isICloudAvailable)
+        let ledger = FeatureRecommendationLedger.snapshot(
+            shows: candidateShows,
+            records: recommendationRecords,
+            facts: facts,
+            now: snapshot.now
+        )
+        let hasFutureShow = FeatureRecommendationLedger.nextFutureShow(
+            excluding: show.id,
+            in: candidateShows,
+            now: snapshot.now
+        ) != nil
+        let todayNotificationFeature = notificationRecords.first {
+            $0.showID == show.id && $0.feature != nil
+                && FeatureRecommendationDay.key(for: $0.fireDate) == todayKey
+        }?.feature
+        return CurrentShowCardRecommendation.resolve(
+            chain: slot.chain(
+                isFestival: ShowFlavor.inferred(from: show) == .festival,
+                hasFutureShow: hasFutureShow
+            ),
+            context: ledger.context(for: show.id),
+            todayKey: todayKey,
+            todayNotificationFeature: todayNotificationFeature
+        )
     }
 
     private func quickActionRow(_ actions: [CurrentShowQuickAction]) -> some View {

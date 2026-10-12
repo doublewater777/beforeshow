@@ -93,7 +93,9 @@ final class CurrentShowLiveActionTests: XCTestCase {
             hasCompletedDispersalCeremony: false
         )
         XCTAssertEqual(unfinished.first, .dispersal(completed: false))
-        XCTAssertFalse(unfinished.contains(.timetable))
+        XCTAssertEqual(unfinished, [
+            .dispersal(completed: false), .memoryFragments, .companion, .ticket, .timetable
+        ])
 
         let completed = CurrentShowQuickAction.actions(
             for: .ended,
@@ -101,7 +103,9 @@ final class CurrentShowLiveActionTests: XCTestCase {
             isPostShowRetention: true,
             hasCompletedDispersalCeremony: true
         )
-        XCTAssertEqual(completed.first, .dispersal(completed: true))
+        XCTAssertEqual(completed, [
+            .dispersal(completed: true), .memoryFragments, .companion, .ticket, .timetable
+        ])
 
         let archived = CurrentShowQuickAction.actions(
             for: .ended,
@@ -116,6 +120,62 @@ final class CurrentShowLiveActionTests: XCTestCase {
             }
         )
         XCTAssertTrue(archived.contains(.timetable))
+    }
+
+    func testBannerDeduplicationUsesDestinationNotFeatureName() {
+        let actions: [CurrentShowQuickAction] = [
+            .route, .companion, .ticket, .timetable, .memoryFragments,
+            .dispersal(completed: false), .endShow
+        ]
+        func filtered(_ primary: HomeCountdownLockup.PrimaryAction?) -> [CurrentShowQuickAction] {
+            CurrentShowQuickAction.deduplicated(actions, primaryAction: primary)
+        }
+
+        XCTAssertEqual(filtered(.route), actions.filter { $0 != .route })
+        XCTAssertEqual(filtered(.recommendation(.companion)), actions.filter { $0 != .companion })
+        XCTAssertEqual(filtered(.recommendation(.timetable)), actions.filter { $0 != .timetable })
+        XCTAssertEqual(filtered(.recommendation(.memoryFragments)), actions.filter { $0 != .memoryFragments })
+        XCTAssertEqual(filtered(.memoryFragments), actions.filter { $0 != .memoryFragments })
+        XCTAssertEqual(filtered(.end(live: true)), actions.filter { $0 != .endShow })
+        XCTAssertEqual(filtered(.end(live: false)), actions.filter { $0 != .endShow })
+        XCTAssertEqual(filtered(.recommendation(.dispersal)), actions.filter {
+            if case .dispersal = $0 { return false }
+            return true
+        })
+        XCTAssertEqual(filtered(.memoryCreate), actions)
+        XCTAssertEqual(filtered(.recommendation(.listen)), actions)
+        XCTAssertEqual(filtered(nil), actions)
+    }
+
+    func testInlineLiveTimetableIsDeduplicatedWithoutHidingMemoryFragments() {
+        let actions = CurrentShowQuickAction.actions(for: .live, embedsRouteInLocation: true)
+        let filtered = CurrentShowQuickAction.deduplicated(
+            actions,
+            primaryAction: nil,
+            hasInlineTimetableEntry: true
+        )
+        XCTAssertFalse(filtered.contains(.timetable))
+        XCTAssertTrue(filtered.contains(.memoryFragments))
+        XCTAssertTrue(filtered.contains(.endShow))
+        XCTAssertEqual(
+            CurrentShowQuickAction.deduplicated(actions, primaryAction: nil),
+            actions
+        )
+    }
+
+    func testPostShowRetentionPreservesTimetableExceptWhenBannerOpensSameSheet() {
+        let actions = CurrentShowQuickAction.actions(
+            for: .ended,
+            isPostShowRetention: true,
+            hasCompletedDispersalCeremony: true
+        )
+        XCTAssertTrue(actions.contains(.timetable))
+        XCTAssertTrue(CurrentShowQuickAction.deduplicated(
+            actions, primaryAction: .recommendation(.dispersal)
+        ).contains(.timetable))
+        XCTAssertFalse(CurrentShowQuickAction.deduplicated(
+            actions, primaryAction: .recommendation(.timetable)
+        ).contains(.timetable))
     }
 
     func testQuickActionsOmitRouteWhenLocationEmbedsIt() {
