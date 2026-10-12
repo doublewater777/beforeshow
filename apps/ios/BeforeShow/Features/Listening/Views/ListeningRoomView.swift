@@ -191,7 +191,7 @@ struct ListeningRoomView: View {
                         let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
                         let groups = room.rackGroups
                         Group {
-                            if groups.contains(where: { $0.head != nil }) {
+                            if showsRack(groups) {
                                 ListeningRackView(room: room, groups: groups, scale: scale) { index, name in
                                     matchingSlotIndex = index
                                     matchingArtistName = name
@@ -265,6 +265,15 @@ struct ListeningRoomView: View {
                 room.tickMechanism()
                 try? await Task.sleep(for: .milliseconds(1000))
             }
+        }
+    }
+
+    /// Artists stay on the shelf before their discs arrive, so each can still be opened or connected.
+    private func showsRack(_ groups: [ListeningRackGroup]) -> Bool {
+        if groups.contains(where: { $0.head != nil }) { return true }
+        switch room.display.catalogChrome {
+        case .connectArtist, .empty: return !groups.isEmpty
+        case .preparing, .needsMusicAccess, .unavailable: return false
         }
     }
 

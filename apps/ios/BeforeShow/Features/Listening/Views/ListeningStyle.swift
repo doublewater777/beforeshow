@@ -26,6 +26,9 @@ enum ListeningStyle {
     static let caseShadow = Color.black.opacity(0.55)
     static let rackFloorFront = Color(red: 0.17, green: 0.13, blue: 0.125)
     static let rackFloorBack = Color(red: 0.07, green: 0.06, blue: 0.063)
+    static let rackFloorMid = Color(red: 0.09, green: 0.067, blue: 0.07)
+    static let rackCaseBack = Color(red: 0.05, green: 0.043, blue: 0.04)
+    static let rackPlaceholder = BSColor.Stage.surfaceRaised
     static let rackLipTop = Color(red: 0.23, green: 0.19, blue: 0.17)
     static let rackLipBottom = Color(red: 0.13, green: 0.106, blue: 0.098)
     static let rackLight = Color(red: 1, green: 0.925, blue: 0.84)

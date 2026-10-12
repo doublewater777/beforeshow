@@ -13,15 +13,27 @@ struct ListeningRackGroup: Identifiable, Equatable {
     let name: String
     let artworkURL: URL?
     let discs: [ListeningDisc]
+    var catalogStatus: ListeningArtistCatalogStatus?
+    var hasCatalog = true
 
     var head: ListeningDisc? { discs.first }
-    var canExpand: Bool { discs.count > 1 }
+    var isConnectedArtist: Bool {
+        if case .artist(_, _, true) = kind { return true }
+        return false
+    }
+    /// Before an artist's catalog arrives the album count is unknown, so it stays expandable.
+    var canExpand: Bool { discs.count > 1 || (isConnectedArtist && !hasCatalog) }
     var scope: ListeningBrowseState.Scope {
         switch kind {
         case .live: .all
         case let .artist(id, _, _): .artist(id)
         }
     }
+}
+
+enum ListeningArtistCatalogStatus: Equatable {
+    case loading
+    case failed
 }
 
 /// Wanted artists first, then stage order; artists missing from the timetable keep lineup order.
@@ -79,7 +91,9 @@ enum ListeningRackOrdering {
                 kind: .artist(id: artist.id, slotIndex: artist.slotIndex, isConnected: artist.isConnected),
                 name: artist.name,
                 artworkURL: artist.artworkURL,
-                discs: artist.albums.filter { $0.isSingle != true }
+                discs: artist.albums.filter { $0.isSingle != true },
+                catalogStatus: artistCatalogStatus[artist.id],
+                hasCatalog: !artist.isConnected || catalogSnapshots.contains { $0.artistID == artist.id }
             ))
         }
         return groups

@@ -37,7 +37,7 @@ struct ListeningDiscCover: View {
     }
 }
 
-private struct ListeningCompilationJacket: View {
+struct ListeningCompilationJacket: View {
     let identity: ListeningSleeveIdentity
     let number: Int
 

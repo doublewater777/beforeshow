@@ -3,31 +3,30 @@ import SwiftData
 @testable import BeforeShow
 
 @MainActor final class ListeningBrowseTests: XCTestCase {
-    func testRackShortFlickStaysNearTheRecordUnderTheFinger() {
-        let gestures: [(translation: CGFloat, predicted: CGFloat, expected: Int)] = [
-            (-40, -1800, 4),
-            (40, 1800, 2),
-            (-6, -1800, 3),
-            (-190, -200, 5)
-        ]
-        for gesture in gestures {
-            XCTAssertEqual(
-                ListeningRackLayout.browseIndex(from: 3, translation: gesture.translation, predictedTranslation: gesture.predicted, itemCount: 15),
-                gesture.expected,
-                "A short flick should turn one record; longer drags can browse farther."
-            )
-        }
-        XCTAssertEqual(ListeningRackLayout.browseIndex(from: 0, translation: 80, predictedTranslation: 1800, itemCount: 15), 0)
-        XCTAssertEqual(ListeningRackLayout.browseIndex(from: 14, translation: -80, predictedTranslation: -1800, itemCount: 15), 14)
+    func testRackSwipeMatchesShelfMock() {
+        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -10, count: 15), 3)
+        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -14, count: 15), 4)
+        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: 40, count: 15), 2)
+        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -88, count: 15), 5)
+        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -200, count: 15), 8)
+        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 0, translation: 80, count: 15), 0)
+        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 14, translation: -80, count: 15), 14)
     }
 
-    func testRackPlateScrubbingNeedsDeliberateTravel() {
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 12, itemCount: 15), 3)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 44, itemCount: 15), 4)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: -44, itemCount: 15), 2)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 132, itemCount: 15), 6)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 0, translation: -132, itemCount: 15), 0)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 14, translation: 132, itemCount: 15), 14)
+    func testRackPlateScrubMatchesShelfMock() {
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 5, count: 15), 3)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 12, count: 15), 4)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: -36, count: 15), 0)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 14, translation: 132, count: 15), 14)
+    }
+
+    func testRackTapLandsOnTheCaseUnderTheFinger() {
+        let offset = { (x: CGFloat) in ListeningRackLayout.tapOffset(atX: x, focus: 3, count: 15, discOut: true, halfWidth: 195) }
+        XCTAssertEqual(offset(0), 0)
+        XCTAssertEqual(offset(-100), -1)
+        XCTAssertEqual(offset(100), 1)
+        XCTAssertEqual(offset(190), 3)
+        XCTAssertEqual(ListeningRackLayout.tapOffset(atX: 160, focus: 0, count: 2, discOut: true, halfWidth: 195), 1)
     }
 
     func testDelayedPlaybackFailureAllowsSleeveRetry() async throws {
@@ -546,7 +545,7 @@ import SwiftData
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.tracks.count, 10)
         XCTAssertEqual(result.first?.tracks.map(\.id), (0..<10).map { "song-\($0)" })
-        XCTAssertEqual(result.first?.title, BSLocalization.format("热门合辑 %02d", 1))
+        XCTAssertEqual(result.first?.title, ListeningCopy.format("现场预习 %02d", 1))
     }
 
     func testSingleArtistCompilationPartitionsIntoRichDiscs() {
@@ -560,9 +559,9 @@ import SwiftData
         XCTAssertEqual(result.count, 3)
         XCTAssertEqual(result.map { $0.tracks.count }, [10, 10, 5])
         XCTAssertEqual(result.map(\.title), [
-            BSLocalization.format("热门合辑 %02d", 1),
-            BSLocalization.format("热门合辑 %02d", 2),
-            BSLocalization.format("热门合辑 %02d", 3)
+            ListeningCopy.format("现场预习 %02d", 1),
+            ListeningCopy.format("现场预习 %02d", 2),
+            ListeningCopy.format("现场预习 %02d", 3)
         ])
     }
 
