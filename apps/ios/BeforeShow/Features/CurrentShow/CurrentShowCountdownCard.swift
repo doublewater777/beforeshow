@@ -1,12 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// 首页倒计时信息卡的推荐 owner：每天定一个推荐，首页真正可见时记一次露出，
-/// 点过即算处理过（ADR 0037）。卡片本身只负责呈现。
+/// 使用父级同一次推荐决策呈现 Banner；可见时记录曝光，点击时标记处理（ADR 0037）。
 struct CurrentShowCountdownCard: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
-    let candidateShows: [Show]
     let recommendation: RecommendedFeature?
     let isVisible: Bool
     let onRecommendation: (RecommendedFeature) -> Void
