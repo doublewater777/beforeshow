@@ -181,6 +181,10 @@ struct TimetableOCRTextParser: Sendable {
             }
         }
 
+        // Dates in the left gutter label an entire row of stages, not just the closest column.
+        let firstIntervalLeft = intervals.map(\.left).min() ?? 0
+        let rowDateHeaders = dateHeaders.filter { $0.obs.right < firstIntervalLeft }.sorted { $0.top < $1.top }
+
         let stageKeywords = ["舞台", "STAGE", "Stage", "LIVEHOUSE", "Livehouse", "BeeBeeHUM"]
         var stageHeaders: [(name: String, midX: CGFloat, top: CGFloat, obs: TimetableOCRObservation)] = []
         for (idx, o) in observations.enumerated() {
@@ -265,7 +269,11 @@ struct TimetableOCRTextParser: Sendable {
 
             // Assign Date
             let (assignedMonth, assignedDay): (Int, Int)
-            if !dateHeaders.isEmpty {
+            if rowDateHeaders.count > 1 {
+                let header = rowDateHeaders.last { $0.top <= o.midY + 0.005 } ?? rowDateHeaders[0]
+                assignedMonth = header.month
+                assignedDay = header.day
+            } else if !dateHeaders.isEmpty {
                 let above = dateHeaders.filter { $0.top <= o.top + 0.005 && abs($0.midX - o.midX) < 0.35 }
                 if let closest = above.min(by: { ((o.top - $0.top) * 2 + abs(o.midX - $0.midX)) < ((o.top - $1.top) * 2 + abs(o.midX - $1.midX)) }) {
                     assignedMonth = closest.month

@@ -21,6 +21,7 @@ struct TimetableSheet: View {
     @State private var pendingImagesData: [Data] = []
     @State private var isPhotosPickerPresented = false
     @State private var isConfirmingDelete = false
+    @State private var isManagingDays = false
     @State private var isOriginalVisible = false
     @State private var isFullScreenImagePresented = false
     @State private var originalImagePage = 0
@@ -78,7 +79,8 @@ struct TimetableSheet: View {
                         selectedDayID: dayBinding(for: timetable),
                         linker: artistLinker,
                         addPerformanceRequest: addPerformanceTrigger,
-                        avatarURL: avatarURL(for:)
+                        avatarURL: avatarURL(for:),
+                        onManage: openManagement
                     )
                 } else if hasSavedImages {
                     legacyImagesContent
@@ -133,15 +135,31 @@ struct TimetableSheet: View {
                         )
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    if !coordinator.isRecognizing && (hasStructuredTimetable || hasSavedImages) {
-                        managementMenu
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if !coordinator.isRecognizing {
+                        if hasStructuredTimetable {
+                            Button {
+                                addPerformanceTrigger += 1
+                            } label: {
+                                Image(systemName: "plus")
+                                    .foregroundColor(BSColor.textSecondary)
+                            }
+                            .accessibilityLabel(BSLocalization.text("添加演出"))
+                        }
+                        if hasStructuredTimetable || hasSavedImages {
+                            managementMenu
+                        }
                     }
+                }
+            }
+            .navigationDestination(isPresented: $isManagingDays) {
+                if let timetable = currentShow?.timetable {
+                    TimetableManageView(timetable: timetable, selectedDayID: dayBinding(for: timetable), coordinator: coordinator)
                 }
             }
         }
         .background {
-            TimetableOrientationHost(controller: orientation, isEnabled: showsTimetable && !isPhotosPickerPresented)
+            TimetableOrientationHost(controller: orientation, isEnabled: showsTimetable && !isPhotosPickerPresented && !isManagingDays)
         }
         .bsToastOverlay(coordinator.toast, bottomPadding: 36)
         .photosPicker(
@@ -163,7 +181,7 @@ struct TimetableSheet: View {
                 await artistLinker.autoMatchPersistedPerformances(in: timetable, context: modelContext)
             }
         }
-        .onAppear { orientation.setViewingEnabled(showsTimetable && !isPhotosPickerPresented) }
+        .onAppear { orientation.setViewingEnabled(showsTimetable && !isPhotosPickerPresented && !isManagingDays) }
         .onDisappear {
             orientation.setViewingEnabled(false)
             TimetablePreviewPlayer.shared.stop()
@@ -192,35 +210,47 @@ struct TimetableSheet: View {
 
     // MARK: - Subviews
 
+    private func openManagement() {
+        TimetablePreviewPlayer.shared.stop()
+        isManagingDays = true
+    }
+
     private var managementMenu: some View {
         Menu {
-            Button {
-                addPerformanceTrigger += 1
-            } label: {
-                Label(BSLocalization.text("添加演出"), systemImage: "plus")
-            }
             if !loadedAssetImages.isEmpty {
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        isOriginalVisible.toggle()
+                Section {
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            isOriginalVisible.toggle()
+                        }
+                    } label: {
+                        Label(
+                            BSLocalization.text(isOriginalVisible ? "隐藏原图对照" : "查看原图对照"),
+                            systemImage: isOriginalVisible ? "pip.exit" : "pip"
+                        )
                     }
-                } label: {
-                    Label(
-                        BSLocalization.text(isOriginalVisible ? "隐藏原图对照" : "查看原图对照"),
-                        systemImage: "pip"
-                    )
                 }
             }
-            Button {
-                isPhotosPickerPresented = true
-            } label: {
-                Label(BSLocalization.text("重新导入"), systemImage: "arrow.clockwise")
+
+            if hasStructuredTimetable {
+                Section {
+                    Button(action: openManagement) {
+                        Label(BSLocalization.text("管理时刻表"), systemImage: "slider.horizontal.3")
+                    }
+                }
             }
-            Divider()
-            Button(role: .destructive) {
-                isConfirmingDelete = true
-            } label: {
-                Label(BSLocalization.text("删除时刻表"), systemImage: "trash")
+
+            Section {
+                Button {
+                    isPhotosPickerPresented = true
+                } label: {
+                    Label(BSLocalization.text("重新导入"), systemImage: "arrow.clockwise")
+                }
+                Button(role: .destructive) {
+                    isConfirmingDelete = true
+                } label: {
+                    Label(BSLocalization.text("删除时刻表"), systemImage: "trash")
+                }
             }
         } label: {
             Image(systemName: "ellipsis")

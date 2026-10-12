@@ -10,6 +10,7 @@ struct TimetableExperienceView: View {
     let linker: TimetableArtistLinker
     let addPerformanceRequest: Int
     let avatarURL: (TimetablePerformance) -> URL?
+    let onManage: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var wantOnly: Bool
@@ -17,13 +18,7 @@ struct TimetableExperienceView: View {
     @State private var canReturnToNow = false
     @State private var returnToNowRequest = 0
     @State private var inspectingPerformance: TimetablePerformance?
-    @State private var stageToRename: TimetableStage?
-    @State private var isRenamingStagePresented = false
-    @State private var renameStageText = ""
-    @State private var stageToDelete: TimetableStage?
-    @State private var isConfirmingDeleteStage = false
-    @State private var isAddingStagePresented = false
-    @State private var newStageText = ""
+    @State private var addingSlot: AddSlot?
     @Namespace private var dockIndicator
 
     init(
@@ -32,7 +27,8 @@ struct TimetableExperienceView: View {
         selectedDayID: Binding<UUID>,
         linker: TimetableArtistLinker,
         addPerformanceRequest: Int = 0,
-        avatarURL: @escaping (TimetablePerformance) -> URL?
+        avatarURL: @escaping (TimetablePerformance) -> URL?,
+        onManage: @escaping () -> Void
     ) {
         self.timetable = timetable
         self.show = show
@@ -40,6 +36,7 @@ struct TimetableExperienceView: View {
         self.linker = linker
         self.addPerformanceRequest = addPerformanceRequest
         self.avatarURL = avatarURL
+        self.onManage = onManage
         var wantOnly = false
         #if DEBUG
         wantOnly = ProcessInfo.processInfo.arguments.contains("--timetable-filter-interested")
@@ -77,19 +74,7 @@ struct TimetableExperienceView: View {
                     onAddPerformance: { stage, date in
                         addPerformance(to: stage, at: date)
                     },
-                    onRenameStage: { stage in
-                        stageToRename = stage
-                        renameStageText = stage.name
-                        isRenamingStagePresented = true
-                    },
-                    onDeleteStage: { stage in
-                        stageToDelete = stage
-                        isConfirmingDeleteStage = true
-                    },
-                    onAddStage: {
-                        newStageText = ""
-                        isAddingStagePresented = true
-                    }
+                    onManage: onManage
                 )
             }
         }
@@ -112,49 +97,19 @@ struct TimetableExperienceView: View {
         .sheet(isPresented: $isSharing) {
             TimetableShareSheet(timetable: timetable, show: show, avatarURL: avatarURL)
         }
-        .alert(
-            BSLocalization.text("重命名舞台"),
-            isPresented: $isRenamingStagePresented,
-            presenting: stageToRename
-        ) { stage in
-            TextField(BSLocalization.text("舞台名称"), text: $renameStageText)
-            Button(BSLocalization.text("保存")) {
-                let trimmed = renameStageText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    try? stage.updateName(trimmed)
-                    try? modelContext.save()
-                }
+        .sheet(item: $addingSlot) { slot in
+            if let day = currentDay, let stage = day.stages.first(where: { $0.id == slot.stageID }) {
+                TimetableAddPerformanceSheet(
+                    day: day,
+                    stage: stage,
+                    start: slot.start,
+                    end: slot.end,
+                    linker: linker,
+                    avatarURL: avatarURL,
+                    timeZone: timeZone
+                )
+                .bsSystemGlassSheet(detents: [.fraction(0.74), .large])
             }
-            Button(BSLocalization.text("取消"), role: .cancel) {}
-        }
-        .alert(
-            BSLocalization.text("删除舞台"),
-            isPresented: $isConfirmingDeleteStage,
-            presenting: stageToDelete
-        ) { stage in
-            Button(BSLocalization.text("删除舞台及演出"), role: .destructive) {
-                deleteStage(stage)
-            }
-            Button(BSLocalization.text("取消"), role: .cancel) {}
-        } message: { stage in
-            Text(BSLocalization.format("确认删除「%@」及其全部演出吗？", stage.name))
-        }
-        .alert(
-            BSLocalization.text("新增舞台"),
-            isPresented: $isAddingStagePresented
-        ) {
-            TextField(BSLocalization.text("舞台名称"), text: $newStageText)
-            Button(BSLocalization.text("添加")) {
-                let trimmed = newStageText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty, let day = currentDay {
-                    _ = try? day.addStage(
-                        name: trimmed,
-                        placeholderArtistName: BSLocalization.text("待定演出")
-                    )
-                    try? modelContext.save()
-                }
-            }
-            Button(BSLocalization.text("取消"), role: .cancel) {}
         }
         .onChange(of: addPerformanceRequest) { _, _ in
             if let stage = currentDay?.orderedStages.first {
@@ -286,18 +241,7 @@ struct TimetableExperienceView: View {
             start = lastEnd.addingTimeInterval(15 * 60)
             end = start.addingTimeInterval(45 * 60)
         }
-        do {
-            let newPerf = try TimetablePerformance(
-                artistName: BSLocalization.text("新演出"),
-                startsAt: start,
-                endsAt: end
-            )
-            modelContext.insert(newPerf)
-            newPerf.stage = stage
-            try modelContext.save()
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            inspectingPerformance = newPerf
-        } catch {}
+        addingSlot = AddSlot(stageID: stage.id, start: start, end: end)
     }
 
     private func deletePerformance(_ performance: TimetablePerformance) {
@@ -308,14 +252,12 @@ struct TimetableExperienceView: View {
         modelContext.delete(performance)
         try? modelContext.save()
     }
+}
 
-    private func deleteStage(_ stage: TimetableStage) {
-        if stage.performances.contains(where: { $0.id == TimetablePreviewPlayer.shared.activePerformanceID }) {
-            TimetablePreviewPlayer.shared.stop()
-        }
-        stageToDelete = nil
-        try? currentDay?.removeStage(stage)
-        modelContext.delete(stage)
-        try? modelContext.save()
-    }
+/// A proposed new set: where and when the add form opens. Nothing is saved yet.
+private struct AddSlot: Identifiable {
+    let stageID: UUID
+    let start: Date
+    let end: Date
+    var id: String { "\(stageID)-\(start.timeIntervalSinceReferenceDate)" }
 }

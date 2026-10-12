@@ -23,7 +23,6 @@ enum TimetableStyle {
     static let matrixRulerWidth: CGFloat = 42
     static let matrixHeaderHeight: CGFloat = 40
     static let matrixLaneRadius: CGFloat = 12
-    static let matrixLaneTintOpacity: Double = 0.04
     enum MatrixCard {
         static let narrowWidth: CGFloat = 155
         static let avatarSize: CGFloat = 28

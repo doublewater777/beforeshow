@@ -81,11 +81,13 @@ struct TimetableMatrixLayout {
         return start.addingTimeInterval(Double(minutes) * 60)
     }
 
-    init(stages: [Stage], now: Date, calendar: Calendar, pointsPerMinute: CGFloat = Self.pointsPerMinute) {
+    /// `emptyDayStart` anchors a day with no sets yet (a freshly added day), so its
+    /// axis shows that day rather than whatever time it is now.
+    init(stages: [Stage], now: Date, calendar: Calendar, pointsPerMinute: CGFloat = Self.pointsPerMinute, emptyDayStart: Date? = nil) {
         let all = stages.flatMap(\.performances)
-        let earliest = all.map(\.startsAt).min() ?? now
+        let earliest = all.map(\.startsAt).min() ?? emptyDayStart ?? now
         let start = calendar.dateInterval(of: .hour, for: earliest)?.start ?? earliest
-        let end = all.map(\.endsAt).max() ?? start.addingTimeInterval(3600)
+        let end = all.map(\.endsAt).max() ?? start.addingTimeInterval(all.isEmpty && emptyDayStart != nil ? 8 * 3600 : 3600)
         self.start = start
         self.end = end
         self.pointsPerMinute = pointsPerMinute

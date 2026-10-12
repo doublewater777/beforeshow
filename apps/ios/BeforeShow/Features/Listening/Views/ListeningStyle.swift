@@ -299,9 +299,12 @@ struct ListeningFramesKey: PreferenceKey {
 }
 
 extension View {
-    func listeningFrame(_ name: String) -> some View {
+    func listeningFrame(_ name: String?) -> some View {
         background(GeometryReader { proxy in
-            Color.clear.preference(key: ListeningFramesKey.self, value: [name: proxy.frame(in: .named("listeningContent"))])
+            Color.clear.preference(
+                key: ListeningFramesKey.self,
+                value: name.map { [$0: proxy.frame(in: .named("listeningContent"))] } ?? [:]
+            )
         })
     }
 }

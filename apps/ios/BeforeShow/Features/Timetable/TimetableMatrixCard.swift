@@ -12,7 +12,8 @@ struct TimetableMatrixCard: View {
     let isGhost: Bool
     /// Where the now line crosses this card; set only while the set is playing.
     let nowOffset: CGFloat?
-    /// The stage's own light, used while the set is playing.
+    /// The stage's own light: full while playing, a warm-up glow when about to start,
+    /// a pilot wash for later sets.
     let stageTint: Color
     let timeZone: TimeZone
     let onSelect: () -> Void
@@ -98,17 +99,12 @@ struct TimetableMatrixCard: View {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(stageTint.opacity(0.85), lineWidth: 1.5)
                 .shadow(color: stageTint.opacity(0.4), radius: 6)
-        } else if card.isInterested {
-            if isEnded {
-                // 已结束的喜欢：虚线/淡金色边框，表示回顾归档
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(TimetableStyle.mine.opacity(0.24), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-            } else {
-                // 还没开始的喜欢：清晰金色实线边框
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(TimetableStyle.mine.opacity(0.45), lineWidth: 1.2)
-            }
+        } else if case .soon = card.status {
+            // 即将开演：淡舞台色描边，配合顶部预热光
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(stageTint.opacity(0.28), lineWidth: 1)
         } else {
+            // 想看只靠金心和淡金底色表达，不再加金边，边框留给「正在演」。
             // 普通卡片边框
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
@@ -175,10 +171,32 @@ struct TimetableMatrixCard: View {
                             .frame(height: 96)
                             .offset(y: nowOffset - card.height / 2)
                         }
+                    } else {
+                        upcomingLight
                     }
                 }
                 .saturation(nowOffset != nil ? TimetableStyle.liveCardBackgroundSaturation : 1)
         }
+    }
+
+    /// Sets still to come keep a light on: a warm-up glow within the soon window,
+    /// otherwise a faint pilot wash in the stage colour.
+    @ViewBuilder
+    private var upcomingLight: some View {
+        switch card.status {
+        case .soon:
+            stageGlow(wash: 0.22, depth: 90)
+        case .upcoming:
+            stageGlow(wash: 0.10, depth: 34)
+        case .live, .ended:
+            EmptyView()
+        }
+    }
+
+    private func stageGlow(wash: Double, depth: CGFloat) -> some View {
+        LinearGradient(colors: [stageTint.opacity(wash), stageTint.opacity(0)], startPoint: .top, endPoint: .bottom)
+            .frame(height: depth)
+            .allowsHitTesting(false)
     }
 
     private var horizontalPadding: CGFloat {

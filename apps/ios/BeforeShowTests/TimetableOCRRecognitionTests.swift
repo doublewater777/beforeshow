@@ -6,6 +6,62 @@ import UIKit
 final class TimetableOCRRecognitionTests: XCTestCase {
     private let recognizer = TimetableImageRecognizer(timeZoneIdentifier: "Asia/Shanghai")
 
+    func testVerticalDayLabelsSeparateBothStageColumns() async throws {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1000, height: 1700)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1000, height: 1700))
+
+            func draw(_ text: String, centerX: CGFloat, y: CGFloat, size: CGFloat) {
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.boldSystemFont(ofSize: size), .foregroundColor: UIColor.black
+                ]
+                let width = (text as NSString).size(withAttributes: attributes).width
+                (text as NSString).draw(at: CGPoint(x: centerX - width / 2, y: y), withAttributes: attributes)
+            }
+
+            draw("草莓舞台", centerX: 370, y: 230, size: 34)
+            draw("爱舞台", centerX: 730, y: 230, size: 34)
+            let artists = [
+                [["OrangeOcean", "IslandMood", "Madi", "Mosaic", "SoundFragments", "Rose"],
+                 ["Hamburger", "TwoHundred", "SummerBand", "LandlordCat", "Shark", "DOUDOU"]],
+                [["Chairs", "Yu", "Wei", "Gary", "Fiona", "Tiger"],
+                 ["Liao", "Chen", "Yang", "Waa", "Hsu", "Cheer"]]
+            ]
+            for day in 0..<2 {
+                let top: CGFloat = day == 0 ? 324 : 980
+                let date = "10.\(17 + day)" as NSString
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.boldSystemFont(ofSize: 55), .foregroundColor: UIColor.black
+                ]
+                context.cgContext.saveGState()
+                context.cgContext.translateBy(x: 60, y: top + date.size(withAttributes: attributes).width)
+                context.cgContext.rotate(by: -.pi / 2)
+                date.draw(at: .zero, withAttributes: attributes)
+                context.cgContext.restoreGState()
+                for stage in 0..<2 {
+                    for row in 0..<6 {
+                        let y = top + CGFloat(row) * 84
+                        let centerX: CGFloat = stage == 0 ? 370 : 730
+                        let hour = 14 + row
+                        draw("\(hour):10-\(hour):50", centerX: centerX, y: y, size: 24)
+                        draw(artists[day][stage][row], centerX: centerX, y: y + 30, size: 32)
+                    }
+                }
+            }
+            draw("10.17-18", centerX: 500, y: 1580, size: 55)
+        }
+
+        let draft = try await recognizer.recognize(images: [image], defaultYear: 2026)
+        XCTAssertEqual(draft.summary.dateRangeDescription, "10.17 - 10.18")
+        XCTAssertEqual(draft.days.map { $0.stages.count }, [2, 2])
+        XCTAssertEqual(draft.days.map { $0.stages.flatMap(\.performances).count }, [12, 12])
+        let namesByDay = draft.days.map { Set($0.stages.flatMap(\.performances).map(\.artistName)) }
+        XCTAssertTrue(namesByDay.first?.contains("OrangeOcean") == true)
+        XCTAssertTrue(namesByDay.first?.contains("Hamburger") == true)
+        XCTAssertTrue(namesByDay.last?.contains("Chairs") == true)
+        XCTAssertTrue(namesByDay.last?.contains("Liao") == true)
+    }
+
     func testTaihuBayMultiImageRecognitionAndMerge() async throws {
         let files = [
             "/Users/water/Downloads/时刻表/太湖湾音乐节/IMG_4226.JPG",

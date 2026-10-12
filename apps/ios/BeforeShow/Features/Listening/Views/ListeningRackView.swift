@@ -52,7 +52,11 @@ struct ListeningRackView: View {
     }
 
     private var motion: Animation? {
-        reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86)
+        reduceMotion ? nil : ListeningRackLayout.snapMotion
+    }
+
+    private var expansionMotion: Animation? {
+        reduceMotion ? .easeOut(duration: 0.18) : ListeningRackLayout.expansionMotion
     }
 
     var body: some View {
@@ -74,10 +78,12 @@ struct ListeningRackView: View {
                                 show: room.show,
                                 d: d
                             )
+                            .transition(caseTransition(at: d))
                             .zIndex(Double(100 - abs(d) * 10))
                         }
                     }
                 }
+                .animation(expansionMotion, value: items.map(\.id))
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .contentShape(Rectangle())
                 .gesture(browseGesture)
@@ -108,10 +114,19 @@ struct ListeningRackView: View {
         .sensoryFeedback(.selection, trigger: focusedID)
         .onChange(of: items.map(\.id), initial: true) { _, ids in
             if focusedID == nil || !ids.contains(focusedID ?? "") {
-                focusedID = initialFocusID(in: ids)
+                withAnimation(focusedID == nil ? nil : expansionMotion) {
+                    focusedID = initialFocusID(in: ids)
+                }
             }
         }
         .accessibilityIdentifier("listening.rack")
+    }
+
+    private func caseTransition(at distance: CGFloat) -> AnyTransition {
+        guard !reduceMotion, abs(distance) < ListeningRackLayout.unfoldRange else { return .opacity }
+        return .offset(x: -ListeningRackLayout.x(distance))
+            .combined(with: .scale(scale: ListeningRackLayout.transitionScale, anchor: .bottom))
+            .combined(with: .opacity)
     }
 
     // MARK: Plate
@@ -147,6 +162,7 @@ struct ListeningRackView: View {
             .shadow(color: .black.opacity(0.45), radius: 9, y: 8)
             .scaleEffect(scrubOrigin == nil ? 1 : 1.06)
             .animation(.easeOut(duration: 0.18), value: scrubOrigin == nil)
+            .animation(expansionMotion, value: expandedGroupID)
             .frame(minHeight: BSLayout.minTouchTarget)
             .contentShape(Rectangle())
             .onTapGesture { togglePlate(group) }
@@ -158,11 +174,13 @@ struct ListeningRackView: View {
 
     private func togglePlate(_ group: ListeningRackGroup) {
         if expandedGroup != nil {
-            withAnimation(motion) {
+            withAnimation(expansionMotion) {
                 expandedGroupID = nil
                 focusedID = headItem(group).id
+                dragOffset = 0
+                scrubOrigin = nil
+                room.selectScope(.all)
             }
-            room.selectScope(.all)
             return
         }
         if case let .artist(_, slotIndex, isConnected) = group.kind, !isConnected {
@@ -170,8 +188,13 @@ struct ListeningRackView: View {
             return
         }
         guard group.canExpand || isLoadingArtist(group) else { return }
-        withAnimation(motion) { expandedGroupID = group.id }
-        room.selectScope(group.scope)
+        withAnimation(expansionMotion) {
+            expandedGroupID = group.id
+            focusedID = headItem(group).id
+            dragOffset = 0
+            scrubOrigin = nil
+            room.selectScope(group.scope)
+        }
     }
 
     private func isLoadingArtist(_ group: ListeningRackGroup) -> Bool {
@@ -182,18 +205,27 @@ struct ListeningRackView: View {
     // MARK: Gestures
 
     private var browseGesture: some Gesture {
-        DragGesture(minimumDistance: 6)
+        DragGesture(minimumDistance: ListeningRackLayout.browseMinimumDistance)
             .onChanged { value in
-                guard carriedDisc == nil else { return }
-                if !isDragging { isDragging = true }
-                dragOffset = rubberBanded(value.translation.width)
+                guard carriedDisc == nil,
+                      isDragging || abs(value.translation.width) > abs(value.translation.height) else { return }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    isDragging = true
+                    dragOffset = rubberBanded(value.translation.width)
+                }
             }
             .onEnded { value in
-                guard carriedDisc == nil else { return }
-                isDragging = false
-                let target = CGFloat(focusIndex) - value.predictedEndTranslation.width / ListeningRackLayout.step
-                let index = min(max(Int(target.rounded()), 0), max(items.count - 1, 0))
+                guard carriedDisc == nil, isDragging else { return }
+                let index = ListeningRackLayout.browseIndex(
+                    from: focusIndex,
+                    translation: value.translation.width,
+                    predictedTranslation: value.predictedEndTranslation.width,
+                    itemCount: items.count
+                )
                 withAnimation(motion) {
+                    isDragging = false
                     focusedID = items.indices.contains(index) ? items[index].id : focusedID
                     dragOffset = 0
                 }
@@ -238,9 +270,9 @@ struct ListeningRackView: View {
             .onChanged { value in
                 let origin = scrubOrigin ?? focusIndex
                 if scrubOrigin == nil { scrubOrigin = origin }
-                let index = min(max(origin + Int((value.translation.width / ListeningRackLayout.scrubStep).rounded()), 0), max(items.count - 1, 0))
+                let index = ListeningRackLayout.scrubIndex(from: origin, translation: value.translation.width, itemCount: items.count)
                 guard items.indices.contains(index), items[index].id != focusedID else { return }
-                withAnimation(reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.9)) {
+                withAnimation(motion) {
                     focusedID = items[index].id
                 }
             }
@@ -289,8 +321,17 @@ enum ListeningRackLayout {
     static let spine: CGFloat = 18
     static let rackHeight: CGFloat = 148
     static let slotHeight: CGFloat = rackHeight + BSSpacing.xs + BSLayout.minTouchTarget
-    static let step: CGFloat = 52
-    static let scrubStep: CGFloat = 12
+    static let step: CGFloat = caseSize
+    static let scrubStep: CGFloat = BSLayout.minTouchTarget
+    static let browseMinimumDistance: CGFloat = 10
+    static let projectionWeight: CGFloat = 0.18
+    static let maximumMomentum: CGFloat = step * 0.35
+    static let snapMotion = Animation.spring(duration: 0.26, bounce: 0.06)
+    static let expansionMotion = Animation.spring(duration: 0.28, bounce: 0)
+    static let discRevealMotion = Animation.spring(duration: 0.22, bounce: 0.06)
+    static let discRevealDelay: Double = 0.04
+    static let transitionScale: CGFloat = 0.96
+    static let unfoldRange: CGFloat = 3
     static let visibleRange: CGFloat = 4.5
     static let peek: CGFloat = 30
     static let sideScale: CGFloat = 0.88
@@ -299,6 +340,17 @@ enum ListeningRackLayout {
     static let floorDepth: CGFloat = 26
     static let plateHeight: CGFloat = 28
     static let plateFont = Font.system(size: 12, weight: .semibold)
+
+    static func browseIndex(from index: Int, translation: CGFloat, predictedTranslation: CGFloat, itemCount: Int) -> Int {
+        guard abs(translation) >= browseMinimumDistance else { return index }
+        let momentum = min(max((predictedTranslation - translation) * projectionWeight, -maximumMomentum), maximumMomentum)
+        let target = CGFloat(index) - (translation + momentum) / step
+        return min(max(Int(target.rounded()), 0), max(itemCount - 1, 0))
+    }
+
+    static func scrubIndex(from index: Int, translation: CGFloat, itemCount: Int) -> Int {
+        min(max(index + Int((translation / scrubStep).rounded()), 0), max(itemCount - 1, 0))
+    }
 
     /// Spine x for a case `d` positions away from the focus; the first neighbour clears the pulled-out cover.
     static func x(_ d: CGFloat) -> CGFloat {
@@ -346,11 +398,11 @@ private struct ListeningRackCase: View {
         let angle = L.angle(d) * Double(side < 0 ? 1 : -1)
 
         ZStack {
-            if let disc, !isLoaded, c > 0.5 {
+            if let disc, !isLoaded {
                 ListeningPeekingDisc(disc: disc, size: size * 0.9)
                     .offset(x: coverCenter + (showsDisc ? L.peek : -size * 0.3))
-                    .opacity(showsDisc ? 1 : 0)
-                    .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82).delay(showsDisc ? 0.12 : 0), value: showsDisc)
+                    .opacity(showsDisc ? Double(c) : 0)
+                    .animation(reduceMotion ? nil : L.discRevealMotion.delay(showsDisc ? L.discRevealDelay : 0), value: showsDisc)
             }
 
             cover
@@ -469,22 +521,14 @@ struct ListeningRackCarryRecognizer: UIGestureRecognizerRepresentable {
 private struct CaseShadow: ViewModifier {
     let isActive: Bool
     func body(content: Content) -> some View {
-        if isActive {
-            content.shadow(color: .black.opacity(0.55), radius: 18, y: 12)
-        } else {
-            content
-        }
+        content.shadow(color: .black.opacity(isActive ? 0.55 : 0), radius: 18, y: 12)
     }
 }
 
 private struct SlotFrame: ViewModifier {
     let id: String?
     func body(content: Content) -> some View {
-        if let id {
-            content.listeningFrame("slot:\(id)")
-        } else {
-            content
-        }
+        content.listeningFrame(id.map { "slot:\($0)" })
     }
 }
 

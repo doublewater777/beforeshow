@@ -3,6 +3,33 @@ import SwiftData
 @testable import BeforeShow
 
 @MainActor final class ListeningBrowseTests: XCTestCase {
+    func testRackShortFlickStaysNearTheRecordUnderTheFinger() {
+        let gestures: [(translation: CGFloat, predicted: CGFloat, expected: Int)] = [
+            (-40, -1800, 4),
+            (40, 1800, 2),
+            (-6, -1800, 3),
+            (-190, -200, 5)
+        ]
+        for gesture in gestures {
+            XCTAssertEqual(
+                ListeningRackLayout.browseIndex(from: 3, translation: gesture.translation, predictedTranslation: gesture.predicted, itemCount: 15),
+                gesture.expected,
+                "A short flick should turn one record; longer drags can browse farther."
+            )
+        }
+        XCTAssertEqual(ListeningRackLayout.browseIndex(from: 0, translation: 80, predictedTranslation: 1800, itemCount: 15), 0)
+        XCTAssertEqual(ListeningRackLayout.browseIndex(from: 14, translation: -80, predictedTranslation: -1800, itemCount: 15), 14)
+    }
+
+    func testRackPlateScrubbingNeedsDeliberateTravel() {
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 12, itemCount: 15), 3)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 44, itemCount: 15), 4)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: -44, itemCount: 15), 2)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 132, itemCount: 15), 6)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 0, translation: -132, itemCount: 15), 0)
+        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 14, translation: 132, itemCount: 15), 14)
+    }
+
     func testDelayedPlaybackFailureAllowsSleeveRetry() async throws {
         let (container, show) = try ListenTestData.make()
         let player = ListeningTestPlayer()

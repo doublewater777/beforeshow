@@ -14,14 +14,19 @@ struct TimetableStageMatrixView: View {
     let onSelectPerformance: (TimetablePerformance) -> Void
     let onToggleInterested: (TimetablePerformance) -> Void
     let onAddPerformance: (TimetableStage, Date?) -> Void
-    let onRenameStage: (TimetableStage) -> Void
-    let onDeleteStage: (TimetableStage) -> Void
-    let onAddStage: () -> Void
+    let onManage: () -> Void
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     @State private var position = ScrollPosition(edge: .top)
     @State private var scrolledDayID: UUID?
+    /// A tap on empty lane space only proposes a slot; nothing is saved until the form is.
+    @State private var ghost: Ghost?
+
+    private struct Ghost: Equatable {
+        let stageID: UUID
+        let start: Date
+    }
 
     private static let ruler = TimetableStyle.matrixRulerWidth
     private static let trailing: CGFloat = 12
@@ -46,7 +51,8 @@ struct TimetableStageMatrixView: View {
                 })
             },
             now: now,
-            calendar: calendar
+            calendar: calendar,
+            emptyDayStart: calendar.date(bySettingHour: 14, minute: 0, second: 0, of: day.date)
         )
 
         GeometryReader { geo in
@@ -58,7 +64,7 @@ struct TimetableStageMatrixView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     // 1. Sticky Stage Headers Row (横向随列联动，纵向永远吸顶)
-                    stageHeadersRow(stages: stages, lane: lane)
+                    stageHeadersRow(stages: stages, lane: lane, layout: layout)
                         .frame(width: width, height: Self.capHeight, alignment: .leading)
                         .background(TimetableStyle.background)
                         .zIndex(10)
@@ -105,20 +111,28 @@ struct TimetableStageMatrixView: View {
 
     // MARK: - Sticky Stage Headers Row
 
+    private func soonMinutes(lane index: Int, layout: TimetableMatrixLayout) -> Int? {
+        layout.cards.compactMap { card -> Int? in
+            guard card.laneIndex == index, case .soon(let minutes) = card.status else { return nil }
+            return minutes
+        }.min()
+    }
+
     private func stageHeadersRow(
         stages: [TimetableStage],
-        lane: CGFloat
+        lane: CGFloat,
+        layout: TimetableMatrixLayout
     ) -> some View {
         ZStack(alignment: .leading) {
             ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
                 let x = laneX(index, lane: lane)
                 let tint = TimetableStageLight.color(stage.sortOrder)
-                stageHeaderMenu(stage: stage, lane: lane, tint: tint)
+                stageHeaderMenu(stage: stage, lane: lane, tint: tint, activity: layout.activity.indices.contains(index) ? layout.activity[index] : .idle, soonMinutes: soonMinutes(lane: index, layout: layout))
                     .offset(x: x, y: 0)
             }
 
             // "+ 舞台" top button
-            Button(action: onAddStage) {
+            Button(action: onManage) {
                 HStack(spacing: 4) {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .bold))
@@ -175,12 +189,13 @@ struct TimetableStageMatrixView: View {
                     bottomTrailingRadius: TimetableStyle.matrixLaneRadius
                 )
                     .fill(TimetableStyle.lane)
-                    .overlay(tint.opacity(TimetableStyle.matrixLaneTintOpacity))
                     .overlay(alignment: .top) {
-                        // 常驻向下投射的长光束与舞台环境调光氛围
-                        TimetableStageBeam(activity: activity, color: tint)
-                            .frame(height: 700, alignment: .top)
-                            .allowsHitTesting(false)
+                        // Light means "on stage now": only a playing stage is lit from its header.
+                        if activity == .live {
+                            TimetableStageBeam(color: tint)
+                                .frame(height: 320, alignment: .top)
+                                .allowsHitTesting(false)
+                        }
                     }
                     .frame(width: lane, height: laneHeight)
                     .clipShape(UnevenRoundedRectangle(
@@ -190,8 +205,9 @@ struct TimetableStageMatrixView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { location in
                         guard !wantOnly else { return }
-                        let date = layout.date(for: location.y)
-                        onAddPerformance(stage, date)
+                        let seconds = (layout.date(for: location.y).timeIntervalSinceReferenceDate / 900).rounded(.down) * 900
+                        let proposal = Ghost(stageID: stage.id, start: Date(timeIntervalSinceReferenceDate: seconds))
+                        withAnimation(.snappy(duration: 0.2)) { ghost = ghost == proposal ? nil : proposal }
                     }
                     .offset(x: x, y: 0)
                     .zIndex(0)
@@ -204,6 +220,16 @@ struct TimetableStageMatrixView: View {
                         .allowsHitTesting(false)
                         .zIndex(-2)
                 }
+            }
+
+            // Already-played time sits slightly darker than what is still to come.
+            if let nowY = layout.nowY {
+                Rectangle()
+                    .fill(TimetableStyle.background.opacity(0.4))
+                    .frame(width: laneX(laneCount, lane: lane) - Self.ruler - Self.laneGap, height: max(0, nowY))
+                    .offset(x: Self.ruler)
+                    .allowsHitTesting(false)
+                    .zIndex(0.5)
             }
 
             // 3. Timeline Auxiliary Guide Lines across all stage lanes (正点虚线，严格置于现场块底层)
@@ -241,16 +267,23 @@ struct TimetableStageMatrixView: View {
                 .zIndex(1)
             }
 
-            // 5. Live now line and ruler time badge
+            if let ghost, let index = stages.firstIndex(where: { $0.id == ghost.stageID }) {
+                ghostSlot(ghost, stage: stages[index], lane: lane, layout: layout)
+                    .offset(x: laneX(index, lane: lane), y: layout.y(for: ghost.start))
+                    .zIndex(2)
+            }
+
+            // 5. Live now line and ruler time badge: the page's one red marker. The line runs
+            // under the cards so it never strikes through a name; live cards carry their own glow.
             if let nowY = layout.nowY {
                 let actualNowY = nowY - 9
-                // Keep the dashed time marker behind cards to leave their labels unobstructed.
-                HorizontalDashedLine()
-                    .stroke(TimetableStyle.now, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                    .frame(width: laneX(laneCount, lane: lane) - Self.ruler - Self.laneGap, height: 1.5)
+                Rectangle()
+                    .fill(TimetableStyle.now)
+                    .frame(width: laneX(laneCount, lane: lane) - Self.ruler - Self.laneGap, height: 2)
+                    .shadow(color: TimetableStyle.now.opacity(0.7), radius: 5)
                     .offset(x: Self.ruler, y: actualNowY)
                     .allowsHitTesting(false)
-                    .zIndex(0)
+                    .zIndex(0.8)
 
                 // Current time badge on the ruler
                 Text(TimetableTimeFormat.time(now, timeZone: timeZone))
@@ -267,6 +300,33 @@ struct TimetableStageMatrixView: View {
             }
         }
         .animation(.easeOut(duration: 0.35), value: wantOnly)
+        .onChange(of: day.id) { _, _ in ghost = nil }
+        .onChange(of: wantOnly) { _, _ in ghost = nil }
+    }
+
+    private func ghostSlot(_ ghost: Ghost, stage: TimetableStage, lane: CGFloat, layout: TimetableMatrixLayout) -> some View {
+        let tint = TimetableStageLight.color(stage.sortOrder)
+        return Button {
+            self.ghost = nil
+            onAddPerformance(stage, ghost.start)
+        } label: {
+            VStack(spacing: 4) {
+                Label(BSLocalization.text("添加演出"), systemImage: "plus")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(TimetableStyle.foreground)
+                Text(BSLocalization.format("%@ 开始", TimetableTimeFormat.time(ghost.start, timeZone: timeZone)))
+                    .font(TimetableStyle.mono(11))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: lane, height: 45 * layout.pointsPerMinute - TimetableMatrixLayout.cardSpacing)
+            .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(tint.opacity(0.75), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+            )
+        }
+        .buttonStyle(TimetablePressStyle())
+        .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }
 
     // MARK: - Timeline Guide Lines
@@ -298,10 +358,14 @@ struct TimetableStageMatrixView: View {
         .allowsHitTesting(false)
     }
 
+    /// Header light mirrors the lane: a playing stage glows in its colour, a stage
+    /// starting soon lights only its bottom edge and says when, idle stays dark.
     private func stageHeaderMenu(
         stage: TimetableStage,
         lane: CGFloat,
-        tint: Color
+        tint: Color,
+        activity: TimetableMatrixLayout.Activity,
+        soonMinutes: Int?
     ) -> some View {
         Menu {
             Button {
@@ -309,34 +373,38 @@ struct TimetableStageMatrixView: View {
             } label: {
                 Label(BSLocalization.text("在此舞台添加演出"), systemImage: "plus")
             }
-            Button {
-                onRenameStage(stage)
-            } label: {
-                Label(BSLocalization.text("重命名舞台"), systemImage: "pencil")
-            }
-            if day.orderedStages.count > 1 {
-                Button(role: .destructive) {
-                    onDeleteStage(stage)
-                } label: {
-                    Label(BSLocalization.text("删除此舞台"), systemImage: "trash")
-                }
+            Button(action: onManage) {
+                Label(BSLocalization.text("管理天数与舞台"), systemImage: "slider.horizontal.3")
             }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
+                if activity == .live {
+                    TimetableEqualizer(color: tint)
+                } else {
+                    TimetableStageLight.marker(stage.sortOrder).fill(tint).frame(width: 7, height: 7)
+                }
                 Text(stage.name)
                     .font(.system(size: 13, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
-                    .opacity(0.4)
+                if activity == .soon, let soonMinutes {
+                    Text(BSLocalization.format("%d 分钟后", soonMinutes))
+                        .font(TimetableStyle.mono(10.5, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .lineLimit(1)
+                }
             }
-            .foregroundStyle(TimetableStyle.muted)
+            .foregroundStyle(activity == .live ? TimetableStyle.foreground : TimetableStyle.muted)
             .padding(.horizontal, BSSpacing.sm)
             .frame(width: lane, height: Self.capHeight)
             .background {
                 TimetableStyle.lane
-                    .overlay(tint.opacity(TimetableStyle.matrixLaneTintOpacity))
+                    .overlay(tint.opacity(activity == .live ? 0.16 : 0))
+                    .overlay(alignment: .bottom) {
+                        if activity != .idle {
+                            Rectangle().fill(tint.opacity(activity == .live ? 0.5 : 0.55)).frame(height: activity == .live ? 1 : 1.5)
+                        }
+                    }
                     .clipShape(UnevenRoundedRectangle(
                         topLeadingRadius: TimetableStyle.matrixLaneRadius,
                         topTrailingRadius: TimetableStyle.matrixLaneRadius
@@ -414,51 +482,24 @@ private final class BouncesConfigurationView: UIView {
     }
 }
 
-/// Dynamic atmospheric stage lighting falling from a lit stage header.
+/// Light falling from a playing stage's header, breathing slowly.
 private struct TimetableStageBeam: View {
-    let activity: TimetableMatrixLayout.Activity
     let color: Color
     @State private var breathe = false
 
-    private var beamOpacity: Double {
-        switch activity {
-        case .live: return breathe ? 0.62 : 0.50
-        case .soon: return 0.38
-        case .idle: return 0.24
-        }
-    }
-
     var body: some View {
-        EllipticalGradient(
+        LinearGradient(
             stops: [
-                .init(color: color.opacity(0.40), location: 0),
-                .init(color: color.opacity(0.24), location: 0.30),
-                .init(color: color.opacity(0.08), location: 0.65),
-                .init(color: .clear, location: 0.95)
+                .init(color: color.opacity(0.22), location: 0),
+                .init(color: color.opacity(0.08), location: 0.4),
+                .init(color: .clear, location: 1)
             ],
-            center: .top,
-            startRadiusFraction: 0,
-            endRadiusFraction: 0.95
+            startPoint: .top,
+            endPoint: .bottom
         )
-        .frame(height: 680)
-        .mask {
-            // Concentrate the light at the center, fading softly toward both sides.
-            LinearGradient(
-                stops: [
-                    .init(color: .white.opacity(0.08), location: 0),
-                    .init(color: .white.opacity(0.50), location: 0.22),
-                    .init(color: .white, location: 0.50),
-                    .init(color: .white.opacity(0.50), location: 0.78),
-                    .init(color: .white.opacity(0.08), location: 1)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        }
-        .opacity(beamOpacity)
+        .opacity(breathe ? 1 : 0.75)
         .allowsHitTesting(false)
         .onAppear {
-            guard activity == .live else { return }
             withAnimation(.easeInOut(duration: 2.75).repeatForever(autoreverses: true)) { breathe = true }
         }
     }

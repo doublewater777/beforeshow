@@ -10,6 +10,7 @@ final class TimetableManagementCoordinator: ObservableObject {
     @Published var draft: TimetableDraft?
     @Published var isSaving = false
     @Published var toast: BSToastPayload?
+    @Published var dayManagementError: String?
 
     private let recognizer: TimetableImageRecognizer
 
@@ -157,6 +158,81 @@ final class TimetableManagementCoordinator: ObservableObject {
             modelContext.rollback()
             await ShowAssetMediaStore.shared.releaseCommitGate()
             presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
+        }
+    }
+
+    func updateDayDate(_ day: TimetableDay, to date: Date, in timetable: Timetable, context: ModelContext) {
+        performDayChange(context: context) { try timetable.updateDayDate(day, to: date) }
+    }
+
+    func addDay(date: Date, to timetable: Timetable, template: TimetableDay?, context: ModelContext) -> TimetableDay? {
+        var addedDay: TimetableDay?
+        let saved = performDayChange(context: context) {
+            let day = try timetable.addDay(
+                date: date,
+                stageNames: template?.orderedStages.map(\.name) ?? [BSLocalization.text("主舞台")]
+            )
+            context.insert(day)
+            addedDay = day
+        }
+        return saved ? addedDay : nil
+    }
+
+    @discardableResult
+    func deleteDay(_ day: TimetableDay, from timetable: Timetable, context: ModelContext) -> Bool {
+        performDayChange(context: context) {
+            try timetable.removeDay(day)
+            context.delete(day)
+        }
+    }
+
+    @discardableResult
+    func addStage(named name: String, to day: TimetableDay, context: ModelContext) -> Bool {
+        performDayChange(context: context) {
+            let stage = try day.addStage(name: name)
+            context.insert(stage)
+        }
+    }
+
+    @discardableResult
+    func renameStage(_ stage: TimetableStage, to name: String, context: ModelContext) -> Bool {
+        performDayChange(context: context) { try stage.updateName(name) }
+    }
+
+    func reorderStages(of day: TimetableDay, to ids: [UUID], context: ModelContext) {
+        performDayChange(context: context) { day.reorderStages(ids) }
+    }
+
+    @discardableResult
+    func deleteStage(_ stage: TimetableStage, from day: TimetableDay, context: ModelContext) -> Bool {
+        performDayChange(context: context) {
+            try day.removeStage(stage)
+            context.delete(stage)
+        }
+    }
+
+    @discardableResult
+    private func performDayChange(context: ModelContext, change: () throws -> Void) -> Bool {
+        dayManagementError = nil
+        var didChange = false
+        do {
+            try change()
+            didChange = true
+            try context.save()
+            return true
+        } catch {
+            if didChange { context.rollback() }
+            let message: String
+            switch error as? TimetableValidationError {
+            case .invalidDayDate: message = "该日期已有时刻表"
+            case .emptyTimetable: message = "请至少保留一天"
+            case .emptyDay: message = "请至少保留一个舞台"
+            case .emptyStageName: message = "请输入舞台名称"
+            case .overlappingDays: message = "结束时间与下一天的演出重叠"
+            default: message = "修改失败，请重试"
+            }
+            dayManagementError = BSLocalization.text(message)
+            return false
         }
     }
 

@@ -69,6 +69,74 @@ final class Timetable {
         days.sorted { $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date }
     }
 
+    func updateDayDate(_ day: TimetableDay, to date: Date) throws {
+        guard days.contains(where: { $0.id == day.id }) else { throw TimetableValidationError.alreadyOwned }
+        let date = calendar.startOfDay(for: date)
+        guard !days.contains(where: { $0.id != day.id && $0.date == date }) else {
+            throw TimetableValidationError.invalidDayDate
+        }
+        let offset = calendar.dateComponents([.day], from: day.date, to: date).day ?? 0
+        let shifted = try day.performances.map { performance in
+            guard let start = calendar.date(byAdding: .day, value: offset, to: performance.startsAt),
+                  let end = calendar.date(byAdding: .day, value: offset, to: performance.endsAt), start < end else {
+                throw TimetableValidationError.invalidPerformanceInterval
+            }
+            return (performance, start, end)
+        }
+        if let start = shifted.map({ $0.1 }).min(), let end = shifted.map({ $0.2 }).max() {
+            try validateDayInterval(date: date, start: start, end: end, excluding: day.id)
+        }
+        day.setDate(date)
+        for (performance, start, end) in shifted {
+            performance.startsAt = start
+            performance.endsAt = end
+        }
+    }
+
+    @discardableResult
+    /// New days start with named, empty stages; sets are only added on purpose.
+    func addDay(date: Date, stageNames: [String]) throws -> TimetableDay {
+        let date = calendar.startOfDay(for: date)
+        guard !days.contains(where: { $0.date == date }) else { throw TimetableValidationError.invalidDayDate }
+        guard let start = calendar.date(bySettingHour: 14, minute: 0, second: 0, of: date) else {
+            throw TimetableValidationError.invalidDayDate
+        }
+        let end = start.addingTimeInterval(45 * 60)
+        try validateDayInterval(date: date, start: start, end: end)
+        let stages = try stageNames.enumerated().map { index, name in
+            try TimetableStage(name: name, sortOrder: index, performances: [], allowsEmpty: true)
+        }
+        let day = try TimetableDay(date: date, stages: stages)
+        days.append(day)
+        day.timetable = self
+        return day
+    }
+
+    func removeDay(_ day: TimetableDay) throws {
+        guard days.contains(where: { $0.id == day.id }) else { throw TimetableValidationError.alreadyOwned }
+        guard days.count > 1 else { throw TimetableValidationError.emptyTimetable }
+        days.removeAll { $0.id == day.id }
+        day.timetable = nil
+    }
+
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZoneIdentifier) ?? .current
+        return calendar
+    }
+
+    private func validateDayInterval(date: Date, start: Date, end: Date, excluding id: UUID? = nil) throws {
+        guard calendar.isDate(start, inSameDayAs: date) else { throw TimetableValidationError.invalidDayDate }
+        for other in days where other.id != id {
+            if other.date < date, let otherEnd = other.performances.map(\.endsAt).max(), otherEnd > start {
+                throw TimetableValidationError.overlappingDays
+            }
+            if other.date > date, let otherStart = other.performances.map(\.startsAt).min(), end > otherStart {
+                throw TimetableValidationError.overlappingDays
+            }
+        }
+    }
+
     /// Value-only input to the time policy; no persistence or UI dependencies escape.
     var timing: [TimetableDayTiming] {
         orderedDays.map { day in
@@ -114,23 +182,26 @@ final class TimetableDay {
         stages.flatMap(\.performances).sorted(by: TimetablePerformance.chronologicalOrder)
     }
 
+    fileprivate func setDate(_ date: Date) {
+        self.date = date
+    }
+
     @discardableResult
-    func addStage(name: String, placeholderArtistName: String = "待定演出") throws -> TimetableStage {
+    func addStage(name: String) throws -> TimetableStage {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw TimetableValidationError.emptyStageName }
         let nextOrder = (stages.map(\.sortOrder).max() ?? -1) + 1
-        let defaultStart = performances.map(\.startsAt).min() ?? date.addingTimeInterval(14 * 3600)
-        let defaultEnd = defaultStart.addingTimeInterval(45 * 60)
-        let initialPerf = try TimetablePerformance(
-            artistName: placeholderArtistName,
-            startsAt: defaultStart,
-            endsAt: defaultEnd
-        )
-        let stage = try TimetableStage(name: trimmed, sortOrder: nextOrder, performances: [initialPerf])
-        initialPerf.stage = stage
+        let stage = try TimetableStage(name: trimmed, sortOrder: nextOrder, performances: [], allowsEmpty: true)
         stage.day = self
         self.stages.append(stage)
         return stage
+    }
+
+    /// Applies the order the user dragged stages into.
+    func reorderStages(_ ids: [UUID]) {
+        for stage in stages {
+            if let index = ids.firstIndex(of: stage.id) { stage.sortOrder = index }
+        }
     }
 
     func removeStage(_ stage: TimetableStage) throws {
@@ -150,13 +221,15 @@ final class TimetableStage {
     @Relationship(deleteRule: .cascade, inverse: \TimetablePerformance.stage)
     private(set) var performances: [TimetablePerformance] = []
 
+    /// Imported stages must carry sets (review flags empty ones); stages the user
+    /// creates by hand start empty via `allowsEmpty`.
     init(
         id: UUID = UUID(), name: String, sortOrder: Int = 0,
-        performances: [TimetablePerformance]
+        performances: [TimetablePerformance], allowsEmpty: Bool = false
     ) throws {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw TimetableValidationError.emptyStageName }
-        guard !performances.isEmpty else { throw TimetableValidationError.emptyStage }
+        guard allowsEmpty || !performances.isEmpty else { throw TimetableValidationError.emptyStage }
         guard performances.allSatisfy({ $0.stage == nil }) else { throw TimetableValidationError.alreadyOwned }
         guard Set(performances.map(\.id)).count == performances.count else {
             throw TimetableValidationError.duplicateIdentity

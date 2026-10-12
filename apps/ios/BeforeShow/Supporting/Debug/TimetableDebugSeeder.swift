@@ -59,8 +59,8 @@ enum TimetableDebugSeeder {
 
         let stage1 = try! TimetableStage(name: n("草莓舞台", "主舞台"), sortOrder: 0, performances: [p1, p3, p5])
         let stage2 = try! TimetableStage(name: n("爱舞台", "星光舞台"), sortOrder: 1, performances: [p2, p4])
-        // `final` moves both days into the past so the whole festival has ended.
-        let day1Date = calendar.date(byAdding: .day, value: phase == "final" ? -span : 0, to: today)!
+        // Day 1 is the date its earliest set starts on, so seeding after midnight still validates.
+        let day1Date = calendar.startOfDay(for: [p1, p2, p3, p4, p5].map(\.startsAt).min()!)
         let day1 = try! TimetableDay(date: day1Date, stages: [stage1, stage2])
 
         // Day 2 (Tomorrow)

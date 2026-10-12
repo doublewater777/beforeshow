@@ -134,7 +134,7 @@ struct TimetableRecognizingView: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Color.white.opacity(0.05))
                         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08)))
-                        .frame(width: 260, height: 347)
+                        .frame(width: cardSize.width, height: cardSize.height)
                         .rotationEffect(.degrees(5))
                         .offset(x: 16, y: -10)
                 }
@@ -162,10 +162,35 @@ struct TimetableRecognizingView: View {
         }
     }
 
+    private var cardSize: CGSize {
+        guard let image, image.size.width > 0, image.size.height > 0 else {
+            return CGSize(width: 260, height: 347)
+        }
+        let maxWidth: CGFloat = 280
+        let maxHeight: CGFloat = 380
+        let imageAspect = image.size.width / image.size.height
+        let boxAspect = maxWidth / maxHeight
+
+        if imageAspect > boxAspect {
+            // Wider image: fit width to maxWidth
+            let width = maxWidth
+            let height = max(140, width / imageAspect)
+            return CGSize(width: width, height: height)
+        } else {
+            // Taller image: fit height to maxHeight
+            let height = maxHeight
+            let width = max(140, height * imageAspect)
+            return CGSize(width: width, height: height)
+        }
+    }
+
     private var photo: some View {
-        ZStack(alignment: .top) {
+        let size = cardSize
+        return ZStack(alignment: .top) {
             if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
             } else {
                 Color.white.opacity(0.05)
             }
@@ -177,9 +202,9 @@ struct TimetableRecognizingView: View {
                         .frame(height: 2)
                         .shadow(color: TimetableStyle.mine.opacity(0.8), radius: 6)
                 }
-                .offset(y: sweep ? 347 : -70)
+                .offset(y: sweep ? size.height : -70)
         }
-        .frame(width: 260, height: 347)
+        .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.12)))
         .overlay(alignment: .bottomTrailing) {
