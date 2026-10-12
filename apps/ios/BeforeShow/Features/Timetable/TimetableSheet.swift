@@ -128,15 +128,6 @@ struct TimetableSheet: View {
                     )
                 }
 
-                if isFullScreenImagePresented && !originalImages.isEmpty {
-                    TimetableOriginalImageViewer(
-                        images: originalImages,
-                        currentIndex: $originalImagePage,
-                        onDismiss: { isFullScreenImagePresented = false }
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                    .zIndex(100)
-                }
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -200,6 +191,13 @@ struct TimetableSheet: View {
         }
         .bsToastOverlay(coordinator.toast, bottomPadding: 36)
         .interactiveDismissDisabled(coordinator.isSaving)
+        .fullScreenCover(isPresented: $isFullScreenImagePresented) {
+            TimetableOriginalImageViewer(
+                images: originalImages,
+                currentIndex: $originalImagePage,
+                onDismiss: { isFullScreenImagePresented = false }
+            )
+        }
         .photosPicker(
             isPresented: $isPhotosPickerPresented,
             selection: $selectedPhotoItems,
