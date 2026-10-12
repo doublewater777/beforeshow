@@ -37,6 +37,7 @@ struct ListeningRackCase: View, Animatable {
             if let disc = content.disc {
                 face(box * ListeningRackFace.disc(peek: pose.peek), CGSize(width: L.discSize, height: L.discSize), culled: false) {
                     ListeningPeekingDisc(disc: disc, size: L.discSize)
+                        .id(disc.id)
                 }
                 .opacity(content.showsDisc ? 1 : 0)
             }
@@ -75,8 +76,11 @@ struct ListeningRackCase: View, Animatable {
         .allowsHitTesting(false)
     }
 
+    /// Re-identified per disc so a case that now holds another album reloads its artwork.
     private var cover: some View {
-        coverArt.background(ListeningStyle.rackCaseBack)
+        coverArt
+            .id(content.disc?.id ?? content.artworkURL?.absoluteString ?? content.title)
+            .background(ListeningStyle.rackCaseBack)
     }
 
     @ViewBuilder

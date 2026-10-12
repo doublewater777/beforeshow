@@ -77,7 +77,7 @@ struct ListeningRackView: View {
 
     private func title(_ entry: Entry) -> String {
         guard !entry.isPlaceholder else { return "" }
-        return expandedGroupID == nil ? entry.group.name : entry.disc?.title ?? entry.group.name
+        return openIndex == nil ? entry.group.name : entry.disc?.title ?? entry.group.name
     }
 
     private func pose(_ entry: Entry, row: [Entry], focus c: Int, discOut: Bool) -> ListeningRackPose {
@@ -103,7 +103,7 @@ struct ListeningRackView: View {
 
     /// Cases near the focus, plus the ones about to fly out or unfold, so they persist across the change.
     private func rendered(_ entries: [Entry], row: [Entry], focus c: Int) -> [Entry] {
-        let rowIDs = Dictionary(uniqueKeysWithValues: row.enumerated().map { ($1.id, $0) })
+        let rowIDs = Dictionary(row.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         let focusGroup = row.indices.contains(c) ? row[c].groupIndex : nil
         let anchor = openIndex ?? focusGroup ?? 0
         return entries.filter { entry in
@@ -140,7 +140,7 @@ struct ListeningRackView: View {
                                 artworkURL: entry.group.artworkURL,
                                 isLive: entry.group.kind == .live,
                                 isPlaceholder: entry.isPlaceholder,
-                                marked: entry.index == 0 && expandedGroupID == entry.group.id && entry.group.discs.count > 1,
+                                marked: entry.index == 0 && openIndex == entry.groupIndex && entry.group.discs.count > 1,
                                 showsDisc: entry.id == focused?.id && out && carriedDisc == nil
                             ),
                             width: width,
@@ -179,6 +179,14 @@ struct ListeningRackView: View {
             focusedID = initialFocusID(in: row)
             revealedID = focusedID
         }
+        .onChange(of: groups.map(\.id)) { _, ids in
+            // A rematched artist takes a new identity; fall back to the shelf of heads.
+            guard let id = expandedGroupID, !ids.contains(id) else { return }
+            withAnimation(reduceMotion ? nil : L.motion) {
+                expandedGroupID = nil
+                room.selectScope(.all)
+            }
+        }
         .onChange(of: focusedID) { _, id in
             withAnimation(reduceMotion ? nil : L.motion.delay(L.discDelay)) { revealedID = id }
         }
@@ -210,7 +218,7 @@ struct ListeningRackView: View {
 
     private func plate(for entry: Entry, row: [Entry], focus c: Int) -> some View {
         let group = entry.group
-        let expanded = expandedGroupID != nil
+        let expanded = openIndex != nil
         let scrubbing = scrubOrigin != nil
         return HStack(spacing: 6) {
             if expanded { chevron("chevron.left") }
@@ -266,7 +274,7 @@ struct ListeningRackView: View {
     }
 
     private func togglePlate(_ group: ListeningRackGroup) {
-        if expandedGroupID != nil {
+        if openIndex != nil {
             withAnimation(reduceMotion ? nil : L.motion) {
                 focusedID = "\(group.id)#0"
                 expandedGroupID = nil
@@ -344,14 +352,14 @@ struct ListeningRackView: View {
             room.browser.open(disc)
         } else if case let .artist(_, slotIndex, false) = entry.group.kind {
             onConnect(slotIndex, entry.group.name)
-        } else if expandedGroupID == nil {
+        } else if openIndex == nil {
             togglePlate(entry.group)
         }
     }
 
     /// Resting on an artist starts their catalog, so unfolding is usually instant.
     private func prefetch(_ entry: Entry?) async {
-        guard expandedGroupID == nil, let group = entry?.group,
+        guard openIndex == nil, let group = entry?.group,
               group.isConnectedArtist, !group.hasCatalog,
               case let .artist(id, _, _) = group.kind else { return }
         try? await Task.sleep(for: L.prefetchDelay)

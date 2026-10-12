@@ -85,13 +85,17 @@ enum ListeningRackOrdering {
             ListeningRackOrdering.Performance(artistName: $0.artistName, startsAt: $0.startsAt, isInterested: $0.isInterested)
         }
         let order = ListeningRackOrdering.order(names: browseArtists.map(\.name), performances: performances)
-        for artist in order.map({ browseArtists[$0] }) {
+        var seen = Set<String>()
+        for artist in order.map({ browseArtists[$0] }) where seen.insert(artist.id).inserted {
+            // Releases lead so a playlist that arrives later never replaces the head disc.
+            let discs = artist.albums.filter { $0.isSingle != true }
+            let releases = discs.filter { if case .featuredPlaylist = $0.origin { false } else { true } }
             groups.append(ListeningRackGroup(
                 id: artist.id,
                 kind: .artist(id: artist.id, slotIndex: artist.slotIndex, isConnected: artist.isConnected),
                 name: artist.name,
                 artworkURL: artist.artworkURL,
-                discs: artist.albums.filter { $0.isSingle != true },
+                discs: releases + discs.filter { !releases.contains($0) },
                 catalogStatus: artistCatalogStatus[artist.id],
                 hasCatalog: !artist.isConnected || catalogSnapshots.contains { $0.artistID == artist.id }
             ))
