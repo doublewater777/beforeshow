@@ -7,6 +7,7 @@ struct CurrentShowCountdownCard: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
     let candidateShows: [Show]
+    let recommendation: RecommendedFeature?
     let isVisible: Bool
     let onRecommendation: (RecommendedFeature) -> Void
     var onEndShow: (() -> Void)? = nil
@@ -18,14 +19,9 @@ struct CurrentShowCountdownCard: View {
     var onOpenTimetable: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
-    @Query private var recommendationRecords: [FeatureRecommendationRecord]
-    @Query private var notificationRecords: [ShowNotificationScheduleRecord]
-    @AppStorage(FeatureUsageEnvironment.widgetKey) private var hasInstalledWidget = false
-    @AppStorage(FeatureUsageEnvironment.iCloudKey) private var isICloudAvailable = false
 
     var body: some View {
         let todayKey = FeatureRecommendationDay.key(for: snapshot.now)
-        let recommendation = resolvedRecommendation(todayKey: todayKey)
         HomeCountdownLockup(
             show: show,
             snapshot: snapshot,
@@ -42,40 +38,6 @@ struct CurrentShowCountdownCard: View {
         .task(id: "\(show.id.uuidString)|\(recommendation?.rawValue ?? "-")|\(todayKey)|\(isVisible)") {
             recordExposure(recommendation, todayKey: todayKey)
         }
-    }
-
-    private func resolvedRecommendation(todayKey: String) -> RecommendedFeature? {
-        guard let slot = CurrentShowCardRecommendation.slot(
-            timeState: snapshot.timeState,
-            hasConfirmedEnd: show.endedAt != nil
-        ) else {
-            return nil
-        }
-        let facts = FeatureUsageFacts(hasInstalledWidget: hasInstalledWidget, isICloudAvailable: isICloudAvailable)
-        let ledger = FeatureRecommendationLedger.snapshot(
-            shows: candidateShows,
-            records: recommendationRecords,
-            facts: facts,
-            now: snapshot.now
-        )
-        let hasFutureShow = FeatureRecommendationLedger.nextFutureShow(
-            excluding: show.id,
-            in: candidateShows,
-            now: snapshot.now
-        ) != nil
-        let todayNotificationFeature = notificationRecords.first {
-            $0.showID == show.id && $0.feature != nil
-                && FeatureRecommendationDay.key(for: $0.fireDate) == todayKey
-        }?.feature
-        return CurrentShowCardRecommendation.resolve(
-            chain: slot.chain(
-                isFestival: ShowFlavor.inferred(from: show) == .festival,
-                hasFutureShow: hasFutureShow
-            ),
-            context: ledger.context(for: show.id),
-            todayKey: todayKey,
-            todayNotificationFeature: todayNotificationFeature
-        )
     }
 
     private func handle(_ feature: RecommendedFeature) {
