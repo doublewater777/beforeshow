@@ -1965,7 +1965,7 @@ First show: %@";
 "舞台 %d" = "Stage %d";
 "复制识别指令" = "Copy Prompt";
 "已复制识别指令" = "Prompt Copied";
-"在 AI 工具中上传时刻表图片并发送指令" = "Send the timetable images and the prompt in your AI tool";
+"在 AI 工具中上传时刻表图片并发送指令" = "Send the images and the prompt in ChatGPT, Gemini, Claude or another AI tool";
 "粘贴识别结果" = "Paste the Result";
 "将生成的识别结果粘贴到这里" = "Paste the generated result here";
 "请先粘贴识别结果" = "Paste the result first";
