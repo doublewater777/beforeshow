@@ -3,6 +3,16 @@ import SwiftData
 
 @MainActor
 enum ListeningChromeBootstrapper {
+    static func prepareRoomForCurrentShow(_ room: ListeningRoomCoordinator, show: Show) {
+        guard room.show?.id != show.id else { return }
+        if room.show != nil {
+            ListeningRoomSessionStore.shared.unpublishChrome()
+            room.discardLoadedDiscState()
+        }
+        room.prepareForDisplay(show: show)
+        ListeningRoomSessionStore.shared.adopt(room)
+    }
+
     static func prepare(
         show: Show?,
         context: ModelContext,

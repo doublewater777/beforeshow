@@ -4,6 +4,136 @@ import SwiftData
 @testable import BeforeShow
 
 @MainActor final class ListeningRoomLifecycleTests: XCTestCase {
+    func testRoomRetainsOnlyBoundCatalogAndReentryReadsSavedSongEdits() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        context.insert(CatalogSong(appleMusicSongID: "unrelated", title: "Other", artistName: "Other"))
+        context.insert(CatalogAlbum(appleMusicAlbumID: "unrelated-album", title: "Other"))
+        context.insert(ArtistCatalogSnapshot(artistID: "other", artistName: "Other", orderedSongIDs: ["unrelated"]))
+        try context.save()
+        let room = ListenTestData.room(context)
+        defer { room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
+
+        XCTAssertFalse(room.catalogSongs.contains { $0.appleMusicSongID == "unrelated" })
+        XCTAssertFalse(room.catalogAlbums.contains { $0.appleMusicAlbumID == "unrelated-album" })
+        XCTAssertFalse(room.catalogSnapshots.contains { $0.artistID == "other" })
+        room.setActive(false)
+        let song = try XCTUnwrap(context.fetch(FetchDescriptor<CatalogSong>()).first { $0.appleMusicSongID == "a2" })
+        song.title = "Updated title"
+        try context.save()
+        room.setActive(true)
+
+        XCTAssertEqual(room.artistPresentation("a")?.top.first?.title, "Updated title")
+        XCTAssertTrue(room.compilationDiscs.flatMap(\.tracks).contains { $0.id == "a2" && $0.title == "Updated title" })
+    }
+
+    func testExternalRenameDuringInitialMatchingIsMatchedAfterTheCurrentLoad() async throws {
+        let (container, show) = try ListenTestData.make()
+        let replacement = RecognizedArtist(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+        let search = GatedArtistSearch(replacement: replacement)
+        let room = ListeningRoomCoordinator(context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull), artistSearchService: search,
+            playbackFactory: { ListeningFixturePlayer(source: $0) })
+        let load = Task { await room.load(show: show) }
+        defer { load.cancel(); search.release(); room.stop(); room.mechanism.motion.stop() }
+        try await waitUntil { search.didStartSearch }
+        room.setActive(false)
+        show.artists[1] = ArtistSlot(name: "Replacement", avatarURL: nil)
+        try container.mainContext.save()
+        room.setActive(true)
+        search.release()
+        await load.value
+        try await waitUntil { show.artists[1].appleMusicArtistID == "replacement" }
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+    }
+
+    func testDelayedObservationOfRenameDuringCatalogRefreshStillMatchesReplacement() async throws {
+        let (container, show) = try ListenTestData.make()
+        let replacement = RecognizedArtist(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+        let search = GatedArtistSearch(replacement: replacement)
+        search.release()
+        let catalog = CatalogStageRaceCatalog()
+        let room = ListeningRoomCoordinator(context: container.mainContext, catalogService: catalog,
+            artistSearchService: search, playbackFactory: { ListeningFixturePlayer(source: $0) })
+        defer { catalog.releaseInitialCatalog(); room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
+        room.selectScope(.artist("a"))
+        let refresh = Task { await room.reloadCatalog(force: true) }
+        try await waitUntil { catalog.didStartInitialCatalogFetch }
+        room.setActive(false)
+        show.artists[1] = ArtistSlot(name: "Replacement", avatarURL: nil)
+        try container.mainContext.save()
+        catalog.releaseInitialCatalog()
+        await refresh.value
+        room.setActive(true)
+        try await waitUntil { show.artists[1].appleMusicArtistID == "replacement" }
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+    }
+
+    func testActivationThenRootLoadUsesOneArtistMatchingPass() async throws {
+        let (container, show) = try ListenTestData.make()
+        let search = GatedArtistSearch()
+        let room = ListeningRoomCoordinator(context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull), artistSearchService: search,
+            playbackFactory: { ListeningFixturePlayer(source: $0) })
+        defer { search.release(); room.stop(); room.mechanism.motion.stop() }
+        room.prepareForDisplay(show: show)
+        room.setActive(true)
+        let observer = Task { @MainActor in
+            try await self.waitUntil { search.didStartSearch }
+            for _ in 0..<20 { await Task.yield() }
+            XCTAssertEqual(search.searchCount, 1, "Queued activation cannot start a competing matching pass")
+            search.release()
+        }
+        await room.load(show: show)
+        try await observer.value
+        XCTAssertEqual(search.searchCount, 1)
+    }
+
+    func testExternalArtistEditRefreshesActiveRoomAndDropsPreviousCatalog() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        defer { room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
+        show.artists = [ArtistSlot(name: "Updated artist", avatarURL: "https://example.com/new.jpg",
+                                  appleMusicURL: "https://music.apple.com/us/artist/updated/123", appleMusicArtistID: "123")]
+        container.mainContext.insert(CatalogSong(appleMusicSongID: "new-song", title: "New song", artistName: "Updated artist"))
+        container.mainContext.insert(ArtistCatalogSnapshot(artistID: "123", artistName: "Updated artist",
+                                                         orderedSongIDs: ["new-song"], topSongIDs: ["new-song"]))
+        try container.mainContext.save()
+        room.refreshShowInputs(show)
+
+        XCTAssertEqual(room.browseArtists.map(\.id), ["123"])
+        XCTAssertEqual(room.browseArtists.first?.artworkURL?.absoluteString, "https://example.com/new.jpg")
+        XCTAssertEqual(Set(room.compilationDiscs.flatMap(\.tracks).map(\.id)), ["new-song"])
+        XCTAssertNil(room.artistPresentation("a"))
+        XCTAssertFalse(room.catalogSongs.contains { $0.appleMusicSongID == "a2" })
+    }
+
+    func testNestedTimetableEditRebuildsLiveCompilationWithoutChangingShowTimestamp() async throws {
+        let (container, show) = try ListenTestData.make()
+        let dayDate = Calendar.current.startOfDay(for: show.startTime)
+        let start = dayDate.addingTimeInterval(14 * 3600)
+        let set = try TimetablePerformance(artistName: "A", startsAt: start, endsAt: start.addingTimeInterval(180),
+                                           appleMusicArtistID: "a")
+        let stage = try TimetableStage(name: "Stage", sortOrder: 0, performances: [set])
+        show.timetable = try Timetable(timeZoneIdentifier: TimeZone.current.identifier,
+                                      days: [try TimetableDay(date: dayDate, stages: [stage])])
+        try container.mainContext.save()
+        let room = ListenTestData.room(container.mainContext)
+        defer { room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
+        let timestamp = show.updatedAt
+        XCTAssertFalse(room.compilationDiscs.contains { $0.id.hasSuffix("wanted-\(show.timetable!.days[0].id)") })
+        set.isInterested = true
+        try container.mainContext.save()
+        room.refreshShowInputs(show)
+
+        XCTAssertEqual(show.updatedAt, timestamp)
+        XCTAssertTrue(room.compilationDiscs.contains { $0.id.hasSuffix("wanted-\(show.timetable!.days[0].id)") && !$0.tracks.isEmpty })
+    }
+
     func testFullBackgroundAndTabHideNeverOwnTransport() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
@@ -713,20 +843,25 @@ private final class GatedArtistSearch: @unchecked Sendable, ArtistSearchServicin
     private let lock = NSLock()
     private var released = false
     private var started = false
+    private var searches = 0
+    private let replacement: RecognizedArtist?
+
+    init(replacement: RecognizedArtist? = nil) { self.replacement = replacement }
 
     var didStartSearch: Bool { lock.withLock { started } }
+    var searchCount: Int { lock.withLock { searches } }
 
     func release() {
         lock.withLock { released = true }
     }
 
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
-        lock.withLock { started = true }
+        lock.withLock { started = true; searches += 1 }
         while !lock.withLock({ released }) {
             try Task.checkCancellation()
             try await Task.sleep(for: .milliseconds(5))
         }
-        return []
+        return replacement.map { $0.canonicalName == query ? [$0] : [] } ?? []
     }
 }
 

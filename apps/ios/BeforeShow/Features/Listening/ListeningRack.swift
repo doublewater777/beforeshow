@@ -95,13 +95,14 @@ enum ListeningRackOrdering {
             let allReleases = discs.filter { if case .featuredPlaylist = $0.origin { false } else { true } }
             // Singles trail full releases.
             let releases = allReleases.filter { $0.isSingle != true } + allReleases.filter { $0.isSingle == true }
+            let releaseIDs = Set(releases.map(\.id))
             groups.append(ListeningRackGroup(
                 // Keyed by lineup slot so connecting an artist keeps the rack's place on it.
                 id: "slot-\(artist.slotIndex)",
                 kind: .artist(id: artist.id, slotIndex: artist.slotIndex, isConnected: artist.isConnected),
                 name: artist.name,
                 artworkURL: artist.artworkURL,
-                discs: releases + discs.filter { !releases.contains($0) },
+                discs: releases + discs.filter { !releaseIDs.contains($0.id) },
                 catalogStatus: artistCatalogStatus[artist.id],
                 hasCatalog: !artist.isConnected || catalogSnapshots.contains { $0.artistID == artist.id }
             ))

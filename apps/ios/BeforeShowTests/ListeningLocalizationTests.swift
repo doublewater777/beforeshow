@@ -65,59 +65,71 @@ final class ListeningLocalizationTests: XCTestCase {
 @MainActor
 final class ListeningReviewerRegressionTests: XCTestCase {
     func testCurrentShowChangeClearsOldChromeAndLoadedDisc() async throws {
-        resetChromeGlobals()
-        defer { resetChromeGlobals() }
+        for hiddenPageFirst in [false, true] {
+            resetChromeGlobals()
+            defer { resetChromeGlobals() }
 
-        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
-        let context = container.mainContext
-        let now = Date()
-        let firstShow = try Show(name: "First", date: now, startTime: now)
-        let secondShow = try Show(name: "Second", date: now.addingTimeInterval(60), startTime: now.addingTimeInterval(60))
-        context.insert(firstShow)
-        context.insert(secondShow)
+            let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+            let context = container.mainContext
+            let now = Date()
+            let firstShow = try Show(name: "First", date: now, startTime: now)
+            let secondShow = try Show(name: "Second", date: now.addingTimeInterval(60), startTime: now.addingTimeInterval(60))
+            context.insert(firstShow)
+            context.insert(secondShow)
 
-        let song = CatalogSong(
-            appleMusicSongID: "review-song",
-            title: "Review Song",
-            artistName: "Artist",
-            duration: 180,
-            previewURL: "https://example.invalid/review.m4a"
-        )
-        let disc = ListeningDisc(
-            id: "review-disc",
-            title: "Review Disc",
-            artworkURL: nil,
-            tracks: [ListeningDiscTrack(song)]
-        )
-        context.insert(
-            ListeningLoadedDiscState(
-                discData: try JSONEncoder().encode(disc),
-                songID: song.appleMusicSongID
+            let song = CatalogSong(
+                appleMusicSongID: "review-song",
+                title: "Review Song",
+                artistName: "Artist",
+                duration: 180,
+                previewURL: "https://example.invalid/review.m4a"
             )
-        )
-        try context.save()
+            let disc = ListeningDisc(
+                id: "review-disc",
+                title: "Review Disc",
+                artworkURL: nil,
+                tracks: [ListeningDiscTrack(song)]
+            )
+            context.insert(
+                ListeningLoadedDiscState(
+                    discData: try JSONEncoder().encode(disc),
+                    songID: song.appleMusicSongID
+                )
+            )
+            try context.save()
 
-        let prepared = await ListeningChromeBootstrapper.prepare(
-            show: firstShow,
-            context: context,
-            catalogService: ListeningReviewerCatalogStub()
-        )
-        let firstRoom = try XCTUnwrap(prepared)
-        XCTAssertEqual(firstRoom.show?.id, firstShow.id)
-        XCTAssertTrue(ListeningRoomSessionStore.shared.chromeRoom.map { $0 === firstRoom } == true)
-        XCTAssertTrue(ListeningRoomSessionStore.shared.room.map { $0 === firstRoom } == true)
+            let prepared = await ListeningChromeBootstrapper.prepare(
+                show: firstShow,
+                context: context,
+                catalogService: ListeningReviewerCatalogStub()
+            )
+            let firstRoom = try XCTUnwrap(prepared)
+            XCTAssertEqual(firstRoom.show?.id, firstShow.id)
+            XCTAssertTrue(ListeningRoomSessionStore.shared.chromeRoom.map { $0 === firstRoom } == true)
+            XCTAssertTrue(ListeningRoomSessionStore.shared.room.map { $0 === firstRoom } == true)
 
-        let secondRoom = await ListeningChromeBootstrapper.prepare(
-            show: secondShow,
-            context: context,
-            catalogService: ListeningReviewerCatalogStub()
-        )
+            if hiddenPageFirst {
+                firstRoom.setActive(false)
+                ListeningChromeBootstrapper.prepareRoomForCurrentShow(firstRoom, show: secondShow)
+            }
 
-        XCTAssertNil(secondRoom, "A disc restored for the previous Current Show must not appear under the new Current Show")
-        XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
-        XCTAssertNil(ListeningRoomSessionStore.shared.room)
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
-        XCTAssertFalse(firstRoom.mechanism.hasDisc)
+            let secondRoom = await ListeningChromeBootstrapper.prepare(
+                show: secondShow,
+                context: context,
+                catalogService: ListeningReviewerCatalogStub()
+            )
+
+            XCTAssertNil(secondRoom, "A disc restored for the previous Current Show must not appear under the new Current Show")
+            XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
+            if hiddenPageFirst {
+                XCTAssertTrue(ListeningRoomSessionStore.shared.room === firstRoom)
+                XCTAssertEqual(firstRoom.show?.id, secondShow.id)
+            } else {
+                XCTAssertNil(ListeningRoomSessionStore.shared.room)
+            }
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+            XCTAssertFalse(firstRoom.mechanism.hasDisc)
+        }
     }
 
     private func resetChromeGlobals() {

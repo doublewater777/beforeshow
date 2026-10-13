@@ -21,6 +21,7 @@ final class ListeningRoomSessionStore {
 
     func adopt(_ room: ListeningRoomCoordinator?) {
         if room == nil {
+            self.room?.releaseShow()
             self.room = nil
             isChromePublished = false
             return
@@ -43,6 +44,7 @@ final class ListeningRoomSessionStore {
     func discardLocalState() {
         room?.discardLoadedDiscState()
         room?.stopHardwareMotion()
+        room?.releaseShow()
         room = nil
         isChromePublished = false
     }
@@ -54,11 +56,13 @@ final class ListeningRoomSessionStore {
             current?.stop()
         }
         current?.stopHardwareMotion()
+        current?.releaseShow()
         if let published, published !== current {
             if stoppingTransport {
                 published.stop()
             }
             published.stopHardwareMotion()
+            published.releaseShow()
         }
         room = nil
         isChromePublished = false

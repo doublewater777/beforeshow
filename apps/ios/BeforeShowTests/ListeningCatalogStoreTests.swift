@@ -5,6 +5,27 @@ import XCTest
 
 final class ListeningCatalogStoreTests: XCTestCase {
     @MainActor
+    func testConcurrentColdLoadsShareOneCompleteCatalogRefresh() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let now = Date()
+        let service = StubListeningMusicCatalogService(payload: Self.payload(fetchedAt: now), delayNanoseconds: 80_000_000)
+        let store = ListeningCatalogStore(modelContext: container.mainContext, service: service)
+        let first = Task { @MainActor in
+            try await store.loadArtistCatalog(artistID: "artist-1", now: now).orderedSongIDs
+        }
+        let second = Task { @MainActor in
+            try await store.loadArtistCatalog(artistID: "artist-1", now: now).orderedSongIDs
+        }
+
+        let firstIDs = try await first.value
+        let secondIDs = try await second.value
+        XCTAssertEqual(firstIDs, ["song-top", "song-album"])
+        XCTAssertEqual(secondIDs, firstIDs)
+        XCTAssertEqual(service.fetchCount, 1)
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 1)
+    }
+
+    @MainActor
     func testInitialLoadPersistsCompleteCatalogPayload() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext

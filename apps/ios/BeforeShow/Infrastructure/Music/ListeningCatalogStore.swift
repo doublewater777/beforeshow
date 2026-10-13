@@ -6,6 +6,9 @@ final class ListeningCatalogStore {
     private let modelContext: ModelContext
     private let service: any ListeningMusicCatalogServicing
     private let persistenceBoundary: ListeningCatalogPersistenceBoundary
+    private(set) var revision = 0
+    private var refreshTasks: [String: Task<Void, Error>] = [:]
+    private var snapshotReadContext: ModelContext?
     private var revalidationTasks: [String: Task<Void, Never>] = [:]
 
     init(
@@ -18,8 +21,11 @@ final class ListeningCatalogStore {
     }
 
     func cachedSnapshot(artistID: String) throws -> ArtistCatalogSnapshot? {
-        try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
-            .first(where: { $0.artistID == artistID })
+        let reader = ModelContext(modelContext.container)
+        snapshotReadContext = reader
+        return try reader.fetch(FetchDescriptor<ArtistCatalogSnapshot>(
+            predicate: #Predicate { $0.artistID == artistID }
+        )).first
     }
 
     /// Returns a last-good complete snapshot immediately when one exists. A stale
@@ -42,33 +48,26 @@ final class ListeningCatalogStore {
         artistID: String,
         now: Date = Date()
     ) async throws -> ArtistCatalogSnapshot {
-        // MusicKit builds the complete in-memory payload before this persistence
-        // transaction begins. A failed/partial network refresh therefore never
-        // replaces the last-good ArtistCatalogSnapshot denominator.
-        let payload = try await service.fetchArtistCatalog(
-            artistID: artistID,
-            fetchedAt: now
-        )
-        return try persistArtistCatalog(payload)
-    }
-
-    /// Synchronous compatibility seam for single-payload callers and focused store
-    /// tests. It uses the same indexed writer as the background batch path, so it is
-    /// linear rather than performing one full-table fetch per song or album.
-    @discardableResult
-    func persistArtistCatalog(
-        _ payload: ListeningArtistCatalogPayload
-    ) throws -> ArtistCatalogSnapshot {
-        do {
-            _ = try ListeningCatalogBatchWriter.persistCore([payload], in: modelContext)
-            guard let snapshot = try cachedSnapshot(artistID: payload.artistID) else {
-                throw ListeningCatalogError.incompleteCatalog(payload.artistID)
+        if let task = refreshTasks[artistID] {
+            try await task.value
+            guard let snapshot = try cachedSnapshot(artistID: artistID) else {
+                throw ListeningCatalogError.incompleteCatalog(artistID)
             }
             return snapshot
-        } catch {
-            modelContext.rollback()
-            throw error
         }
+        let task = Task { @MainActor in
+            // Only complete payloads replace the last-good catalog. Both cold
+            // loads and revalidation share the same off-main persistence path.
+            let payload = try await service.fetchArtistCatalog(artistID: artistID, fetchedAt: now)
+            _ = try await persistArtistCatalogBatch([payload])
+        }
+        refreshTasks[artistID] = task
+        defer { refreshTasks[artistID] = nil }
+        try await task.value
+        guard let snapshot = try cachedSnapshot(artistID: artistID) else {
+            throw ListeningCatalogError.incompleteCatalog(artistID)
+        }
+        return snapshot
     }
 
     /// Production core-catalog persistence boundary. All successful artist payloads
@@ -79,6 +78,7 @@ final class ListeningCatalogStore {
     ) async throws -> Set<String> {
         guard !payloads.isEmpty else { return [] }
         let persistedArtistIDs = try await persistenceBoundary.persistCore(payloads)
+        revision += 1
 
         return persistedArtistIDs
     }
@@ -89,7 +89,9 @@ final class ListeningCatalogStore {
     func persistFeaturedPlaylists(
         _ payload: ListeningFeaturedPlaylistsPayload
     ) async throws -> Bool {
-        try await persistenceBoundary.persistFeaturedPlaylists(payload)
+        let persisted = try await persistenceBoundary.persistFeaturedPlaylists(payload)
+        if persisted { revision += 1 }
+        return persisted
     }
 
     private func scheduleRevalidation(artistID: String, now: Date) {
@@ -159,9 +161,15 @@ private enum ListeningCatalogBatchWriter {
     ) throws -> Set<String> {
         guard !payloads.isEmpty else { return [] }
 
-        let existingSongs = try modelContext.fetch(FetchDescriptor<CatalogSong>())
-        let existingAlbums = try modelContext.fetch(FetchDescriptor<CatalogAlbum>())
-        let existingSnapshots = try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+        let songIDs = Array(Set(payloads.flatMap { $0.songs.map(\.songID) }))
+        let albumIDs = Array(Set(payloads.flatMap { $0.albums.map(\.albumID) }))
+        let artistIDs = payloads.map(\.artistID)
+        let existingSongs = try modelContext.fetch(FetchDescriptor<CatalogSong>(
+            predicate: #Predicate { songIDs.contains($0.appleMusicSongID) }))
+        let existingAlbums = try modelContext.fetch(FetchDescriptor<CatalogAlbum>(
+            predicate: #Predicate { albumIDs.contains($0.appleMusicAlbumID) }))
+        let existingSnapshots = try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>(
+            predicate: #Predicate { artistIDs.contains($0.artistID) }))
 
         var songsByID = Dictionary(
             existingSongs.map { ($0.appleMusicSongID, $0) },
@@ -314,12 +322,16 @@ private enum ListeningCatalogBatchWriter {
         _ payload: ListeningFeaturedPlaylistsPayload,
         in modelContext: ModelContext
     ) throws -> Bool {
-        let existingSnapshots = try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
-        guard let snapshot = existingSnapshots.first(where: { $0.artistID == payload.artistID }) else {
+        let artistID = payload.artistID
+        let existingSnapshots = try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>(
+            predicate: #Predicate { $0.artistID == artistID }))
+        guard let snapshot = existingSnapshots.first else {
             return false
         }
 
-        let existingSongs = try modelContext.fetch(FetchDescriptor<CatalogSong>())
+        let songIDs = payload.songs.map(\.songID)
+        let existingSongs = try modelContext.fetch(FetchDescriptor<CatalogSong>(
+            predicate: #Predicate { songIDs.contains($0.appleMusicSongID) }))
         var songsByID = Dictionary(
             existingSongs.map { ($0.appleMusicSongID, $0) },
             uniquingKeysWith: { first, _ in first }

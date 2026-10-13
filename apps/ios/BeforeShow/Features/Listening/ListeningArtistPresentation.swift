@@ -14,25 +14,9 @@ struct ListeningArtistPresentation: Identifiable {
 
 @MainActor extension ListeningRoomCoordinator {
     func artistPresentation(_ id: String) -> ListeningArtistPresentation? {
-        guard let snapshot = catalogSnapshots.first(where: { $0.artistID == id }) else { return nil }
-        let byID = Dictionary(catalogSongs.map { ($0.appleMusicSongID, $0) }, uniquingKeysWith: { a, _ in a })
-        func tracks(_ ids: [String]) -> [ListeningDiscTrack] { ids.compactMap { byID[$0].map(ListeningDiscTrack.init) } }
-        let albumsByID = Dictionary(catalogAlbums.map { ($0.appleMusicAlbumID, $0) }, uniquingKeysWith: { a, _ in a })
-        let featuredPlaylists = ListeningDiscAssembler.discs(
-            featuredPlaylists: snapshot.featuredPlaylists,
-            artistID: id,
-            songsByID: byID
-        )
-        let releases = ListeningDiscAssembler.discs(
-            albums: snapshot.albumIDs.compactMap { albumsByID[$0] },
-            songsByID: byID
-        )
-        return ListeningArtistPresentation(id: id, name: snapshot.artistName,
-            artworkURL: snapshot.artworkURL.flatMap(URL.init(string:)), editorialText: snapshot.editorialText,
-            genres: snapshot.genreNames,
-            top: tracks(snapshot.topSongIDs), all: tracks(snapshot.orderedSongIDs),
-            albums: featuredPlaylists + releases)
+        artistPresentations[id]
     }
+
     var currentArtistID: String? {
         guard let track else { return nil }
         return show?.artists.compactMap(\.appleMusicArtistID).first { id in

@@ -1,16 +1,12 @@
 import SwiftUI
 import SwiftData
+import os
 #if canImport(UIKit)
 import UIKit
 #endif
 
-private struct ListeningFullCatalogFetch: Sendable {
-    let artistID: String
-    let payload: ListeningArtistCatalogPayload?
-    let failed: Bool
-}
-
 private let listeningCatalogFetchConcurrency = 4
+private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.beforeshow", category: .pointsOfInterest)
 
 @MainActor @Observable final class ListeningRoomCoordinator {
     enum CatalogState { case loading, ready, unmatched, cacheFailed, unavailable }
@@ -96,7 +92,17 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
-    @ObservationIgnored private var catalogProjectionContext: ModelContext?
+    @ObservationIgnored private let catalogProjection: ListeningCatalogProjection
+    @ObservationIgnored private var projectedShowInputs: ListeningShowInputs?
+    @ObservationIgnored private var runtimeRevision = 0
+    @ObservationIgnored private var projectedRuntimeRevision = -1
+    @ObservationIgnored private var runtimeFetchedAt: [String: Date] = [:]
+    @ObservationIgnored private var matchedArtistInputs: [Int: ListeningShowInputs.ArtistIdentity] = [:]
+    @ObservationIgnored private var pendingArtistMatching = false
+    @ObservationIgnored private var inputRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var browseGeneration = UUID()
+    @ObservationIgnored private var featuredGeneration = UUID()
+    private(set) var artistPresentations: [String: ListeningArtistPresentation] = [:]
     @ObservationIgnored private var featuredPlaylistTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var loadedFeaturedPlaylistArtistIDs: Set<String> = []
     @ObservationIgnored private var artistCatalogTasks: [String: Task<Void, Never>] = [:]
@@ -118,7 +124,9 @@ private let listeningCatalogFetchConcurrency = 4
         self.context = context; self.catalogService = catalogService
         self.artistSearchService = artistSearchService
         self.evidenceCoordinatorFactory = evidenceCoordinatorFactory
-        catalogStore = ListeningCatalogStore(modelContext: context, service: catalogService)
+        let store = ListeningCatalogStore(modelContext: context, service: catalogService)
+        catalogStore = store
+        catalogProjection = ListeningCatalogProjection(context: context, catalogStore: store)
         deck = ListeningDeck(makeEngine: playbackFactory)
         deck.evidenceProvider = { [weak self] in try? self?.playbackEvidenceCoordinatorForUse() }
         deck.onCursorChange = { [weak self] _ in self?.deckCursorDidChange() }
@@ -367,14 +375,116 @@ private let listeningCatalogFetchConcurrency = 4
         case .unavailable: BSLocalization.text("暂不可播放")
         }
     }
+    private var currentCatalogArtistIDs: [String] {
+        guard let show else { return [] }
+        let timetableIDs = (show.timetable?.days ?? []).flatMap(\.performances).compactMap(\.appleMusicArtistID)
+        return Array(Set(show.artists.compactMap(\.appleMusicArtistID) + timetableIDs))
+    }
+
+    private func pruneRuntimeCatalog() {
+        let valid = Set(currentCatalogArtistIDs)
+        runtimeSongs = runtimeSongs.filter { valid.contains($0.key) }
+        runtimeFetchedAt = runtimeFetchedAt.filter { valid.contains($0.key) }
+        runtimeRevision += 1
+    }
+
+    /// External edits update the local room without restarting an in-flight matcher.
+    func refreshShowInputs(_ show: Show) {
+        guard self.show?.id == show.id else { return }
+        let key = catalogKey(for: show)
+        let identityChanged = key != showCatalogKey
+        if identityChanged {
+            cancelFeaturedPlaylistTasks(clearLoaded: true)
+            pruneRuntimeCatalog()
+            showCatalogKey = key
+            completedCatalogKey = nil
+        }
+        for (index, slot) in show.artists.enumerated() where slot.appleMusicArtistID != nil {
+            matchedArtistInputs[index] = .init(slot)
+        }
+        pendingArtistMatching = unmatchedArtistInputsChanged(for: show)
+        try? rebuildDiscs()
+        guard active, !isLoadingShow, !isCatalogEnriching, shouldReloadCatalog(for: show) else { return }
+        if pendingArtistMatching {
+            schedulePendingArtistMatching()
+        } else {
+            inputRefreshTask?.cancel()
+            inputRefreshTask = Task { [weak self] in await self?.reloadCatalog() }
+        }
+    }
+
+    private func unmatchedArtistInputsChanged(for show: Show) -> Bool {
+        show.artists.enumerated().contains { index, slot in
+            slot.appleMusicArtistID == nil && matchedArtistInputs[index] != .init(slot)
+        }
+    }
+
+    private func schedulePendingArtistMatching() {
+        guard active, !isLoadingShow, !isCatalogEnriching, pendingArtistMatching else { return }
+        pendingArtistMatching = false
+        inputRefreshTask?.cancel()
+        inputRefreshTask = Task { [weak self] in
+            guard let self, !Task.isCancelled, self.active,
+                  !self.isLoadingShow, !self.isCatalogEnriching, let show = self.show else { return }
+            await self.load(show: show)
+        }
+    }
+
     func catalogKey(for show: Show) -> String {
-        show.id.uuidString + show.artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
+        let identity = show.artists.map { [$0.name, $0.appleMusicArtistID ?? "", $0.appleMusicURL ?? ""] }
+        let wanted = Self.wantedArtistIDs(for: show).sorted()
+        return show.id.uuidString + String(data: (try? JSONEncoder().encode(identity + [wanted])) ?? Data(), encoding: .utf8)!
     }
     func shouldReloadCatalog(for show: Show) -> Bool {
         let key = catalogKey(for: show)
         if self.show?.id != show.id || showCatalogKey != key { return true }
         if isLoadingShow || isCatalogEnriching { return false }
-        return completedCatalogKey != key
+        if completedCatalogKey != key || pendingArtistMatching || unmatchedArtistInputsChanged(for: show) { return true }
+        let ids = show.artists.compactMap(\.appleMusicArtistID) + Self.wantedArtistIDs(for: show)
+        return ids.contains { id in
+            let fetchedAt = runtimeFetchedAt[id] ?? catalogSnapshots.first { $0.artistID == id }?.fetchedAt
+            return fetchedAt.map { ListeningCatalogRefreshPolicy.shouldRefresh(fetchedAt: $0, now: Date()) } ?? true
+        }
+    }
+
+    private func resetShowCatalog() {
+        inputRefreshTask?.cancel()
+        inputRefreshTask = nil
+        pendingArtistMatching = false
+        matchedArtistInputs = [:]
+        // Retire the previous load even when the next room is only prewarmed.
+        catalogGeneration = UUID()
+        isLoadingShow = false
+        isCatalogEnriching = false
+        catalogProjection.clear()
+        catalogSongs = []; catalogAlbums = []; catalogSnapshots = []; artistPresentations = [:]
+        compilationDiscs = []; browseArtists = []; openingTiers = []
+        wantedSongIDs = []; familiarSongIDs = []; actualSongIDs = []; excludedArtistIDs = []
+        pendingCabinetSwap = nil
+        pendingCabinetSwapDrop = 0
+        projectedShowInputs = nil
+        // Visible failures belong to the room the user just left. Retry work,
+        // including playback-evidence persistence, continues independently.
+        errorText = nil
+        playbackError = nil
+        cancelFeaturedPlaylistTasks(clearLoaded: true)
+        initialLoaded = false
+        browser = ListeningBrowseState()
+        recentListening = nil
+        showCatalogKey = nil
+        completedCatalogKey = nil
+        discs = []; runtimeSongs = [:]; runtimeFetchedAt = [:]
+        runtimeRevision += 1
+    }
+
+    /// Detaches a retired room so late catalog results cannot restore its show.
+    func releaseShow() {
+        setActive(false)
+        resetShowCatalog()
+        musicAccessRequestGeneration = UUID()
+        widgetCoverTask?.cancel()
+        widgetCoverTask = nil
+        show = nil
     }
 
     /// Prepare the fixed room and persisted records without requesting music access
@@ -382,19 +492,12 @@ private let listeningCatalogFetchConcurrency = 4
     func prepareForDisplay(show: Show) {
         let newKey = catalogKey(for: show)
         if self.show?.id != show.id {
-            // Visible failures belong to the room the user just left. Retry work,
-            // including playback-evidence persistence, continues independently.
-            errorText = nil
-            playbackError = nil
-            cancelFeaturedPlaylistTasks(clearLoaded: true)
-            initialLoaded = false
-            browser = ListeningBrowseState()
-            recentListening = nil
-        }
-        if showCatalogKey != newKey {
+            resetShowCatalog()
+        } else if showCatalogKey != newKey {
             cancelFeaturedPlaylistTasks(clearLoaded: true)
             completedCatalogKey = nil
-            discs = []; runtimeSongs = [:]
+            discs = []; runtimeSongs = [:]; runtimeFetchedAt = [:]
+            runtimeRevision += 1
         }
         showCatalogKey = newKey
         self.show = show
@@ -417,6 +520,9 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     func load(show: Show, force: Bool = false) async {
+        prepareForDisplay(show: show)
+        pendingArtistMatching = false
+        matchedArtistInputs = Dictionary(uniqueKeysWithValues: show.artists.enumerated().map { ($0.offset, ListeningShowInputs.ArtistIdentity($0.element)) })
         let generation = UUID()
         catalogGeneration = generation
         isLoadingShow = true
@@ -430,10 +536,10 @@ private let listeningCatalogFetchConcurrency = 4
                     scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
                 }
                 flushPendingArtistCatalogs()
+                schedulePendingArtistMatching()
             }
         }
 
-        prepareForDisplay(show: show)
         syncWidgetListeningState()
 
         // Subscription lookup and artist identity lookup are independent. Publish
@@ -517,20 +623,24 @@ private let listeningCatalogFetchConcurrency = 4
         do {
             var artists = show.artists
             var changed = false
+            var matchedIndices: [Int] = []
             for (index, candidate) in matches {
                 guard artists.indices.contains(index), slots.indices.contains(index),
                       artists[index].name == slots[index].name,
+                      artists[index].appleMusicURL == slots[index].appleMusicURL,
                       artists[index].appleMusicArtistID == nil else { continue }
                 artists[index].appleMusicArtistID = candidate.id
                 artists[index].appleMusicURL = candidate.appleMusicURL?.absoluteString
                 if artists[index].avatarURL == nil { artists[index].avatarURL = candidate.avatarURL?.absoluteString }
                 changed = true
+                matchedIndices.append(index)
             }
             guard changed else { return }
             show.artists = artists
             show.updatedAt = Date()
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
             try context.save()
+            for index in matchedIndices { matchedArtistInputs[index] = .init(artists[index]) }
             showCatalogKey = catalogKey(for: show)
             try rebuildDiscs()
         } catch {
@@ -547,10 +657,11 @@ private let listeningCatalogFetchConcurrency = 4
         catalogGeneration = generation
         catalogState = .loading
         defer {
-            if generation == catalogGeneration,
-               startingScope != browser.scope,
-               case let .artist(artistID) = browser.scope {
-                scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+            if generation == catalogGeneration {
+                if startingScope != browser.scope, case let .artist(artistID) = browser.scope {
+                    scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+                }
+                schedulePendingArtistMatching()
             }
         }
         if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
@@ -572,6 +683,7 @@ private let listeningCatalogFetchConcurrency = 4
             guard generation == catalogGeneration, !Task.isCancelled else { return nil }
 
             let latestKey = catalogKey(for: show)
+            pendingArtistMatching = unmatchedArtistInputsChanged(for: show)
             showCatalogKey = latestKey
             guard latestKey != startedKey else { return startedKey }
 
@@ -613,7 +725,8 @@ private let listeningCatalogFetchConcurrency = 4
         )
         let now = Date()
         let quickIDs = ids.filter { artistID in
-            guard force || runtimeSongs[artistID] == nil else { return false }
+            if !force, let fetchedAt = runtimeFetchedAt[artistID],
+               !ListeningCatalogRefreshPolicy.shouldRefresh(fetchedAt: fetchedAt, now: now) { return false }
             guard let snapshot = snapshotsByID[artistID] else { return true }
             return force || ListeningCatalogRefreshPolicy.shouldRefresh(
                 fetchedAt: snapshot.fetchedAt,
@@ -630,6 +743,9 @@ private let listeningCatalogFetchConcurrency = 4
             if result.failed {
                 failedIDs.insert(result.artistID)
             } else {
+                guard self.currentCatalogArtistIDs.contains(result.artistID) else { return }
+                self.runtimeFetchedAt[result.artistID] = Date()
+                self.runtimeRevision += 1
                 self.runtimeSongs[result.artistID] = result.songs.map {
                     CatalogSong(
                         appleMusicSongID: $0.songID,
@@ -676,33 +792,19 @@ private let listeningCatalogFetchConcurrency = 4
         } else {
             fullIDs = []
         }
-        if !fullIDs.isEmpty {
-            _ = await fetchFullCatalog(for: fullIDs) { [weak self] batchValues in
-                guard let self, generation == self.catalogGeneration, !Task.isCancelled else { return }
-                var batchPayloads: [ListeningArtistCatalogPayload] = []
-                for result in batchValues {
-                    if let payload = result.payload, !result.failed {
-                        batchPayloads.append(payload)
-                    } else {
-                        failedIDs.insert(result.artistID)
-                    }
-                }
-                if !batchPayloads.isEmpty {
-                    do {
-                        let persistedIDs = try await self.catalogStore.persistArtistCatalogBatch(batchPayloads)
-                        failedIDs.subtract(persistedIDs)
-                        for artistID in persistedIDs {
-                            self.runtimeSongs.removeValue(forKey: artistID)
-                        }
-                    } catch {
-                        failedIDs.formUnion(batchPayloads.map(\.artistID))
-                    }
-                    guard generation == self.catalogGeneration, !Task.isCancelled else { return }
-                    try? self.rebuildDiscs()
-                    if !self.discs.isEmpty { self.catalogState = .ready }
-                }
+        for artistID in fullIDs {
+            do {
+                _ = try await catalogStore.refreshArtistCatalog(artistID: artistID, now: now)
+                guard generation == catalogGeneration, !Task.isCancelled else { return }
+                runtimeSongs.removeValue(forKey: artistID)
+                runtimeFetchedAt.removeValue(forKey: artistID)
+                runtimeRevision += 1
+                failedIDs.remove(artistID)
+                try rebuildDiscs()
+            } catch {
+                guard generation == catalogGeneration, !Task.isCancelled else { return }
+                failedIDs.insert(artistID)
             }
-            guard generation == catalogGeneration, !Task.isCancelled else { return }
         }
 
         do {
@@ -714,47 +816,6 @@ private let listeningCatalogFetchConcurrency = 4
         } catch {
             catalogState = .cacheFailed
         }
-    }
-
-    private func fetchFullCatalog(
-        for artistIDs: [String],
-        onBatchPersisted: (([ListeningFullCatalogFetch]) async -> Void)? = nil
-    ) async -> [ListeningFullCatalogFetch] {
-        let service = catalogService
-        let fetchedAt = Date()
-        var results: [ListeningFullCatalogFetch] = []
-        var cursor = 0
-        while cursor < artistIDs.count, !Task.isCancelled {
-            let end = min(cursor + listeningCatalogFetchConcurrency, artistIDs.count)
-            let batch = Array(artistIDs[cursor..<end])
-            let values = await withTaskGroup(
-                of: ListeningFullCatalogFetch.self,
-                returning: [ListeningFullCatalogFetch].self
-            ) { group in
-                for artistID in batch {
-                    group.addTask {
-                        do {
-                            let payload = try await service.fetchArtistCatalog(
-                                artistID: artistID,
-                                fetchedAt: fetchedAt
-                            )
-                            return ListeningFullCatalogFetch(artistID: artistID, payload: payload, failed: false)
-                        } catch {
-                            return ListeningFullCatalogFetch(artistID: artistID, payload: nil, failed: true)
-                        }
-                    }
-                }
-                var batchResults: [ListeningFullCatalogFetch] = []
-                for await value in group { batchResults.append(value) }
-                return batchResults
-            }
-            results.append(contentsOf: values)
-            if let onBatchPersisted {
-                await onBatchPersisted(values)
-            }
-            cursor = end
-        }
-        return results
     }
 
     private func beginMusicAccessRequest() -> UUID {
@@ -895,43 +956,42 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private func rebuildDiscs() throws {
+        let interval = OSSignpostID(log: listeningPerformanceLog)
+        os_signpost(.begin, log: listeningPerformanceLog, name: "ListeningRebuild", signpostID: interval)
+        defer { os_signpost(.end, log: listeningPerformanceLog, name: "ListeningRebuild", signpostID: interval) }
         guard let show else { return }
-        excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>())
-            .filter { $0.showID == show.id && $0.isExcluded }.map(\.artistID))
+        let showID = show.id
+        excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>(
+            predicate: #Predicate { $0.showID == showID && $0.isExcluded })).map(\.artistID))
 
-        // A fresh read context observes background actor saves immediately without
-        // passing managed objects across actor boundaries.
-        let projectionContext = ModelContext(context.container)
-        catalogProjectionContext = projectionContext
-        catalogSongs = try projectionContext.fetch(FetchDescriptor<CatalogSong>())
+        openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>(predicate: #Predicate { $0.showID == showID }))
+        let catalogChanged = try catalogProjection.refresh(artistIDs: currentCatalogArtistIDs)
+        let inputs = ListeningShowInputs(show)
+        guard catalogChanged || inputs != projectedShowInputs || runtimeRevision != projectedRuntimeRevision else {
+            try refreshEvidence()
+            recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>(predicate: #Predicate { $0.showID == showID })).first
+            return
+        }
+        catalogSongs = catalogProjection.songs
         let cachedIDs = Set(catalogSongs.map(\.appleMusicSongID))
         catalogSongs += runtimeSongs.values.flatMap { $0 }.filter { !cachedIDs.contains($0.appleMusicSongID) }
-        catalogAlbums = try projectionContext.fetch(FetchDescriptor<CatalogAlbum>())
-        openingTiers = try projectionContext.fetch(FetchDescriptor<ShowOpeningArtistTier>()).filter { $0.showID == show.id }
-        catalogSnapshots = try projectionContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+        catalogAlbums = catalogProjection.albums
+        catalogSnapshots = catalogProjection.snapshots
+        artistPresentations = catalogProjection.artists
         loadedFeaturedPlaylistArtistIDs.formUnion(
             catalogSnapshots.filter { !$0.featuredPlaylists.isEmpty }.map(\.artistID)
         )
 
-        let songsByID = Dictionary(catalogSongs.map { ($0.appleMusicSongID, $0) }, uniquingKeysWith: { a, _ in a })
-        let albumsByID = Dictionary(catalogAlbums.map { ($0.appleMusicAlbumID, $0) }, uniquingKeysWith: { a, _ in a })
         let mappedArtists: [ListeningBrowseArtist] = show.artists.enumerated().map { index, slot in
             if let id = slot.appleMusicArtistID {
-                let snapshot = catalogSnapshots.first { $0.artistID == id }
-                let albums = (snapshot?.albumIDs ?? []).compactMap { albumsByID[$0] }
-                let featuredPlaylists = ListeningDiscAssembler.discs(
-                    featuredPlaylists: snapshot?.featuredPlaylists ?? [],
-                    artistID: id,
-                    songsByID: songsByID
-                )
-                let releases = ListeningDiscAssembler.discs(albums: albums, songsByID: songsByID)
+                let artist = artistPresentations[id]
                 return ListeningBrowseArtist(
                     slotIndex: index,
                     id: id,
                     name: slot.name,
-                    artworkURL: (slot.avatarURL ?? snapshot?.artworkURL).flatMap(URL.init(string:)),
+                    artworkURL: slot.avatarURL.flatMap(URL.init(string:)) ?? artist?.artworkURL,
                     appleMusicArtistID: id,
-                    albums: featuredPlaylists + releases
+                    albums: artist?.albums ?? []
                 )
             } else {
                 return ListeningBrowseArtist(
@@ -947,15 +1007,17 @@ private let listeningCatalogFetchConcurrency = 4
         let connected = mappedArtists.filter(\.isConnected)
         let unconnected = mappedArtists.filter { !$0.isConnected }
         browseArtists = connected + unconnected
-        let releaseDates = songsByID.compactMapValues { song in song.albumID.flatMap { albumsByID[$0]?.releaseDate } }
         func topTracks(_ id: String) -> [ListeningDiscTrack] {
             if let runtime = runtimeSongs[id], !runtime.isEmpty {
                 return runtime.map(ListeningDiscTrack.init)
             }
-            if let snapshot = catalogSnapshots.first(where: { $0.artistID == id }) {
-                return snapshot.topSongIDs.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
+            return artistPresentations[id]?.top ?? []
+        }
+        var releaseDates = catalogProjection.releaseDates
+        for song in runtimeSongs.values.joined() {
+            if let albumID = song.albumID, let date = catalogProjection.albumReleaseDates[albumID] {
+                releaseDates[song.appleMusicSongID] = date
             }
-            return []
         }
         compilationDiscs = ListeningCompilationAssembler.discs(
             showID: show.id,
@@ -968,11 +1030,14 @@ private let listeningCatalogFetchConcurrency = 4
         let validArtistIDs = Set(browseArtists.map(\.id))
         browser.reconcile(validArtistIDs: validArtistIDs)
         try refreshEvidence()
-        recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>()).first { $0.showID == show.id }
+        recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>(predicate: #Predicate { $0.showID == showID })).first
+        projectedShowInputs = inputs
+        projectedRuntimeRevision = runtimeRevision
     }
     private func refreshEvidence() throws {
         guard let show else { return }
-        wantedSongIDs = Set(try context.fetch(FetchDescriptor<ShowWantsLiveSong>()).filter { $0.showID == show.id }.map(\.songID))
+        let showID = show.id
+        wantedSongIDs = Set(try context.fetch(FetchDescriptor<ShowWantsLiveSong>(predicate: #Predicate { $0.showID == showID })).map(\.songID))
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
         familiarSongIDs = FamiliarityEvidenceResolver.familiarSongIDs(
             records: records,
@@ -1045,25 +1110,29 @@ private let listeningCatalogFetchConcurrency = 4
             loadFeaturedPlaylistsIfNeeded(for: artistID)
             return
         }
-        if snapshot == nil { artistCatalogStatus[artistID] = .loading }
+        let hadSnapshot = snapshot != nil
+        if !hadSnapshot { artistCatalogStatus[artistID] = .loading }
         let showID = show?.id
+        let generation = browseGeneration
         artistCatalogTasks[artistID] = Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { self.artistCatalogTasks[artistID] = nil }
-            let result = await self.fetchFullCatalog(for: [artistID]).first
-            guard !Task.isCancelled, showID == self.show?.id else { return }
+            defer {
+                if generation == self.browseGeneration { self.artistCatalogTasks[artistID] = nil }
+            }
             do {
-                guard let payload = result?.payload, result?.failed == false,
-                      try await self.catalogStore.persistArtistCatalogBatch([payload]).contains(artistID) else {
-                    throw CancellationError()
-                }
-                guard !Task.isCancelled, showID == self.show?.id else { return }
+                _ = try await self.catalogStore.refreshArtistCatalog(artistID: artistID)
+                guard !Task.isCancelled, generation == self.browseGeneration, showID == self.show?.id,
+                      self.currentCatalogArtistIDs.contains(artistID) else { return }
                 self.runtimeSongs.removeValue(forKey: artistID)
+                self.runtimeFetchedAt.removeValue(forKey: artistID)
+                self.runtimeRevision += 1
                 try self.rebuildDiscs()
                 self.artistCatalogStatus[artistID] = nil
                 self.loadFeaturedPlaylistsIfNeeded(for: artistID)
             } catch {
-                if snapshot == nil { self.artistCatalogStatus[artistID] = .failed }
+                guard !Task.isCancelled, generation == self.browseGeneration,
+                      self.currentCatalogArtistIDs.contains(artistID) else { return }
+                if !hadSnapshot { self.artistCatalogStatus[artistID] = .failed }
             }
         }
     }
@@ -1090,12 +1159,14 @@ private let listeningCatalogFetchConcurrency = 4
               featuredPlaylistTasks[artistID] == nil,
               catalogSnapshots.contains(where: { $0.artistID == artistID }) else { return }
 
-        let generation = catalogGeneration
+        let generation = featuredGeneration
         let showID = show?.id
         let service = catalogService
         let store = catalogStore
         featuredPlaylistTasks[artistID] = Task { @MainActor [weak self] in
-            defer { self?.featuredPlaylistTasks[artistID] = nil }
+            defer {
+                if generation == self?.featuredGeneration { self?.featuredPlaylistTasks[artistID] = nil }
+            }
             do {
                 let payload = try await service.fetchFeaturedPlaylists(
                     artistID: artistID,
@@ -1103,12 +1174,14 @@ private let listeningCatalogFetchConcurrency = 4
                 )
                 guard let self,
                       !Task.isCancelled,
-                      generation == self.catalogGeneration,
+                      generation == self.featuredGeneration,
+                      self.currentCatalogArtistIDs.contains(artistID),
                       showID == self.show?.id else { return }
 
                 let persisted = try await store.persistFeaturedPlaylists(payload)
                 guard !Task.isCancelled,
-                      generation == self.catalogGeneration,
+                      generation == self.featuredGeneration,
+                      self.currentCatalogArtistIDs.contains(artistID),
                       showID == self.show?.id else { return }
                 guard persisted else { return }
 
@@ -1123,9 +1196,11 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
     private func cancelFeaturedPlaylistTasks(clearLoaded: Bool = false) {
+        featuredGeneration = UUID()
         for task in featuredPlaylistTasks.values { task.cancel() }
         featuredPlaylistTasks.removeAll()
         if clearLoaded {
+            browseGeneration = UUID()
             loadedFeaturedPlaylistArtistIDs.removeAll()
             for task in artistCatalogTasks.values { task.cancel() }
             artistCatalogTasks.removeAll()
@@ -1181,6 +1256,9 @@ private let listeningCatalogFetchConcurrency = 4
         // Artist confirmation is a local identity mutation. Publish it immediately
         // without rebuilding the room or touching the playback transport; catalog
         // enrichment happens independently after the confirmation can dismiss.
+        matchedArtistInputs[slotIndex] = .init(show.artists[slotIndex])
+        cancelFeaturedPlaylistTasks(clearLoaded: true)
+        pruneRuntimeCatalog()
         showCatalogKey = catalogKey(for: show)
         completedCatalogKey = nil
         do {
@@ -1469,18 +1547,14 @@ private let listeningCatalogFetchConcurrency = 4
         updateMotion()
     }
     func setActive(_ value: Bool) {
+        let interval = OSSignpostID(log: listeningPerformanceLog)
+        if value { os_signpost(.begin, log: listeningPerformanceLog, name: "ListeningActivate", signpostID: interval) }
+        defer {
+            if value { os_signpost(.end, log: listeningPerformanceLog, name: "ListeningActivate", signpostID: interval) }
+        }
         active = value
         if value {
-            // Compilations are derived locally from the show and its timetable, so
-            // rebuilding on entry picks up timetable edits without any network work.
-            if let show, !isLoadingShow {
-                try? rebuildDiscs()
-                // Newly marked 想看 artists outside the lineup still need their top songs.
-                let missing = Self.wantedArtistIDs(for: show).contains { id in
-                    runtimeSongs[id] == nil && !catalogSnapshots.contains { $0.artistID == id }
-                }
-                if missing, !isCatalogEnriching { Task { await reloadCatalog() } }
-            }
+            if let show { refreshShowInputs(show) }
             if case let .artist(artistID) = browser.scope {
                 scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
             }

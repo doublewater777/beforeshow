@@ -93,15 +93,17 @@ struct ListenRootView: View {
                 }
                 await activateRoomIfNeeded()
             } else {
-                if room == nil, let show {
+                if let show {
                     createRoomIfNeeded(for: show)
                     room?.setActive(false)
-                    if room?.show?.id != show.id {
-                        room?.prepareForDisplay(show: show)
-                    }
+                    if let room { ListeningChromeBootstrapper.prepareRoomForCurrentShow(room, show: show) }
                 }
+                if show == nil { room?.releaseShow() }
                 room?.setActive(false)
             }
+        }
+        .onChange(of: show.map(ListeningShowInputs.init)) { _, _ in
+            if let show { room?.refreshShowInputs(show) }
         }
         .onDisappear {
             // Normal tab switches are handled by the deferred activity task above.
@@ -116,11 +118,13 @@ struct ListenRootView: View {
         guard let show else {
             room?.stop()
             room?.stopHardwareMotion()
+            room?.releaseShow()
             room = nil
             ListeningRoomSessionStore.shared.adopt(nil)
             return
         }
         createRoomIfNeeded(for: show)
+        if let room { ListeningChromeBootstrapper.prepareRoomForCurrentShow(room, show: show) }
         room?.setActive(true)
         if catalogService.currentAuthorizationStatus() == .notDetermined {
             await room?.authorize()

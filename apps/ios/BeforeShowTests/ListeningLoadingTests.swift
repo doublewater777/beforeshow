@@ -96,12 +96,12 @@ final class ListeningLoadingTests: XCTestCase {
         let context = container.mainContext
         let start = Date().addingTimeInterval(20_000)
         let show = try Show(name: "Cached Festival", date: start, startTime: start)
-        show.artists = (0..<2).map {
+        show.artists = (0..<3).map {
             ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
         }
         context.insert(show)
 
-        for artistIndex in 0..<2 {
+        for artistIndex in 0..<3 {
             let oldID = "old-\(artistIndex)"
             context.insert(CatalogSong(
                 appleMusicSongID: oldID,
@@ -114,9 +114,13 @@ final class ListeningLoadingTests: XCTestCase {
                 artistName: "artist-\(artistIndex)",
                 orderedSongIDs: [oldID],
                 topSongIDs: [oldID],
-                albumIDs: [],
+                albumIDs: ["artist-\(artistIndex)-album-0", "artist-\(artistIndex)-album-1"],
                 fetchedAt: Date()
             ))
+            for albumIndex in 0..<2 {
+                context.insert(CatalogAlbum(appleMusicAlbumID: "artist-\(artistIndex)-album-\(albumIndex)",
+                    title: "Cached album", releaseDate: Date(), artistIDs: ["artist-\(artistIndex)"]))
+            }
         }
         try context.save()
 
@@ -135,30 +139,33 @@ final class ListeningLoadingTests: XCTestCase {
 
         await room.load(show: show, force: true)
 
-        XCTAssertEqual(catalog.runtimeFetchCount, 2)
+        XCTAssertEqual(catalog.runtimeFetchCount, 3)
         XCTAssertEqual(catalog.fullFetchCount, 0)
         XCTAssertEqual(
             Set(room.compilationDiscs.flatMap(\.tracks).map(\.id)),
-            Set((0..<2).flatMap { artistIndex in
+            Set((0..<3).flatMap { artistIndex in
                 (0..<10).map { "artist-\(artistIndex)-song-\($0)" }
             })
         )
 
+        XCTAssertTrue(room.compilationDiscs.contains { $0.id.hasSuffix("-latest") && !$0.tracks.isEmpty },
+                      "Runtime songs retain the release dates of already-cached albums")
+
         await room.reloadCatalog(force: true)
-        XCTAssertEqual(catalog.runtimeFetchCount, 4, "repeated force refresh must bypass the in-memory runtime cache")
+        XCTAssertEqual(catalog.runtimeFetchCount, 6, "repeated force refresh must bypass the in-memory runtime cache")
         XCTAssertEqual(catalog.fullFetchCount, 0)
 
         let read = ModelContext(container)
         let snapshots = try read.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
-        XCTAssertEqual(snapshots.count, 2)
+        XCTAssertEqual(snapshots.count, 3)
         XCTAssertEqual(
             Set(snapshots.flatMap(\.topSongIDs)),
-            Set(["old-0", "old-1"]),
+            Set(["old-0", "old-1", "old-2"]),
             "runtime topSongs must not rewrite the complete-catalog snapshot"
         )
         XCTAssertEqual(
             try read.fetchCount(FetchDescriptor<CatalogSong>()),
-            2,
+            3,
             "runtime topSongs must remain memory-only"
         )
     }

@@ -34,26 +34,41 @@ final class ListeningColdStartTests: XCTestCase {
         XCTAssertTrue(room.isPlaying)
     }
 
-    func testLateRuntimeResponseCannotRepopulateAnotherShow() async throws {
-        let (container, show) = try makeShow()
-        let catalog = ColdStartCatalog()
-        let room = makeRoom(container, catalog: catalog)
-        let load = Task { await room.load(show: show) }
-        defer {
-            load.cancel()
+    func testLateRuntimeResponseCannotRepopulateRetiredShow() async throws {
+        for destination in ["active", "hidden", "empty"] {
+            let (container, show) = try makeShow()
+            let catalog = ColdStartCatalog()
+            let room = makeRoom(container, catalog: catalog)
+            let load = Task { await room.load(show: show) }
+            defer {
+                load.cancel()
+                catalog.gate.release()
+                room.stop()
+                room.mechanism.motion.stop()
+            }
+            try await wait { catalog.started.count == 7 && !room.compilationDiscs.isEmpty }
+            let next = try Show(name: "Next", date: .now, startTime: .now)
+            container.mainContext.insert(next)
+            try container.mainContext.save()
+            if destination == "empty" {
+                ListeningRoomSessionStore.shared.adopt(room)
+                ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+                XCTAssertNil(room.show)
+                XCTAssertFalse(room.isCatalogEnriching)
+                XCTAssertTrue(room.catalogSongs.isEmpty)
+            } else if destination == "hidden" {
+                room.setActive(false)
+                room.prepareForDisplay(show: next)
+                XCTAssertFalse(room.isCatalogEnriching, "An inactive new show must retire the old load")
+            } else {
+                await room.load(show: next)
+            }
             catalog.gate.release()
-            room.stop()
-            room.mechanism.motion.stop()
+            await load.value
+            XCTAssertEqual(room.show?.id, destination == "empty" ? nil : next.id)
+            XCTAssertTrue(room.discs.isEmpty)
+            XCTAssertTrue(room.compilationDiscs.isEmpty)
         }
-        try await wait { catalog.started.count == 7 && !room.compilationDiscs.isEmpty }
-        let next = try Show(name: "Next", date: .now, startTime: .now)
-        container.mainContext.insert(next)
-        try container.mainContext.save()
-        await room.load(show: next)
-        catalog.gate.release()
-        await load.value
-        XCTAssertEqual(room.show?.id, next.id)
-        XCTAssertTrue(room.discs.isEmpty)
     }
 
     func testCancelledRuntimeResponseIsNotPublished() async throws {
