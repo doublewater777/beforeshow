@@ -9,51 +9,47 @@ struct CurrentShowLibraryCoverCard: View {
 
     var body: some View {
         Button(action: onOpen) {
-            // Let the grid cell define the card size. The cover is rendered only inside
-            // this fixed 3:4 canvas so a large source image can never grow the ZStack
-            // beyond its column or overlap the neighboring card.
+            // Each overlay uses the grid's fixed canvas, independent of image dimensions.
             Color.clear
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
                 .overlay {
-                    ZStack(alignment: .topLeading) {
-                        ShowCoverImageView(
-                            urlString: show.coverImageURL,
-                            aspectRatio: 3.0 / 4.0,
-                            contentMode: .fill,
-                            enforcesAspectRatio: false,
-                            cornerRadius: BSRadius.v3Medium
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            if isCurrent {
-                                tag(BSLocalization.text("当前展示"), color: BSColor.Stage.accent)
-                            }
-                            if show.changeStatus != .scheduled {
-                                tag(statusTag, color: statusColor)
-                            }
+                    ShowCoverImageView(
+                        urlString: show.coverImageURL,
+                        aspectRatio: 3.0 / 4.0,
+                        contentMode: .fill,
+                        enforcesAspectRatio: false,
+                        cornerRadius: BSRadius.v3Medium
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                }
+                .overlay(alignment: .topLeading) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if isCurrent {
+                            tag(BSLocalization.text("当前展示"), color: BSColor.Stage.accent)
                         }
-                        .padding(BSSpacing.sm)
-
-                        // Anchor the caption to the cover's bottom edge, not to
-                        // a flexible VStack, so every grid card shares the same baseline.
-                        LinearGradient(
-                            colors: [Color.clear, Color.black.opacity(0.85)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 38)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .overlay(alignment: .bottomLeading) {
-                            Text(show.name)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.white.opacity(0.92))
-                                .lineLimit(1)
-                                .padding(.horizontal, 7)
-                                .padding(.bottom, 6)
+                        if show.changeStatus != .scheduled {
+                            tag(statusTag, color: statusColor)
                         }
                     }
-                    .clipped()
+                    .padding(BSSpacing.sm)
+                }
+                .overlay(alignment: .bottom) {
+                    LinearGradient(
+                        colors: [Color.clear, Color.black.opacity(0.85)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 38)
+                }
+                .overlay(alignment: .bottomLeading) {
+                    Text(show.name)
+                        .font(BSFont.V3.caption)
+                        .foregroundColor(.white.opacity(0.92))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, BSSpacing.sm)
+                        .padding(.bottom, BSSpacing.sm)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
