@@ -1,0 +1,3 @@
+interface:
+  display_name: "Architecture Rot Check"
+  short_description: "Scheduled anti-rot architecture audit for BeforeShow"

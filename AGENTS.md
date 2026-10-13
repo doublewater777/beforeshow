@@ -40,6 +40,30 @@ xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
 - 每个 commit subject 必须以当前 App 版本开头：`<major.minor.patch>: <描述>`，版本以 `apps/ios/project.yml` 的 `MARKETING_VERSION` 为准。
 - 新 clone 后运行 `./scripts/setup-hooks.sh` 安装校验 hook。详细规则见 `docs/agents/commit-convention.md`。
 
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default Matt Pocock triage vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
+
+### Anti-rot loop
+
+- Feature delivery: `to-spec` → `tdd` / `implement` → `code-review` → `pr`
+- Architecture debt discovery: `architecture-rot-check` / `improve-codebase-architecture`
+- Agent environment repair: `retro`
+- Accidental complexity audit: `reclaim-code-entropy`
+- Review standards: `CODING_STANDARDS.md`
+
+Scheduled weekly runs are hands-off: write `docs/agents/architecture-reviews/`, file a `needs-triage` GitHub issue only for guard failures or one clear Strong candidate, stay quiet otherwise, never auto-refactor.
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
