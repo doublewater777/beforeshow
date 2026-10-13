@@ -96,6 +96,9 @@ struct TimetableExperienceView: View {
                     avatarURL: avatarURL(perf),
                     linker: linker,
                     timeZone: timeZone,
+                    onPerformanceChanged: {
+                        notifyShowMutation()
+                    },
                     onDelete: {
                         deletePerformance(perf)
                     }
@@ -214,11 +217,20 @@ struct TimetableExperienceView: View {
 
     // MARK: - Actions
 
+    private func notifyShowMutation() {
+        show?.updatedAt = Date()
+        try? modelContext.save()
+        let container = modelContext.container
+        Task {
+            await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))
+        }
+    }
+
     private func toggleInterested(_ performance: TimetablePerformance) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
             performance.isInterested.toggle()
         }
-        try? modelContext.save()
+        notifyShowMutation()
     }
 
     private func renameStage(_ stage: TimetableStage, to name: String) {
@@ -270,7 +282,7 @@ struct TimetableExperienceView: View {
         }
         inspectingPerformance = nil
         modelContext.delete(performance)
-        try? modelContext.save()
+        notifyShowMutation()
     }
 }
 

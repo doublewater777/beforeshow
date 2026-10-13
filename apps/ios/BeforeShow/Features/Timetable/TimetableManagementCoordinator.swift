@@ -283,12 +283,12 @@ final class TimetableManagementCoordinator: ObservableObject {
     }
 
     func updateDayDate(_ day: TimetableDay, to date: Date, in timetable: Timetable, context: ModelContext) {
-        performDayChange(context: context) { try timetable.updateDayDate(day, to: date) }
+        performDayChange(timetable: timetable, context: context) { try timetable.updateDayDate(day, to: date) }
     }
 
     func addDay(date: Date, to timetable: Timetable, template: TimetableDay?, context: ModelContext) -> TimetableDay? {
         var addedDay: TimetableDay?
-        let saved = performDayChange(context: context) {
+        let saved = performDayChange(timetable: timetable, context: context) {
             let day = try timetable.addDay(
                 date: date,
                 stageNames: template?.orderedStages.map(\.name) ?? [BSLocalization.text("主舞台")]
@@ -301,7 +301,7 @@ final class TimetableManagementCoordinator: ObservableObject {
 
     @discardableResult
     func deleteDay(_ day: TimetableDay, from timetable: Timetable, context: ModelContext) -> Bool {
-        performDayChange(context: context) {
+        performDayChange(timetable: timetable, context: context) {
             try timetable.removeDay(day)
             context.delete(day)
         }
@@ -309,7 +309,7 @@ final class TimetableManagementCoordinator: ObservableObject {
 
     @discardableResult
     func addStage(named name: String, to day: TimetableDay, context: ModelContext) -> Bool {
-        performDayChange(context: context) {
+        performDayChange(timetable: day.timetable, context: context) {
             let stage = try day.addStage(name: name)
             context.insert(stage)
         }
@@ -317,29 +317,34 @@ final class TimetableManagementCoordinator: ObservableObject {
 
     @discardableResult
     func renameStage(_ stage: TimetableStage, to name: String, context: ModelContext) -> Bool {
-        performDayChange(context: context) { try stage.updateName(name) }
+        performDayChange(timetable: stage.day?.timetable, context: context) { try stage.updateName(name) }
     }
 
     func reorderStages(of day: TimetableDay, to ids: [UUID], context: ModelContext) {
-        performDayChange(context: context) { day.reorderStages(ids) }
+        performDayChange(timetable: day.timetable, context: context) { day.reorderStages(ids) }
     }
 
     @discardableResult
     func deleteStage(_ stage: TimetableStage, from day: TimetableDay, context: ModelContext) -> Bool {
-        performDayChange(context: context) {
+        performDayChange(timetable: day.timetable, context: context) {
             try day.removeStage(stage)
             context.delete(stage)
         }
     }
 
     @discardableResult
-    private func performDayChange(context: ModelContext, change: () throws -> Void) -> Bool {
+    private func performDayChange(timetable: Timetable? = nil, context: ModelContext, change: () throws -> Void) -> Bool {
         dayManagementError = nil
         var didChange = false
         do {
             try change()
+            timetable?.show?.updatedAt = Date()
             didChange = true
             try context.save()
+            let container = context.container
+            Task {
+                await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))
+            }
             return true
         } catch {
             if didChange { context.rollback() }

@@ -1997,3 +1997,8 @@ First show: %@";
 "现场日期已变化，请核对时刻表" = "Show dates changed. Check the timetable.";
 "确认演出日期" = "Confirm performance dates";
 "修改演出日期" = "Edit performance dates";
+
+"稍作休息，后天见" = "Rest up, see you the day after tomorrow";
+"稍作休息，%@继续" = "Rest up, resumes %@";
+"稍作休息，下次现场见" = "Rest up, see you at the next show";
+"保存失败，请检查演出时间" = "Could not save. Check performance times.";

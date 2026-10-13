@@ -76,10 +76,24 @@ final class Timetable {
               let first = populated.first, let last = populated.last,
               calendar.isDate(first.date, inSameDayAs: show.effectiveDate) else { return false }
         let fields = show.declaredTimingFields
-        if let end = CurrentShowTimeState.effectiveEndDate(timing: fields, calendar: fields.eventCalendar(fallback: calendar)) {
-            return calendar.isDate(last.date, inSameDayAs: end)
+        guard let end = CurrentShowTimeState.effectiveEndDate(timing: fields, calendar: fields.eventCalendar(fallback: calendar)) else {
+            return true
         }
-        return true
+        if calendar.isDate(last.date, inSameDayAs: end) {
+            return true
+        }
+        // Overnight festival / show: the last service day (e.g. 10-15) runs past midnight into show.endDate (10-16).
+        if let nextDay = calendar.date(byAdding: .day, value: 1, to: last.date),
+           calendar.isDate(nextDay, inSameDayAs: end) {
+            if let lastEnd = last.performances.map(\.endsAt).max(),
+               calendar.isDate(lastEnd, inSameDayAs: end) {
+                return true
+            }
+            if show.endTime != nil {
+                return true
+            }
+        }
+        return false
     }
 
     @discardableResult

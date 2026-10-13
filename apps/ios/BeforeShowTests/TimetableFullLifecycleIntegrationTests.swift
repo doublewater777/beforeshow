@@ -355,6 +355,45 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         return show
     }
 
+
+    func testOvernightShowTimetableMatchesEndDateAndKeepsLiveState() throws {
+        // Oct 15 22:00 -> Oct 16 01:00 (single service day spanning midnight)
+        let show = try Show(
+            name: "Overnight Club",
+            date: date(22),
+            startTime: date(22),
+            endDate: date(25),
+            endTime: date(25),
+            timeZoneIdentifier: "Asia/Taipei"
+        )
+        let p = try TimetablePerformance(artistName: "DJ", startsAt: date(23), endsAt: date(24, 45))
+        let stage = try TimetableStage(name: "Club", performances: [p])
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Taipei")!
+        let day = try TimetableDay(date: calendar.startOfDay(for: date(22)), stages: [stage])
+        let timetable = try Timetable(timeZoneIdentifier: "Asia/Taipei", days: [day])
+        timetable.show = show
+        show.timetable = timetable
+        context.insert(show)
+
+        XCTAssertTrue(timetable.matchesDates(of: show))
+        XCTAssertNotNil(show.lifecycleTimetable)
+
+        let state = CurrentShowTimeState(show: show, now: date(24))
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(state.endBoundary, date(25))
+    }
+
+    func testRestDayCountdownHelperDoesNotSayTomorrow() throws {
+        // Friday 14:00-23:00 (h: 14..23), Sunday 14:00-23:00 (h: 62..71)
+        let show = try lifecycleShow(sessions: [(14, 23), (62, 71)], endDay: 48)
+        let state = CurrentShowTimeState(show: show, now: date(23, 30))
+        XCTAssertEqual(state.kind, .dayEnded)
+        XCTAssertEqual(state.nextSessionStartsAt, date(62))
+        XCTAssertFalse(state.helperText.contains("明天"))
+        XCTAssertTrue(state.helperText.contains("后天") || state.helperText.contains("14:00"))
+    }
+
     private func date(_ hour: Int, _ minute: Int = 0) -> Date {
         Date(timeIntervalSince1970: 1790956800 + Double(hour) * 3_600 + Double(minute) * 60)
     }

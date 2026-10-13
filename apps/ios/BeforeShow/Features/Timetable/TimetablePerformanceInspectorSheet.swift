@@ -12,6 +12,7 @@ struct TimetablePerformanceInspectorSheet: View {
     let linker: TimetableArtistLinker
     let timeZone: TimeZone
     let onDelete: () -> Void
+    var onPerformanceChanged: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -30,6 +31,7 @@ struct TimetablePerformanceInspectorSheet: View {
     /// Set while the user replaces a link, so the exact-name match does not silently relink the same artist.
     @State private var isRelinking = false
     @State private var isConfirmingDelete = false
+    @State private var saveErrorMessage: String? = nil
     @FocusState private var isNameFocused: Bool
 
     init(
@@ -38,6 +40,7 @@ struct TimetablePerformanceInspectorSheet: View {
         avatarURL: URL?,
         linker: TimetableArtistLinker,
         timeZone: TimeZone,
+        onPerformanceChanged: (() -> Void)? = nil,
         onDelete: @escaping () -> Void
     ) {
         self.performance = performance
@@ -45,6 +48,7 @@ struct TimetablePerformanceInspectorSheet: View {
         self.avatarURL = avatarURL
         self.linker = linker
         self.timeZone = timeZone
+        self.onPerformanceChanged = onPerformanceChanged
         self.onDelete = onDelete
         _draftArtistName = State(initialValue: performance.artistName)
         _draftAppleMusicArtistID = State(initialValue: performance.appleMusicArtistID)

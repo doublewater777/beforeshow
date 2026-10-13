@@ -41,6 +41,7 @@ struct CurrentShowTimeState: Equatable {
     let effectiveEndDate: Date?
     let effectiveStartTime: Date?
     let effectiveEndTime: Date?
+    let nextSessionStartsAt: Date?
     /// Resolved show-end instant for the *current* phase boundary.
     /// Multi-day daily cycle: today's daily end (or last day's end after the run).
     /// Single / overnight: whole-event end. Drives live→ended and 本场时长.
@@ -210,6 +211,17 @@ struct CurrentShowTimeState: Equatable {
             }
         }
 
+        let resolvedNextStart: Date?
+        if !sessions.isEmpty {
+            resolvedNextStart = sessions.first { now < $0.startsAt }?.startsAt
+        } else if multiDayDaily,
+                  let resolvedStart,
+                  let nextDayStart = eventCalendar.date(byAdding: .day, value: 1, to: resolvedStart) {
+            resolvedNextStart = nextDayStart
+        } else {
+            resolvedNextStart = nil
+        }
+        self.nextSessionStartsAt = resolvedNextStart
         self.effectiveStartTime = resolvedStart
         self.effectiveEndTime = resolvedEnd
         self.endBoundary = resolvedBoundary
@@ -220,6 +232,7 @@ struct CurrentShowTimeState: Equatable {
             dayDistance: daysToFirst,
             startTime: resolvedStart,
             endBoundary: resolvedBoundary,
+            nextSessionStartsAt: resolvedNextStart,
             now: now,
             retentionDays: retentionDays,
             calendar: eventCalendar
@@ -451,6 +464,7 @@ struct CurrentShowTimeState: Equatable {
         dayDistance: Int,
         startTime: Date?,
         endBoundary: Date?,
+        nextSessionStartsAt: Date?,
         now: Date,
         retentionDays: Int,
         calendar: Calendar
@@ -520,13 +534,19 @@ struct CurrentShowTimeState: Equatable {
             )
         case .dayEnded:
             let helper: String
-            if let startTime,
-               let nextStart = calendar.date(byAdding: .day, value: 1, to: startTime) {
+            if let nextStart = nextSessionStartsAt {
+                let distance = FestivalDay.distance(from: now, to: nextStart, calendar: calendar)
+                let word = FestivalDay.word(for: nextStart, distance: distance, calendar: calendar)
+                let components = calendar.dateComponents([.hour, .minute], from: nextStart)
+                let clock = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+                helper = BSLocalization.format("%@ %@ 再开", word, clock)
+            } else if let startTime,
+                      let nextStart = calendar.date(byAdding: .day, value: 1, to: startTime) {
                 let components = calendar.dateComponents([.hour, .minute], from: nextStart)
                 let clock = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
                 helper = BSLocalization.format("明天 %@ 再开", clock)
             } else {
-                helper = BSLocalization.text("明天再开")
+                helper = BSLocalization.text("稍作休息，下次现场见")
             }
             return (
                 BSLocalization.text("今日已落幕"),
