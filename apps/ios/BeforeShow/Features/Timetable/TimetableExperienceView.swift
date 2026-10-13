@@ -77,7 +77,8 @@ struct TimetableExperienceView: View {
                     onAddPerformance: { stage, date in
                         addPerformance(to: stage, at: date)
                     },
-                    onManage: onManage
+                    onManage: onManage,
+                    onRenameStage: renameStage
                 )
             }
         }
@@ -94,7 +95,7 @@ struct TimetableExperienceView: View {
                         deletePerformance(perf)
                     }
                 )
-                .bsSystemGlassSheet(detents: [.fraction(0.74), .large])
+                .bsSystemGlassSheet(detents: [.fraction(0.56), .large])
             }
         }
         .sheet(isPresented: $isSharing) {
@@ -213,6 +214,15 @@ struct TimetableExperienceView: View {
             performance.isInterested.toggle()
         }
         try? modelContext.save()
+    }
+
+    private func renameStage(_ stage: TimetableStage, to name: String) {
+        do {
+            try stage.updateName(name)
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+        }
     }
 
     private func addPerformance(to stage: TimetableStage, at tappedDate: Date? = nil) {

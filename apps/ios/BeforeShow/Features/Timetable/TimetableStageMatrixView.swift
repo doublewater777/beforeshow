@@ -15,6 +15,7 @@ struct TimetableStageMatrixView: View {
     let onToggleInterested: (TimetablePerformance) -> Void
     let onAddPerformance: (TimetableStage, Date?) -> Void
     let onManage: () -> Void
+    let onRenameStage: (TimetableStage, String) -> Void
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
@@ -42,6 +43,34 @@ struct TimetableStageMatrixView: View {
         return calendar
     }
 
+    init(
+        day: TimetableDay,
+        now: Date,
+        timeZone: TimeZone,
+        wantOnly: Bool,
+        canReturnToNow: Binding<Bool>,
+        returnToNowRequest: Int,
+        avatarURL: @escaping (TimetablePerformance) -> URL?,
+        onSelectPerformance: @escaping (TimetablePerformance) -> Void,
+        onToggleInterested: @escaping (TimetablePerformance) -> Void,
+        onAddPerformance: @escaping (TimetableStage, Date?) -> Void,
+        onManage: @escaping () -> Void,
+        onRenameStage: @escaping (TimetableStage, String) -> Void = { _, _ in }
+    ) {
+        self.day = day
+        self.now = now
+        self.timeZone = timeZone
+        self.wantOnly = wantOnly
+        self._canReturnToNow = canReturnToNow
+        self.returnToNowRequest = returnToNowRequest
+        self.avatarURL = avatarURL
+        self.onSelectPerformance = onSelectPerformance
+        self.onToggleInterested = onToggleInterested
+        self.onAddPerformance = onAddPerformance
+        self.onManage = onManage
+        self.onRenameStage = onRenameStage
+    }
+
     var body: some View {
         let stages = day.orderedStages
         let performances = Dictionary(uniqueKeysWithValues: stages.flatMap(\.performances).map { ($0.id, $0) })
@@ -67,7 +96,7 @@ struct TimetableStageMatrixView: View {
                     // 1. Sticky Stage Headers Row (横向随列联动，纵向永远吸顶)
                     TimetableMatrixHeadersView(
                         stages: stages, lane: lane, layout: layout, viewport: viewport,
-                        onAddPerformance: onAddPerformance, onManage: onManage
+                        onAddPerformance: onAddPerformance, onRenameStage: onRenameStage, onManage: onManage
                     )
                         .frame(width: width, height: Self.capHeight, alignment: .leading)
                         .zIndex(10)

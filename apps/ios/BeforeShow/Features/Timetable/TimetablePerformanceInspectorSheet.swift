@@ -60,18 +60,17 @@ struct TimetablePerformanceInspectorSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    header
-                    stageSection
-                    timeSection
-                    deleteButton
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 40)
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                stageSection
+                timeSection
+                deleteButton
+                Spacer(minLength: 0)
             }
-            .scrollContentBackground(.hidden)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
+            .background(TimetableStyle.background.ignoresSafeArea())
             .task(id: "\(performance.artistName)|\(performance.appleMusicArtistID ?? "")|\(searchAttempt)") {
                 await searchArtists()
             }
@@ -301,7 +300,7 @@ struct TimetablePerformanceInspectorSheet: View {
 
             // Quick shift buttons
             HStack(spacing: 8) {
-                ForEach([-15, -5, 5, 15], id: \.self) { minutes in
+                ForEach([-10, 10], id: \.self) { minutes in
                     Button {
                         withAnimation(.snappy) {
                             performance.shiftTimes(by: TimeInterval(minutes * 60))

@@ -7,10 +7,15 @@ struct TimetableMatrixHeadersView: View {
     let layout: TimetableMatrixLayout
     let viewport: TimetableMatrixViewport
     let onAddPerformance: (TimetableStage, Date?) -> Void
+    let onRenameStage: (TimetableStage, String) -> Void
     let onManage: () -> Void
 
     private static let capHeight = TimetableStyle.matrixHeaderHeight
     private static let addStageWidth = TimetableStyle.matrixAddStageWidth
+
+    @State private var editingStageID: UUID?
+    @State private var draftStageName = ""
+    @FocusState private var focusedStageID: UUID?
 
     private func laneX(_ index: Int, lane: CGFloat) -> CGFloat {
         TimetableStyle.matrixRulerWidth + CGFloat(index) * (lane + TimetableStyle.matrixLaneGap)
@@ -81,15 +86,10 @@ struct TimetableMatrixHeadersView: View {
         let scrollDist = max(0, scrollOffset)
         let idleProgress = min(1.0, scrollDist / 240.0)
 
-        return Menu {
-            Button {
-                onAddPerformance(stage, nil)
-            } label: {
-                Label(BSLocalization.text("在此舞台添加演出"), systemImage: "plus")
-            }
-            Button(action: onManage) {
-                Label(BSLocalization.text("管理天数与舞台"), systemImage: "slider.horizontal.3")
-            }
+        return Button {
+            draftStageName = stage.name
+            editingStageID = stage.id
+            focusedStageID = stage.id
         } label: {
             HStack(spacing: 6) {
                 if isLive {
@@ -108,15 +108,24 @@ struct TimetableMatrixHeadersView: View {
                             .frame(width: 7, height: 7)
                     }
                 }
-                Text(stage.name)
-                    .font(.system(size: 13, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .foregroundStyle(
-                        isLive
-                            ? TimetableStyle.foreground
-                            : Color.white.opacity(0.60 + idleProgress * 0.35)
-                    )
+                if editingStageID == stage.id {
+                    TextField(BSLocalization.text("舞台名称"), text: $draftStageName)
+                        .font(.system(size: 13, weight: .bold))
+                        .textFieldStyle(.plain)
+                        .focused($focusedStageID, equals: stage.id)
+                        .submitLabel(.done)
+                        .onSubmit { commitRename(stage) }
+                } else {
+                    Text(stage.name)
+                        .font(.system(size: 13, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .foregroundStyle(
+                            isLive
+                                ? TimetableStyle.foreground
+                                : Color.white.opacity(0.60 + idleProgress * 0.35)
+                        )
+                }
                 if activity == .soon, let soonMinutes {
                     Text(BSLocalization.format("%d 分钟后", soonMinutes))
                         .font(TimetableStyle.mono(10.5, weight: .semibold))
@@ -138,6 +147,28 @@ struct TimetableMatrixHeadersView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                onAddPerformance(stage, nil)
+            } label: {
+                Label(BSLocalization.text("在此舞台添加演出"), systemImage: "plus")
+            }
+            Button(action: onManage) {
+                Label(BSLocalization.text("管理天数与舞台"), systemImage: "slider.horizontal.3")
+            }
+        }
+    }
+
+    private func commitRename(_ stage: TimetableStage) {
+        let name = draftStageName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            draftStageName = stage.name
+            focusedStageID = stage.id
+            return
+        }
+        if name != stage.name { onRenameStage(stage, name) }
+        focusedStageID = nil
+        editingStageID = nil
     }
 }
 
