@@ -26,7 +26,7 @@ struct CountdownWidgetView: View {
                 }
             }
                 .containerBackground(for: .widget) {
-                    CoverAmbientBloom(ambient: entry.ambientColor)
+                    WidgetPhaseBloom(tone: presentation.bloomTone, ambient: entry.ambientColor)
                 }
         case .systemMedium:
             Group {
@@ -39,7 +39,7 @@ struct CountdownWidgetView: View {
                 }
             }
                 .containerBackground(for: .widget) {
-                    CoverAmbientBloom(ambient: entry.ambientColor)
+                    WidgetPhaseBloom(tone: presentation.bloomTone, ambient: entry.ambientColor)
                 }
         case .accessoryInline:
             Group {
@@ -184,6 +184,22 @@ struct CountdownPresentation {
         )
     }
 
+    /// 背景氛围随阶段变色:红 = 现在，金 = 等开场，夜蓝 = 今日已结束。
+    var bloomTone: WidgetPhaseBloom.Tone {
+        if let phase = festivalPhase {
+            switch phase {
+            case .live: return .live
+            case .between, .firstSet, .finished: return .gold
+            case .dayEnded: return .night
+            }
+        }
+        switch hero {
+        case .live: return .live
+        case .near: return .gold
+        case .far, .ended, .endUnconfirmed, .inactive, .empty: return .neutral
+        }
+    }
+
     /// 「今天开场」仅用于当日开场;`<24h` 但跨日仍使用「即将开场」。
     var isStartToday: Bool {
         guard let startDate else { return false }
@@ -224,6 +240,58 @@ private struct LiveDot: View {
         Circle()
             .fill(WidgetTheme.live)
             .frame(width: size, height: size)
+    }
+}
+
+/// 左上角阶段色 + 右下角封面色的双光晕;无封面时右下退回夜空蓝。
+struct WidgetPhaseBloom: View {
+    enum Tone {
+        case neutral, live, gold, night
+    }
+
+    let tone: Tone
+    let ambient: WidgetAmbientRGB?
+
+    private static let skyBlue = Color(red: 0.25, green: 0.43, blue: 0.63)
+
+    private var lead: (Color, Double) {
+        switch tone {
+        case .neutral: (Self.skyBlue, 0.38)
+        case .live: (WidgetTheme.live, 0.30)
+        case .gold: (WidgetTheme.accent, 0.22)
+        case .night: (Color(red: 0.51, green: 0.63, blue: 0.92), 0.30)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            WidgetTheme.background
+            RadialGradient(
+                colors: [lead.0.opacity(lead.1), lead.0.opacity(0)],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 180
+            )
+            RadialGradient(
+                colors: [(ambient?.color ?? Self.skyBlue).opacity(0.28), .clear],
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: 160
+            )
+        }
+    }
+}
+
+/// 「● 正在现场」状态标签，与音乐节版式同一写法。
+private struct LiveTag: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            LiveDot()
+            Text("正在现场")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(WidgetTheme.liveTitle)
+        }
     }
 }
 
@@ -274,6 +342,8 @@ private struct SmallCountdownView: View {
                         .font(.system(size: 10, weight: .semibold))
                         .tracking(1.2)
                         .foregroundStyle(WidgetTheme.muted)
+                } else if case .live = presentation.hero {
+                    LiveTag()
                 }
 
                 Spacer(minLength: 4)
@@ -323,13 +393,13 @@ private struct SmallCountdownView: View {
             widgetCountdownText(to: start, fontSize: 33, color: WidgetTheme.heroWarmGold)
         case .live(let start):
             VStack(alignment: .leading, spacing: 4) {
-                Text("正在现场")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(WidgetTheme.liveTitle)
                 Text(start, style: .timer)
                     .font(.system(size: 30, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.foreground)
+                Text("已开场")
+                    .font(.system(size: 10))
+                    .foregroundStyle(WidgetTheme.dim)
             }
         case .ended:
             Text(presentation.endedTitle)
@@ -367,6 +437,8 @@ private struct MediumCountdownView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .tracking(1.2)
                             .foregroundStyle(WidgetTheme.muted)
+                    } else if case .live = presentation.hero {
+                        LiveTag()
                     }
 
                     Spacer(minLength: 4)
@@ -432,18 +504,14 @@ private struct MediumCountdownView: View {
                 Spacer(minLength: 0)
             }
         case .live(let start):
-            HStack(spacing: 10) {
-                LiveDot(size: 9)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("正在现场")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.liveTitle)
-                    Text(start, style: .timer)
-                        .font(.system(size: 17, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.foreground)
-                }
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(start, style: .timer)
+                    .font(.system(size: 34, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(WidgetTheme.foreground)
+                Text("已开场")
+                    .font(.system(size: 10))
+                    .foregroundStyle(WidgetTheme.dim)
             }
         case .ended:
             Text(presentation.endedTitle)
@@ -614,50 +682,42 @@ private struct CircularCountdownView: View {
 }
 
 // MARK: - 锁屏长条
+// 三行:状态 / 演出名 / 时间。与音乐节锁屏同一结构。
 
 private struct RectangularCountdownView: View {
     let presentation: CountdownPresentation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            headline
-                .font(.headline.weight(.semibold))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-            Group {
-                if presentation.hasShow {
-                    Text(presentation.showName)
-                } else {
-                    Text("打开开场前，添加下一场")
-                }
+            switch presentation.hero {
+            case .far(let days):
+                lines(Text(presentation.phaseTag), Text(presentation.showName),
+                      Text(verbatim: "\(BSLocalization.format("还有 %lld 天", days)) · \(presentation.dateLine)"))
+            case .near(let start):
+                lines(Text(presentation.phaseTag), Text(presentation.showName),
+                      Text(timerInterval: widgetCountdownRange(to: start), countsDown: true))
+            case .live(let start):
+                lines(Text("\(Image(systemName: "waveform")) 正在现场"), Text(presentation.showName),
+                      Text("已开场 · \(Text(start, style: .timer))"))
+            case .ended:
+                lines(nil, Text(presentation.endedTitle), Text(presentation.showName))
+            case .endUnconfirmed:
+                lines(nil, Text("散场待确认"), Text(presentation.showName))
+            case .inactive(let title):
+                lines(nil, Text(title), Text(presentation.showName))
+            case .empty:
+                lines(nil, Text("还没有现场"), Text("打开开场前，添加下一场"))
             }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
-    private var headline: some View {
-        switch presentation.hero {
-        case .far(let days):
-            Text(BSLocalization.format("还有 %lld 天", days))
-        case .near(let start):
-            Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
-                .monospacedDigit()
-        case .live(let start):
-            Text("正在现场 · \(Text(start, style: .timer))")
-        case .ended:
-            Text(presentation.endedTitle)
-        case .endUnconfirmed:
-            Text("散场待确认")
-        case .inactive(let title):
-            Text(title)
-        case .empty:
-            Text("还没有现场")
+    private func lines(_ top: Text?, _ title: Text, _ bottom: Text) -> some View {
+        if let top {
+            top.font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
         }
+        title.font(.headline.weight(.bold)).lineLimit(1).minimumScaleFactor(0.75)
+        bottom.font(.caption).monospacedDigit().foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.78)
     }
 }

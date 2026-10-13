@@ -80,7 +80,8 @@ enum LiveActivityPlanner {
 
                 let current = liveState.currentPerformances.first
                 let upcoming = liveState.upcomingPerformances.first
-                let start = current?.startsAt ?? now
+                // 场间:计时倒数到下一场开演(staleDate 也随之落在开演时刻)。
+                let start = current?.startsAt ?? upcoming?.startsAt ?? now
 
                 return (
                     ShowLiveActivityAttributes.ContentState(

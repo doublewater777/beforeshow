@@ -145,13 +145,6 @@
       ]
     }
   ],
-  "introductoryOffers": [
-    {
-      "internalID": "BS21PROYTRIAL3D",
-      "paymentMode": "free",
-      "subscriptionPeriod": "P3D",
-      "subscriptionProductID": "com.doublewaterapps.beforeshow.pro.yearly"
-    }
-  ],
+  "introductoryOffers": [],
   "promotionalOffers": []
 }

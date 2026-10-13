@@ -95,7 +95,7 @@ struct TimetableExperienceView: View {
                         deletePerformance(perf)
                     }
                 )
-                .bsSystemGlassSheet(detents: [.fraction(0.56), .large])
+                .bsSystemGlassSheet(detents: [.fraction(0.68), .large])
             }
         }
         .sheet(isPresented: $isSharing) {

@@ -9,7 +9,7 @@
 - **App ID (Google Play):** N/A — iOS only (V2.1 坚定不做 Android)
 - **Category:** Music (primary), Lifestyle (secondary)
 - **Platform:** iOS only
-- **Price Model:** Freemium + Pro annual subscription and lifetime purchase (3-day free trial for eligible users)
+- **Price Model:** Freemium + Pro annual subscription and lifetime purchase
 - **Launch Date:** Not yet launched
 - **Current Version:** 1.0 build 8 (state: WAITING_FOR_REVIEW)
 - **Bundle ID:** com.doublewaterapps.beforeshow

@@ -24,8 +24,7 @@ struct ShowLiveActivity: Widget {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
             LiveActivityBannerView(
                 state: context.state,
-                isLive: LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate),
-                showID: context.attributes.showID
+                isLive: LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
             )
         } dynamicIsland: { context in
             let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
@@ -39,8 +38,16 @@ struct ShowLiveActivity: Widget {
             } compactLeading: {
                 LiveActivityAppIconMark(size: 20)
             } compactTrailing: {
-                LiveActivityTimerText(state: context.state, isLive: isLive, fontSize: 11)
-                    .frame(width: 48, alignment: .trailing)
+                let content = LiveActivityContent(state: context.state, isLive: isLive)
+                HStack(spacing: 4) {
+                    if content.showsWave {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(WidgetTheme.live)
+                    }
+                    LiveActivityTimerText(content: content, fontSize: 11)
+                        .frame(width: 48, alignment: .trailing)
+                }
             } minimal: {
                 LiveActivityAppIconMark(size: 14)
                     .accessibilityLabel(Text(context.state.showName))
@@ -49,59 +56,25 @@ struct ShowLiveActivity: Widget {
     }
 }
 
-// MARK: - 锁屏按钮
-// 开场前给「路线」，开场后给「记一段记忆」；点了打开 App 里这场的对应功能（ADR 0037）。
-
-private struct LiveActivityActionLink: View {
-    let showID: String
-    let isLive: Bool
-
-    var body: some View {
-        if let url = BeforeShowOpenURL.make(
-            showID: showID,
-            destination: isLive ? BeforeShowOpenURL.memoryCreateDestination : BeforeShowOpenURL.routeDestination
-        ) {
-            Link(destination: url) {
-                HStack(spacing: 4) {
-                    Image(systemName: isLive ? "camera" : "map")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(isLive ? BSLocalization.text("记一段记忆") : BSLocalization.text("路线"))
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
-                }
-                .foregroundStyle(WidgetTheme.foreground)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Color.white.opacity(0.12)))
-            }
-        }
-    }
-}
-
 // MARK: - 计时文本
 // Text(style: .timer) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
 // 就能走动的计时;跨零自动从倒数切到正计时,始终无符号。阶段颜色跟
-// context.isStale(staleDate = startDate)。不引入 ProgressView /
-// GeometryReader(仓库有 Live Activity renderer 因二者崩溃的历史)。
+// context.isStale(staleDate = startDate)。
 
 private struct LiveActivityTimerText: View {
-    let state: ShowLiveActivityAttributes.ContentState
-    let isLive: Bool
+    let content: LiveActivityContent
     var fontSize: CGFloat
+    var alignment: TextAlignment = .trailing
 
     var body: some View {
-        // 主现场进行中:倒数到本场结束;否则沿用开场计时。
-        Text(state.currentArtistName == nil ? state.startDate : (state.currentEndsAt ?? state.startDate), style: .timer)
+        Text(content.timerTarget, style: .timer)
             .font(.system(size: fontSize, weight: .semibold))
             .monospacedDigit()
-            .foregroundStyle(LiveActivityCopy.phaseColor(isLive: isLive))
+            .foregroundStyle(content.timerColor)
             .lineLimit(1)
             .minimumScaleFactor(0.65)
-            .multilineTextAlignment(.trailing)
-            // 阶段 + 动态计时一起读:开场前「距开场 + 倒数」,开场后「已开场 + 正计时」
-            .accessibilityLabel(
-                Text("\(LiveActivityCopy.statusLabel(isLive: isLive, state: state)) \(Text(state.currentArtistName == nil ? state.startDate : (state.currentEndsAt ?? state.startDate), style: .timer))")
-            )
+            .multilineTextAlignment(alignment)
+            .accessibilityLabel(Text("\(content.kicker) \(Text(content.timerTarget, style: .timer))"))
     }
 }
 
@@ -140,8 +113,8 @@ private struct LiveActivityExpandedArtwork: View {
                     .fill(WidgetTheme.surfaceRaised)
             }
         }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(width: 44, height: 58)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
     }
 }
 
@@ -191,50 +164,131 @@ enum LiveActivityArtwork {
     }
 }
 
-private enum LiveActivityCopy {
-    /// expanded 岛与锁屏卡片的详情行:演出名 + 场馆;若在现场模式优先展示正在演出的艺人与舞台。
-    static func detailLine(for state: ShowLiveActivityAttributes.ContentState) -> String {
-        if let current = state.currentArtistName {
-            return current
-        }
-        guard let venue = state.venueName, !venue.isEmpty else { return state.showName }
-        return BSLocalization.format("%1$@ · %2$@", state.showName, venue)
+// MARK: - 内容
+// 设计稿:Design 画布「实时活动」。四种状态共用一套版式:
+// 左列 = 状态标签 + 大计时;右列 = 主角(艺人或演出名)+ 舞台/场馆 + 下一场一行。
+// 红 = 正在演，金 = 等待开场。
+
+private struct LiveActivityContent {
+    enum Mode {
+        /// 时刻表里正在演的一场
+        case set
+        /// 场间:倒数下一场
+        case between
+        /// 开场前(含音乐节今日首场前)
+        case pre
+        /// 普通演出已开场
+        case started
     }
 
-    /// 时间元数据合并为一行:现场模式展示下一场想看/客观安排;普通现场展示开场与散场时刻。
-    static func timeLine(for state: ShowLiveActivityAttributes.ContentState, isLive: Bool) -> String? {
-        if let next = state.nextArtistName {
-            let prefix = ""
-            let status = state.isNextStartingSoon ? BSLocalization.text("快开始了") : ""
-            let clock = state.nextStartsAt.map { clockText($0, calendar: state.startCalendar) } ?? ""
-            let stage = state.nextStageName.map { " · \($0)" } ?? ""
-            let line = status.isEmpty
-                ? BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@)", prefix, next, clock, stage)
-                : BSLocalization.format("下一场: %1$@%2$@ (%3$@%4$@) · %5$@", prefix, next, clock, stage, status)
-            if let currentStage = state.currentStageName, state.currentArtistName != nil {
-                return "\(currentStage) · \(line)"
+    struct Next {
+        let time: String
+        let artist: String
+        let stage: String?
+        let isInterested: Bool
+        let isSoon: Bool
+    }
+
+    let mode: Mode
+    let kicker: String
+    let timerTarget: Date
+    let caption: String?
+    let title: String
+    let subtitle: String?
+    let timeRange: String?
+    let progress: ClosedRange<Date>?
+    let next: Next?
+
+    init(state: ShowLiveActivityAttributes.ContentState, isLive: Bool) {
+        let clock = { (date: Date) in LiveActivityCopy.clockText(date, calendar: state.startCalendar) }
+        let upcoming = state.nextArtistName.map { artist in
+            Next(
+                time: state.nextStartsAt.map(clock) ?? "",
+                artist: artist,
+                stage: state.nextStageName,
+                isInterested: state.isInterestedNext,
+                isSoon: state.isNextStartingSoon
+            )
+        }
+
+        if let artist = state.currentArtistName {
+            let start = state.currentStartsAt ?? state.startDate
+            let end = state.currentEndsAt ?? state.endDate ?? state.startDate
+            mode = .set
+            kicker = BSLocalization.text("正在演出")
+            // 现场模式正在演:倒数到本场结束，配合进度条决定何时去下一个舞台。
+            timerTarget = end
+            caption = BSLocalization.text("剩余")
+            title = artist
+            subtitle = state.currentStageName
+            timeRange = "\(clock(start))–\(clock(end))"
+            progress = start < end ? start...end : nil
+            next = upcoming
+        } else if state.isFestivalDayActive, let artist = state.nextArtistName {
+            // 场间:startDate 指向下一场开演。过点后 app 没来得及更新时,
+            // 下一场就是正在演的那场,计时转为已开演时长。
+            mode = isLive ? .set : .between
+            kicker = BSLocalization.text(isLive ? "正在演出" : "下一场")
+            timerTarget = state.nextStartsAt ?? state.startDate
+            caption = isLive ? BSLocalization.text("已开场") : nil
+            title = artist
+            subtitle = state.nextStageName
+            timeRange = state.nextStartsAt.map(clock)
+            progress = nil
+            next = nil
+        } else if isLive {
+            mode = .started
+            kicker = BSLocalization.text("正在现场")
+            timerTarget = state.startDate
+            caption = BSLocalization.text("已开场")
+            title = state.showName
+            subtitle = state.endDate.map { BSLocalization.format("预计 %@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar)) }
+                ?? state.venueName
+            timeRange = nil
+            // 普通演出:开场到预计散场的进度，与现场模式同一条进度条。
+            progress = state.endDate.flatMap { $0 > state.startDate ? state.startDate...$0 : nil }
+            next = nil
+        } else {
+            mode = .pre
+            kicker = BSLocalization.text("距离开场")
+            timerTarget = state.startDate
+            caption = nil
+            title = state.showName
+            let opening = BSLocalization.format("%@ 开场", clock(state.startDate))
+            if let venue = state.venueName, !venue.isEmpty {
+                subtitle = BSLocalization.format("%1$@ · %2$@", opening, venue)
+            } else {
+                subtitle = opening
             }
-            return line
+            timeRange = nil
+            progress = nil
+            next = upcoming
         }
-        let end = state.endDate.map { clockText($0, calendar: state.endCalendar) }
-        if isLive {
-            guard let end else { return nil }
-            return BSLocalization.format("预计 %@ 散场", end)
+    }
+
+    var showsWave: Bool { mode == .set || mode == .started }
+
+    var kickerColor: Color {
+        switch mode {
+        case .set, .started: WidgetTheme.liveTitle
+        case .between: WidgetTheme.accent
+        case .pre: WidgetTheme.muted
         }
-        let start = clockText(state.startDate, calendar: state.startCalendar)
-        guard let end else { return BSLocalization.format("%@ 开场", start) }
-        return BSLocalization.format("%@ 开场 · 预计 %@ 散场", start, end)
     }
 
-    static func statusLabel(isLive: Bool, state: ShowLiveActivityAttributes.ContentState? = nil) -> String {
-        if state?.currentEndsAt != nil, state?.currentArtistName != nil { return BSLocalization.text("剩余") }
-        return BSLocalization.text(isLive ? "已开场" : "距开场")
+    var timerColor: Color {
+        switch mode {
+        case .set, .started: WidgetTheme.foreground
+        case .between, .pre: WidgetTheme.heroWarmGold
+        }
     }
 
-    static func phaseColor(isLive: Bool) -> Color {
-        isLive ? WidgetTheme.live : WidgetTheme.accent
+    var glowColor: Color {
+        showsWave ? WidgetTheme.live : WidgetTheme.accent
     }
+}
 
+private enum LiveActivityCopy {
     /// 阶段判定:staleDate = startDate 时 isStale 即「已过开场」;
     /// 若 staleDate 已让位给 endDate(开场后才同步),用渲染时刻兜底。
     static func isLive(isStale: Bool, startDate: Date, now: Date = .now) -> Bool {
@@ -251,52 +305,121 @@ private enum LiveActivityCopy {
     }
 }
 
+// MARK: - 共用部件
+
+private struct LiveActivityKicker: View {
+    let content: LiveActivityContent
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if content.showsWave {
+                Image(systemName: "waveform")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(WidgetTheme.live)
+            }
+            Text(content.kicker)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(content.kickerColor)
+                .lineLimit(1)
+        }
+    }
+}
+
+/// 「♥ 18:00 椅子乐团 风舞台」:想看给金心，快开始给红环。
+private struct LiveActivityNextLine: View {
+    let next: LiveActivityContent.Next
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if next.isSoon {
+                Circle()
+                    .strokeBorder(WidgetTheme.live, lineWidth: 1.5)
+                    .frame(width: 6, height: 6)
+            } else if next.isInterested {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(WidgetTheme.accent)
+            }
+            Text(next.time)
+                .monospacedDigit()
+                .foregroundStyle(WidgetTheme.muted)
+            Text(next.artist)
+                .fontWeight(.semibold)
+                .foregroundStyle(WidgetTheme.foreground)
+            if let stage = next.stage {
+                Text(stage)
+                    .foregroundStyle(WidgetTheme.dim)
+            }
+        }
+        .font(.system(size: 12))
+        .lineLimit(1)
+    }
+}
+
+private struct LiveActivitySetProgress: View {
+    let range: ClosedRange<Date>
+
+    var body: some View {
+        ProgressView(timerInterval: range, countsDown: false) {
+            EmptyView()
+        } currentValueLabel: {
+            EmptyView()
+        }
+        .progressViewStyle(.linear)
+        .tint(WidgetTheme.live)
+        .labelsHidden()
+    }
+}
+
 // MARK: - Dynamic Island expanded bottom
-// 两段式:行 1 = 封面(左) + 大字号计时/阶段标签(右);其下通栏 =
-// 演出名·场馆(可截断) + 时间行(开场·预计谢幕合并,见 LiveActivityCopy.timeLine)。
-// 通栏放下长演出名/场馆,不再与计时抢宽度。顶部 leading/trailing 区域留空
-// (见 ShowLiveActivity.body)。
+// 封面 3:4 在左;右侧状态行(右端时段或计时)+ 主角 + 舞台;其下进度条与下一场。
 
 private struct LiveActivityExpandedDetails: View {
     let state: ShowLiveActivityAttributes.ContentState
     let isLive: Bool
 
     var body: some View {
-        // 尺寸/间距对齐设计原型(docs 侧 HTML):行 1 行距 11、行间距 9、
-        // 计时与标签距 5、信息区内部距 4;计时 23 > 详情行 15 > 时间行 13 > 标签 12。
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 11) {
+        let content = LiveActivityContent(state: state, isLive: isLive)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
                 LiveActivityExpandedArtwork(filename: state.coverImageFilename)
 
-                Spacer(minLength: 0)
-
-                VStack(alignment: .trailing, spacing: 5) {
-                    LiveActivityTimerText(state: state, isLive: isLive, fontSize: 23)
-                    Text(LiveActivityCopy.statusLabel(isLive: isLive, state: state))
-                        .font(.system(size: 12))
-                        .foregroundStyle(WidgetTheme.dim)
-                        .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        LiveActivityKicker(content: content)
+                        Spacer(minLength: 4)
+                        if let range = content.timeRange, content.mode == .set {
+                            Text(range)
+                                .font(.system(size: 12, weight: .medium))
+                                .monospacedDigit()
+                                .foregroundStyle(WidgetTheme.muted)
+                                .lineLimit(1)
+                        } else {
+                            LiveActivityTimerText(content: content, fontSize: 13)
+                                .frame(width: 64, alignment: .trailing)
+                        }
+                    }
+                    Text(content.title)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(WidgetTheme.foreground)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    if let subtitle = content.subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 13))
+                            .foregroundStyle(WidgetTheme.muted)
+                            .lineLimit(1)
+                    }
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(LiveActivityCopy.detailLine(for: state))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(WidgetTheme.foreground)
-                    .lineLimit(1)
-
-                if let timeLine = LiveActivityCopy.timeLine(for: state, isLive: isLive) {
-                    Text(timeLine)
-                        .font(.system(size: 13))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .foregroundStyle(WidgetTheme.muted)
-                }
+            if let progress = content.progress {
+                LiveActivitySetProgress(range: progress)
+            }
+            if let next = content.next {
+                LiveActivityNextLine(next: next)
             }
         }
-        // 对称小内收即可:计时已挪到行 1,远离 bottom 区域伸进岛圆角的右下缘,
-        // 旧版为躲圆角的 trailing 36 补偿不再需要(会把计时推得偏左)。
         .padding(.horizontal, 8)
         .padding(.top, 2)
         .padding(.bottom, 10)
@@ -305,93 +428,64 @@ private struct LiveActivityExpandedDetails: View {
 }
 
 // MARK: - Lock Screen
-// 系统 Live Activity 卡片,14pt 水平边距;与 expanded 岛同款两段式:
-// 行 1 = 封面 + 计时/阶段标签,其下通栏 = 演出名·场馆 + 时间行。
-// 阶段标签与计时颜色跟 context.isStale(staleDate = startDate,过 T 由系统
-// 标记)。可见「距开场 / 已开场」对 VoiceOver 隐藏,阶段前缀已并入计时文本的
-// accessibilityLabel,避免重复朗读。
+// 两列:左列状态 + 大计时(固定宽,Text(.timer) 理想宽度近乎无限,不能与标题同列争宽);
+// 右列主角 + 舞台 + 下一场;现场模式正在演底部给进度条。不放主按钮。
 
 private struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
     let isLive: Bool
-    let showID: String
 
-    private var coverImage: UIImage? {
-        guard let filename = state.coverImageFilename,
-              let container = WidgetSnapshotStore.containerURL else {
-            return nil
-        }
-        return UIImage(contentsOfFile: container.appendingPathComponent(filename).path)
-    }
-
-    // 两段式:计时独占行 1 右侧,不再与标题同列争宽——绕开 iOS 26.5 实测的
-    // 坑(Text(.timer) 理想宽度近乎无限且不吃 minimumScaleFactor,同列
-    // 布局下无论 layoutPriority 给哪侧都会截断另一侧)。
-    // 尺寸/间距对齐设计原型(docs 侧 HTML):行间距 9、计时与标签距 5、
-    // 信息区内部距 4;计时 23 > 详情行 15 > 时间行 13 > 标签 12。
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 12) {
-                coverView
-
-                Spacer(minLength: 0)
-
-                VStack(alignment: .trailing, spacing: 5) {
-                    LiveActivityTimerText(state: state, isLive: isLive, fontSize: 23)
-                    Text(LiveActivityCopy.statusLabel(isLive: isLive, state: state))
-                        .font(.system(size: 12))
-                        .foregroundStyle(WidgetTheme.dim)
-                        .accessibilityHidden(true)
-                }
-            }
-
-            HStack(alignment: .bottom, spacing: 8) {
+        let content = LiveActivityContent(state: state, isLive: isLive)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 22) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(LiveActivityCopy.detailLine(for: state))
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.foreground)
-                        .lineLimit(1)
-
-                    if let timeLine = LiveActivityCopy.timeLine(for: state, isLive: isLive) {
-                        Text(timeLine)
-                            .font(.system(size: 13))
-                            .monospacedDigit()
+                    LiveActivityKicker(content: content)
+                    LiveActivityTimerText(content: content, fontSize: 23, alignment: .leading)
+                    if let caption = content.caption {
+                        Text(caption)
+                            .font(.system(size: 12))
                             .foregroundStyle(WidgetTheme.muted)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                            .accessibilityHidden(true)
                     }
                 }
+                // 「1 小时 24 分钟」这类长计时也要和右列留出呼吸。
+                .frame(width: 108, alignment: .leading)
 
-                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(content.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(WidgetTheme.foreground)
+                        .lineLimit(2)
+                    if let subtitle = content.subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 13))
+                            .foregroundStyle(WidgetTheme.muted)
+                            .lineLimit(1)
+                    }
+                    if let next = content.next {
+                        LiveActivityNextLine(next: next)
+                            .padding(.top, 6)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
-                LiveActivityActionLink(showID: showID, isLive: isLive)
+            if let progress = content.progress {
+                LiveActivitySetProgress(range: progress)
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, 14)
+        .background(alignment: .topLeading) {
+            RadialGradient(
+                colors: [content.glowColor.opacity(0.22), content.glowColor.opacity(0)],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 200
+            )
+        }
         .activityBackgroundTint(Color.black.opacity(0.72))
         .activitySystemActionForegroundColor(WidgetTheme.foreground)
-    }
-
-    @ViewBuilder
-    private var coverView: some View {
-        if let coverImage {
-            Image(uiImage: coverImage)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-        } else if let icon = LiveActivityArtwork.appIcon() {
-            // 无封面兜底:App 图标铺满封面位
-            Image(uiImage: icon)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-        } else {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(WidgetTheme.surfaceRaised)
-                .frame(width: 48, height: 48)
-        }
     }
 }

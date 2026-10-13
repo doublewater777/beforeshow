@@ -60,17 +60,19 @@ struct TimetablePerformanceInspectorSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 14) {
-                header
-                stageSection
-                timeSection
-                deleteButton
-                Spacer(minLength: 0)
+            ScrollView {
+                VStack(spacing: 16) {
+                    header
+                    stageSection
+                    timeSection
+                    deleteButton
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 20)
-            .background(TimetableStyle.background.ignoresSafeArea())
+            .scrollDismissesKeyboard(.interactively)
+            .scrollContentBackground(.hidden)
             .task(id: "\(performance.artistName)|\(performance.appleMusicArtistID ?? "")|\(searchAttempt)") {
                 await searchArtists()
             }
@@ -79,17 +81,22 @@ struct TimetablePerformanceInspectorSheet: View {
                     TimetablePreviewPlayer.shared.stop()
                 }
             }
-            .navigationTitle(BSLocalization.text("演出检视"))
+            .onDisappear {
+                if TimetablePreviewPlayer.shared.activePerformanceID == performance.id {
+                    TimetablePreviewPlayer.shared.stop()
+                }
+            }
+            .navigationTitle(BSLocalization.text("演出详情"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .bsClearNavigationContainer()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button(BSLocalization.text("完成")) {
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(TimetableStyle.foreground)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(TimetableStyle.mine)
                 }
             }
             .alert(
@@ -110,22 +117,30 @@ struct TimetablePerformanceInspectorSheet: View {
     // MARK: - Header (Artist, Avatar & Direct Preview)
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 TimetableArtistAvatar(name: performance.artistName, url: avatarURL, size: 52)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    TextField(BSLocalization.text("艺人名称"), text: artistName)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(TimetableStyle.foreground)
-                        .focused($isNameFocused)
-                        .submitLabel(.done)
-                        .onSubmit {
-                            isNameFocused = false
-                            try? modelContext.save()
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        TextField(BSLocalization.text("艺人名称"), text: artistName)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(TimetableStyle.foreground)
+                            .focused($isNameFocused)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                isNameFocused = false
+                                try? modelContext.save()
+                            }
+
+                        if !isNameFocused {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12))
+                                .foregroundStyle(TimetableStyle.dim)
                         }
+                    }
 
                     if let trackTitle = activeTrackTitle {
                         Label(BSLocalization.format("正在试听 · %@", trackTitle), systemImage: "music.note")
@@ -134,15 +149,28 @@ struct TimetablePerformanceInspectorSheet: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                     } else if let id = performance.appleMusicArtistID, !id.isEmpty {
-                        Button {
-                            isRelinking = true
-                            performance.disconnectArtist()
+                        Menu {
+                            Button(role: .destructive) {
+                                isRelinking = true
+                                performance.disconnectArtist()
+                                try? modelContext.save()
+                            } label: {
+                                Label(BSLocalization.text("断开 Apple Music 关联"), systemImage: "link.badge.plus")
+                            }
                         } label: {
-                            Label(BSLocalization.text("已关联 Apple Music"), systemImage: "checkmark.seal.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(TimetableStyle.mine)
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text(BSLocalization.text("已关联 Apple Music"))
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                            }
+                            .font(.system(size: 12))
+                            .foregroundStyle(TimetableStyle.mine)
                         }
-                        .buttonStyle(.plain)
+                    } else {
+                        Text(BSLocalization.text("未关联音乐库"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(TimetableStyle.dim)
                     }
                 }
 
@@ -157,7 +185,7 @@ struct TimetablePerformanceInspectorSheet: View {
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.28) : Color.white.opacity(0.14))
+                            .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.25) : Color.white.opacity(0.12))
                             .frame(width: 40, height: 40)
                         if isLoadingPreview {
                             ProgressView()
@@ -187,6 +215,9 @@ struct TimetablePerformanceInspectorSheet: View {
             }
 
             if needsArtistSearch {
+                Divider()
+                    .overlay(Color.white.opacity(0.08))
+
                 ArtistSearchPicker(
                     options: artistCandidates,
                     isLoading: isSearchingLoading,
@@ -198,7 +229,7 @@ struct TimetablePerformanceInspectorSheet: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(TimetableStyle.card)
         )
     }
@@ -244,87 +275,108 @@ struct TimetablePerformanceInspectorSheet: View {
     private var stageSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(BSLocalization.text("所属舞台"))
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(TimetableStyle.muted)
+                .padding(.horizontal, 4)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(day.orderedStages) { stage in
-                        let isSelected = performance.stage?.id == stage.id
-                        let color = TimetableStageLight.color(stage.sortOrder)
-                        Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                performance.moveTo(stage: stage)
-                                try? modelContext.save()
+            VStack(spacing: 0) {
+                if day.orderedStages.count <= 3 {
+                    HStack(spacing: 6) {
+                        ForEach(day.orderedStages) { stage in
+                            let isSelected = performance.stage?.id == stage.id
+                            let color = TimetableStageLight.color(stage.sortOrder)
+                            Button {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                    performance.moveTo(stage: stage)
+                                    try? modelContext.save()
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    TimetableStageLight.marker(stage.sortOrder)
+                                        .fill(color)
+                                        .frame(width: 8, height: 8)
+                                    Text(stage.name)
+                                        .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+                                        .lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 9)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(isSelected ? color.opacity(0.18) : Color.white.opacity(0.04))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .strokeBorder(isSelected ? color.opacity(0.6) : Color.clear, lineWidth: 1)
+                                )
+                                .foregroundStyle(isSelected ? TimetableStyle.foreground : TimetableStyle.muted)
                             }
-                        } label: {
-                            HStack(spacing: 6) {
-                                TimetableStageLight.marker(stage.sortOrder)
-                                    .fill(color)
-                                    .frame(width: 8, height: 8)
-                                Text(stage.name)
-                                    .font(.system(size: 14, weight: isSelected ? .bold : .medium))
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule()
-                                    .fill(isSelected ? color.opacity(0.2) : Color.white.opacity(0.06))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(isSelected ? color.opacity(0.8) : Color.white.opacity(0.1), lineWidth: 1)
-                            )
-                            .foregroundStyle(isSelected ? TimetableStyle.foreground : TimetableStyle.muted)
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                    }
+                    .padding(8)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(day.orderedStages) { stage in
+                                let isSelected = performance.stage?.id == stage.id
+                                let color = TimetableStageLight.color(stage.sortOrder)
+                                Button {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                        performance.moveTo(stage: stage)
+                                        try? modelContext.save()
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        TimetableStageLight.marker(stage.sortOrder)
+                                            .fill(color)
+                                            .frame(width: 8, height: 8)
+                                        Text(stage.name)
+                                            .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule()
+                                            .fill(isSelected ? color.opacity(0.2) : Color.white.opacity(0.06))
+                                    )
+                                    .overlay(
+                                        Capsule()
+                                            .strokeBorder(isSelected ? color.opacity(0.8) : Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                                    .foregroundStyle(isSelected ? TimetableStyle.foreground : TimetableStyle.muted)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
                     }
                 }
             }
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(TimetableStyle.card)
+            )
         }
     }
 
     // MARK: - Time Section
 
     private var timeSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(BSLocalization.text("演出时段"))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(TimetableStyle.muted)
-                Spacer()
-                Text(BSLocalization.format("%d 分钟", durationMinutes))
-                    .font(TimetableStyle.mono(13))
-                    .foregroundStyle(TimetableStyle.dim)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Text(BSLocalization.text("演出时段"))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(TimetableStyle.muted)
+                .padding(.horizontal, 4)
 
-            // Quick shift buttons
-            HStack(spacing: 8) {
-                ForEach([-10, 10], id: \.self) { minutes in
-                    Button {
-                        withAnimation(.snappy) {
-                            performance.shiftTimes(by: TimeInterval(minutes * 60))
-                            try? modelContext.save()
-                        }
-                    } label: {
-                        Text("\(minutes > 0 ? "+" : "")\(minutes)分")
-                            .font(TimetableStyle.mono(13, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 1))
-                            .foregroundStyle(TimetableStyle.foreground)
-                    }
-                    .buttonStyle(TimetablePressStyle())
-                }
-            }
-
-            // Pickers
-            HStack {
-                HStack(spacing: 8) {
-                    Text(BSLocalization.text("开始"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(TimetableStyle.muted)
+            VStack(spacing: 0) {
+                // Starts At Row
+                HStack {
+                    Label(BSLocalization.text("开始"), systemImage: "clock")
+                        .font(.system(size: 15))
+                        .foregroundStyle(TimetableStyle.foreground)
+                    Spacer()
                     DatePicker("", selection: Binding(
                         get: { performance.startsAt },
                         set: {
@@ -336,16 +388,21 @@ struct TimetablePerformanceInspectorSheet: View {
                     ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
-                    .environment(\.locale, Locale(identifier: "en_GB"))
                     .environment(\.timeZone, timeZone)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
 
-                Spacer()
+                Divider()
+                    .padding(.leading, 16)
+                    .overlay(Color.white.opacity(0.06))
 
-                HStack(spacing: 8) {
-                    Text(BSLocalization.text("结束"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(TimetableStyle.muted)
+                // Ends At Row
+                HStack {
+                    Label(BSLocalization.text("结束"), systemImage: "clock.badge.checkmark")
+                        .font(.system(size: 15))
+                        .foregroundStyle(TimetableStyle.foreground)
+                    Spacer()
                     DatePicker("", selection: Binding(
                         get: { performance.endsAt },
                         set: {
@@ -357,36 +414,87 @@ struct TimetablePerformanceInspectorSheet: View {
                     ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
-                    .environment(\.locale, Locale(identifier: "en_GB"))
                     .environment(\.timeZone, timeZone)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+
+                Divider()
+                    .padding(.leading, 16)
+                    .overlay(Color.white.opacity(0.06))
+
+                // Duration & Shifting Row
+                HStack {
+                    Text(BSLocalization.text("总时长"))
+                        .font(.system(size: 14))
+                        .foregroundStyle(TimetableStyle.muted)
+
+                    Text(BSLocalization.format("%d 分钟", durationMinutes))
+                        .font(TimetableStyle.mono(14, weight: .semibold))
+                        .foregroundStyle(TimetableStyle.mine)
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        shiftButton(minutes: -10)
+                        shiftButton(minutes: 10)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
-            .padding(.top, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(TimetableStyle.card)
+            )
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(TimetableStyle.card)
-        )
+    }
+
+    private func shiftButton(minutes: Int) -> some View {
+        Button {
+            withAnimation(.snappy) {
+                performance.shiftTimes(by: TimeInterval(minutes * 60))
+                try? modelContext.save()
+            }
+        } label: {
+            Text("\(minutes > 0 ? "+" : "")\(minutes)m")
+                .font(TimetableStyle.mono(12, weight: .semibold))
+                .foregroundStyle(TimetableStyle.foreground)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Delete
 
     private var deleteButton: some View {
-        Button {
+        Button(role: .destructive) {
             isConfirmingDelete = true
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "trash")
+                    .font(.system(size: 14, weight: .medium))
                 Text(BSLocalization.text("删除此演出"))
+                    .font(.system(size: 15, weight: .medium))
             }
-            .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(TimetableStyle.now)
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .background(RoundedRectangle(cornerRadius: 12).fill(TimetableStyle.now.opacity(0.12)))
+            .frame(height: 48)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(TimetableStyle.card)
+            )
         }
-        .buttonStyle(TimetablePressStyle())
+        .buttonStyle(.plain)
         .padding(.top, 4)
     }
 }
