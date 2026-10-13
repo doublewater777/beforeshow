@@ -503,6 +503,18 @@ import SwiftData
         XCTAssertEqual(result.map(\.origin), result.indices.map { .compilation(showID: showID, number: $0 + 1) })
     }
 
+    func testRouteCutsEachSetWhenTheNextChosenSetStarts() {
+        let base = Date(timeIntervalSince1970: 0)
+        let sets = ListeningCompilationAssembler.route([
+            (tracks: [], startsAt: base, endsAt: base.addingTimeInterval(3_600)),
+            (tracks: [], startsAt: base.addingTimeInterval(2_400), endsAt: base.addingTimeInterval(5_400)),
+            (tracks: [], startsAt: base.addingTimeInterval(5_400), endsAt: base.addingTimeInterval(6_000)),
+            (tracks: [], startsAt: base.addingTimeInterval(5_400), endsAt: base.addingTimeInterval(7_000))
+        ])
+
+        XCTAssertEqual(sets.map(\.duration), [2_400, 3_000, 1_600])
+    }
+
     func testCompilationSkipsLatestWithoutReleaseDates() {
         let tracks = (0..<80).map { ListeningDiscTrack(CatalogSong(appleMusicSongID: "\($0)", title: "\($0)", artistName: "Artist")) }
 

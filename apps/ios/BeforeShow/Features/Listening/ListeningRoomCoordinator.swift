@@ -185,10 +185,6 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private func deckCursorDidChange() {
-        // A compilation shows the volume that holds the current song.
-        if let volume = deck.currentDisc, let seated = mechanism.disc, volume.id != seated.id {
-            mechanism.updateContents(volume)
-        }
         recordedPlayingSongID = nil
         recordPlayingIfNeeded()
         persistLoadedDisc(force: true)
@@ -591,9 +587,8 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func loadCatalog(generation: UUID, force: Bool) async {
         guard let show else { return }
-        let ids = show.artists.compactMap(\.appleMusicArtistID).reduce(into: [String]()) {
-            if !$0.contains($1) { $0.append($1) }
-        }
+        let ids = (show.artists.compactMap(\.appleMusicArtistID) + Self.wantedArtistIDs(for: show))
+            .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         guard !ids.isEmpty else {
             discs = []
             catalogState = .unmatched
@@ -852,7 +847,12 @@ private let listeningCatalogFetchConcurrency = 4
         )
     }
 
-    /// Timetable: 想看 first, then one disc per day and stage. Single-artist show: one 彩排 disc, using the estimated end when none is set.
+    /// Timetable artists marked 想看; their songs load even when they are not in the show lineup.
+    private static func wantedArtistIDs(for show: Show) -> [String] {
+        (show.timetable?.days ?? []).flatMap(\.performances).filter(\.isInterested).compactMap(\.appleMusicArtistID)
+    }
+
+    /// Timetable: 想看 per day first, then one disc per day and stage. Single-artist show: one 彩排 disc, using the estimated end when none is set.
     private static func livePrograms(
         for show: Show,
         topTracks: (String) -> [ListeningDiscTrack]
@@ -865,9 +865,18 @@ private let listeningCatalogFetchConcurrency = 4
         }
         if let timetable = show.timetable {
             let days = timetable.orderedDays
-            let wanted = days.flatMap(\.performances).filter(\.isInterested)
-                .sorted(by: TimetablePerformance.chronologicalOrder)
-            var programs = [Program(key: "wanted", title: ListeningCopy.text("想看"), sets: wanted.compactMap(liveSet))]
+            var programs = days.enumerated().map { index, day in
+                let wanted = day.performances.filter(\.isInterested)
+                    .sorted(by: TimetablePerformance.chronologicalOrder)
+                    .compactMap { performance in
+                        performance.appleMusicArtistID.map { (tracks: topTracks($0), startsAt: performance.startsAt, endsAt: performance.endsAt) }
+                    }
+                return Program(
+                    key: "wanted-\(day.id)",
+                    title: days.count == 1 ? ListeningCopy.text("想看") : ListeningCopy.format("想看 · Day %d", index + 1),
+                    sets: ListeningCompilationAssembler.route(wanted)
+                )
+            }
             let stageCount = days.reduce(0) { $0 + $1.orderedStages.count }
             for (index, day) in days.enumerated() {
                 for stage in day.orderedStages {
@@ -1244,6 +1253,11 @@ private let listeningCatalogFetchConcurrency = 4
         playbackError = nil
         deck.select(songID, autoplay: autoplay, source: playbackSource(for: target))
     }
+    /// Another player in the app is about to sound; never overlap with it.
+    func pauseForOtherAudio() {
+        if playPauseAction == .pause { deck.pause() }
+    }
+
     func playPause() {
         guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
         switch playPauseAction {
@@ -1274,6 +1288,7 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private func startPlaybackIfPossible() {
+        if TimetablePreviewPlayer.shared.activePerformanceID != nil { TimetablePreviewPlayer.shared.stop() }
         if let disc = mechanism.disc {
             deck.replaceIdleDiscs([disc])
         }
@@ -1461,7 +1476,14 @@ private let listeningCatalogFetchConcurrency = 4
         if value {
             // Compilations are derived locally from the show and its timetable, so
             // rebuilding on entry picks up timetable edits without any network work.
-            if show != nil, !isLoadingShow { try? rebuildDiscs() }
+            if let show, !isLoadingShow {
+                try? rebuildDiscs()
+                // Newly marked 想看 artists outside the lineup still need their top songs.
+                let missing = Self.wantedArtistIDs(for: show).contains { id in
+                    runtimeSongs[id] == nil && !catalogSnapshots.contains { $0.artistID == id }
+                }
+                if missing, !isCatalogEnriching { Task { await reloadCatalog() } }
+            }
             if case let .artist(artistID) = browser.scope {
                 scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
             }

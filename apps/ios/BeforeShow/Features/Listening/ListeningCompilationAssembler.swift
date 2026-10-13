@@ -28,6 +28,17 @@ enum ListeningCompilationAssembler {
         let sets: [LiveSet]
     }
 
+    /// Hopping between stages: each chosen set plays until the next one starts.
+    /// `sets` must be in start order; a set left with no time is dropped.
+    static func route(_ sets: [(tracks: [ListeningDiscTrack], startsAt: Date, endsAt: Date)]) -> [LiveSet] {
+        sets.indices.compactMap { index in
+            let set = sets[index]
+            let end = index + 1 < sets.count ? min(set.endsAt, sets[index + 1].startsAt) : set.endsAt
+            let duration = end.timeIntervalSince(set.startsAt)
+            return duration > 0 ? LiveSet(tracks: set.tracks, duration: duration) : nil
+        }
+    }
+
     static let maxTracksPerDisc = 20
     static let fallbackTrackDuration: TimeInterval = 210
     static let singleArtistTracksPerDisc = 10

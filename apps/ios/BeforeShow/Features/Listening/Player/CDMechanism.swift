@@ -39,17 +39,6 @@ import SwiftUI
     var isClosed: Bool { motion.lid.value < 0.002 && motion.lid.target != 1 }
     var hasDisc: Bool { position == .seated }
 
-    /// Refresh the seated record, including virtual volumes of the same compilation.
-    func updateContents(_ replacement: ListeningDisc) {
-        guard !isAutomatic, let current = disc else { return }
-        if current.id != replacement.id {
-            guard case let .compilation(currentShowID, _) = current.origin,
-                  case let .compilation(replacementShowID, _) = replacement.origin,
-                  currentShowID == replacementShowID else { return }
-        }
-        disc = replacement
-    }
-
     func setLid(open: Bool) {
         guard open || !isCompletingInsertion else { return }
         if open { onOpen(); pendingClose = false } else if !isClosed { pendingClose = true }
