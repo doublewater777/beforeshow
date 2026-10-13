@@ -67,7 +67,7 @@ Created with these fields:
   - Pro lifetime: `¥58`
   - Pro yearly win-back: `¥22/年`
   - Pro lifetime win-back: `¥38`
-  - Pro yearly introductory offer: 3-day free trial; configured from 2026-08-27 in 175 territories, including China
+  - Pro yearly introductory offer: removed (no free trial)
   - App Store Connect group created:
     - Group ID: `22160385`
     - Reference name: `BeforeShow Pro`
@@ -91,7 +91,7 @@ Created with these fields:
   - Lifetime: `¥58`
   - Yearly win-back: `¥22/年`
   - Lifetime win-back: `¥38`
-  - Eligible customers receive a 3-day free trial, then the yearly subscription auto-renews at the displayed annual price unless canceled.
+  - Yearly subscription auto-renews at the displayed annual price unless canceled. No free trial.
 - Free allowance:
   - Base capacity: save 5 self-added `现场`.
   - After the base, free capacity can grow by 1 per local calendar month; unused monthly growth does not roll over.
