@@ -85,13 +85,17 @@ enum ListeningRackOrdering {
             ListeningRackOrdering.Performance(artistName: $0.artistName, startsAt: $0.startsAt, isInterested: $0.isInterested)
         }
         let order = ListeningRackOrdering.order(names: browseArtists.map(\.name), performances: performances)
+        let ordered = order.map { browseArtists[$0] }
+        // Artists without an Apple Music identity have nothing to play, so they wait at the end.
+        let artists = ordered.filter(\.isConnected) + ordered.filter { !$0.isConnected }
         var seen = Set<String>()
-        for artist in order.map({ browseArtists[$0] }) where seen.insert(artist.id).inserted {
+        for artist in artists where seen.insert(artist.id).inserted {
             // Releases lead so a playlist that arrives later never replaces the head disc.
             let discs = artist.albums.filter { $0.isSingle != true }
             let releases = discs.filter { if case .featuredPlaylist = $0.origin { false } else { true } }
             groups.append(ListeningRackGroup(
-                id: artist.id,
+                // Keyed by lineup slot so connecting an artist keeps the rack's place on it.
+                id: "slot-\(artist.slotIndex)",
                 kind: .artist(id: artist.id, slotIndex: artist.slotIndex, isConnected: artist.isConnected),
                 name: artist.name,
                 artworkURL: artist.artworkURL,

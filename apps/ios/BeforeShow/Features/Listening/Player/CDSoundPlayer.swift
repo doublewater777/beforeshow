@@ -8,6 +8,8 @@ import AVFoundation
 /// use tactile haptics rather than audio so transport commands never interrupt
 /// music. Everything else — button, lid, insert, remove, release, store —
 /// stays silent; its files remain in Resources/Sounds as `cd-<name>.caf`.
+/// While the deck is still loading, the read cue loops so the machine never
+/// falls silent mid-load; once music starts the current pass finishes naturally.
 /// Sounds mix with music playback and never duck it; when no music plays the
 /// ambient session keeps them on the silent switch.
 final class CDSoundPlayer: @unchecked Sendable {
@@ -21,6 +23,7 @@ final class CDSoundPlayer: @unchecked Sendable {
 
     // Every player access is confined to AppAudioSession.workQueue.
     private var players: [String: AVAudioPlayer] = [:]
+    private var readGeneration = 0
 
     private init() {}
 
@@ -51,11 +54,39 @@ final class CDSoundPlayer: @unchecked Sendable {
         AppAudioSession.workQueue.async { [self] in
             for cue in cues {
                 guard let player = player(for: cue) else { continue }
+                if cue == "read" { readGeneration += 1 }
+                player.numberOfLoops = 0
+                player.volume = Self.gains[cue] ?? 0.5
                 player.currentTime = 0
                 player.play()
             }
         }
     }
+
+    /// Extends a read cue that is already sounding; never starts a new one.
+    func sustainRead() {
+        AppAudioSession.workQueue.async { [self] in
+            guard let player = players["read"], player.isPlaying else { return }
+            player.numberOfLoops = -1
+        }
+    }
+
+    /// Lets the read cue end: the current pass completes, or fades when nothing will play.
+    func releaseRead(fadeOut: Bool) {
+        AppAudioSession.workQueue.async { [self] in
+            guard let player = players["read"], player.isPlaying else { return }
+            player.numberOfLoops = 0
+            guard fadeOut else { return }
+            let generation = readGeneration
+            player.setVolume(0, fadeDuration: Self.readFade)
+            AppAudioSession.workQueue.asyncAfter(deadline: .now() + Self.readFade) { [self] in
+                guard generation == readGeneration else { return }
+                player.stop()
+            }
+        }
+    }
+
+    private static let readFade: TimeInterval = 0.25
 
     private func player(for transition: String) -> AVAudioPlayer? {
         dispatchPrecondition(condition: .onQueue(AppAudioSession.workQueue))

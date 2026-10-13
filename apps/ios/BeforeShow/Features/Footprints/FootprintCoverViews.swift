@@ -7,8 +7,8 @@ struct FootprintCoverView: View {
     var showsMetadata = true
 
     var body: some View {
-        coverContent
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Color.clear
+            .overlay { coverContent }
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Color.white.opacity(0.10)))

@@ -1,6 +1,6 @@
 # Plan 08 · 添加现场 UX（主转化）
 
-> **Audience:** 执行型 agent · `Agents.md` · iPhone 17
+> **Audience:** 执行型 agent · `Agents.md` · iPhone 18 Pro
 
 ---
 
@@ -85,7 +85,7 @@
 6. Build + 手测三种路径各一次（链接可用假失败）。
 
 ```bash
-cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 17' build
+cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 18 Pro' build
 ```
 
 ---

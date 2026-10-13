@@ -185,7 +185,7 @@ Run this on a fresh install before submitting the first external TestFlight buil
 ## Verification Evidence
 
 - iOS tests on 2026-06-16:
-  - Command: `xcodebuild test -project apps/ios/BeforeShow.xcodeproj -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5'`
+  - Command: `xcodebuild test -project apps/ios/BeforeShow.xcodeproj -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 18 Pro,OS=26.5'`
   - Result: `78 tests`, `0 failures`
 - CloudBase tests on 2026-06-16:
   - Command: `npm test` in `apps/cloudbase-functions`

@@ -1,6 +1,6 @@
 # Plan 11 · 开屏与引导 UX
 
-> **Audience:** 执行型 agent · `Agents.md` · iPhone 17
+> **Audience:** 执行型 agent · `Agents.md` · iPhone 18 Pro
 
 ---
 
@@ -66,7 +66,7 @@
 5. Build。
 
 ```bash
-cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 17' build
+cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 18 Pro' build
 ```
 
 ---

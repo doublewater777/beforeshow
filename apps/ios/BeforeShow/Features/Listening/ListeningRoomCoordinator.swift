@@ -66,6 +66,10 @@ private let listeningCatalogFetchConcurrency = 4
     private(set) var busy = false
     var errorText: String?
     var playbackError: String?
+    var showsPlaybackFailureAlert = false
+    /// A shelf disc carried while another is seated; it swaps in only when dropped on the player.
+    var pendingCabinetSwap: ListeningDisc?
+    @ObservationIgnored var pendingCabinetSwapDrop: CGFloat = 0
     @ObservationIgnored private var foreground = true
     @ObservationIgnored private var musicAccessRequestGeneration = UUID()
     private(set) var accessResolved = false
@@ -125,7 +129,7 @@ private let listeningCatalogFetchConcurrency = 4
         deck.onEvidence = { [weak self] result, immediate in
             self?.applyDeckEvidence(result, representDismissedAlert: immediate)
         }
-        deck.onFailure = { [weak self] in self?.playbackError = BSLocalization.text("暂时无法播放") }
+        deck.onFailure = { [weak self] in self?.reportPlaybackFailure() }
         mechanism.onOpen = { [weak self] in
             #if DEBUG
             if self?.opensWithoutStopping == true { return }
@@ -167,10 +171,12 @@ private let listeningCatalogFetchConcurrency = 4
             finalizeManualDiscInsertionIfNeeded()
         case "remove":
             deck.eject()
+            syncReadSound()
             if !mechanism.isAutomatic { clearPersistedDisc() }
             syncWidgetListeningState()
         case "store":
             deck.eject()
+            syncReadSound()
             clearPersistedDisc()
             syncWidgetListeningState()
         default:
@@ -189,11 +195,27 @@ private let listeningCatalogFetchConcurrency = 4
     }
 
     private func deckTransportDidChange() {
+        syncReadSound()
         recordPlayingIfNeeded()
         if !deck.wantsPlayback {
             persistLoadedDisc(force: true)
         }
         syncWidgetListeningState()
+    }
+
+    /// The disc-read cue keeps spinning while the seated record is still loading.
+    private func syncReadSound() {
+        let phase = mechanism.position == .seated ? deck.phase : .noDisc
+        if phase == .preparing || phase == .waiting {
+            CDSoundPlayer.shared.sustainRead()
+        } else {
+            CDSoundPlayer.shared.releaseRead(fadeOut: !phase.isPlaybackActive)
+        }
+    }
+
+    private func reportPlaybackFailure() {
+        playbackError = BSLocalization.text("暂时无法播放")
+        showsPlaybackFailureAlert = true
     }
 
     private func deckDidProgress(_ time: TimeInterval) {
@@ -1443,7 +1465,7 @@ private let listeningCatalogFetchConcurrency = 4
                 try await action()
             } catch is CancellationError {
             } catch {
-                self.playbackError = BSLocalization.text("暂时无法播放")
+                self.reportPlaybackFailure()
             }
         }
     }

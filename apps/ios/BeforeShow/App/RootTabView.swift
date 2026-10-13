@@ -3,10 +3,14 @@ import SwiftUI
 struct RootTabView: View {
     @Binding var selectedTab: BeforeShowTab
     @State private var mountedTabs: Set<BeforeShowTab> = [.current]
+    @State private var isBottomChromeHidden = false
 
     var body: some View {
         ZStack {
-            CurrentShowFeatureRootView(isPlaybackActive: selectedTab == .current)
+            CurrentShowFeatureRootView(
+                isPlaybackActive: selectedTab == .current,
+                onDetailVisibilityChange: { isBottomChromeHidden = $0 }
+            )
                 .opacity(selectedTab == .current ? 1 : 0)
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
@@ -19,7 +23,7 @@ struct RootTabView: View {
             }
 
             if mountedTabs.contains(.footprints) || selectedTab == .footprints {
-                FootprintsView()
+                FootprintsView(onArchiveVisibilityChange: { isBottomChromeHidden = $0 })
                     .opacity(selectedTab == .footprints ? 1 : 0)
                     .allowsHitTesting(selectedTab == .footprints)
                     .accessibilityHidden(selectedTab != .footprints)
@@ -35,7 +39,7 @@ struct RootTabView: View {
                 mountedTabs.insert(tab)
             }
         }
-        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
+        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab, isHidden: isBottomChromeHidden))
         .modifier(FeedbackShakeShortcutModifier())
         // Keep system nav chrome neutral so tint does not leak into child controls.
         .tint(BSColor.Stage.foreground)

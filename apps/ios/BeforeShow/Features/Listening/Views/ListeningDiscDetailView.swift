@@ -133,6 +133,7 @@ struct ListeningDiscDetailView: View {
         // the sheet are styled explicitly at their point of use.
         .tint(BSColor.Stage.foreground)
         .presentationDetents([.large])
+        .listeningPlaybackFailureAlert(room)
         .presentationDragIndicator(.visible)
     }
 

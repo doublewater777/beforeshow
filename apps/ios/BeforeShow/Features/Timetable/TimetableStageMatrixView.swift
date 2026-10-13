@@ -22,6 +22,7 @@ struct TimetableStageMatrixView: View {
     @State private var scrolledDayID: UUID?
     /// A tap on empty lane space only proposes a slot; nothing is saved until the form is.
     @State private var ghost: Ghost?
+    @State private var scrollOffsetY: CGFloat = 0
 
     private struct Ghost: Equatable {
         let stageID: UUID
@@ -64,9 +65,18 @@ struct TimetableStageMatrixView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     // 1. Sticky Stage Headers Row (横向随列联动，纵向永远吸顶)
-                    stageHeadersRow(stages: stages, lane: lane, layout: layout)
+                    stageHeadersRow(stages: stages, lane: lane, layout: layout, scrollOffset: scrollOffsetY)
                         .frame(width: width, height: Self.capHeight, alignment: .leading)
-                        .background(TimetableStyle.background)
+                        .background {
+                            ZStack(alignment: .bottom) {
+                                TimetableStyle.background
+                                if scrollOffsetY > 2 {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(min(0.08, scrollOffsetY / 200.0 * 0.08)))
+                                        .frame(height: 0.5)
+                                }
+                            }
+                        }
                         .zIndex(10)
 
                     // 2. Vertical Timeline Grid
@@ -76,6 +86,11 @@ struct TimetableStageMatrixView: View {
                             .background(ScrollViewBouncesConfigurator(bounces: false, directionalLock: true))
                     }
                     .scrollPosition($position)
+                    .onScrollGeometryChange(for: CGFloat.self) { geo in
+                        geo.contentOffset.y
+                    } action: { _, y in
+                        scrollOffsetY = max(0, y)
+                    }
                     .frame(width: width, height: gridHeight, alignment: .topLeading)
                     .clipped()
                     .background(ScrollViewBouncesConfigurator(bounces: false, directionalLock: true))
@@ -121,14 +136,23 @@ struct TimetableStageMatrixView: View {
     private func stageHeadersRow(
         stages: [TimetableStage],
         lane: CGFloat,
-        layout: TimetableMatrixLayout
+        layout: TimetableMatrixLayout,
+        scrollOffset: CGFloat
     ) -> some View {
         ZStack(alignment: .leading) {
             ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
                 let x = laneX(index, lane: lane)
                 let tint = TimetableStageLight.color(stage.sortOrder)
-                stageHeaderMenu(stage: stage, lane: lane, tint: tint, activity: layout.activity.indices.contains(index) ? layout.activity[index] : .idle, soonMinutes: soonMinutes(lane: index, layout: layout))
-                    .offset(x: x, y: 0)
+                stageHeaderMenu(
+                    stage: stage,
+                    lane: lane,
+                    tint: tint,
+                    activity: layout.activity.indices.contains(index) ? layout.activity[index] : .idle,
+                    soonMinutes: soonMinutes(lane: index, layout: layout),
+                    index: index,
+                    scrollOffset: scrollOffset
+                )
+                .offset(x: x, y: 0)
             }
 
             // "+ 舞台" top button
@@ -190,12 +214,8 @@ struct TimetableStageMatrixView: View {
                 )
                     .fill(TimetableStyle.lane)
                     .overlay(alignment: .top) {
-                        // Light means "on stage now": only a playing stage is lit from its header.
-                        if activity == .live {
-                            TimetableStageBeam(color: tint)
-                                .frame(height: 320, alignment: .top)
-                                .allowsHitTesting(false)
-                        }
+                        TimetableStageBeam(color: tint, activity: activity, index: index)
+                            .allowsHitTesting(false)
                     }
                     .frame(width: lane, height: laneHeight)
                     .clipShape(UnevenRoundedRectangle(
@@ -358,16 +378,23 @@ struct TimetableStageMatrixView: View {
         .allowsHitTesting(false)
     }
 
-    /// Header light mirrors the lane: a playing stage glows in its colour, a stage
-    /// starting soon lights only its bottom edge and says when, idle stays dark.
+    /// Header light mirrors the lane: live glows energetically, while idle/soon
+    /// carries a soft theatrical standby glow and beam flare that evolves smoothly
+    /// as the user scrolls through the timeline.
     private func stageHeaderMenu(
         stage: TimetableStage,
         lane: CGFloat,
         tint: Color,
         activity: TimetableMatrixLayout.Activity,
-        soonMinutes: Int?
+        soonMinutes: Int?,
+        index: Int,
+        scrollOffset: CGFloat
     ) -> some View {
-        Menu {
+        let isLive = activity == .live
+        let scrollDist = max(0, scrollOffset)
+        let idleProgress = min(1.0, scrollDist / 240.0)
+
+        return Menu {
             Button {
                 onAddPerformance(stage, nil)
             } label: {
@@ -378,15 +405,31 @@ struct TimetableStageMatrixView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                if activity == .live {
+                if isLive {
                     TimetableEqualizer(color: tint)
                 } else {
-                    TimetableStageLight.marker(stage.sortOrder).fill(tint).frame(width: 7, height: 7)
+                    ZStack {
+                        // 现场舞台待机光晕：无演出时带轻微呼吸氛围，随滑动距离增强
+                        TimetableStageLight.marker(stage.sortOrder)
+                            .fill(tint)
+                            .frame(width: 13, height: 13)
+                            .blur(radius: 2.5)
+                            .opacity(0.35 + idleProgress * 0.35)
+
+                        TimetableStageLight.marker(stage.sortOrder)
+                            .fill(tint)
+                            .frame(width: 7, height: 7)
+                    }
                 }
                 Text(stage.name)
                     .font(.system(size: 13, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                    .foregroundStyle(
+                        isLive
+                            ? TimetableStyle.foreground
+                            : Color.white.opacity(0.60 + idleProgress * 0.35)
+                    )
                 if activity == .soon, let soonMinutes {
                     Text(BSLocalization.format("%d 分钟后", soonMinutes))
                         .font(TimetableStyle.mono(10.5, weight: .semibold))
@@ -394,25 +437,160 @@ struct TimetableStageMatrixView: View {
                         .lineLimit(1)
                 }
             }
-            .foregroundStyle(activity == .live ? TimetableStyle.foreground : TimetableStyle.muted)
             .padding(.horizontal, BSSpacing.sm)
             .frame(width: lane, height: Self.capHeight)
             .background {
-                TimetableStyle.lane
-                    .overlay(tint.opacity(activity == .live ? 0.16 : 0))
-                    .overlay(alignment: .bottom) {
-                        if activity != .idle {
-                            Rectangle().fill(tint.opacity(activity == .live ? 0.5 : 0.55)).frame(height: activity == .live ? 1 : 1.5)
-                        }
-                    }
-                    .clipShape(UnevenRoundedRectangle(
-                        topLeadingRadius: TimetableStyle.matrixLaneRadius,
-                        topTrailingRadius: TimetableStyle.matrixLaneRadius
-                    ))
+                TimetableStageHeaderAtmosphere(
+                    tint: tint,
+                    activity: activity,
+                    index: index,
+                    scrollOffset: scrollOffset,
+                    lane: lane
+                )
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Ambient theatrical stage lighting for sticky stage header caps.
+/// When idle (no performance), presents gentle standby haze and moving-head beam flare that
+/// responds smoothly to vertical scroll distance.
+private struct TimetableStageHeaderAtmosphere: View {
+    let tint: Color
+    let activity: TimetableMatrixLayout.Activity
+    let index: Int
+    let scrollOffset: CGFloat
+    let lane: CGFloat
+
+    @State private var breathe = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isLive: Bool { activity == .live }
+
+    var body: some View {
+        let scrollDist = max(0, scrollOffset)
+        let progress = min(1.0, scrollDist / 260.0)
+        let dynamicPhase = scrollDist / 160.0
+        let sweepDelta = sin(dynamicPhase + Double(index) * 1.3) * 14.0
+
+        ZStack(alignment: .bottom) {
+            // 1. Base lane pillar cap
+            TimetableStyle.lane
+
+            // 2. Ambient Stage Color Wash (无演出时带柔和底色，随滑动距离慢慢加深)
+            ambientWash(progress: progress)
+
+            // 3. Downward Spotlight Cone / Origin Flare (光束起点随滑动微调偏角)
+            spotlightFlare(progress: progress, sweepDelta: sweepDelta)
+
+            // 4. Subtle Top Truss Highlight (顶边高光)
+            topTrussHighlight(progress: progress)
+
+            // 5. Bottom Stage Light / Laser Edge (连接下方舞台立柱光束的底边光条)
+            bottomEdge(progress: progress, dynamicPhase: dynamicPhase)
+        }
+        .clipShape(UnevenRoundedRectangle(
+            topLeadingRadius: TimetableStyle.matrixLaneRadius,
+            topTrailingRadius: TimetableStyle.matrixLaneRadius
+        ))
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: isLive ? 2.4 : 4.6).repeatForever(autoreverses: true)) {
+                breathe = true
+            }
+        }
+    }
+
+    private func ambientWash(progress: CGFloat) -> some View {
+        let breatheOffset = breathe ? 0.03 : -0.02
+        let topOpacity: Double
+        let bottomOpacity: Double
+
+        if isLive {
+            topOpacity = 0.12 + (breathe ? 0.04 : 0.0)
+            bottomOpacity = 0.22 + (breathe ? 0.06 : 0.0)
+        } else {
+            // 没有演出时：静止时带柔和底色，滑动时随距离渐渐加深丰富
+            topOpacity = max(0.02, 0.05 + progress * 0.08 + breatheOffset)
+            bottomOpacity = max(0.04, 0.09 + progress * 0.14 + breatheOffset)
+        }
+
+        return LinearGradient(
+            stops: [
+                .init(color: tint.opacity(topOpacity), location: 0),
+                .init(color: tint.opacity(bottomOpacity), location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func spotlightFlare(progress: CGFloat, sweepDelta: Double) -> some View {
+        let centerShift = reduceMotion ? 0.0 : (sweepDelta / max(lane, 1.0))
+        let flareOpacity = isLive ? 0.32 : (0.10 + progress * 0.18 + (breathe ? 0.03 : 0.0))
+
+        return RadialGradient(
+            colors: [
+                tint.opacity(flareOpacity),
+                tint.opacity(flareOpacity * 0.45),
+                .clear
+            ],
+            center: UnitPoint(x: 0.5 + centerShift, y: 1.0),
+            startRadius: 0,
+            endRadius: max(lane * 0.70, 48)
+        )
+        .blendMode(.screen)
+    }
+
+    private func topTrussHighlight(progress: CGFloat) -> some View {
+        UnevenRoundedRectangle(
+            topLeadingRadius: TimetableStyle.matrixLaneRadius,
+            topTrailingRadius: TimetableStyle.matrixLaneRadius
+        )
+        .stroke(
+            LinearGradient(
+                stops: [
+                    .init(color: Color.white.opacity(0.04 + progress * 0.05), location: 0),
+                    .init(color: tint.opacity(0.12 + progress * 0.18), location: 0.5),
+                    .init(color: Color.white.opacity(0.04 + progress * 0.05), location: 1)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            ),
+            lineWidth: 1
+        )
+    }
+
+    private func bottomEdge(progress: CGFloat, dynamicPhase: CGFloat) -> some View {
+        let edgeOpacity: Double
+        let edgeHeight: CGFloat
+
+        if isLive {
+            edgeOpacity = breathe ? 0.70 : 0.55
+            edgeHeight = 1.5
+        } else {
+            // 随滑动距离，底边从微光渐变到清晰的舞台激光切线
+            let wave = reduceMotion ? 0.0 : sin(dynamicPhase + Double(index) * 1.5) * 0.06
+            edgeOpacity = max(0.15, min(0.70, 0.22 + progress * 0.38 + wave))
+            edgeHeight = 1.0 + progress * 0.5
+        }
+
+        return Rectangle()
+            .fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: tint.opacity(edgeOpacity * 0.5), location: 0),
+                        .init(color: tint.opacity(edgeOpacity), location: 0.5),
+                        .init(color: tint.opacity(edgeOpacity * 0.5), location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(height: edgeHeight)
+            .shadow(color: tint.opacity(edgeOpacity * 0.6), radius: 2.5 + progress * 2.0, y: 0.5)
     }
 }
 
@@ -482,26 +660,145 @@ private final class BouncesConfigurationView: UIView {
     }
 }
 
-/// Light falling from a playing stage's header, breathing slowly.
+/// Tapered cone representing a theatrical spotlight beam.
+private struct StageBeamConeShape: Shape {
+    var topWidthRatio: CGFloat = 0.35
+    var bottomWidthRatio: CGFloat = 0.90
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let topWidth = rect.width * topWidthRatio
+        let bottomWidth = rect.width * bottomWidthRatio
+        let topLeading = (rect.width - topWidth) / 2
+        let bottomLeading = (rect.width - bottomWidth) / 2
+
+        path.move(to: CGPoint(x: topLeading, y: rect.minY))
+        path.addLine(to: CGPoint(x: topLeading + topWidth, y: rect.minY))
+        path.addLine(to: CGPoint(x: bottomLeading + bottomWidth, y: rect.maxY))
+        path.addLine(to: CGPoint(x: bottomLeading, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Theatrical stage light beam: atmospheric moving-head cone beams and truss wash.
+/// When live, energetic and focused; when idle (no performance), soft atmospheric
+/// crossing stage light beams cutting through the haze with gentle breathing and swaying.
 private struct TimetableStageBeam: View {
     let color: Color
+    let activity: TimetableMatrixLayout.Activity
+    let index: Int
+
     @State private var breathe = false
+    @State private var sway = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isLive: Bool { activity == .live }
+    private var isSoon: Bool {
+        if case .soon = activity { return true }
+        return false
+    }
 
     var body: some View {
-        LinearGradient(
-            stops: [
-                .init(color: color.opacity(0.22), location: 0),
-                .init(color: color.opacity(0.08), location: 0.4),
-                .init(color: .clear, location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .opacity(breathe ? 1 : 0.75)
+        ZStack(alignment: .top) {
+            // 1. Ambient truss wash
+            LinearGradient(
+                stops: [
+                    .init(color: color.opacity(washMaxOpacity), location: 0),
+                    .init(color: color.opacity(washMidOpacity), location: 0.35),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: isLive ? 360 : 300)
+
+            // 2. Primary angled spotlight beam (主现场光束)
+            primaryBeam
+                .frame(height: isLive ? 440 : 380)
+
+            // 3. Ambient crossing beam for atmospheric depth (交叉氛围光束)
+            crossingBeam
+                .frame(height: isLive ? 380 : 320)
+        }
         .allowsHitTesting(false)
         .onAppear {
-            withAnimation(.easeInOut(duration: 2.75).repeatForever(autoreverses: true)) { breathe = true }
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: isLive ? 2.4 : 4.2).repeatForever(autoreverses: true)) {
+                breathe = true
+            }
+            withAnimation(.easeInOut(duration: isLive ? 3.2 : 6.0).repeatForever(autoreverses: true)) {
+                sway = true
+            }
         }
+    }
+
+    private var washMaxOpacity: Double {
+        if isLive { return breathe ? 0.30 : 0.22 }
+        if isSoon { return breathe ? 0.20 : 0.14 }
+        return breathe ? 0.13 : 0.07
+    }
+
+    private var washMidOpacity: Double {
+        if isLive { return breathe ? 0.12 : 0.08 }
+        if isSoon { return breathe ? 0.08 : 0.04 }
+        return breathe ? 0.05 : 0.02
+    }
+
+    private var primaryBeam: some View {
+        let baseAngle = (index % 2 == 0 ? -1.0 : 1.0) * (isLive ? 6.0 : 8.5)
+        let swayAngle = (sway ? 2.8 : -2.8) * (index % 2 == 0 ? 1.0 : -1.0)
+        let angle = reduceMotion ? baseAngle : (baseAngle + swayAngle)
+
+        let topOpacity = isLive ? (breathe ? 0.28 : 0.20) : (breathe ? 0.15 : 0.09)
+        let midOpacity = isLive ? (breathe ? 0.12 : 0.08) : (breathe ? 0.06 : 0.03)
+
+        return StageBeamConeShape(
+            topWidthRatio: isLive ? 0.45 : 0.30,
+            bottomWidthRatio: isLive ? 0.95 : 0.85
+        )
+        .fill(
+            LinearGradient(
+                stops: [
+                    .init(color: color.opacity(topOpacity), location: 0),
+                    .init(color: color.opacity(midOpacity), location: 0.4),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .rotationEffect(.degrees(angle), anchor: .top)
+        .blur(radius: isLive ? 7 : 10)
+        .blendMode(.screen)
+    }
+
+    private var crossingBeam: some View {
+        let baseAngle = (index % 2 == 0 ? 1.0 : -1.0) * (isLive ? 7.5 : 9.5)
+        let swayAngle = (sway ? -2.2 : 2.2) * (index % 2 == 0 ? 1.0 : -1.0)
+        let angle = reduceMotion ? baseAngle : (baseAngle + swayAngle)
+
+        let topOpacity = isLive ? (breathe ? 0.16 : 0.11) : (breathe ? 0.08 : 0.045)
+        let midOpacity = isLive ? (breathe ? 0.06 : 0.03) : (breathe ? 0.03 : 0.015)
+
+        return StageBeamConeShape(
+            topWidthRatio: 0.25,
+            bottomWidthRatio: 0.75
+        )
+        .fill(
+            LinearGradient(
+                stops: [
+                    .init(color: color.opacity(topOpacity), location: 0),
+                    .init(color: color.opacity(midOpacity), location: 0.45),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .rotationEffect(.degrees(angle), anchor: .top)
+        .blur(radius: 12)
+        .blendMode(.screen)
     }
 }
 

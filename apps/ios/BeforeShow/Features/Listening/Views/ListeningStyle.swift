@@ -47,11 +47,11 @@ struct ListeningDiscHub: View {
             Circle()
                 .fill(Color.white.opacity(0.16))
                 .overlay(Circle().stroke(Color.white.opacity(0.32), lineWidth: 0.75))
-                .frame(width: size * 0.15, height: size * 0.15)
+                .frame(width: size * 0.1, height: size * 0.1)
             Circle()
                 .fill(Color(white: 0.62))
                 .overlay(Circle().stroke(Color.black.opacity(0.18), lineWidth: 0.5))
-                .frame(width: size * 0.045, height: size * 0.045)
+                .frame(width: size * 0.03, height: size * 0.03)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

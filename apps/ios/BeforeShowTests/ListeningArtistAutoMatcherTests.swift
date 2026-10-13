@@ -93,6 +93,32 @@ import SwiftData
         XCTAssertTrue(queriedEnglish)
     }
 
+    func testAmbiguousEnglishAliasDoesNotBlockDistinctChineseIdentity() async throws {
+        let original = "椅子乐团 The Chairs"
+        let chairs = candidate("chairs", "椅子樂團")
+        let search = ArtistVariantSearchStub(results: [
+            original: [chairs],
+            "椅子乐团": [chairs, candidate("other", "The Chairs")],
+            "The Chairs": [chairs, candidate("other", "The Chairs"), candidate("another", "The Chairs")]
+        ])
+        let matches = try await ArtistIdentityMatcher(search: search).matches(
+            for: [ArtistSlot(name: original, avatarURL: nil)]
+        )
+        XCTAssertEqual(matches[0]?.id, "chairs")
+    }
+
+    func testAmbiguousAliasStillBlocksWhenItsSearchDoesNotReturnTheIdentity() async throws {
+        let original = "椅子乐团 The Chairs"
+        let search = ArtistVariantSearchStub(results: [
+            "椅子乐团": [candidate("chairs", "椅子樂團")],
+            "The Chairs": [candidate("other", "The Chairs"), candidate("another", "The Chairs")]
+        ])
+        let matches = try await ArtistIdentityMatcher(search: search).matches(
+            for: [ArtistSlot(name: original, avatarURL: nil)]
+        )
+        XCTAssertNil(matches[0])
+    }
+
     func testConflictingSimplifiedAndTraditionalIDsPreventAutoLink() async throws {
         let search = ArtistVariantSearchStub(results: [
             "周杰倫": [candidate("one", "周杰倫")],

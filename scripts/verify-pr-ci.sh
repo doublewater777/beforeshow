@@ -2,11 +2,11 @@
 # CI wrapper for verify-pr.sh.
 # On the self-hosted Mac, keep simulator state deterministic without forcing a
 # fresh device through first-boot migrations on every PR. Reuse the already
-# warmed iPhone 17, shut down competing simulators, and put hard timeouts around
+# warmed iPhone 18 Pro, shut down competing simulators, and put hard timeouts around
 # simulator/test operations so CoreSimulator failures cannot wedge the runner.
 set -euo pipefail
 
-SIM_NAME="iPhone 17"
+SIM_NAME="iPhone 18 Pro"
 RUN_SCOPE="${GITHUB_RUN_ID:-local-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-verify}"
 TEMP_VERIFY="${RUNNER_TEMP:-/tmp}/verify-pr-${RUN_SCOPE}.sh"
 SIM_UDID=""
@@ -147,7 +147,7 @@ SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available --json) || {
   fi
   SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available --json)
 }
-# Hosted images contain several iPhone 17 devices. Choose the newest iOS
+# Hosted images contain several iPhone 18 Pro devices. Choose the newest iOS
 # runtime so an older device cannot fall below the app's deployment target.
 SIM_UDID=$(printf '%s\n' "$SIM_LIST" | python3 -c '
 import json

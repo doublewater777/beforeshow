@@ -2,7 +2,7 @@
 # verify-pr.sh — BeforeShow PR 本地运行时验证（local verifier）
 #
 # 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 定向 signed tests
-# → 完整 signed tests → entitlements / MusicKit 配置检查 → 安装到 iPhone 17 模拟器
+# → 完整 signed tests → entitlements / MusicKit 配置检查 → 安装到 iPhone 18 Pro 模拟器
 # → 启动存活检查 → LOCAL_AGENT_VERIFY 报告 → （可选）PR comment。
 #
 # Usage:
@@ -14,7 +14,7 @@ set -euo pipefail
 
 TEAM=29C8MS76CZ
 SCHEME=BeforeShow
-SIM_NAME="iPhone 17"
+SIM_NAME="iPhone 18 Pro"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 PR=""
@@ -267,7 +267,7 @@ if [ "$RESULT" = PASS ]; then
       UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Shutdown)[[:space:]]*\$/\1/p" | sed -n '1p' | tr -d '[:space:]')
       if [ -z "$UDID" ]; then
         RESULT=FAIL
-        EVIDENCE+=("launch: iPhone 17 simulator not found")
+        EVIDENCE+=("launch: $SIM_NAME simulator not found")
       else
         echo "==> Booting $SIM_NAME ($UDID)"
         xcrun simctl boot "$UDID"
@@ -308,7 +308,7 @@ if [ "$RESULT" = PASS ]; then
 fi
 
 ENV_DESC="Xcode $(xcodebuild -version | sed -n '1p' | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
-SCENARIO="xcodegen + committed project freshness + architecture + Phase 1/2/3/4/5 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
+SCENARIO="xcodegen + committed project freshness + architecture + Phase 1/2/3/4/5 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 18 Pro 安装 + 5 秒启动存活"
 
 REPORT=$(cat <<EOF
 LOCAL_AGENT_VERIFY

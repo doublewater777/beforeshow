@@ -94,6 +94,7 @@ enum ListeningChromeBootstrapper {
 
 struct ListeningRootChromeModifier: ViewModifier {
     @Binding var selectedTab: BeforeShowTab
+    var isHidden = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query private var shows: [Show]
@@ -109,8 +110,10 @@ struct ListeningRootChromeModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .safeAreaBar(edge: .bottom, spacing: 0) {
-                ListeningPolishedBottomChrome(selectedTab: $selectedTab)
-                    .padding(.bottom, BSSpacing.xs)
+                if !isHidden {
+                    ListeningPolishedBottomChrome(selectedTab: $selectedTab)
+                        .padding(.bottom, BSSpacing.xs)
+                }
             }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .task {

@@ -37,7 +37,7 @@ struct ListeningPreparingView: View {
     }
 }
 
-private struct ListeningPreparingMachineView: View {
+struct ListeningPreparingMachineView: View {
     let scale: CGFloat
     private var geometry: CDPlayerConfiguration.Geometry { CDPlayerConfiguration.standard.geometry }
     private var assets: CDPlayerConfiguration.Assets { CDPlayerConfiguration.standard.assets }

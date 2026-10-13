@@ -33,6 +33,6 @@ The older `--listening-fixture` flag maps to metadata-only.
 
 ## Verification
 
-Run XcodeGen and architecture guard, then signed tests with `-allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ` on iPhone 17.
+Run XcodeGen and architecture guard, then signed tests with `-allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ` on iPhone 18 Pro.
 New test suites cover presentation, three-language keys, accessibility wiring, lifecycle, artist confirmation/preferences/library/rematch, historical tiers, recall evidence and cleanup. Existing Phase 1–5 tests remain part of the full suite.
 Real MusicKit subscription, denied-authorization and physical-device audio behavior require separate device/account verification; fixture playback must never be represented as that verification.

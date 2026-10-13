@@ -13,6 +13,7 @@ struct ArtistIdentityMatcher: Sendable {
     func resolve(for name: String, including knownCandidates: [RecognizedArtist] = []) async throws -> ArtistIdentityResolution {
         let queries = ArtistNameMatching.searchQueries(for: name)
         var all = knownCandidates
+        var resultsByQuery: [String: Set<String>] = [:]
         var firstFailure: Error?
         var incomplete = false
         var completed = 0
@@ -23,6 +24,7 @@ struct ArtistIdentityMatcher: Sendable {
                 let found = try await search.searchArtists(query: query, exactMatchRequired: true)
                 try Task.checkCancellation()
                 all.append(contentsOf: found)
+                resultsByQuery[ArtistNameMatching.normalized(query), default: []].formUnion(found.map(\.id))
                 completed += 1
             } catch {
                 try Task.checkCancellation()
@@ -46,7 +48,7 @@ struct ArtistIdentityMatcher: Sendable {
         return ArtistIdentityResolution(
             candidates: candidates,
             automaticMatch: incomplete ? nil :
-                ArtistNameMatching.uniqueConfidentMatch(for: name, among: all)
+                ArtistNameMatching.uniqueConfidentMatch(for: name, among: all, resultsByQuery: resultsByQuery)
         )
     }
 

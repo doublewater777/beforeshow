@@ -16,6 +16,7 @@ struct ListeningRackView: View {
     @State private var placeholderGroupID: String?
     @State private var scrubOrigin: Int?
     @State private var carriedDisc: ListeningDisc?
+    @State private var carryOffset: CGSize = .zero
     /// Cases the row has travelled under the finger, fractional while a swipe is in flight.
     @State private var dragShift: Double = 0
 
@@ -140,11 +141,12 @@ struct ListeningRackView: View {
                                 isLive: entry.group.kind == .live,
                                 isPlaceholder: entry.isPlaceholder,
                                 marked: entry.index == 0 && openIndex == entry.groupIndex && entry.group.discs.count > 1,
-                                showsDisc: entry.id == focused?.id && out && carriedDisc == nil
+                                showsDisc: entry.id == focused?.id && out && (carriedDisc == nil || isSwapCarry)
                             ),
                             width: width,
                             show: room.show
                         )
+                        .offset(isSwapCarry && entry.id == focused?.id ? carryOffset : .zero)
                         .modifier(ListeningRackBreathing(isActive: entry.isPlaceholder && !reduceMotion))
                         .zIndex(100 - abs(Double((row.firstIndex { $0.id == entry.id } ?? 50) - c) + dragShift))
                     }
@@ -295,6 +297,9 @@ struct ListeningRackView: View {
 
     // MARK: Gestures
 
+    /// With a CD already seated, the case's disc follows the finger itself until dropped.
+    private var isSwapCarry: Bool { carriedDisc != nil && room.pendingCabinetSwap != nil }
+
     /// The row follows the finger at the mock's 44pt per case, then settles with a little of the flick.
     private func swipeGesture(row: [Entry], focus c: Int) -> some Gesture {
         DragGesture(minimumDistance: L.followThreshold)
@@ -344,12 +349,14 @@ struct ListeningRackView: View {
             },
             onChanged: { translation in
                 guard let disc = carriedDisc else { return }
+                if isSwapCarry { carryOffset = translation }
                 room.updateCabinetDrag(of: disc, translation: translation, scale: scale)
             },
             onEnded: {
                 guard let disc = carriedDisc else { return }
                 room.endCabinetDrag(of: disc)
                 carriedDisc = nil
+                withAnimation(reduceMotion ? nil : L.motion) { carryOffset = .zero }
             }
         )
     }

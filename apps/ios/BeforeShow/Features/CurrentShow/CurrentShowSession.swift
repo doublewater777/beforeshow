@@ -78,6 +78,7 @@ struct CurrentShowSession {
 /// open their detail (ADR 0037). Routing never mutates CurrentShowSelection.
 struct CurrentShowFeatureRootView: View {
     var isPlaybackActive = true
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
@@ -93,7 +94,8 @@ struct CurrentShowFeatureRootView: View {
     var body: some View {
         CurrentShowHomeView(
             isPlaybackActive: isPlaybackActive,
-            isFeaturePresentationActive: isNotificationPresentationActive
+            isFeaturePresentationActive: isNotificationPresentationActive,
+            onDetailVisibilityChange: onDetailVisibilityChange
         )
         .task {
             consumeNotificationRouteIfNeeded()

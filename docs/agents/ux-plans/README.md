@@ -7,7 +7,7 @@
 
 1. 一次只给 agent **一个** plan 文件全文。  
 2. 附上仓库根 `Agents.md` / `AGENTS.md`。  
-3. 要求：严格按文档、手术式改动、iPhone 17 `xcodebuild`。  
+3. 要求：严格按文档、手术式改动、iPhone 18 Pro `xcodebuild`。  
 4. 完成后按文末验收表勾选。
 
 ## 建议执行顺序（依赖）
@@ -26,7 +26,7 @@
 ## 全局约束（所有 plan 默认继承）
 
 - App 未上线，不需要向后兼容。  
-- Simulator：`platform=iOS Simulator,name=iPhone 17`。  
+- Simulator：`platform=iOS Simulator,name=iPhone 18 Pro`。  
 - 产品语言：现场 / 进入状态 / Tips 单条；不做工具仪表盘、打卡任务、社交、验票、歌词、真导航。  
 - 领域术语见 `CONTEXT.md`；产品边界见 `PRODUCT_DEFINITION_V2.1.md`。  
 - 主代码在 `apps/ios/BeforeShow/`。

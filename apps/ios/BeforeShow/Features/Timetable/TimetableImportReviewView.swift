@@ -8,6 +8,7 @@ struct TimetableImportReviewView: View {
     @ObservedObject var coordinator: TimetableManagementCoordinator
     let linker: TimetableArtistLinker
     let avatarURL: (TimetablePerformance) -> URL?
+    var onOpenOriginal: (() -> Void)? = nil
     let onCancel: () -> Void
     let onSave: () -> Void
 
@@ -54,10 +55,17 @@ struct TimetableImportReviewView: View {
                     )
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 if coordinator.isSaving {
                     ProgressView()
                 } else {
+                    if let onOpenOriginal {
+                        Button(action: onOpenOriginal) {
+                            Image(systemName: "photo")
+                                .foregroundColor(BSColor.textSecondary)
+                        }
+                        .accessibilityLabel(BSLocalization.text("查看原图"))
+                    }
                     Button(action: onSave) {
                         Image(systemName: "checkmark")
                             .foregroundColor(BSColor.textPrimary)

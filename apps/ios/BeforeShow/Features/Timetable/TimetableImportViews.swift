@@ -50,7 +50,7 @@ struct TimetableEmptyStateView: View {
             Spacer(minLength: 24)
 
             Button(action: onPickPhotos) {
-                Label(BSLocalization.text("从相册选择"), systemImage: "photo")
+                Label(BSLocalization.text("本地导入"), systemImage: "photo")
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(TimetableStyle.background)
                     .frame(maxWidth: .infinity)
@@ -59,9 +59,6 @@ struct TimetableEmptyStateView: View {
             }
             .buttonStyle(TimetablePressStyle())
             .padding(.horizontal, 24)
-
-            TimetableOnDeviceNote()
-                .padding(.top, 14)
 
             Button(action: onAIImport) {
                 Text(BSLocalization.text("AI 导入"))

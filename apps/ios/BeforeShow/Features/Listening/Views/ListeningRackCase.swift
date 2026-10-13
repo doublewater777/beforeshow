@@ -284,6 +284,7 @@ struct ListeningRackEdgeFade: ViewModifier {
 
 /// Loading stand-in with the shelf's own geometry: blank cases and a blank plate.
 struct ListeningRackSkeleton: View {
+    var animates: Bool = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dim = false
 
@@ -300,7 +301,7 @@ struct ListeningRackSkeleton: View {
                             content: ListeningRackCaseContent(title: "", isPlaceholder: true),
                             width: proxy.size.width
                         )
-                        .opacity(dim ? 0.55 : 1)
+                        .opacity(animates && dim ? 0.55 : 1)
                     }
                 }
             }
@@ -310,10 +311,14 @@ struct ListeningRackSkeleton: View {
                 .fill(ListeningStyle.rackPlaceholder)
                 .frame(width: 96, height: L.plateHeight)
                 .frame(height: BSLayout.minTouchTarget)
-                .opacity(dim ? 0.55 : 1)
+                .opacity(animates && dim ? 0.55 : 1)
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: dim)
-        .onAppear { dim = true }
+        .animation(animates && !reduceMotion ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : nil, value: dim)
+        .onAppear {
+            if animates {
+                dim = true
+            }
+        }
         .accessibilityHidden(true)
     }
 

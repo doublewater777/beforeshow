@@ -81,7 +81,7 @@
 2. 重组 selector、shelf、完整碟柜和详情；验证浏览不影响播放、首页限制、详情点击行为及当前播放标记。
 3. 接入共用装碟 intent，验证重复装入、Stop、末轨、手动和自动换碟及刷新后已装入内容保持稳定。
 4. 完成原需求十二项回归测试及新增合辑测试；运行架构检查。新增或移动 Swift 文件后执行 xcodegen generate。
-5. 使用指定开发团队构建 iPhone 17 模拟器，检查 iCloud entitlement 和启动存活；检查小屏、6.9 英寸、Dynamic Type、Reduce Motion，以及原需求 A–H 场景。截图和临时产物不提交 Git。
+5. 使用指定开发团队构建 iPhone 18 Pro 模拟器，检查 iCloud entitlement 和启动存活；检查小屏、6.9 英寸、Dynamic Type、Reduce Motion，以及原需求 A–H 场景。截图和临时产物不提交 Git。
 
 完成报告包含文件与组件变化、状态结构、播放逻辑改动理由、共用换碟方式、测试结果、截图或 Preview 证据及已知限制。
 

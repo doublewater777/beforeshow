@@ -48,7 +48,7 @@ This does not trigger repository-wide removal of all availability checks. Only c
 
 ### Atmosphere ownership
 
-Bottom Chrome owns no atmosphere. Current, Listen, and Footprints own their own backgrounds. For Current Show, tune existing `CurrentShowAmbientBackground` rather than adding a new bottom layer. Cover-derived hue should influence the lower screen faintly while the bottom remains dark. Exact opacity/radius values are validated on iPhone 17 rather than fixed by this spec.
+Bottom Chrome owns no atmosphere. Current, Listen, and Footprints own their own backgrounds. For Current Show, tune existing `CurrentShowAmbientBackground` rather than adding a new bottom layer. Cover-derived hue should influence the lower screen faintly while the bottom remains dark. Exact opacity/radius values are validated on iPhone 18 Pro rather than fixed by this spec.
 
 ### Liquid Glass motion
 
@@ -80,7 +80,7 @@ Bottom Chrome owns no atmosphere. Current, Listen, and Footprints own their own 
 
 ## Testing strategy
 
-System Liquid Glass and scroll-edge rendering are runtime behavior, so acceptance uses structural tests plus iPhone 17 runtime verification rather than brittle pixel snapshots. At each phase exact final HEAD: run architecture guard; run `xcodegen generate` after project-source changes and commit generated `.xcodeproj`; build/test with `DEVELOPMENT_TEAM=29C8MS76CZ`; run targeted Bottom Chrome/Listening regressions plus full relevant XCTest; install/launch on iPhone 17; verify no later-phase scope leakage.
+System Liquid Glass and scroll-edge rendering are runtime behavior, so acceptance uses structural tests plus iPhone 18 Pro runtime verification rather than brittle pixel snapshots. At each phase exact final HEAD: run architecture guard; run `xcodegen generate` after project-source changes and commit generated `.xcodeproj`; build/test with `DEVELOPMENT_TEAM=29C8MS76CZ`; run targeted Bottom Chrome/Listening regressions plus full relevant XCTest; install/launch on iPhone 18 Pro; verify no later-phase scope leakage.
 
 ## Phase Plan
 
@@ -128,7 +128,7 @@ Branch from the latest integrated `main` containing this approved spec and ADR; 
 - architecture guard PASS;
 - `xcodegen generate` PASS and generated project committed;
 - targeted Bottom Chrome/Listening tests PASS;
-- signed iPhone 17 simulator build/test PASS;
+- signed iPhone 18 Pro simulator build/test PASS;
 - simulator install + launch survival PASS;
 - runtime checks for all tabs, final-scroll position, no-disc/loaded-disc, repeated tab switching;
 - PR review confirms no Phase 2 scope leakage.
@@ -180,7 +180,7 @@ Phase 1 must be independently verified, passed, merged, and Phase 2 must branch 
 - architecture guard PASS;
 - targeted motion/chrome/Listening regressions PASS;
 - full relevant XCTest PASS;
-- signed iPhone 17 simulator build/test PASS;
+- signed iPhone 18 Pro simulator build/test PASS;
 - install + launch survival PASS;
 - runtime checks for all tabs, no-disc/loaded-disc, playing/paused, insert/eject, rapid tab switching, cold-start loaded-disc restoration, varied Current cover colors, and Reduce Motion;
 - PR review confirms no out-of-scope playback or repository-wide cleanup.

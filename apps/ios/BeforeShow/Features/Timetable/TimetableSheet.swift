@@ -92,6 +92,7 @@ struct TimetableSheet: View {
                         coordinator: coordinator,
                         linker: artistLinker,
                         avatarURL: avatarURL(for:),
+                        onOpenOriginal: originalImages.isEmpty ? nil : { openOriginalImageViewer() },
                         onCancel: cancelReview,
                         onSave: saveReview
                     )
@@ -120,7 +121,7 @@ struct TimetableSheet: View {
                         images: originalImages,
                         page: $originalImagePage,
                         onExpandFullScreen: {
-                            isFullScreenImagePresented = true
+                            openOriginalImageViewer(page: originalImagePage)
                         },
                         onClose: {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isOriginalVisible = false }
@@ -164,14 +165,14 @@ struct TimetableSheet: View {
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if !coordinator.isRecognizing {
-                            if hasStructuredTimetable {
+                            if !originalImages.isEmpty {
                                 Button {
-                                    addPerformanceTrigger += 1
+                                    openOriginalImageViewer()
                                 } label: {
-                                    Image(systemName: "plus")
+                                    Image(systemName: "photo")
                                         .foregroundColor(BSColor.textSecondary)
                                 }
-                                .accessibilityLabel(BSLocalization.text("添加演出"))
+                                .accessibilityLabel(BSLocalization.text("查看原图"))
                             }
                             if hasStructuredTimetable || hasSavedImages {
                                 managementMenu
@@ -235,6 +236,7 @@ struct TimetableSheet: View {
                     isOriginalVisible = false
                     isFullScreenImagePresented = false
                     await coordinator.deleteTimetable(show: show, modelContext: modelContext)
+                    loadedAssetImages = []
                 }
             }
             Button(BSLocalization.text("取消"), role: .cancel) {}
@@ -251,10 +253,21 @@ struct TimetableSheet: View {
         isManagingDays = true
     }
 
+    private func openOriginalImageViewer(page: Int = 0) {
+        guard !originalImages.isEmpty else { return }
+        originalImagePage = min(max(0, page), originalImages.count - 1)
+        isFullScreenImagePresented = true
+    }
+
     private var managementMenu: some View {
         Menu {
-            if !loadedAssetImages.isEmpty {
+            if !originalImages.isEmpty {
                 Section {
+                    Button {
+                        openOriginalImageViewer()
+                    } label: {
+                        Label(BSLocalization.text("查看原图"), systemImage: "photo")
+                    }
                     Button {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                             isOriginalVisible.toggle()
@@ -270,6 +283,11 @@ struct TimetableSheet: View {
 
             if hasStructuredTimetable {
                 Section {
+                    Button {
+                        addPerformanceTrigger += 1
+                    } label: {
+                        Label(BSLocalization.text("添加演出"), systemImage: "plus")
+                    }
                     Button(action: openManagement) {
                         Label(BSLocalization.text("管理时刻表"), systemImage: "slider.horizontal.3")
                     }
@@ -281,7 +299,7 @@ struct TimetableSheet: View {
                     Button {
                         isPhotosPickerPresented = true
                     } label: {
-                        Label(BSLocalization.text("从相册识别"), systemImage: "photo")
+                        Label(BSLocalization.text("本地导入"), systemImage: "photo")
                     }
                     Button(action: openAIImport) {
                         Label(BSLocalization.text("AI 导入"), systemImage: "text.viewfinder")
@@ -397,14 +415,19 @@ struct TimetableSheet: View {
         VStack(spacing: BSSpacing.lg) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(loadedAssetImages, id: \.self) { img in
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 220, height: 300)
-                            .background(Color.black.opacity(0.6))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
+                    ForEach(Array(loadedAssetImages.enumerated()), id: \.offset) { index, img in
+                        Button {
+                            openOriginalImageViewer(page: index)
+                        } label: {
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 220, height: 300)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, BSSpacing.lg)
@@ -429,8 +452,8 @@ struct TimetableSheet: View {
                 .buttonStyle(BSPrimaryButtonStyle())
 
                 HStack(spacing: 12) {
-                    Button(BSLocalization.text("原图对照")) {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isOriginalVisible = true }
+                    Button(BSLocalization.text("查看原图")) {
+                        openOriginalImageViewer()
                     }
                     .buttonStyle(BSSecondaryButtonStyle())
 

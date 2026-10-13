@@ -16,7 +16,7 @@ use beforeshow iphone 18 pro simulator
 ```bash
 cd apps/ios
 xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
-  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
   -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
 ```
 

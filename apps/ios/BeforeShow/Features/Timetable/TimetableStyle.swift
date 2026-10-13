@@ -25,18 +25,18 @@ enum TimetableStyle {
     static let matrixLaneRadius: CGFloat = 12
     enum MatrixCard {
         static let narrowWidth: CGFloat = 155
-        static let avatarSize: CGFloat = 28
-        static let compactAvatarSize: CGFloat = 22
-        static let controlSize: CGFloat = 28
-        static let compactControlSize: CGFloat = 24
-        static let horizontalPadding: CGFloat = 16
-        static let narrowHorizontalPadding: CGFloat = 12
+        static let avatarSize: CGFloat = 34
+        static let compactAvatarSize: CGFloat = 26
+        static let controlSize: CGFloat = 32
+        static let compactControlSize: CGFloat = 28
+        static let horizontalPadding: CGFloat = 14
+        static let narrowHorizontalPadding: CGFloat = 10
         static let compactPadding: CGFloat = 4
-        static let topPadding: CGFloat = 15
+        static let topPadding: CGFloat = 14
         static let bottomPadding: CGFloat = 8
-        static let actionSpacing: CGFloat = 9
+        static let actionSpacing: CGFloat = 8
         static let compactActionSpacing: CGFloat = 4
-        static let titleSpacing: CGFloat = 11
+        static let titleSpacing: CGFloat = 10
         static let compactTitleSpacing: CGFloat = 3
         static let metaSpacing: CGFloat = 5
         static let compactMetaSpacing: CGFloat = 2

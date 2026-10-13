@@ -5,39 +5,62 @@ struct ListeningEmptyView: View {
     let onAddShow: () -> Void
     let onOpenShowLibrary: () -> Void
 
-    private var message: String {
-        if hasShows {
-            ListeningCopy.text("选一场现场，") + "\n" + ListeningCopy.text("听听即将相遇的音乐。")
-        } else {
-            ListeningCopy.text("添加一场想去的现场，") + "\n" + ListeningCopy.text("唱片就从这里开始。")
-        }
+    private var action: () -> Void {
+        hasShows ? onOpenShowLibrary : onAddShow
     }
 
     var body: some View {
-        BSRootEmptyState(
-            iconSystemName: "opticaldisc",
-            title: BSLocalization.text(hasShows ? "选定一场现场开始听歌" : "先添加一场现场"),
-            message: message,
-            actionTitle: BSLocalization.text(hasShows ? "选择现场" : "添加现场"),
-            action: hasShows ? onOpenShowLibrary : onAddShow
-        )
-        .overlay(alignment: .top) {
-            ListeningPageHeader {
-                HStack(spacing: BSSpacing.sm) {
-                    if hasShows {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                ListeningPageHeader {
+                    HStack(spacing: BSSpacing.sm) {
+                        if hasShows {
+                            ListeningHeaderActionButton(
+                                icon: "list.bullet.rectangle",
+                                accessibilityLabel: BSLocalization.text("全部现场"),
+                                action: onOpenShowLibrary
+                            )
+                        }
                         ListeningHeaderActionButton(
-                            icon: "list.bullet.rectangle",
-                            accessibilityLabel: BSLocalization.text("全部现场"),
-                            action: onOpenShowLibrary
+                            icon: "plus",
+                            accessibilityLabel: BSLocalization.text("添加现场"),
+                            action: onAddShow
                         )
                     }
-                    ListeningHeaderActionButton(
-                        icon: "plus",
-                        accessibilityLabel: BSLocalization.text("添加现场"),
-                        action: onAddShow
-                    )
                 }
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        ListeningRackSkeleton(animates: false)
+                            .padding(.horizontal, -BSSpacing.roomy)
+                            .frame(height: ListeningRackLayout.slotHeight, alignment: .top)
+                            .listeningFrame("cabinet")
+                            .padding(.top, BSSpacing.sm)
+                            .contentShape(Rectangle())
+                            .onTapGesture(perform: action)
+
+                        let geometry = CDPlayerConfiguration.standard.geometry
+                        let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
+
+                        ListeningPreparingMachineView(scale: scale)
+                            .listeningFrame("stage")
+                            .frame(width: proxy.size.width - BSSpacing.roomy * 2)
+                            .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
+                            .contentShape(Rectangle())
+                            .onTapGesture(perform: action)
+
+                        Color.clear.frame(height: BSLayout.minTouchTarget)
+                            .padding(.top, -BSSpacing.lg)
+                    }
+                    .coordinateSpace(name: "listeningContent")
+                    .padding(.horizontal, BSSpacing.roomy)
+                    .padding(.top, BSSpacing.xs)
+                }
+                .scrollDisabled(true)
             }
         }
+        .foregroundStyle(BSColor.Stage.foreground)
+        .background(BSColor.Stage.background.ignoresSafeArea())
+        .accessibilityElement(children: .contain)
     }
 }

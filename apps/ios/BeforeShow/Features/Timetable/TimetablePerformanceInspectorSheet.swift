@@ -111,7 +111,7 @@ struct TimetablePerformanceInspectorSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                TimetableArtistAvatar(name: performance.artistName, url: avatarURL, size: 44)
+                TimetableArtistAvatar(name: performance.artistName, url: avatarURL, size: 52)
 
                 VStack(alignment: .leading, spacing: 2) {
                     TextField(BSLocalization.text("艺人名称"), text: artistName)
@@ -150,19 +150,19 @@ struct TimetablePerformanceInspectorSheet: View {
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.28) : Color.white.opacity(0.12))
-                            .frame(width: 34, height: 34)
+                            .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.28) : Color.white.opacity(0.14))
+                            .frame(width: 40, height: 40)
                         if isLoadingPreview {
                             ProgressView()
                                 .controlSize(.small)
                                 .tint(.white)
                         } else if isPlayingPreview {
                             Image(systemName: "pause.fill")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(TimetableStyle.mine)
                         } else {
                             Image(systemName: TimetablePreviewPlayer.shared.failedPerformanceID == performance.id ? "arrow.clockwise" : "play.fill")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(.white)
                                 .offset(x: 1)
                         }

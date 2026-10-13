@@ -153,7 +153,7 @@ All spacing derives from 4pt.
 
 ### Mobile composition
 
-- Reference viewport: iPhone 17 class, portrait.
+- Reference viewport: iPhone 18 Pro class, portrait.
 - Horizontal safe content margin: 20pt; expressive entry stage may use 24pt.
 - Minimum touch target: 44×44pt.
 - Primary action remains reachable without scrolling on the onboarding entry and confirmation screens.
@@ -350,7 +350,7 @@ The onboarding does not ask a first-time user to prepare material before they un
 - The production native first screen is tappable within one second on a cold first launch. The HTML exploration may first load its pinned prototype runtime.
 - A user reaches the sample home without leaving the app or preparing any material.
 - The guided demonstration finishes in roughly 6–8 seconds and can be paused, replayed, or skipped to the reveal.
-- The redesigned home keeps its countdown and “添加我的现场” action legible on an iPhone 17 class viewport.
+- The redesigned home keeps its countdown and “添加我的现场” action legible on an iPhone 18 Pro class viewport.
 - VoiceOver announces a coherent flow and each action is specific.
 - Reduce Motion keeps the same information and task order.
 - Product analytics should compare: first-show creation rate, time to personalized countdown, source-selection abandonment, confirmation abandonment, and Tip engagement.
@@ -382,7 +382,7 @@ This alternative is more emotional and less dashboard-like than the first redesi
 
 This alternative starts from the currently shipped iOS home rather than replacing its scale system.
 
-- Preserve the iPhone 17 baseline: a roughly 367×489pt 3:4 cover and the existing oversized countdown rhythm.
+- Preserve the iPhone 18 Pro baseline: a roughly 367×489pt 3:4 cover and the existing oversized countdown rhythm.
 - Remove the separate top utility row (`当前现场`, add, more). It consumes atmosphere and repeats the cover's role.
 - Do not replace that row with another label. Keep only one quiet 44pt overflow action inside the cover's top-right scrim.
 - Keep show identity inside the lower cover scrim exactly as the native home does.

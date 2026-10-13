@@ -48,8 +48,13 @@ struct CurrentShowHomeView: View {
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
 
+    /// 删除提交后 @Query 仍可能有一帧带着已脱离 context 的 Show，读属性会 trap。
+    private var liveShows: [Show] {
+        shows.filter { $0.modelContext != nil }
+    }
+
     private var currentShow: Show? {
-        session.selectCurrentShow(from: shows, manualSelection: selections.first)
+        session.selectCurrentShow(from: liveShows, manualSelection: selections.first)
     }
 
     private var homeArrival: CurrentShowHomeArrival? {
@@ -85,7 +90,7 @@ struct CurrentShowHomeView: View {
 
     /// shows 的增删改 + 手动切换现场,都会改变这个指纹,从而触发 widget 同步。
     private var widgetSyncFingerprint: String {
-        let showsPart = shows
+        let showsPart = liveShows
             .map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSince1970)" }
             .joined(separator: "|")
         let selectionPart = selections.first?.selectedShowID?.uuidString ?? "-"
@@ -103,7 +108,7 @@ struct CurrentShowHomeView: View {
                         isPlaybackActive: isPlaybackActive
                             && !isFeaturePresentationActive
                             && !isHomePresentationActive,
-                        candidateShows: shows,
+                        candidateShows: liveShows,
                         onDetailVisibilityChange: { isVisible in
                             isDetailVisible = isVisible
                             onDetailVisibilityChange(isVisible)

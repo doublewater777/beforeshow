@@ -61,7 +61,12 @@ enum ArtistNameMatching {
         return uniqueID(candidates.filter { normalized($0.canonicalName) == key })
     }
 
-    static func uniqueConfidentMatch(for query: String, among candidates: [RecognizedArtist]) -> RecognizedArtist? {
+    /// `resultsByQuery` maps each normalized name variant to the IDs its own search returned.
+    static func uniqueConfidentMatch(
+        for query: String,
+        among candidates: [RecognizedArtist],
+        resultsByQuery: [String: Set<String>] = [:]
+    ) -> RecognizedArtist? {
         let key = normalized(query)
         guard !key.isEmpty else { return nil }
         // The complete candidate set may contain equally trustworthy identities
@@ -70,7 +75,20 @@ enum ArtistNameMatching {
         let trusted = candidates.filter {
             normalized($0.canonicalName) == key || isAliasEquivalent(query, $0.canonicalName)
         }
-        return uniqueID(trusted)
+        if let match = uniqueID(trusted) { return match }
+
+        // A bilingual component shared by several catalog artists ("The Chairs") is
+        // not identity evidence. Drop those namesakes only when that component's own
+        // search also returned the remaining identity.
+        let ambiguous = Set(searchQueries(for: query).map(normalized).filter { variant in
+            variant != key && Set(trusted.filter { hasSameName($0.canonicalName, variant) }.map(\.id)).count > 1
+        })
+        guard !ambiguous.isEmpty,
+              let match = uniqueID(trusted.filter { candidate in
+                  !ambiguous.contains { hasSameName(candidate.canonicalName, $0) }
+              }),
+              ambiguous.allSatisfy({ resultsByQuery[$0]?.contains(match.id) == true }) else { return nil }
+        return match
     }
 
     static func isConfidentMatch(_ name: String, candidateName: String) -> Bool {
@@ -84,7 +102,11 @@ enum ArtistNameMatching {
         let right = Set(searchQueries(for: rhs).map(normalized))
         if left.contains(where: { right.contains($0) }) { return true }
 
-        // Ignore punctuation, but keep internal spaces significant ("A B" != "AB").
+        return hasSameName(lhs, rhs)
+    }
+
+    /// Ignore punctuation, but keep internal spaces significant ("A B" != "AB").
+    private static func hasSameName(_ lhs: String, _ rhs: String) -> Bool {
         func withoutPunctuation(_ name: String) -> String {
             let scalars = normalized(name).unicodeScalars.filter {
                 !CharacterSet.punctuationCharacters.contains($0) && !CharacterSet.symbols.contains($0)

@@ -1,6 +1,6 @@
 ---
 name: pr-verifier
-description: "Run local runtime verification for a GitHub PR at its current HEAD: isolated worktree, unit tests, signed simulator build, entitlements check, install and launch-survival on the iPhone 17 simulator, producing a SHA-bound LOCAL_AGENT_VERIFY report and posting it as a PR comment. Use when a PR needs local verification, a LOCAL_AGENT_VERIFY PASS is required for merge readiness, or a new commit must be re-verified."
+description: "Run local runtime verification for a GitHub PR at its current HEAD: isolated worktree, unit tests, signed simulator build, entitlements check, install and launch-survival on the iPhone 18 Pro simulator, producing a SHA-bound LOCAL_AGENT_VERIFY report and posting it as a PR comment. Use when a PR needs local verification, a LOCAL_AGENT_VERIFY PASS is required for merge readiness, or a new commit must be re-verified."
 ---
 
 # PR Verifier
@@ -32,7 +32,7 @@ The script performs, in order:
 1. Detached worktree of the PR HEAD under `/tmp/beforeshow-verify/`
 2. `xcodebuild test` (unit tests + signed simulator build, `DEVELOPMENT_TEAM` explicit)
 3. Entitlements check — `icloud-container-identifiers` must be present (detects the ad-hoc signing regression)
-4. Install + launch on the iPhone 17 simulator, process must survive 5 seconds
+4. Install + launch on the iPhone 18 Pro simulator, process must survive 5 seconds
 5. `LOCAL_AGENT_VERIFY` report to stdout; exit code 0 = PASS, 1 = FAIL
 6. PR comment with the report (deduplicated per HEAD)
 

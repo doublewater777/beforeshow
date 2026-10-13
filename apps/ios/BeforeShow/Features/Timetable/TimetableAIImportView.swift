@@ -16,6 +16,19 @@ struct TimetableAIImportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TimetableStyle.mine)
+                    Text(BSLocalization.text("AI 导入后续将直接集成进 App，当前可先配合外部 AI 工具生成。"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(TimetableStyle.dim)
+                        .lineSpacing(3)
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
                 step(1, BSLocalization.text("复制识别指令")) {
                     Button(action: copyPrompt) {
                         Label(

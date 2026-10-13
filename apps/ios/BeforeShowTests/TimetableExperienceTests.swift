@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 import XCTest
 @testable import BeforeShow
 
@@ -7,6 +8,44 @@ import XCTest
 final class TimetableExperienceTests: XCTestCase {
     private var container: ModelContainer!
     private var context: ModelContext!
+
+    func testFortyMinuteLongNameCardKeepsPreviewControlVisible() throws {
+        let start = date(2026, 10, 18, 14, 0)
+        let card = TimetableMatrixLayout.Card(
+            id: UUID(), artistName: "夜晚做决定 No Decision At Night", laneIndex: 0,
+            top: 0, height: 40 * TimetableMatrixLayout.pointsPerMinute - TimetableMatrixLayout.cardSpacing,
+            startsAt: start, endsAt: start.addingTimeInterval(40 * 60),
+            status: .upcoming, isInterested: false
+        )
+        let player = TimetablePreviewPlayer.shared
+        player.stop()
+        defer { player.stop() }
+
+        func render() throws -> Data {
+            let view = TimetableMatrixCard(
+                card: card, width: 170, avatarURL: nil, artistID: nil,
+                isGhost: false, nowOffset: nil, stageTint: .purple,
+                timeZone: TimeZone(identifier: "Asia/Taipei")!, onSelect: {}, onToggle: {}
+            )
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 3
+            return try XCTUnwrap(renderer.uiImage?.pngData())
+        }
+
+        let idle = try render()
+        // The synchronous loading state changes only the preview control.
+        // Rendering and cancellation finish before its network task can run.
+        player.toggle(performanceID: card.id, artistName: card.artistName, artistID: nil)
+        XCTAssertTrue(player.isLoading(performanceID: card.id))
+        let loading = try render()
+        XCTAssertNotEqual(idle, loading, "A short card must visibly update its preview control, even with a long artist name")
+        for (name, data) in [("Card idle", idle), ("Card loading", loading)] {
+            let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
 
     override func setUp() async throws {
         try await super.setUp()

@@ -1,6 +1,6 @@
 # Plan 14 · 跨模块视觉与交互系统
 
-> **Audience:** 执行型 agent · `Agents.md` · iPhone 17  
+> **Audience:** 执行型 agent · `Agents.md` · iPhone 18 Pro  
 > **定位:** 统一「浮层 / 空态 / 底部安全区 / sheet 分层」，不改各业务规则。
 
 ---
@@ -126,7 +126,7 @@ rg -n "floatingTabBarClearance" apps/ios
 6. 手测：首页 `···`、Pro 墙、删除确认、设置清除。
 
 ```bash
-cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 17' build
+cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 18 Pro' build
 ```
 
 ---

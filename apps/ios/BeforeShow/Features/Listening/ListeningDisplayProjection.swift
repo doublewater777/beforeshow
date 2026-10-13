@@ -742,11 +742,15 @@ extension ListeningRoomCoordinator {
     }
 
     func beginCabinetDragIfNeeded(_ disc: ListeningDisc) -> Bool {
-        guard !mechanism.isCabinetDragging else { return false }
+        guard !mechanism.isCabinetDragging, pendingCabinetSwap == nil else { return false }
         return beginPlayableDiscDrag(disc)
     }
 
     func updateCabinetDrag(of disc: ListeningDisc, translation: CGSize, scale: CGFloat) {
+        if pendingCabinetSwap?.id == disc.id, scale > 0 {
+            pendingCabinetSwapDrop = translation.height / scale
+            return
+        }
         guard mechanism.isCabinetDragging, mechanism.disc?.id == disc.id, scale > 0 else { return }
         let tilt = mechanism.configuration.geometry.tiltDegrees * .pi / 180
         mechanism.dragDisc(CGSize(
@@ -756,6 +760,13 @@ extension ListeningRoomCoordinator {
     }
 
     func endCabinetDrag(of disc: ListeningDisc) {
+        if pendingCabinetSwap?.id == disc.id {
+            let dropped = pendingCabinetSwapDrop > Self.cabinetSwapDropDistance
+            pendingCabinetSwap = nil
+            pendingCabinetSwapDrop = 0
+            if dropped { loadPlayableDisc(disc) }
+            return
+        }
         guard mechanism.isCabinetDragging, mechanism.disc?.id == disc.id else { return }
         mechanism.endDiscDrag()
     }
@@ -881,6 +892,8 @@ extension ListeningRoomCoordinator {
         loadDisc(disc, songID: targetSongID)
     }
 
+    static let cabinetSwapDropDistance: CGFloat = 120
+
     @discardableResult
     func beginPlayableDiscDrag(_ disc: ListeningDisc) -> Bool {
         let discState = discPresentation(for: disc)
@@ -890,8 +903,9 @@ extension ListeningRoomCoordinator {
         }
         mechanism.notice = nil
         if mechanism.position != .stored {
-            loadPlayableDisc(disc)
-            return false
+            pendingCabinetSwap = disc
+            pendingCabinetSwapDrop = 0
+            return true
         }
         return mechanism.beginCabinetDrag(disc)
     }

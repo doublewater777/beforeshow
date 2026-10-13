@@ -1,6 +1,6 @@
 # Plan 06 · 现场准备 UX（去任务化）
 
-> **Audience:** 执行型 agent · `Agents.md` · iPhone 17
+> **Audience:** 执行型 agent · `Agents.md` · iPhone 18 Pro
 
 ---
 
@@ -85,7 +85,7 @@
 6. 若有 preparation 测试，更新断言。
 
 ```bash
-cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 17' build
+cd apps/ios && xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 18 Pro' build
 ```
 
 ---

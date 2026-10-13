@@ -207,6 +207,7 @@ struct TimetableMatrixCard: View {
         ViewThatFits(in: .vertical) {
             cardContent(compact: false, titleLines: 2)
             cardContent(compact: true, titleLines: 2)
+            cardContent(compact: true, titleLines: 1)
             compactDetails(titleLines: 2)
             compactDetails(titleLines: 1)
             // Very short sets keep their name and interest action on one row.
@@ -278,24 +279,27 @@ struct TimetableMatrixCard: View {
     }
 
     private func playPreviewButton(size: CGFloat) -> some View {
-        Button {
+        let circleSize = max(size - 4, 22)
+        let playIconSize = circleSize >= 26 ? 11.0 : 9.5
+        let pauseIconSize = circleSize >= 26 ? 12.0 : 10.5
+        return Button {
             TimetablePreviewPlayer.shared.toggle(performanceID: card.id, artistName: card.artistName, artistID: artistID)
         } label: {
             ZStack {
                 Circle()
-                    .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.35) : Color.white.opacity(0.14))
-                    .frame(width: 22, height: 22)
+                    .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.35) : Color.white.opacity(0.15))
+                    .frame(width: circleSize, height: circleSize)
                 if isLoadingPreview {
                     ProgressView()
                         .controlSize(.mini)
                         .tint(.white)
                 } else if isPlayingPreview {
                     Image(systemName: "pause.fill")
-                        .font(.system(size: 9.5, weight: .bold))
+                        .font(.system(size: pauseIconSize, weight: .bold))
                         .foregroundStyle(TimetableStyle.mine)
                 } else {
                     Image(systemName: TimetablePreviewPlayer.shared.failedPerformanceID == card.id ? "arrow.clockwise" : "play.fill")
-                        .font(.system(size: 8.5, weight: .bold))
+                        .font(.system(size: playIconSize, weight: .bold))
                         .foregroundStyle(.white)
                         .offset(x: 0.5)
                 }

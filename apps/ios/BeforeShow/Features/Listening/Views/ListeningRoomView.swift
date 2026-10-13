@@ -259,6 +259,7 @@ struct ListeningRoomView: View {
         } message: {
             Text(room.errorText ?? "")
         }
+        .listeningPlaybackFailureAlert(room)
         .onChange(of: reduceMotion, initial: true) { _, value in room.setReducedMotion(value) }
         .task {
             while !Task.isCancelled {
@@ -324,6 +325,23 @@ struct ListeningRoomView: View {
             BSLocalization.text("请在系统设置中允许访问 Apple Music")
         case .restricted:
             ListeningCopy.text("Apple Music 访问受到系统限制，无法在此更改。")
+        }
+    }
+}
+
+extension View {
+    /// Like Apple Music, a song that fails to play is reported once in an alert.
+    func listeningPlaybackFailureAlert(_ room: ListeningRoomCoordinator) -> some View {
+        alert(
+            ListeningCopy.text("无法播放"),
+            isPresented: Binding(
+                get: { room.showsPlaybackFailureAlert },
+                set: { room.showsPlaybackFailureAlert = $0 }
+            )
+        ) {
+            Button(BSLocalization.text("好"), role: .cancel) {}
+        } message: {
+            Text(ListeningCopy.text("这首歌目前无法播放，请稍后再试。"))
         }
     }
 }
