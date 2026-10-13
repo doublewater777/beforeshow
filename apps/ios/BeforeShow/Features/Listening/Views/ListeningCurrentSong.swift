@@ -45,7 +45,7 @@ struct ListeningCurrentSong: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.display.hardware.position)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)
         .onAppear {
-            ListeningPlaybackChromeStore.shared.room = room
+            ListeningRoomSessionStore.shared.publishChrome(room)
         }
     }
 

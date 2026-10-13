@@ -116,7 +116,7 @@ final class TimetablePreviewPlayer {
     }
 
     private func playAndMonitor(performanceID: UUID) async {
-        (ListeningPlaybackChromeStore.shared.room ?? ListeningRoomCache.shared)?.pauseForOtherAudio()
+        ListeningRoomSessionStore.shared.room?.pauseForOtherAudio()
         do {
             try await playback.play()
             while !Task.isCancelled {

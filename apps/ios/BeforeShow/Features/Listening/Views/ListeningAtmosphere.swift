@@ -93,11 +93,3 @@ struct ListeningStageBackground: View {
         return Color(ambient)
     }
 }
-
-// MARK: - Root playback chrome
-
-@MainActor @Observable final class ListeningPlaybackChromeStore {
-    static let shared = ListeningPlaybackChromeStore()
-    var room: ListeningRoomCoordinator?
-    private init() {}
-}

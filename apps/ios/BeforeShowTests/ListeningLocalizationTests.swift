@@ -104,8 +104,8 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
         let firstRoom = try XCTUnwrap(prepared)
         XCTAssertEqual(firstRoom.show?.id, firstShow.id)
-        XCTAssertTrue(ListeningPlaybackChromeStore.shared.room.map { $0 === firstRoom } == true)
-        XCTAssertTrue(ListeningRoomCache.shared.map { $0 === firstRoom } == true)
+        XCTAssertTrue(ListeningRoomSessionStore.shared.chromeRoom.map { $0 === firstRoom } == true)
+        XCTAssertTrue(ListeningRoomSessionStore.shared.room.map { $0 === firstRoom } == true)
 
         let secondRoom = await ListeningChromeBootstrapper.prepare(
             show: secondShow,
@@ -114,16 +114,15 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
 
         XCTAssertNil(secondRoom, "A disc restored for the previous Current Show must not appear under the new Current Show")
-        XCTAssertNil(ListeningPlaybackChromeStore.shared.room)
-        XCTAssertNil(ListeningRoomCache.shared)
+        XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
+        XCTAssertNil(ListeningRoomSessionStore.shared.room)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
         XCTAssertFalse(firstRoom.mechanism.hasDisc)
     }
 
     private func resetChromeGlobals() {
-        ListeningPlaybackChromeStore.shared.room = nil
-        ListeningRoomCache.shared?.mechanism.motion.stop()
-        ListeningRoomCache.shared = nil
+        ListeningRoomSessionStore.shared.room?.mechanism.motion.stop()
+        ListeningRoomSessionStore.shared.adopt(nil)
     }
 
 }

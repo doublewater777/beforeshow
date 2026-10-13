@@ -90,9 +90,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
     @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
     @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
-    @ObservationIgnored private var evidenceRetryPending = false
-    @ObservationIgnored private var evidenceFailureAlertShown = false
-    @ObservationIgnored private var evidenceFailureOwnsErrorText = false
+    @ObservationIgnored private var evidenceFailure = ListeningEvidenceFailureOwner()
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var widgetCoverTask: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
@@ -1390,6 +1388,11 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
 
+    func dismissError() {
+        errorText = nil
+        evidenceFailure.noteGeneralDismissed()
+    }
+
     private var playbackEvidenceFailureMessage: String {
         BSLocalization.text("保存失败，请重试")
     }
@@ -1397,29 +1400,23 @@ private let listeningCatalogFetchConcurrency = 4
     private func handlePlaybackEvidenceFailure(
         representDismissedAlert: Bool = true
     ) {
-        evidenceRetryPending = true
-        if errorText == nil,
-           representDismissedAlert || !evidenceFailureAlertShown {
-            evidenceFailureAlertShown = true
-            errorText = playbackEvidenceFailureMessage
-            evidenceFailureOwnsErrorText = true
-        }
+        var generalError = errorText
+        evidenceFailure.present(
+            into: &generalError,
+            message: playbackEvidenceFailureMessage,
+            representDismissedAlert: representDismissedAlert
+        )
+        errorText = generalError
         schedulePlaybackEvidenceRetry()
     }
 
     private func handlePlaybackEvidenceRecovery() {
-        guard evidenceRetryPending
-                || evidenceFailureAlertShown
-                || evidenceFailureOwnsErrorText else {
-            return
-        }
-        evidenceRetryPending = false
-        evidenceFailureAlertShown = false
-        if evidenceFailureOwnsErrorText,
-           errorText == playbackEvidenceFailureMessage {
-            errorText = nil
-        }
-        evidenceFailureOwnsErrorText = false
+        var generalError = errorText
+        evidenceFailure.recover(
+            generalError: &generalError,
+            expectedMessage: playbackEvidenceFailureMessage
+        )
+        errorText = generalError
     }
 
     func retryPendingPlaybackEvidence() {

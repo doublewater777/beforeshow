@@ -12,17 +12,9 @@ enum ListeningChromeBootstrapper {
             $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
         }
     ) async -> ListeningRoomCoordinator? {
+        let session = ListeningRoomSessionStore.shared
         guard let show else {
-            let cached = ListeningRoomCache.shared
-            let published = ListeningPlaybackChromeStore.shared.room
-            cached?.stop()
-            cached?.stopHardwareMotion()
-            if let published, published !== cached {
-                published.stop()
-                published.stopHardwareMotion()
-            }
-            ListeningRoomCache.shared = nil
-            ListeningPlaybackChromeStore.shared.room = nil
+            session.clear(stoppingTransport: true)
             return nil
         }
 
@@ -30,23 +22,16 @@ enum ListeningChromeBootstrapper {
         // changes while another tab is visible, do not let the old compact player or
         // transport leak into the new show. Clearing the persisted loaded-disc state
         // also prevents a newly-created coordinator from restoring that stale disc.
-        if let cached = ListeningRoomCache.shared,
+        if let cached = session.room,
            let cachedShowID = cached.show?.id,
            cachedShowID != show.id {
-            let published = ListeningPlaybackChromeStore.shared.room
             cached.discardLoadedDiscState()
-            cached.stopHardwareMotion()
-            if let published, published !== cached {
-                published.stop()
-                published.stopHardwareMotion()
-            }
-            ListeningRoomCache.shared = nil
-            ListeningPlaybackChromeStore.shared.room = nil
+            session.clear(stoppingTransport: false)
         }
 
         let room: ListeningRoomCoordinator
         let createdCandidate: Bool
-        if let cached = ListeningRoomCache.shared {
+        if let cached = session.room {
             room = cached
             createdCandidate = false
         } else {
@@ -63,18 +48,18 @@ enum ListeningChromeBootstrapper {
         // coordinator with no restored disc must not trigger artist matching, Music
         // access, or catalog IO before the user actually enters Listen.
         guard room.hasLoadedDisc, room.track != nil else {
-            ListeningPlaybackChromeStore.shared.room = nil
+            session.unpublishChrome()
             if createdCandidate {
                 room.stopHardwareMotion()
             }
             return nil
         }
 
-        // Publish a restored-disc candidate to the cache before suspension so Listen
-        // can adopt this exact coordinator even if the user enters while hydration is
-        // still running. Candidates without a restored disc never enter the cache.
+        // Publish a restored-disc candidate before suspension so Listen can adopt this
+        // exact coordinator even if the user enters while hydration is still running.
+        // Candidates without a restored disc never enter the session.
         if createdCandidate {
-            ListeningRoomCache.shared = room
+            session.adopt(room)
         }
 
         // A restored disc is visible immediately on the coordinator, but chrome is
@@ -87,7 +72,7 @@ enum ListeningChromeBootstrapper {
         }
         guard !Task.isCancelled, room.show?.id == show.id else { return nil }
 
-        ListeningPlaybackChromeStore.shared.room = room
+        session.publishChrome(room)
         return room
     }
 }
@@ -146,7 +131,7 @@ struct ListeningRootChromeModifier: ViewModifier {
                 )
             }
             .onChange(of: scenePhase) { _, phase in
-                guard let room = ListeningRoomCache.shared else { return }
+                guard let room = ListeningRoomSessionStore.shared.room else { return }
                 let isForeground = phase == .active
                 room.setForeground(isForeground)
                 if isForeground {
@@ -182,7 +167,7 @@ struct ListeningFeatureRootView: View {
                 let disc = fixture.seededDisc ?? fixture.mosaicSeededDisc
                 guard let disc else { return }
                 while !Task.isCancelled {
-                    if let room = ListeningRoomCache.shared, room.show != nil {
+                    if let room = ListeningRoomSessionStore.shared.room, room.show != nil {
                         room.seedDisc(disc)
                         return
                     }

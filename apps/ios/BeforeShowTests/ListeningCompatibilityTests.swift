@@ -124,8 +124,8 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             room.mechanism.motion.stop()
         }
 
-        XCTAssertTrue(ListeningRoomCache.shared.map { $0 === room } == true)
-        XCTAssertTrue(ListeningPlaybackChromeStore.shared.room.map { $0 === room } == true)
+        XCTAssertTrue(ListeningRoomSessionStore.shared.room.map { $0 === room } == true)
+        XCTAssertTrue(ListeningRoomSessionStore.shared.chromeRoom.map { $0 === room } == true)
         XCTAssertEqual(room.show?.id, show.id)
         XCTAssertTrue(room.mechanism.hasDisc)
         XCTAssertEqual(room.track?.id, song.appleMusicSongID)
@@ -144,7 +144,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
 
         // This is the exact adoption predicate used by ListenRootView. It must keep
         // the same coordinator/transport and must not prepare a second player.
-        let listenRoom = try XCTUnwrap(ListeningRoomCache.shared)
+        let listenRoom = try XCTUnwrap(ListeningRoomSessionStore.shared.room)
         XCTAssertTrue(listenRoom === room)
         if listenRoom.shouldReloadCatalog(for: show) {
             await listenRoom.load(show: show)
@@ -270,8 +270,8 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertFalse(room.isPlaying)
         XCTAssertNotEqual(playback.phase, .playing)
         XCTAssertEqual(playback.stopCount, 1)
-        XCTAssertNil(ListeningRoomCache.shared)
-        XCTAssertNil(ListeningPlaybackChromeStore.shared.room)
+        XCTAssertNil(ListeningRoomSessionStore.shared.room)
+        XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
 
         let persisted = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
         XCTAssertEqual(persisted.count, 1, "Clearing Current Show stops runtime playback but keeps the restored CD snapshot")
@@ -330,8 +330,8 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
 
         XCTAssertNil(rootPrepared)
-        XCTAssertNil(ListeningRoomCache.shared)
-        XCTAssertNil(ListeningPlaybackChromeStore.shared.room)
+        XCTAssertNil(ListeningRoomSessionStore.shared.room)
+        XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
         XCTAssertEqual(catalog.totalCallCount, 0, "Root bootstrap without a restored CD must not touch Music access/catalog")
         XCTAssertEqual(search.totalCallCount, 0, "Root bootstrap without a restored CD must not run artist matching")
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
@@ -344,7 +344,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             artistSearchService: search,
             playbackFactory: { ListeningTestPlayer(source: $0) }
         )
-        ListeningRoomCache.shared = room
+        ListeningRoomSessionStore.shared.adopt(room)
         room.setActive(false)
         room.prepareForDisplay(show: show)
 
@@ -610,9 +610,8 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
     }
 
     private func resetChromeGlobals() {
-        ListeningPlaybackChromeStore.shared.room = nil
-        ListeningRoomCache.shared?.mechanism.motion.stop()
-        ListeningRoomCache.shared = nil
+        ListeningRoomSessionStore.shared.room?.mechanism.motion.stop()
+        ListeningRoomSessionStore.shared.adopt(nil)
     }
 
     private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async throws {

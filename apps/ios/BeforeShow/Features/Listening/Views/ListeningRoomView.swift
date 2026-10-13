@@ -1,13 +1,3 @@
-@MainActor enum ListeningRoomCache {
-    static var shared: ListeningRoomCoordinator?
-
-    static func discardLocalState() {
-        shared?.discardLoadedDiscState()
-        shared?.stopHardwareMotion()
-        shared = nil
-    }
-}
-
 import SwiftUI
 import SwiftData
 #if canImport(UIKit)
@@ -40,7 +30,7 @@ struct ListenRootView: View {
         self.catalogService = catalogService
         self.artistSearchService = artistSearchService
         self.playbackFactory = playbackFactory
-        _room = State(initialValue: ListeningRoomCache.shared)
+        _room = State(initialValue: ListeningRoomSessionStore.shared.room)
     }
 
     private var show: Show? {
@@ -127,7 +117,7 @@ struct ListenRootView: View {
             room?.stop()
             room?.stopHardwareMotion()
             room = nil
-            ListeningRoomCache.shared = nil
+            ListeningRoomSessionStore.shared.adopt(nil)
             return
         }
         createRoomIfNeeded(for: show)
@@ -144,7 +134,7 @@ struct ListenRootView: View {
     @MainActor
     private func createRoomIfNeeded(for show: Show) {
         if room == nil {
-            if let cached = ListeningRoomCache.shared, cached.show?.id == show.id {
+            if let cached = ListeningRoomSessionStore.shared.room, cached.show?.id == show.id {
                 room = cached
             } else {
                 let next = ListeningRoomCoordinator(
@@ -154,7 +144,7 @@ struct ListenRootView: View {
                     playbackFactory: playbackFactory
                 )
                 room = next
-                ListeningRoomCache.shared = next
+                ListeningRoomSessionStore.shared.adopt(next)
             }
         }
     }

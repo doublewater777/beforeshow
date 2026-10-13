@@ -104,9 +104,9 @@ enum ListeningBottomBarLayout {
 /// circle <-> compact-player morph inside the stable root-bar footprint.
 struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
-    @State private var store = ListeningPlaybackChromeStore.shared
+    @State private var store = ListeningRoomSessionStore.shared
 
-    private var room: ListeningRoomCoordinator? { store.room }
+    private var room: ListeningRoomCoordinator? { store.chromeRoom }
     private var track: ListeningDiscTrack? { room?.track }
 
     private var hasLoadedDisc: Bool {

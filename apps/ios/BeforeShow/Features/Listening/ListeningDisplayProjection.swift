@@ -737,10 +737,6 @@ extension ListeningRoomCoordinator {
         mechanism.motion.stop()
     }
 
-    func dismissError() {
-        errorText = nil
-    }
-
     func beginCabinetDragIfNeeded(_ disc: ListeningDisc) -> Bool {
         guard !mechanism.isCabinetDragging, pendingCabinetSwap == nil else { return false }
         return beginPlayableDiscDrag(disc)
