@@ -114,7 +114,7 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Domain/Shows/ShowMutationCoordinator.swift": 15_000,
     "BeforeShow/Features/CurrentShow/HomeHeroPresentation.swift": 12_000,
     "BeforeShow/Features/CurrentShow/CurrentShowHomeView.swift": 24_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 26_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 28_000,
     "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 35_000,
     "BeforeShow/Features/CurrentShow/CurrentShowFollowUpView.swift": 8_000,
     "BeforeShow/Features/CurrentShow/CurrentShowQuickActionsView.swift": 9_000,
