@@ -129,7 +129,7 @@ struct LiveAndWidgetShowcaseView: View {
             // 4. Lock screen banner (Pre-show Countdown)
             sectionTitle(
                 "锁屏实时活动 · 开场前倒计时",
-                subtitle: "临近开场时激活，指引开场倒计时与快速导航路线"
+                subtitle: "临近开场时激活，展示开场倒计时与现场信息"
             )
             countdownLockScreenBanner
         }
@@ -217,37 +217,22 @@ struct LiveAndWidgetShowcaseView: View {
                 }
             }
 
-            // Row 2: Detail + Next show + Action Button
-            HStack(alignment: .bottom, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("正在演: King Gizzard & The Lizard Wizard · 爱舞台")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
-                        .lineLimit(1)
-
-                    HStack(spacing: 4) {
-                        Text("下一场: ❤️ 万能青年旅店 (11:44 · 草莓舞台)")
-                            .font(.system(size: 12))
-                            .foregroundColor(BSColor.textSecondary)
-                            .lineLimit(1)
-                        Text("· 快开始了")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(BSColor.Accent.warm)
-                    }
-                }
-
-                Spacer(minLength: 0)
+            // Row 2: Detail + Next show
+            VStack(alignment: .leading, spacing: 4) {
+                Text("正在演: King Gizzard & The Lizard Wizard · 爱舞台")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.textPrimary)
+                    .lineLimit(1)
 
                 HStack(spacing: 4) {
-                    Image(systemName: "camera")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("记一段记忆")
-                        .font(.system(size: 12, weight: .semibold))
+                    Text("下一场: ❤️ 万能青年旅店 (11:44 · 草莓舞台)")
+                        .font(.system(size: 12))
+                        .foregroundColor(BSColor.textSecondary)
+                        .lineLimit(1)
+                    Text("· 快开始了")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(BSColor.Accent.warm)
                 }
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Color.white.opacity(0.14)))
             }
         }
         .padding(.horizontal, 14)
@@ -403,30 +388,15 @@ struct LiveAndWidgetShowcaseView: View {
                 }
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("「夜航」巡演 · 上海站 · 回声剧场")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("「夜航」巡演 · 上海站 · 回声剧场")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.textPrimary)
+                    .lineLimit(1)
 
-                    Text("19:30 开场 · 预计 22:00 散场")
-                        .font(.system(size: 12))
-                        .foregroundColor(BSColor.textSecondary)
-                }
-
-                Spacer(minLength: 0)
-
-                HStack(spacing: 4) {
-                    Image(systemName: "map")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("路线")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Color.white.opacity(0.14)))
+                Text("19:30 开场 · 预计 22:00 散场")
+                    .font(.system(size: 12))
+                    .foregroundColor(BSColor.textSecondary)
             }
         }
         .padding(.horizontal, 14)

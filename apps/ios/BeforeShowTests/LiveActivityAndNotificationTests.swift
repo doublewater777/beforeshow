@@ -54,6 +54,26 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertFalse(state.isInterestedNext)
     }
 
+    func testLiveActivityCountsDownToNextSetBetweenSets() {
+        let p1 = WidgetTimetablePerformance(
+            id: UUID(), artistName: "The Strokes", stageID: UUID(), stageName: "Main Stage",
+            startsAt: date(14, 0), endsAt: date(15, 0), isInterested: false
+        )
+        let p2 = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Yeah Yeah Yeahs", stageID: UUID(), stageName: "Sub Stage",
+            startsAt: date(16, 0), endsAt: date(17, 0), isInterested: false
+        )
+        let day = WidgetTimetableDay(id: UUID(), date: date(0, 0), performances: [p1, p2])
+
+        let state = LiveActivityPlanner.desiredState(
+            snapshot: makeSnapshot(timetableDays: [day]), now: date(15, 30), coverFilename: nil
+        )?.state
+
+        XCTAssertNil(state?.currentArtistName)
+        XCTAssertEqual(state?.nextArtistName, "Yeah Yeah Yeahs")
+        XCTAssertEqual(state?.startDate, date(16, 0))
+    }
+
     // MARK: - 2. Live Activity With Interested Shows (Personal Next Priority)
 
     func testLiveActivityPrioritizesInterestedShowsWhenAvailable() {
