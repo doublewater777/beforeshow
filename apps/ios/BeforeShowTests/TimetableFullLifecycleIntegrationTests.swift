@@ -434,6 +434,16 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         XCTAssertEqual(CurrentShowTimeState(timing: snapshot.timing, now: date(22)).endBoundary, date(23, 30))
     }
 
+
+    func testPerformanceRejectsEmptyNameAndInvalidInterval() {
+        XCTAssertThrowsError(try TimetablePerformance(artistName: "   ", startsAt: date(14), endsAt: date(15))) { error in
+            XCTAssertEqual(error as? TimetableValidationError, .emptyArtistName)
+        }
+        XCTAssertThrowsError(try TimetablePerformance(artistName: "Valid Artist", startsAt: date(15), endsAt: date(14))) { error in
+            XCTAssertEqual(error as? TimetableValidationError, .invalidPerformanceInterval)
+        }
+    }
+
     private func date(_ hour: Int, _ minute: Int = 0) -> Date {
         Date(timeIntervalSince1970: 1790956800 + Double(hour) * 3_600 + Double(minute) * 60)
     }

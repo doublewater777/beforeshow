@@ -500,7 +500,7 @@ struct TimetablePerformanceInspectorSheet: View {
     private func commitAndDismiss() {
         let trimmedName = draftArtistName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
-            dismiss()
+            saveErrorMessage = BSLocalization.text("请输入艺人名称")
             return
         }
 
