@@ -146,6 +146,58 @@ final class TimetableManagementCoordinator: ObservableObject {
         }
     }
 
+    /// Saves original timetable photos locally without triggering recognition.
+    func saveOriginalImages(
+        imagesData: [Data],
+        show: Show,
+        modelContext: ModelContext
+    ) async -> Bool {
+        guard !imagesData.isEmpty else { return false }
+        isSaving = true
+        await ShowAssetMediaStore.shared.acquireCommitGate()
+        var newAssets: [(id: UUID, path: String)] = []
+        do {
+            for data in imagesData {
+                let assetID = UUID()
+                let path = try await ShowAssetMediaStore.shared.saveImage(
+                    data: data,
+                    showID: show.id,
+                    kind: .timetable,
+                    assetID: assetID
+                )
+                newAssets.append((assetID, path))
+            }
+            let oldAssets = show.assets.filter { $0.kind == .timetable }
+            let oldPaths = oldAssets.map(\.relativePath)
+            for old in oldAssets {
+                modelContext.delete(old)
+            }
+            for candidate in newAssets {
+                let asset = ShowAsset(
+                    id: candidate.id,
+                    showID: show.id,
+                    kind: .timetable,
+                    relativePath: candidate.path
+                )
+                asset.show = show
+                modelContext.insert(asset)
+            }
+            try modelContext.save()
+            await deleteImages(oldPaths, showID: show.id)
+            await ShowAssetMediaStore.shared.releaseCommitGate()
+            self.isSaving = false
+            presentToast(.success, message: BSLocalization.text("时刻表原图已保存"))
+            return true
+        } catch {
+            modelContext.rollback()
+            await deleteImages(newAssets.map(\.path), showID: show.id)
+            await ShowAssetMediaStore.shared.releaseCommitGate()
+            self.isSaving = false
+            presentToast(.failure, message: BSLocalization.text("图片保存失败，请重试"))
+            return false
+        }
+    }
+
     // MARK: - Import review
 
     /// Opens review for an import from any source. The saved timetable is only

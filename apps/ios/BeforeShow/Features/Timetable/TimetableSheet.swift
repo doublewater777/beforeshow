@@ -82,9 +82,7 @@ struct TimetableSheet: View {
             ZStack {
                 TimetableStyle.background.ignoresSafeArea()
 
-                if coordinator.isRecognizing {
-                    TimetableRecognizingView(image: originalImages.first, imageCount: originalImages.count)
-                } else if isAIImporting {
+                if isAIImporting {
                     TimetableAIImportView(onImport: importText)
                 } else if let session = coordinator.importSession {
                     TimetableImportReviewView(
@@ -116,7 +114,7 @@ struct TimetableSheet: View {
                     )
                 }
 
-                if isOriginalVisible && !originalImages.isEmpty && !coordinator.isRecognizing {
+                if isOriginalVisible && !originalImages.isEmpty {
                     TimetableOriginalImagePiP(
                         images: originalImages,
                         page: $originalImagePage,
@@ -164,19 +162,17 @@ struct TimetableSheet: View {
                         }
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        if !coordinator.isRecognizing {
-                            if !originalImages.isEmpty {
-                                Button {
-                                    openOriginalImageViewer()
-                                } label: {
-                                    Image(systemName: "photo")
-                                        .foregroundColor(BSColor.textSecondary)
-                                }
-                                .accessibilityLabel(BSLocalization.text("查看原图"))
+                        if !originalImages.isEmpty {
+                            Button {
+                                openOriginalImageViewer()
+                            } label: {
+                                Image(systemName: "photo")
+                                    .foregroundColor(BSColor.textSecondary)
                             }
-                            if hasStructuredTimetable || hasSavedImages {
-                                managementMenu
-                            }
+                            .accessibilityLabel(BSLocalization.text("查看原图"))
+                        }
+                        if hasStructuredTimetable || hasSavedImages {
+                            managementMenu
                         }
                     }
                 }
@@ -295,17 +291,13 @@ struct TimetableSheet: View {
             }
 
             Section {
-                Menu {
-                    Button {
-                        isPhotosPickerPresented = true
-                    } label: {
-                        Label(BSLocalization.text("本地导入"), systemImage: "photo")
-                    }
-                    Button(action: openAIImport) {
-                        Label(BSLocalization.text("AI 导入"), systemImage: "text.viewfinder")
-                    }
+                Button(action: openAIImport) {
+                    Label(BSLocalization.text(hasStructuredTimetable ? "借助 AI 重新导入" : "借助 AI 导入"), systemImage: "sparkles")
+                }
+                Button {
+                    isPhotosPickerPresented = true
                 } label: {
-                    Label(BSLocalization.text("重新导入"), systemImage: "arrow.clockwise")
+                    Label(BSLocalization.text(hasSavedImages ? "更换时刻表图片" : "保存时刻表图片"), systemImage: "photo")
                 }
                 Button(role: .destructive) {
                     isConfirmingDelete = true
@@ -360,25 +352,6 @@ struct TimetableSheet: View {
         matchArtists(in: session)
     }
 
-    /// Opens review for photos that were just recognized; nothing is saved yet.
-    private func reviewRecognizedDraft(_ draft: TimetableDraft, imagesData: [Data], show: Show) {
-        guard let session = coordinator.beginReview(
-            TimetableImportResult(draft: draft),
-            imagesData: imagesData,
-            show: show,
-            linker: artistLinker
-        ) else {
-            coordinator.recognitionError = BSLocalization.text("未在图片中识别到演出时刻表，请确保图片清晰或手动重试")
-            pendingImagesData = []
-            pendingImages = []
-            return
-        }
-        matchArtists(in: session)
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            isOriginalVisible = true
-        }
-    }
-
     private func matchArtists(in session: TimetableImportSession) {
         Task {
             await artistLinker.autoMatchPersistedPerformances(in: session.timetable, context: session.context)
@@ -422,7 +395,7 @@ struct TimetableSheet: View {
                             Image(uiImage: img)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 220, height: 300)
+                                .frame(width: 240, height: 340)
                                 .background(Color.black.opacity(0.6))
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
@@ -433,54 +406,46 @@ struct TimetableSheet: View {
                 .padding(.horizontal, BSSpacing.lg)
             }
 
-            if let error = coordinator.recognitionError {
-                errorNotice(message: error)
-            }
-
             VStack(spacing: 12) {
-                Button {
-                    Task {
-                        guard let show = currentShow else { return }
-                        await coordinator.recognizeFromExistingAssets(assets: timetableAssets, show: show)
-                        if let d = coordinator.draft {
-                            reviewRecognizedDraft(d, imagesData: [], show: show)
-                        }
-                    }
-                } label: {
-                    Label(BSLocalization.text("从图片识别时刻表"), systemImage: "sparkles")
+                Button(action: openAIImport) {
+                    Label(BSLocalization.text("借助 AI 导入时刻表"), systemImage: "sparkles")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(TimetableStyle.background)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Capsule().fill(TimetableStyle.foreground))
                 }
-                .buttonStyle(BSPrimaryButtonStyle())
+                .buttonStyle(TimetablePressStyle())
 
                 HStack(spacing: 12) {
-                    Button(BSLocalization.text("查看原图")) {
+                    Button {
                         openOriginalImageViewer()
+                    } label: {
+                        Text(BSLocalization.text("全屏查看"))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(TimetableStyle.foreground)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(Capsule().fill(Color.white.opacity(0.10)))
                     }
-                    .buttonStyle(BSSecondaryButtonStyle())
+                    .buttonStyle(TimetablePressStyle())
 
-                    Button(BSLocalization.text("重新上传")) {
+                    Button {
                         isPhotosPickerPresented = true
+                    } label: {
+                        Text(BSLocalization.text("更换图片"))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(TimetableStyle.foreground)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(Capsule().fill(Color.white.opacity(0.10)))
                     }
-                    .buttonStyle(BSSecondaryButtonStyle())
+                    .buttonStyle(TimetablePressStyle())
                 }
             }
             .padding(.horizontal, BSSpacing.lg)
         }
         .padding(.vertical, BSSpacing.lg)
-    }
-
-    private func errorNotice(message: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(Color.orange)
-            Text(message)
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textPrimary)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity)
-        .background(Color.orange.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, BSSpacing.lg)
     }
 
     private func processPickedPhotos(_ items: [PhotosPickerItem]) async {
@@ -494,15 +459,10 @@ struct TimetableSheet: View {
             }
         }
         selectedPhotoItems = []
-        guard !images.isEmpty, let show = currentShow else { return }
-        pendingImagesData = datas
-        pendingImages = images
-        await coordinator.recognize(images: images, show: show)
-        if let d = coordinator.draft {
-            reviewRecognizedDraft(d, imagesData: datas, show: show)
-        } else {
-            pendingImagesData = []
-            pendingImages = []
+        guard !datas.isEmpty, let show = currentShow else { return }
+        let saved = await coordinator.saveOriginalImages(imagesData: datas, show: show, modelContext: modelContext)
+        if saved {
+            await loadSavedImages()
         }
     }
 

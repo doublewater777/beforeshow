@@ -31,7 +31,7 @@ struct TimetableEmptyStateView: View {
                 .font(.system(size: 26, weight: .heavy))
                 .foregroundStyle(TimetableStyle.foreground)
                 .padding(.top, 20)
-            Text(BSLocalization.text("支持多张截图 · 多日 · 多舞台"))
+            Text(BSLocalization.text("借助 AI 整理时刻表，或直接保存官方原图"))
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(TimetableStyle.muted)
                 .padding(.top, 10)
@@ -49,8 +49,8 @@ struct TimetableEmptyStateView: View {
 
             Spacer(minLength: 24)
 
-            Button(action: onPickPhotos) {
-                Label(BSLocalization.text("本地导入"), systemImage: "photo")
+            Button(action: onAIImport) {
+                Label(BSLocalization.text("借助 AI 导入"), systemImage: "sparkles")
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(TimetableStyle.background)
                     .frame(maxWidth: .infinity)
@@ -60,8 +60,8 @@ struct TimetableEmptyStateView: View {
             .buttonStyle(TimetablePressStyle())
             .padding(.horizontal, 24)
 
-            Button(action: onAIImport) {
-                Text(BSLocalization.text("AI 导入"))
+            Button(action: onPickPhotos) {
+                Label(BSLocalization.text("仅保存图片"), systemImage: "photo")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(TimetableStyle.foreground)
                     .frame(maxWidth: .infinity)
