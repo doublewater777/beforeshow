@@ -1968,7 +1968,7 @@ First show: %@";
 "舞台 %d" = "Stage %d";
 "复制识别指令" = "Copy Prompt";
 "已复制识别指令" = "Prompt Copied";
-"在 AI 工具中上传时刻表图片并发送指令" = "Upload the timetable images in an external AI tool and send the prompt";
+"在 AI 工具中上传时刻表图片并发送指令" = "Upload the timetable images in an AI tool (such as ChatGPT, Claude, or Gemini) and send the prompt";
 "借助 AI 导入" = "Import with AI";
 "仅保存图片" = "Save Photos Only";
 "借助 AI 整理时刻表，或直接保存官方原图" = "Organize with AI or simply keep the official schedule images";
