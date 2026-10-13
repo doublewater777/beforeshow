@@ -92,9 +92,36 @@ enum ListeningChromeBootstrapper {
     }
 }
 
+extension EnvironmentValues {
+    @Entry var rootTabSelection: Binding<BeforeShowTab>?
+}
+
+/// Root pages own the bottom chrome so a push slides it away with the page
+/// and an interactive pop brings it back in step with the gesture.
+struct RootBottomChromeModifier: ViewModifier {
+    @Environment(\.rootTabSelection) private var selection
+
+    func body(content: Content) -> some View {
+        if let selection {
+            content
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    ListeningPolishedBottomChrome(selectedTab: selection)
+                        .padding(.bottom, BSSpacing.xs)
+                }
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func bsRootBottomChrome() -> some View {
+        modifier(RootBottomChromeModifier())
+    }
+}
+
 struct ListeningRootChromeModifier: ViewModifier {
-    @Binding var selectedTab: BeforeShowTab
-    var isHidden = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query private var shows: [Show]
@@ -109,13 +136,6 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                ListeningPolishedBottomChrome(selectedTab: $selectedTab)
-                    .padding(.bottom, BSSpacing.xs)
-                    .opacity(isHidden ? 0 : 1)
-                    .allowsHitTesting(!isHidden)
-            }
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
             .task {
                 ListeningPlayerWarmup.prepareIfNeeded()
             }
@@ -144,6 +164,7 @@ struct ListeningFeatureRootView: View {
 
     var body: some View {
         room
+            .bsRootBottomChrome()
     }
 
     @ViewBuilder

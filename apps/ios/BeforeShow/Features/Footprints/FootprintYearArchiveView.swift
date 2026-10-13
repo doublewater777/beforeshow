@@ -107,18 +107,15 @@ struct FootprintTrendChart: View {
 struct FootprintYearArchiveView: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    let onDetailVisibilityChange: (Bool) -> Void
 
     @State private var selectedYear: Int
 
     init(
         archive: FootprintArchiveSnapshot,
-        covers: [UUID: FootprintCover],
-        onDetailVisibilityChange: @escaping (Bool) -> Void
+        covers: [UUID: FootprintCover]
     ) {
         self.archive = archive
         self.covers = covers
-        self.onDetailVisibilityChange = onDetailVisibilityChange
         _selectedYear = State(initialValue: archive.years.first?.year ?? Calendar.current.component(.year, from: Date()))
     }
 
@@ -241,7 +238,7 @@ struct FootprintYearArchiveView: View {
 
     private func yearHighlight(_ show: Show, isForExport: Bool) -> some View {
         footprintExportAwareNavigationLink(isForExport: isForExport) {
-            FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
+            FootprintDetailView(show: show, archive: archive)
         } label: {
             HStack(spacing: 12) {
                 FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
@@ -271,7 +268,7 @@ struct FootprintYearArchiveView: View {
 
     private func yearShowRow(_ show: Show, isForExport: Bool) -> some View {
         footprintExportAwareNavigationLink(isForExport: isForExport) {
-            FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
+            FootprintDetailView(show: show, archive: archive)
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .trailing, spacing: 2) {

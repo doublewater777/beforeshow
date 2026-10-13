@@ -4,7 +4,6 @@ import SwiftUI
 // MARK: - Footprints Root Presentation
 
 struct FootprintsView: View {
-    var onArchiveVisibilityChange: (Bool) -> Void = { _ in }
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @Query private var fragments: [MemoryFragment]
@@ -51,12 +50,12 @@ struct FootprintsView: View {
             }
         }
         .background { FootprintBackground().ignoresSafeArea() }
+        .bsRootBottomChrome()
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $detailTarget) { target in
                 FootprintDetailView(
                     show: target.show,
-                    archive: archive,
-                    onDetailVisibilityChange: onArchiveVisibilityChange
+                    archive: archive
                 )
             }
             .sheet(isPresented: $isAddingShow) {
@@ -101,8 +100,7 @@ struct FootprintsView: View {
             onSearch: { activeSheet = .search },
             onShare: {
                 activeSheet = .share
-            },
-            onArchiveVisibilityChange: onArchiveVisibilityChange
+            }
         )
     }
 

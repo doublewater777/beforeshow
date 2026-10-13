@@ -17,7 +17,6 @@ enum CurrentShowPlaybackPolicy {
 struct CurrentShowHomeView: View {
     var isPlaybackActive = true
     var isFeaturePresentationActive = false
-    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
@@ -111,7 +110,6 @@ struct CurrentShowHomeView: View {
                         candidateShows: liveShows,
                         onDetailVisibilityChange: { isVisible in
                             isDetailVisible = isVisible
-                            onDetailVisibilityChange(isVisible)
                         },
                         onPresentationVisibilityChange: { isVisible in
                             isManagementPresentationActive = isVisible
@@ -165,6 +163,7 @@ struct CurrentShowHomeView: View {
             .containerRelativeFrame(.horizontal)
             .bsToastOverlay(toast, bottomPadding: 90)
             .toolbar(.hidden, for: .navigationBar)
+            .bsRootBottomChrome()
             .photosPicker(
                 isPresented: $isShowingDynamicCoverPicker,
                 selection: $selectedDynamicCoverItem,
@@ -243,7 +242,6 @@ struct CurrentShowHomeView: View {
                     CurrentShowLibraryManagementView(
                         onDetailVisibilityChange: { isVisible in
                             isDetailVisible = isVisible
-                            onDetailVisibilityChange(isVisible)
                         }
                     )
                 }

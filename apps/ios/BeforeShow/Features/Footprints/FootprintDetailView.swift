@@ -13,7 +13,6 @@ private struct FootprintMemoryTarget: Identifiable {
 struct FootprintDetailView: View {
     let show: Show
     let archive: FootprintArchiveSnapshot
-    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -39,12 +38,10 @@ struct FootprintDetailView: View {
 
     init(
         show: Show,
-        archive: FootprintArchiveSnapshot,
-        onDetailVisibilityChange: @escaping (Bool) -> Void = { _ in }
+        archive: FootprintArchiveSnapshot
     ) {
         self.show = show
         self.archive = archive
-        self.onDetailVisibilityChange = onDetailVisibilityChange
         let showID = show.id
         _fragments = Query(
             filter: #Predicate<MemoryFragment> { $0.showID == showID },
@@ -214,9 +211,7 @@ struct FootprintDetailView: View {
             ShowAssetSheet(
                 showID: show.id,
                 showName: show.name,
-                kind: kind,
-                onDetailVisibilityChange: onDetailVisibilityChange,
-                keepsParentDetailHidden: true
+                kind: kind
             )
         }
         .sheet(isPresented: $isShowingMemoryPage) {
@@ -280,9 +275,7 @@ struct FootprintDetailView: View {
         } message: {
             Text(DangerConfirmation.deleteShow.message)
         }
-        .bsToastOverlay(toast, bottomPadding: BSLayout.tabBarContentInset)
-        .onAppear { onDetailVisibilityChange(true) }
-        .onDisappear { onDetailVisibilityChange(false) }
+        .bsToastOverlay(toast, bottomPadding: BSSpacing.md)
         .preferredColorScheme(.dark)
     }
 

@@ -10,7 +10,6 @@ struct FootprintDashboardSections {
     let covers: [UUID: FootprintCover]
     let onShowSelected: (Show) -> Void
     let onAdd: () -> Void
-    let onArchiveVisibilityChange: (Bool) -> Void
     /// Export renders via ImageRenderer, where a horizontal ScrollView
     /// snapshots blank — so the export swaps it for a plain clipped HStack.
     var isForExport = false
@@ -29,8 +28,7 @@ struct FootprintDashboardSections {
             actionDestination: archive.years.isEmpty ? nil : AnyView(
                 FootprintYearArchiveView(
                     archive: archive,
-                    covers: covers,
-                    onDetailVisibilityChange: onArchiveVisibilityChange
+                    covers: covers
                 )
             )
         ) {
@@ -76,15 +74,14 @@ struct FootprintDashboardSections {
             if items.isEmpty {
                 EmptyView()
             } else {
-        dashboardSection(title: BSLocalization.text("艺人足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintArtistArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
+        dashboardSection(title: BSLocalization.text("艺人足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintArtistArchiveView(archive: archive, covers: covers)), contentPadding: 0) {
             if let first = items.first {
                 FootprintTopArtistCard(
                     items: items,
                     first: first,
                     archive: archive,
                     covers: covers,
-                    isForExport: isForExport,
-                    onArchiveVisibilityChange: onArchiveVisibilityChange
+                    isForExport: isForExport
                 )
             }
         }
@@ -98,12 +95,12 @@ struct FootprintDashboardSections {
             if items.isEmpty {
                 EmptyView()
             } else {
-        dashboardSection(title: BSLocalization.text("城市足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintCityArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
+        dashboardSection(title: BSLocalization.text("城市足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintCityArchiveView(archive: archive, covers: covers)), contentPadding: 0) {
             if isForExport {
                 FootprintGeoMap(items: items, showsControls: false)
             } else {
                 NavigationLink {
-                    FootprintCityArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
+                    FootprintCityArchiveView(archive: archive, covers: covers)
                 } label: { FootprintGeoMap(items: items) }
                 .buttonStyle(.plain)
             }
@@ -118,13 +115,13 @@ struct FootprintDashboardSections {
             if items.isEmpty {
                 EmptyView()
             } else {
-        dashboardSection(title: BSLocalization.text("场馆足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintVenueArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
+        dashboardSection(title: BSLocalization.text("场馆足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintVenueArchiveView(archive: archive, covers: covers)), contentPadding: 0) {
             if let first = items.first {
                 if isForExport {
                     venueFootprintCard(items: items, first: first)
                 } else {
                     NavigationLink {
-                        FootprintVenueArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
+                        FootprintVenueArchiveView(archive: archive, covers: covers)
                     } label: { venueFootprintCard(items: items, first: first) }
                     .buttonStyle(.plain)
                 }

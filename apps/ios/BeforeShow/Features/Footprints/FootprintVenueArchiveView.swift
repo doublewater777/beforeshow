@@ -3,7 +3,6 @@ import SwiftUI
 struct FootprintVenueArchiveView: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    let onDetailVisibilityChange: (Bool) -> Void
 
     private var items: [FootprintVenueArchiveItem] { archive.venueArchiveItems }
     private var mostRecentVenueID: String? {
@@ -22,8 +21,7 @@ struct FootprintVenueArchiveView: View {
                         title: first.name,
                         shows: archive.shows(for: first.showIDs),
                         archive: archive,
-                        covers: covers,
-                        onDetailVisibilityChange: onDetailVisibilityChange
+                        covers: covers
                     )
                 } label: {
                     venueHeroCard(first)
@@ -51,8 +49,7 @@ struct FootprintVenueArchiveView: View {
                         title: item.name,
                         shows: archive.shows(for: item.showIDs),
                         archive: archive,
-                        covers: covers,
-                        onDetailVisibilityChange: onDetailVisibilityChange
+                        covers: covers
                     )
                 } label: {
                     venueArchiveRow(item, isForExport: isForExport)

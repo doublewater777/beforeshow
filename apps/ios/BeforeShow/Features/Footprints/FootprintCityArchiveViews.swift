@@ -257,7 +257,6 @@ struct FootprintGeoMap: View {
 struct FootprintCityArchiveView: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    let onDetailVisibilityChange: (Bool) -> Void
     @State private var selectedCity: FootprintCityArchiveItem?
 
     var body: some View {
@@ -292,8 +291,7 @@ struct FootprintCityArchiveView: View {
                 item: item,
                 shows: Array(archive.shows(for: item.showIDs).reversed()),
                 archive: archive,
-                covers: covers,
-                onDetailVisibilityChange: onDetailVisibilityChange
+                covers: covers
             )
         }
     }
@@ -322,7 +320,6 @@ struct FootprintCityDetailView: View {
     let shows: [Show]
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
         FootprintArchivePage(title: BSLocalization.format("%@现场", item.name), kicker: "", shareCovers: covers) { isForExport in
@@ -333,7 +330,7 @@ struct FootprintCityDetailView: View {
                 : shows
             ForEach(visibleShows) { show in
                 footprintExportAwareNavigationLink(isForExport: isForExport) {
-                    FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
+                    FootprintDetailView(show: show, archive: archive)
                 } label: {
                     HStack(spacing: 11) {
                         VStack(alignment: .trailing, spacing: 2) {

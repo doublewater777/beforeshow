@@ -80,7 +80,7 @@ struct ShowDetailView: View {
                     }
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.xs)
-                    .padding(.bottom, BSLayout.tabBarContentInset)
+                    .padding(.bottom, BSSpacing.xl)
                 }
                     .scrollIndicators(.hidden)
                     .bsNavigationScrollEdge()

@@ -6,7 +6,6 @@ struct FootprintFilteredShowsView: View {
     let shows: [Show]
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
         FootprintArchivePage(title: title, kicker: BSLocalization.text("关联现场"), shareCovers: covers) { isForExport in
@@ -16,7 +15,7 @@ struct FootprintFilteredShowsView: View {
                 : shows
             ForEach(visibleShows) { show in
                 footprintExportAwareNavigationLink(isForExport: isForExport) {
-                    FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
+                    FootprintDetailView(show: show, archive: archive)
                 } label: {
                     HStack(spacing: 11) {
                         FootprintCoverView(show: show, cover: covers[show.id])
@@ -135,7 +134,7 @@ struct FootprintArchivePage<Content: View>: View {
                     content(false)
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, BSLayout.tabBarContentInset)
+                .padding(.bottom, BSSpacing.xl)
             }
             .scrollIndicators(.hidden)
             .bsNavigationScrollEdge()

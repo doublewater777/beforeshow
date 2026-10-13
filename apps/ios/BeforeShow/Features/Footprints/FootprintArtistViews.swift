@@ -136,7 +136,6 @@ struct FootprintTopArtistCard: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
     let isForExport: Bool
-    let onArchiveVisibilityChange: (Bool) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -145,8 +144,7 @@ struct FootprintTopArtistCard: View {
                     title: first.name,
                     shows: archive.shows(for: first.showIDs),
                     archive: archive,
-                    covers: covers,
-                    onDetailVisibilityChange: onArchiveVisibilityChange
+                    covers: covers
                 )
             } label: {
                 artistHeroRow(first, showsChevron: true)
@@ -162,8 +160,7 @@ struct FootprintTopArtistCard: View {
                             title: item.name,
                             shows: archive.shows(for: item.showIDs),
                             archive: archive,
-                            covers: covers,
-                            onDetailVisibilityChange: onArchiveVisibilityChange
+                            covers: covers
                         )
                     } label: {
                         artistRankRow(rank: offset + 2, item: item, showsChevron: true)
@@ -269,7 +266,6 @@ struct FootprintTopArtistCard: View {
 struct FootprintArtistArchiveView: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    let onDetailVisibilityChange: (Bool) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -301,8 +297,7 @@ struct FootprintArtistArchiveView: View {
                         title: item.name,
                         shows: archive.shows(for: item.showIDs),
                         archive: archive,
-                        covers: covers,
-                        onDetailVisibilityChange: onDetailVisibilityChange
+                        covers: covers
                     )
                 } label: {
                     artistArchiveRow(rank: index + 1, item: item, isForExport: isForExport)

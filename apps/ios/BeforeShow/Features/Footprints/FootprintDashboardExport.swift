@@ -17,7 +17,6 @@ struct FootprintDashboardExportView: View {
             covers: covers,
             onShowSelected: { _ in },
             onAdd: {},
-            onArchiveVisibilityChange: { _ in },
             isForExport: true
         )
     }

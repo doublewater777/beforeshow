@@ -7,15 +7,13 @@ struct FootprintDashboardView: View {
     let onAdd: () -> Void
     let onSearch: () -> Void
     let onShare: () -> Void
-    let onArchiveVisibilityChange: (Bool) -> Void
 
     private var sections: FootprintDashboardSections {
         FootprintDashboardSections(
             archive: archive,
             covers: covers,
             onShowSelected: onShowSelected,
-            onAdd: onAdd,
-            onArchiveVisibilityChange: onArchiveVisibilityChange
+            onAdd: onAdd
         )
     }
 
