@@ -11,8 +11,7 @@ struct ListeningSleeveIdentity {
     var color: Color { BSListeningTokens.sleevePalette[index] }
     var angle: Double { BSListeningTokens.sleeveAngles[index] }
     var title: String {
-        if case .compilation = disc.origin { return show?.name ?? disc.title }
-        return disc.title
+        disc.title
     }
     var artworkURL: URL? {
         if case .compilation = disc.origin {

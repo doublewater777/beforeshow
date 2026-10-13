@@ -458,7 +458,7 @@ import SwiftData
         ]])
     }
 
-    func testLargeFestivalCompilationCapsAtThreeTwentyTrackVolumesWithFairCoverage() {
+    func testFestivalCompilationSplitsIntoSingalongLatestAndDeepCuts() {
         let artistTracks = (0..<25).map { artistIndex in
             (1...5).map { rank in
                 ListeningDiscTrack(CatalogSong(
@@ -468,34 +468,49 @@ import SwiftData
                 ))
             }
         }
+        let base = Date(timeIntervalSince1970: 0)
+        let releaseDates = ["artist-3-song-5": base.addingTimeInterval(200), "artist-7-song-2": base.addingTimeInterval(100)]
 
-        let result = ListeningCompilationAssembler.discs(
-            showID: UUID(),
-            artistTracks: artistTracks
-        )
-        let allTracks = result.flatMap(\.tracks)
-        let counts = Dictionary(grouping: allTracks, by: \.artistName).mapValues(\.count)
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), releaseDates: releaseDates, artistTracks: artistTracks)
 
-        XCTAssertEqual(ListeningCompilationAssembler.maxDiscCount, 3)
-        XCTAssertEqual(ListeningCompilationAssembler.maxTracksPerDisc, 20)
-        XCTAssertEqual(ListeningCompilationAssembler.maxMultiArtistTrackCount, 60)
-        XCTAssertEqual(result.count, 3)
-        XCTAssertEqual(result.map { $0.tracks.count }, [20, 20, 20])
-        XCTAssertEqual(allTracks.count, 60)
-        XCTAssertEqual(Set(allTracks.map(\.id)).count, 60)
-        XCTAssertEqual(counts.count, 25)
-        XCTAssertEqual(counts.values.min(), 2)
-        XCTAssertEqual(counts.values.max(), 3)
+        XCTAssertEqual(result.map(\.title), [.singalong, .latest, .deepCuts].map { (theme: ListeningCompilationAssembler.Theme) in theme.title })
+        XCTAssertEqual(result[0].tracks.map(\.id), (0..<20).map { "artist-\($0)-song-1" })
+        XCTAssertEqual(result[1].tracks.map(\.id), ["artist-3-song-5", "artist-7-song-2"])
+        XCTAssertEqual(result[2].tracks.count, 20)
+        XCTAssertFalse(result[2].tracks.contains { $0.id == "artist-7-song-2" })
+        XCTAssertEqual(Set(result.flatMap(\.tracks).map(\.id)).count, 42)
+    }
 
-        for artistIndex in 0..<25 {
-            let ids = allTracks
-                .filter { $0.artistName == "artist-\(artistIndex)" }
-                .map(\.id)
-            XCTAssertEqual(
-                ids,
-                (1...ids.count).map { "artist-\(artistIndex)-song-\($0)" }
-            )
+    func testLiveProgramsLeadAndFillEachSetToItsLength() {
+        func tracks(_ prefix: String) -> [ListeningDiscTrack] {
+            (1...10).map { ListeningDiscTrack(CatalogSong(appleMusicSongID: "\(prefix)\($0)", title: "\($0)", artistName: prefix, duration: 240)) }
         }
+        typealias Assembler = ListeningCompilationAssembler
+
+        let showID = UUID()
+        let result = Assembler.discs(
+            showID: showID,
+            livePrograms: [
+                .init(key: "stage", title: "Day 1 · Main", sets: [.init(tracks: tracks("c"), duration: 900), .init(tracks: tracks("a"), duration: 1_300)]),
+                .init(key: "wanted", title: "想看", sets: [])
+            ],
+            artistTracks: [tracks("a"), tracks("b"), tracks("c")]
+        )
+
+        XCTAssertEqual(result.first?.title, "Day 1 · Main")
+        XCTAssertEqual(result.first?.tracks.map(\.id), ["c1", "c2", "c3", "c4", "a1", "a2", "a3", "a4", "a5"])
+        XCTAssertEqual(result.dropFirst().first?.title, Assembler.Theme.singalong.title)
+        XCTAssertEqual(result.map(\.origin), result.indices.map { .compilation(showID: showID, number: $0 + 1) })
+    }
+
+    func testCompilationSkipsLatestWithoutReleaseDates() {
+        let tracks = (0..<80).map { ListeningDiscTrack(CatalogSong(appleMusicSongID: "\($0)", title: "\($0)", artistName: "Artist")) }
+
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks])
+
+        XCTAssertEqual(result.map(\.title), [ListeningCompilationAssembler.Theme.singalong.title, ListeningCompilationAssembler.Theme.deepCuts.title])
+        XCTAssertEqual(result.flatMap(\.tracks).map(\.id), (0..<20).map { String($0) })
+        XCTAssertEqual(result.map(\.id).last?.hasSuffix("-deepCuts"), true)
     }
 
     func testCompilationGroupingIgnoresTrackDuration() {
@@ -515,25 +530,6 @@ import SwiftData
         ])
     }
 
-    func testSingleArtistCompilationPacksRichDiscsAndCapsAtThreeDiscs() {
-        let tracks = (0..<80).map { index in
-            ListeningDiscTrack(CatalogSong(
-                appleMusicSongID: "\(index)",
-                title: "Song \(index)",
-                artistName: "Artist",
-                duration: 300
-            ))
-        }
-
-        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks])
-
-        XCTAssertEqual(ListeningCompilationAssembler.singleArtistMaxDiscCount, 3)
-        XCTAssertEqual(ListeningCompilationAssembler.singleArtistTracksPerDisc, 10)
-        XCTAssertEqual(result.count, ListeningCompilationAssembler.singleArtistMaxDiscCount)
-        XCTAssertEqual(result.map { $0.tracks.count }, [10, 10, 10])
-        XCTAssertEqual(result.flatMap { $0.tracks }.map(\.id), (0..<30).map { String($0) })
-    }
-
     func testSingleArtistCompilationProducesSingleRichDisc() {
         func track(_ id: String) -> ListeningDiscTrack {
             .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist"))
@@ -545,7 +541,7 @@ import SwiftData
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.tracks.count, 10)
         XCTAssertEqual(result.first?.tracks.map(\.id), (0..<10).map { "song-\($0)" })
-        XCTAssertEqual(result.first?.title, ListeningCopy.format("现场预习 %02d", 1))
+        XCTAssertEqual(result.first?.title, ListeningCompilationAssembler.Theme.singalong.title)
     }
 
     func testSingleArtistCompilationPartitionsIntoRichDiscs() {
@@ -556,13 +552,8 @@ import SwiftData
         let tracks = (0..<25).map { track("song-\($0)") }
         let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks])
 
-        XCTAssertEqual(result.count, 3)
-        XCTAssertEqual(result.map { $0.tracks.count }, [10, 10, 5])
-        XCTAssertEqual(result.map(\.title), [
-            ListeningCopy.format("现场预习 %02d", 1),
-            ListeningCopy.format("现场预习 %02d", 2),
-            ListeningCopy.format("现场预习 %02d", 3)
-        ])
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result.map { $0.tracks.count }, [10, 10])
     }
 
     func testSingleActiveArtistWithEmptyArtistSlotsUsesSingleArtistPacking() {

@@ -166,7 +166,7 @@ private let listeningCatalogFetchConcurrency = 4
         case "seat":
             // Automatic swaps load the deck themselves once the tray settles.
             guard !mechanism.isAutomatic, let disc = mechanism.disc else { return }
-            deck.load(queueDiscs(for: disc), cursor: discPresentation(for: disc).defaultPlayableTrackID)
+            deck.load([disc], cursor: discPresentation(for: disc).defaultPlayableTrackID)
             persistLoadedDisc(force: true)
             finalizeManualDiscInsertionIfNeeded()
         case "remove":
@@ -642,6 +642,7 @@ private let listeningCatalogFetchConcurrency = 4
                         appleMusicSongID: $0.songID,
                         title: $0.title,
                         artistName: $0.artistName,
+                        albumID: $0.albumID,
                         artworkURL: $0.artworkURL,
                         duration: $0.duration,
                         performerArtistIDs: $0.performerArtistIDs,
@@ -851,6 +852,41 @@ private let listeningCatalogFetchConcurrency = 4
         )
     }
 
+    /// Timetable: 想看 first, then one disc per day and stage. Single-artist show: one 彩排 disc, using the estimated end when none is set.
+    private static func livePrograms(
+        for show: Show,
+        topTracks: (String) -> [ListeningDiscTrack]
+    ) -> [ListeningCompilationAssembler.LiveProgram] {
+        typealias Program = ListeningCompilationAssembler.LiveProgram
+        func liveSet(_ performance: TimetablePerformance) -> ListeningCompilationAssembler.LiveSet? {
+            performance.appleMusicArtistID.map {
+                .init(tracks: topTracks($0), duration: performance.endsAt.timeIntervalSince(performance.startsAt))
+            }
+        }
+        if let timetable = show.timetable {
+            let days = timetable.orderedDays
+            let wanted = days.flatMap(\.performances).filter(\.isInterested)
+                .sorted(by: TimetablePerformance.chronologicalOrder)
+            var programs = [Program(key: "wanted", title: ListeningCopy.text("想看"), sets: wanted.compactMap(liveSet))]
+            let stageCount = days.reduce(0) { $0 + $1.orderedStages.count }
+            for (index, day) in days.enumerated() {
+                for stage in day.orderedStages {
+                    let title = stageCount == 1 ? ListeningCopy.text("彩排")
+                        : days.count == 1 ? stage.name
+                        : ListeningCopy.format("Day %d · %@", index + 1, stage.name)
+                    programs.append(Program(key: "stage-\(stage.id)", title: title, sets: stage.orderedPerformances.compactMap(liveSet)))
+                }
+            }
+            return programs
+        }
+        guard show.artists.count == 1, let artistID = show.artists.first?.appleMusicArtistID else { return [] }
+        let timeState = CurrentShowTimeState(show: show, calendar: show.timingCalendar(), now: .distantPast)
+        let start = timeState.effectiveStartTime
+            ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar())
+        guard let end = timeState.effectiveEndTime ?? timeState.endBoundary, end > start else { return [] }
+        return [Program(key: "rehearsal", title: ListeningCopy.text("彩排"), sets: [.init(tracks: topTracks(artistID), duration: end.timeIntervalSince(start))])]
+    }
+
     private func rebuildDiscs() throws {
         guard let show else { return }
         excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>())
@@ -904,10 +940,8 @@ private let listeningCatalogFetchConcurrency = 4
         let connected = mappedArtists.filter(\.isConnected)
         let unconnected = mappedArtists.filter { !$0.isConnected }
         browseArtists = connected + unconnected
-        compilationDiscs = ListeningCompilationAssembler.discs(showID: show.id, artistTracks: browseArtists.compactMap { artist in
-            guard let id = artist.appleMusicArtistID else {
-                return nil
-            }
+        let releaseDates = songsByID.compactMapValues { song in song.albumID.flatMap { albumsByID[$0]?.releaseDate } }
+        func topTracks(_ id: String) -> [ListeningDiscTrack] {
             if let runtime = runtimeSongs[id], !runtime.isEmpty {
                 return runtime.map(ListeningDiscTrack.init)
             }
@@ -915,7 +949,13 @@ private let listeningCatalogFetchConcurrency = 4
                 return snapshot.topSongIDs.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
             }
             return []
-        })
+        }
+        compilationDiscs = ListeningCompilationAssembler.discs(
+            showID: show.id,
+            releaseDates: releaseDates,
+            livePrograms: Self.livePrograms(for: show, topTracks: topTracks),
+            artistTracks: browseArtists.compactMap { $0.appleMusicArtistID.map(topTracks) }
+        )
         var discIDs = Set<String>()
         discs = (compilationDiscs + browseArtists.flatMap(\.albums)).filter { discIDs.insert($0.id).inserted }
         let validArtistIDs = Set(browseArtists.map(\.id))
@@ -1151,7 +1191,7 @@ private let listeningCatalogFetchConcurrency = 4
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
         guard mechanism.position == .stored, !busy else { return }
         mechanism.restoreSeated(disc)
-        deck.load(queueDiscs(for: disc), cursor: songID)
+        deck.load([disc], cursor: songID)
         persistLoadedDisc(force: true)
         prewarmLoadedDisc()
     }
@@ -1164,7 +1204,7 @@ private let listeningCatalogFetchConcurrency = 4
         runMachine { [self] in
             deck.endSession()
             try await mechanism.load(disc)
-            deck.load(queueDiscs(for: disc), cursor: songID)
+            deck.load([disc], cursor: songID)
             persistLoadedDisc(force: true)
             if autoplay {
                 startPlaybackIfPossible()
@@ -1235,7 +1275,7 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func startPlaybackIfPossible() {
         if let disc = mechanism.disc {
-            deck.replaceIdleDiscs(queueDiscs(for: disc))
+            deck.replaceIdleDiscs([disc])
         }
         guard let track = deck.currentTrack, let source = playbackSource(for: track) else { return }
         deck.play(source: source)
@@ -1247,18 +1287,9 @@ private let listeningCatalogFetchConcurrency = 4
         guard mechanism.position == .seated, let track,
               playbackSource(for: track) == .fullCatalog else { return }
         if let disc = mechanism.disc {
-            deck.replaceIdleDiscs(queueDiscs(for: disc))
+            deck.replaceIdleDiscs([disc])
         }
         deck.prefetch(source: .fullCatalog)
-    }
-
-    /// Real records own only their physical disc. BeforeShow compilations are
-    /// visible virtual volumes that play as one continuous queue.
-    private func queueDiscs(for disc: ListeningDisc) -> [ListeningDisc] {
-        guard case let .compilation(showID, _) = disc.origin,
-              showID == show?.id,
-              compilationDiscs.contains(disc) else { return [disc] }
-        return compilationDiscs
     }
 
     func skip(_ delta: Int) {
@@ -1428,6 +1459,9 @@ private let listeningCatalogFetchConcurrency = 4
     func setActive(_ value: Bool) {
         active = value
         if value {
+            // Compilations are derived locally from the show and its timetable, so
+            // rebuilding on entry picks up timetable edits without any network work.
+            if show != nil, !isLoadingShow { try? rebuildDiscs() }
             if case let .artist(artistID) = browser.scope {
                 scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
             }

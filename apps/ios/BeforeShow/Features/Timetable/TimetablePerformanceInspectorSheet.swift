@@ -18,6 +18,8 @@ struct TimetablePerformanceInspectorSheet: View {
     @State private var isSearchingLoading = false
     @State private var searchFailure: ArtistSearchFailureMessage?
     @State private var searchAttempt = 0
+    /// Set while the user replaces a link, so the exact-name match does not silently relink the same artist.
+    @State private var isRelinking = false
     @State private var isConfirmingDelete = false
     @FocusState private var isNameFocused: Bool
 
@@ -133,9 +135,15 @@ struct TimetablePerformanceInspectorSheet: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                     } else if let id = performance.appleMusicArtistID, !id.isEmpty {
-                        Label(BSLocalization.text("已关联 Apple Music"), systemImage: "checkmark.seal.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(TimetableStyle.mine)
+                        Button {
+                            isRelinking = true
+                            performance.disconnectArtist()
+                        } label: {
+                            Label(BSLocalization.text("已关联 Apple Music"), systemImage: "checkmark.seal.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(TimetableStyle.mine)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -199,6 +207,7 @@ struct TimetablePerformanceInspectorSheet: View {
     private func connectArtist(_ artist: RecognizedArtist) {
         performance.connectArtist(artist)
         linker.rememberConnectedArtist(artist)
+        isRelinking = false
         isNameFocused = false
         try? modelContext.save()
     }
@@ -219,7 +228,7 @@ struct TimetablePerformanceInspectorSheet: View {
             guard performance.artistName == name, performance.appleMusicArtistID == nil else { return }
             artistCandidates = results
             isSearchingLoading = false
-            if let match = ArtistNameMatching.uniqueExactMatch(for: query, among: results) {
+            if !isRelinking, let match = ArtistNameMatching.uniqueExactMatch(for: query, among: results) {
                 performance.connectArtist(match)
                 linker.rememberConnectedArtist(match)
             }

@@ -2,73 +2,119 @@ import Foundation
 
 /// Catalog order is the only ranking input. Packing never changes an artist's song order.
 enum ListeningCompilationAssembler {
-    static let maxDiscCount = 3
-    static let maxTracksPerDisc = 20
-    static let maxMultiArtistTrackCount = maxDiscCount * maxTracksPerDisc
-    static let singleArtistTracksPerDisc = 10
-    static let singleArtistMaxDiscCount = 3
+    enum Theme: String, CaseIterable {
+        case singalong, latest, deepCuts
 
-    static func discs(showID: UUID, artistTracks: [[ListeningDiscTrack]]) -> [ListeningDisc] {
-        let activeArtists = artistTracks.filter { !$0.isEmpty }
-        guard !activeArtists.isEmpty else { return [] }
-
-        let batches: [[ListeningDiscTrack]]
-        if activeArtists.count == 1 {
-            batches = singleArtistBatches(from: activeArtists[0])
-        } else {
-            batches = multiArtistBatches(from: activeArtists)
+        var title: String {
+            switch self {
+            case .singalong: ListeningCopy.text("大合唱")
+            case .latest: ListeningCopy.text("新歌")
+            case .deepCuts: ListeningCopy.text("深挖")
+            }
         }
+    }
 
-        return batches.enumerated().map { index, tracks in
+    /// One performance: an artist's songs in rank order and the scheduled set length.
+    struct LiveSet {
+        let tracks: [ListeningDiscTrack]
+        let duration: TimeInterval
+    }
+
+    /// A simulated show: sets play in schedule order, each filled to roughly its real length.
+    struct LiveProgram {
+        /// Stable identity, so a rebuilt rack never hands one album's ID to another.
+        let key: String
+        let title: String
+        let sets: [LiveSet]
+    }
+
+    static let maxTracksPerDisc = 20
+    static let fallbackTrackDuration: TimeInterval = 210
+    static let singleArtistTracksPerDisc = 10
+
+    /// Live programs come first, in the order given.
+    /// 大合唱 takes the top of the coverage-first stream; 新歌 takes the most recently
+    /// released of the rest; 深挖 takes what remains in rank order. Empty themes are skipped.
+    static func discs(
+        showID: UUID,
+        releaseDates: [String: Date] = [:],
+        livePrograms: [LiveProgram] = [],
+        artistTracks: [[ListeningDiscTrack]]
+    ) -> [ListeningDisc] {
+        let live: [Volume] = livePrograms.map { Volume(key: $0.key, title: $0.title, tracks: filled($0.sets)) }
+        let activeArtists = artistTracks.filter { !$0.isEmpty }
+        guard !activeArtists.isEmpty else { return numbered(live, showID: showID) }
+
+        let capacity = activeArtists.count == 1 ? singleArtistTracksPerDisc : maxTracksPerDisc
+        let stream = coverageFirstStream(from: activeArtists)
+
+        let singalong = Array(stream.prefix(capacity))
+        var rest = Array(stream.dropFirst(capacity))
+
+        let dated: [(offset: Int, date: Date, item: Item)] = rest.enumerated().compactMap { offset, item in
+            releaseDates[item.track.id].map { (offset, $0, item) }
+        }
+        let latest: [Item] = dated
+            .sorted { $0.date != $1.date ? $0.date > $1.date : $0.offset < $1.offset }
+            .prefix(capacity)
+            .map { $0.item }
+        let latestIDs = Set(latest.map(\.track.id))
+        rest.removeAll { item in latestIDs.contains(item.track.id) }
+        let deepCuts = Array(rest.prefix(capacity))
+
+        let themed = [(Theme.singalong, singalong), (.latest, latest), (.deepCuts, deepCuts)].map { theme, items in
+            Volume(key: theme.rawValue, title: theme.title, tracks: groupedByArtist(items))
+        }
+        return numbered(live + themed, showID: showID)
+    }
+
+    private struct Volume {
+        let key: String
+        let title: String
+        let tracks: [ListeningDiscTrack]
+    }
+
+    private static func numbered(_ volumes: [Volume], showID: UUID) -> [ListeningDisc] {
+        volumes.filter { !$0.tracks.isEmpty }.enumerated().map { index, volume in
             ListeningDisc(
-                id: "compilation-\(showID)-\(index + 1)",
-                title: ListeningCopy.format("现场预习 %02d", index + 1),
+                id: "compilation-\(showID)-\(volume.key)",
+                title: volume.title,
                 artworkURL: nil,
-                tracks: tracks,
+                tracks: volume.tracks,
                 origin: .compilation(showID: showID, number: index + 1)
             )
         }
     }
 
-    private static func singleArtistBatches(
-        from tracks: [ListeningDiscTrack]
-    ) -> [[ListeningDiscTrack]] {
+    /// Adds each artist's next song while doing so keeps the set closer to its scheduled length.
+    private static func filled(_ sets: [LiveSet]) -> [ListeningDiscTrack] {
         var seen = Set<String>()
-        let uniqueTracks = tracks.filter { seen.insert($0.id).inserted }
-        guard !uniqueTracks.isEmpty else { return [] }
-
-        let discCount = min(
-            singleArtistMaxDiscCount,
-            (uniqueTracks.count + singleArtistTracksPerDisc - 1) / singleArtistTracksPerDisc
-        )
-
-        return (0..<discCount).compactMap { discIndex in
-            let start = discIndex * singleArtistTracksPerDisc
-            let end = min(start + singleArtistTracksPerDisc, uniqueTracks.count)
-            guard start < end else { return nil }
-            return Array(uniqueTracks[start..<end])
+        var result: [ListeningDiscTrack] = []
+        for set in sets {
+            var total: TimeInterval = 0
+            for track in set.tracks where !seen.contains(track.id) {
+                let length = track.duration ?? fallbackTrackDuration
+                guard total == 0 || total + length - set.duration < set.duration - total else { break }
+                seen.insert(track.id)
+                result.append(track)
+                total += length
+            }
         }
+        return result
     }
 
-    /// Select songs in coverage-first rounds: every artist gets a chance to
-    /// contribute its next top song before any artist advances another rank.
-    /// The selected stream is then split into bounded virtual records; tracks from
-    /// the same artist are grouped within each record without changing that artist's
-    /// Apple Music top-song order.
-    private static func multiArtistBatches(
-        from artists: [[ListeningDiscTrack]]
-    ) -> [[ListeningDiscTrack]] {
+    private typealias Item = (artistIndex: Int, track: ListeningDiscTrack)
+
+    /// Every artist contributes its next top song before any artist advances another rank.
+    private static func coverageFirstStream(from artists: [[ListeningDiscTrack]]) -> [Item] {
         var cursors = Array(repeating: 0, count: artists.count)
         var seenSongIDs = Set<String>()
-        var selected: [(artistIndex: Int, track: ListeningDiscTrack)] = []
+        var selected: [Item] = []
 
-        while selected.count < maxMultiArtistTrackCount {
+        while true {
             var addedInRound = false
-
             for artistIndex in artists.indices {
-                guard selected.count < maxMultiArtistTrackCount else { break }
                 let tracks = artists[artistIndex]
-
                 while cursors[artistIndex] < tracks.count {
                     let track = tracks[cursors[artistIndex]]
                     cursors[artistIndex] += 1
@@ -78,31 +124,18 @@ enum ListeningCompilationAssembler {
                     break
                 }
             }
-
-            if !addedInRound { break }
+            if !addedInRound { return selected }
         }
+    }
 
-        var batches: [[ListeningDiscTrack]] = []
-        for start in stride(from: 0, to: selected.count, by: maxTracksPerDisc) {
-            let end = min(start + maxTracksPerDisc, selected.count)
-            let slice = selected[start..<end]
-
-            var artistOrder: [Int] = []
-            var grouped: [Int: [ListeningDiscTrack]] = [:]
-            for item in slice {
-                if grouped[item.artistIndex] == nil {
-                    artistOrder.append(item.artistIndex)
-                    grouped[item.artistIndex] = []
-                }
-                grouped[item.artistIndex, default: []].append(item.track)
-            }
-
-            let batch = artistOrder.flatMap { grouped[$0] ?? [] }
-            if !batch.isEmpty {
-                batches.append(batch)
-            }
+    /// Tracks from the same artist sit together without changing their relative order.
+    private static func groupedByArtist(_ items: [Item]) -> [ListeningDiscTrack] {
+        var artistOrder: [Int] = []
+        var grouped: [Int: [ListeningDiscTrack]] = [:]
+        for item in items {
+            if grouped[item.artistIndex] == nil { artistOrder.append(item.artistIndex) }
+            grouped[item.artistIndex, default: []].append(item.track)
         }
-
-        return Array(batches.prefix(maxDiscCount))
+        return artistOrder.flatMap { grouped[$0] ?? [] }
     }
 }
