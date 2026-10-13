@@ -66,6 +66,7 @@ struct TimetableMatrixLayout {
     let gaps: [Gap]
     let hours: [HourMark]
     let activity: [Activity]
+    let soonMinutes: [Int?]
     let nowY: CGFloat?
 
     var laneHeight: CGFloat { y(for: end) + 14 }
@@ -104,6 +105,7 @@ struct TimetableMatrixLayout {
         var cards: [Card] = []
         var gaps: [Gap] = []
         var activity: [Activity] = []
+        var soonMinutes: [Int?] = []
         for (lane, stage) in stages.enumerated() {
             let ordered = stage.performances.sorted { $0.startsAt < $1.startsAt }
             for p in ordered {
@@ -120,6 +122,10 @@ struct TimetableMatrixLayout {
             }
             let states = ordered.map(status)
             activity.append(states.contains(.live) ? .live : states.contains { if case .soon = $0 { return true }; return false } ? .soon : .idle)
+            soonMinutes.append(states.compactMap { state in
+                if case .soon(let minutes) = state { return minutes }
+                return nil
+            }.min())
         }
 
         var hours: [HourMark] = []
@@ -133,6 +139,7 @@ struct TimetableMatrixLayout {
         self.gaps = gaps
         self.hours = hours
         self.activity = activity
+        self.soonMinutes = soonMinutes
         self.nowY = (start...end).contains(now) ? y(now) : nil
     }
 }

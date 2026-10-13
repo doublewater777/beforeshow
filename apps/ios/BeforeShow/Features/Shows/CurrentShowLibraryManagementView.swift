@@ -39,20 +39,23 @@ struct CurrentShowLibraryManagementView: View {
     private let session = CurrentShowSession()
 
     var body: some View {
-        ZStack {
+        let sections = librarySections
+        let displayedSections = displayedSections(from: sections)
+        let selectedShowID = self.selectedShowID
+        return ZStack {
             CurrentShowStageBackground().ignoresSafeArea()
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                    searchField.padding(.top, 18)
-                   filterBar.padding(.top, 12)
+                   filterBar(sections: sections).padding(.top, 12)
 
                    if displayedSections.allSatisfy({ $0.shows.isEmpty }) {
                         emptyStateView
                    } else {
                        ForEach(displayedSections) { section in
                            if !section.shows.isEmpty {
-                                managementSection(section)
+                                managementSection(section, selectedShowID: selectedShowID)
                             }
                         }
                     }
@@ -160,11 +163,11 @@ struct CurrentShowLibraryManagementView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.09), lineWidth: 1))
     }
 
-    private var filterBar: some View {
+    private func filterBar(sections: [LibrarySection]) -> some View {
         HStack(spacing: 4) {
             ForEach(CurrentShowLibraryFilter.allCases) { item in
                 Button { filter = item } label: {
-                    Text("\(BSLocalization.text(item.rawValue)) \(count(for: item))")
+                    Text("\(BSLocalization.text(item.rawValue)) \(count(for: item, sections: sections))")
                         .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
                         .foregroundColor(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
                         .frame(maxWidth: .infinity)
@@ -180,8 +183,8 @@ struct CurrentShowLibraryManagementView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func managementSection(_ section: LibrarySection) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func managementSection(_ section: LibrarySection, selectedShowID: UUID?) -> some View {
+        LazyVStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(section.title)
                     .font(.system(size: 11, weight: .semibold))
@@ -206,7 +209,7 @@ struct CurrentShowLibraryManagementView: View {
                         CurrentShowLibraryCoverCard(
                             show: show,
                             isCurrent: selectedShowID == show.id,
-                            actions: menuActions(for: show),
+                            actions: menuActions(for: show, selectedShowID: selectedShowID),
                             onOpen: { destination = .init(show: show, startsEditing: false) },
                             onAction: { action in handle(action, for: show) }
                         )
@@ -219,7 +222,7 @@ struct CurrentShowLibraryManagementView: View {
                         show: show,
                         isCurrent: selectedShowID == show.id,
                         formatter: formatter,
-                        actions: menuActions(for: show),
+                        actions: menuActions(for: show, selectedShowID: selectedShowID),
                         onOpen: { destination = .init(show: show, startsEditing: false) },
                         onAction: { action in handle(action, for: show) }
                     )
@@ -246,27 +249,23 @@ struct CurrentShowLibraryManagementView: View {
         var id: String { title }
     }
 
-    private var displayedSections: [LibrarySection] {
-        let sections: [LibrarySection]
+    private var librarySections: [LibrarySection] {
+        [
+            .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
+            .init(title: BSLocalization.text("已延期"), shows: postponedShows),
+            .init(title: BSLocalization.text("已结束"), shows: endedShows),
+            .init(title: BSLocalization.text("已取消"), shows: canceledShows)
+        ]
+    }
+
+    private func displayedSections(from sections: [LibrarySection]) -> [LibrarySection] {
+        let visible: [LibrarySection]
         switch filter {
-        case .upcoming:
-            sections = [
-                .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
-                .init(title: BSLocalization.text("已延期"), shows: postponedShows)
-            ]
-        case .ended:
-            sections = [
-                .init(title: BSLocalization.text("已结束"), shows: endedShows)
-            ]
-        case .all:
-            sections = [
-                .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
-                .init(title: BSLocalization.text("已延期"), shows: postponedShows),
-                .init(title: BSLocalization.text("已结束"), shows: endedShows),
-                .init(title: BSLocalization.text("已取消"), shows: canceledShows)
-            ]
+        case .upcoming: visible = Array(sections.prefix(2))
+        case .ended: visible = [sections[2]]
+        case .all: visible = sections
         }
-        return sections.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
+        return visible.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
     }
 
     private var visibleShows: [Show] {
@@ -311,15 +310,15 @@ struct CurrentShowLibraryManagementView: View {
         return ArtistNameMatching.contains(haystack, query: query)
     }
 
-    private func count(for filter: CurrentShowLibraryFilter) -> Int {
+    private func count(for filter: CurrentShowLibraryFilter, sections: [LibrarySection]) -> Int {
         switch filter {
-        case .upcoming: return upcomingShows.count + postponedShows.count
-        case .ended: return endedShows.count
-        case .all: return visibleShows.count
+        case .upcoming: return sections[0].shows.count + sections[1].shows.count
+        case .ended: return sections[2].shows.count
+        case .all: return sections.reduce(0) { $0 + $1.shows.count }
         }
     }
 
-    private func menuActions(for show: Show) -> [CurrentShowLibraryMenuAction] {
+    private func menuActions(for show: Show, selectedShowID: UUID?) -> [CurrentShowLibraryMenuAction] {
         CurrentShowLibraryMenuPolicy.actions(
             for: show.changeStatus,
             timeKind: session.phase(for: show, now: Date()).kind,

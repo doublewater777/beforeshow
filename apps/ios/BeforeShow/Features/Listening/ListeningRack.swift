@@ -91,8 +91,10 @@ enum ListeningRackOrdering {
         var seen = Set<String>()
         for artist in artists where seen.insert(artist.id).inserted {
             // Releases lead so a playlist that arrives later never replaces the head disc.
-            let discs = artist.albums.filter { $0.isSingle != true }
-            let releases = discs.filter { if case .featuredPlaylist = $0.origin { false } else { true } }
+            let discs = artist.albums
+            let allReleases = discs.filter { if case .featuredPlaylist = $0.origin { false } else { true } }
+            // Singles trail full releases.
+            let releases = allReleases.filter { $0.isSingle != true } + allReleases.filter { $0.isSingle == true }
             groups.append(ListeningRackGroup(
                 // Keyed by lineup slot so connecting an artist keeps the rack's place on it.
                 id: "slot-\(artist.slotIndex)",

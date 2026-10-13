@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 import XCTest
 @testable import BeforeShow
 
@@ -8,6 +9,85 @@ import XCTest
 final class TimetableExperienceTests: XCTestCase {
     private var container: ModelContainer!
     private var context: ModelContext!
+
+    func testLargeMatrixOnlyResolvesAvatarsNearTheViewportAndLoadsScrolledCards() async throws {
+        let start = date(2026, 10, 18, 10, 0)
+        var stages: [TimetableStage] = []
+        for lane in 0..<12 {
+            var performances: [TimetablePerformance] = []
+            for slot in 0..<24 {
+                performances.append(try TimetablePerformance(
+                    artistName: "Artist \(lane)-\(slot)",
+                    startsAt: start.addingTimeInterval(Double(slot * 30 * 60)),
+                    endsAt: start.addingTimeInterval(Double((slot + 1) * 30 * 60))
+                ))
+            }
+            stages.append(try TimetableStage(name: "Stage \(lane)", sortOrder: lane, performances: performances))
+        }
+        let day = try TimetableDay(date: date(2026, 10, 18, 0, 0), stages: stages)
+        context.insert(day)
+        var resolvedNames: [String] = []
+        let view = TimetableStageMatrixView(
+            day: day, now: start.addingTimeInterval(-3600), timeZone: TimeZone(identifier: "Asia/Tokyo")!,
+            wantOnly: false, canReturnToNow: .constant(false), returnToNowRequest: 0,
+            avatarURL: { resolvedNames.append($0.artistName); return nil },
+            onSelectPerformance: { _ in }, onToggleInterested: { $0.isInterested.toggle() },
+            onAddPerformance: { _, _ in }, onManage: {}
+        )
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 393, height: 700)
+        let host = UIHostingController(rootView: view.modelContainer(container))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        host.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+        let initiallyResolved = Set(resolvedNames)
+        print("Matrix initial: \(initiallyResolved.count) of \(day.performances.count) artists, \(resolvedNames.count) resolutions")
+        XCTAssertTrue(initiallyResolved.contains("Artist 0-0"))
+        XCTAssertLessThan(initiallyResolved.count, day.performances.count / 2,
+                          "Opening the matrix must not prepare every offscreen card")
+        XCTAssertFalse(initiallyResolved.contains("Artist 8-18"))
+
+        func scrollViews(in view: UIView) -> [UIScrollView] {
+            let own = (view as? UIScrollView).map { [$0] } ?? []
+            return own + view.subviews.flatMap { scrollViews(in: $0) }
+        }
+        let scrolls = scrollViews(in: host.view)
+        let vertical = try XCTUnwrap(scrolls.first { $0.contentSize.height > $0.bounds.height + 500 })
+        let horizontal = try XCTUnwrap(scrolls.first { $0.contentSize.width > $0.bounds.width + 500 })
+        resolvedNames = []
+        vertical.setContentOffset(CGPoint(x: 0, y: 1100), animated: false)
+        horizontal.setContentOffset(CGPoint(x: 960, y: 0), animated: false)
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertTrue(resolvedNames.contains("Artist 8-18"), "Scrolling in both axes must load newly visible cards")
+        XCTAssertLessThan(Set(resolvedNames).count, day.performances.count / 2)
+        print("Matrix scroll: \(Set(resolvedNames).count) artists, \(resolvedNames.count) resolutions")
+        resolvedNames = []
+        vertical.setContentOffset(CGPoint(x: 0, y: 1104), animated: false)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(resolvedNames.isEmpty, "Small scroll movements must not rebuild cards inside the render buffer")
+
+        host.view.layoutIfNeeded()
+        let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: host.view.bounds).image { _ in
+            host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+        })
+        attachment.name = "Large matrix after scrolling"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        let visiblePerformance = try XCTUnwrap(stages[8].performances.first { $0.artistName == "Artist 8-18" })
+        visiblePerformance.artistName = "Updated Artist"
+        visiblePerformance.isInterested = true
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(resolvedNames.contains("Updated Artist"), "Viewport rendering must still observe performance edits")
+    }
 
     func testFortyMinuteLongNameCardKeepsPreviewControlVisible() throws {
         let start = date(2026, 10, 18, 14, 0)
