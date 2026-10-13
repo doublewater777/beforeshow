@@ -110,10 +110,11 @@ struct ListeningRootChromeModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .safeAreaBar(edge: .bottom, spacing: 0) {
-                if !isHidden {
-                    ListeningPolishedBottomChrome(selectedTab: $selectedTab)
-                        .padding(.bottom, BSSpacing.xs)
-                }
+                ListeningPolishedBottomChrome(selectedTab: $selectedTab)
+                    .padding(.bottom, BSSpacing.xs)
+                    .opacity(isHidden ? 0 : 1)
+                    .animation(.easeOut(duration: 0.18), value: isHidden)
+                    .allowsHitTesting(!isHidden)
             }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .task {
