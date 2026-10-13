@@ -477,13 +477,14 @@ struct HomeCountdownLockup: View {
             if isDayEnded {
                 let copy: String = {
                     if let nextStart = timeState.nextSessionStartsAt {
-                        let distance = FestivalDay.distance(from: .now, to: nextStart, calendar: .current)
+                        let eventCalendar = show.timingFields.eventCalendar(fallback: .current)
+                        let distance = FestivalDay.distance(from: .now, to: nextStart, calendar: eventCalendar)
                         if distance <= 1 {
                             return BSLocalization.text("稍作休息，明天见")
                         } else if distance == 2 {
                             return BSLocalization.text("稍作休息，后天见")
                         } else {
-                            let word = FestivalDay.word(for: nextStart, distance: distance, calendar: .current)
+                            let word = FestivalDay.word(for: nextStart, distance: distance, calendar: eventCalendar)
                             return BSLocalization.format("稍作休息，%@继续", word)
                         }
                     }

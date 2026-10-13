@@ -394,6 +394,46 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         XCTAssertTrue(state.helperText.contains("后天") || state.helperText.contains("14:00"))
     }
 
+
+    func testModifyingPerformanceEndTimeTouchesShowUpdatedAtAndUpdatesPostShowNotification() throws {
+        let show = try lifecycleShow(sessions: [(14, 20)])
+        let initialUpdated = show.updatedAt
+        let performance = try XCTUnwrap(show.timetable?.orderedDays.first?.performances.first)
+
+        // Modify performance endsAt from 20:00 to 23:00
+        performance.endsAt = date(23)
+        show.updatedAt = Date()
+        try context.save()
+
+        XCTAssertTrue(show.updatedAt >= initialUpdated)
+        let state = CurrentShowTimeState(show: show, now: date(21))
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(state.endBoundary, date(23))
+
+        let scheduler = LocalNotificationScheduler()
+        let requests = scheduler.futureRequests(for: show, now: date(10), scope: .all)
+        XCTAssertEqual(requests.first { $0.milestone == .postShowRitual }?.fireDate, date(23, 15))
+    }
+
+    func testAddingPerformanceToLastDayExtendsShowEndBoundary() throws {
+        let show = try lifecycleShow(sessions: [(14, 20)])
+        let day = try XCTUnwrap(show.timetable?.orderedDays.first)
+        let stage = try XCTUnwrap(day.stages.first)
+
+        let newPerf = try TimetablePerformance(artistName: "Headliner", startsAt: date(21), endsAt: date(23, 30))
+        context.insert(newPerf)
+        newPerf.stage = stage
+        show.updatedAt = Date()
+        try context.save()
+
+        let state = CurrentShowTimeState(show: show, now: date(22))
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(state.endBoundary, date(23, 30))
+
+        let snapshot = WidgetShowSnapshot(show: show, generatedAt: date(22))
+        XCTAssertEqual(CurrentShowTimeState(timing: snapshot.timing, now: date(22)).endBoundary, date(23, 30))
+    }
+
     private func date(_ hour: Int, _ minute: Int = 0) -> Date {
         Date(timeIntervalSince1970: 1790956800 + Double(hour) * 3_600 + Double(minute) * 60)
     }

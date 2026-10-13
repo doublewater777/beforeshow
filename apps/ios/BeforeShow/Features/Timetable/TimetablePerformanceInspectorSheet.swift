@@ -108,6 +108,12 @@ struct TimetablePerformanceInspectorSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    if let saveErrorMessage {
+                        Text(saveErrorMessage)
+                            .font(BSFont.caption)
+                            .foregroundStyle(TimetableStyle.attention)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     header
                     stageSection
                     timeSection
@@ -498,35 +504,48 @@ struct TimetablePerformanceInspectorSheet: View {
             return
         }
 
-        var didChange = false
-
-        if performance.artistName != trimmedName
-            || performance.appleMusicArtistID != draftAppleMusicArtistID
-            || performance.artistAvatarURL != draftArtistAvatarURL
-            || performance.startsAt != draftStartsAt
-            || performance.endsAt != draftEndsAt {
-            try? performance.updateDetails(
-                artistName: trimmedName,
-                startsAt: draftStartsAt,
-                endsAt: draftEndsAt,
-                appleMusicArtistID: draftAppleMusicArtistID,
-                artistAvatarURL: draftArtistAvatarURL
-            )
-            didChange = true
+        guard draftStartsAt < draftEndsAt else {
+            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            return
         }
 
-        if let draftStageID,
-           draftStageID != performance.stage?.id,
-           let targetStage = day.stages.first(where: { $0.id == draftStageID }) {
-            performance.moveTo(stage: targetStage)
-            didChange = true
-        }
+        do {
+            var didChange = false
 
-        if didChange {
-            try? modelContext.save()
-        }
+            if performance.artistName != trimmedName
+                || performance.appleMusicArtistID != draftAppleMusicArtistID
+                || performance.artistAvatarURL != draftArtistAvatarURL
+                || performance.startsAt != draftStartsAt
+                || performance.endsAt != draftEndsAt {
+                try performance.updateDetails(
+                    artistName: trimmedName,
+                    startsAt: draftStartsAt,
+                    endsAt: draftEndsAt,
+                    appleMusicArtistID: draftAppleMusicArtistID,
+                    artistAvatarURL: draftArtistAvatarURL
+                )
+                didChange = true
+            }
 
-        dismiss()
+            if let draftStageID,
+               draftStageID != performance.stage?.id,
+               let targetStage = day.stages.first(where: { $0.id == draftStageID }) {
+                performance.moveTo(stage: targetStage)
+                didChange = true
+            }
+
+            if didChange {
+                day.timetable?.show?.updatedAt = Date()
+                try modelContext.save()
+                onPerformanceChanged?()
+            }
+
+            saveErrorMessage = nil
+            dismiss()
+        } catch {
+            modelContext.rollback()
+            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+        }
     }
 
     // MARK: - Delete

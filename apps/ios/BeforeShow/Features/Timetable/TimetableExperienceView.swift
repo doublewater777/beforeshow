@@ -118,7 +118,10 @@ struct TimetableExperienceView: View {
                     end: slot.end,
                     linker: linker,
                     avatarURL: avatarURL,
-                    timeZone: timeZone
+                    timeZone: timeZone,
+                    onPerformanceAdded: {
+                        notifyShowMutation()
+                    }
                 )
                 .bsSystemGlassSheet(detents: [.fraction(0.74), .large])
             }

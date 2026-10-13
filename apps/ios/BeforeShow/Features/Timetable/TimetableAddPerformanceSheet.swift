@@ -8,6 +8,7 @@ struct TimetableAddPerformanceSheet: View {
     let linker: TimetableArtistLinker
     let avatarURL: ((TimetablePerformance) -> URL?)?
     let timeZone: TimeZone
+    var onPerformanceAdded: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -31,12 +32,14 @@ struct TimetableAddPerformanceSheet: View {
         end: Date,
         linker: TimetableArtistLinker = TimetableArtistLinker(),
         avatarURL: ((TimetablePerformance) -> URL?)? = nil,
-        timeZone: TimeZone
+        timeZone: TimeZone,
+        onPerformanceAdded: (() -> Void)? = nil
     ) {
         self.day = day
         self.linker = linker
         self.avatarURL = avatarURL
         self.timeZone = timeZone
+        self.onPerformanceAdded = onPerformanceAdded
         _stageID = State(initialValue: stage.id)
         _startsAt = State(initialValue: start)
         _endsAt = State(initialValue: end)
@@ -422,7 +425,13 @@ struct TimetableAddPerformanceSheet: View {
         if let connectedArtist {
             linker.rememberConnectedArtist(connectedArtist)
         }
+        day.timetable?.show?.updatedAt = Date()
         try? modelContext.save()
+        onPerformanceAdded?()
+        let container = modelContext.container
+        Task {
+            await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))
+        }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         dismiss()
     }
