@@ -1,5 +1,50 @@
 # CloudBase Functions
 
+## Timetable recognition
+
+`iOS -> recognizeTimetable -> Bailian qwen3.7-flash -> TimetableExchangeDocument JSON`
+
+The endpoint accepts app auth plus one to three timetable images (JPEG/PNG/WebP as base64). It calls Bailian / DashScope OpenAI-compatible chat completions with the server-side recognition prompt, does not store images, and returns only a version-1 exchange document the iOS `TimetableImportParser` can decode.
+
+Request body:
+
+```json
+{
+  "appInstanceId": "...",
+  "appSignature": "beforeshow-app-signature-v1",
+  "imageBase64": "<jpeg-base64>",
+  "mimeType": "image/jpeg"
+}
+```
+
+Or `images: [{ "mimeType": "image/jpeg", "base64": "..." }, ...]`.
+
+Success response: `{ "ok": true, "document": { ... }, "model": "qwen3.7-flash", "usage": { ... } }`.
+
+Rate limits (hashed instance id, hourly window, collection `timetableRecognitionRateLimits`):
+
+- 10 recognitions per app instance per hour
+- 200 recognitions globally per hour
+
+Configure on the deployed function (keep out of the repo and out of the iOS app):
+
+- `DASHSCOPE_API_KEY` — required
+- `DASHSCOPE_BASE_URL` — optional; defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1` (MaaS workspace URL also works)
+- `TIMETABLE_MODEL` — optional; defaults to `qwen3.7-flash`
+
+```bash
+set -a && source .env && set +a
+npm run prepare:deploy:recognizeTimetable
+tcb fn deploy recognizeTimetable
+# First deploy only: bind HTTP path as 云托管 (same host as parseShowLink / submitFeedback).
+# Do not use --httpFn — that creates a 云函数 trigger and returns FUNCTIONS_PARAM_INVALID.
+tcb service create -p recognizeTimetable -f recognizeTimetable
+```
+
+Production URL:
+
+`https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/recognizeTimetable`
+
 ## Feedback
 
 BeforeShow feedback stays inside the app:

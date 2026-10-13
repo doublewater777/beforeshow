@@ -36,6 +36,19 @@
       "envVariables": {
         "FEEDBACK_ADMIN_TOKEN": "{{env.FEEDBACK_ADMIN_TOKEN}}"
       }
+    },
+    {
+      "name": "recognizeTimetable",
+      "type": "HTTP",
+      "timeout": 120,
+      "runtime": "Nodejs18.15",
+      "memorySize": 512,
+      "installDependency": true,
+      "envVariables": {
+        "DASHSCOPE_API_KEY": "{{env.DASHSCOPE_API_KEY}}",
+        "DASHSCOPE_BASE_URL": "{{env.DASHSCOPE_BASE_URL}}",
+        "TIMETABLE_MODEL": "{{env.TIMETABLE_MODEL}}"
+      }
     }
   ]
 }
