@@ -113,6 +113,7 @@ final class TimetableManagementCoordinator: ObservableObject {
             }
 
             show.timetable = newTimetable
+            show.updatedAt = Date()
             modelContext.insert(newTimetable)
 
             for old in oldAssets {

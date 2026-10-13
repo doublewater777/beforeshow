@@ -350,8 +350,8 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertFalse(requests.contains { $0.milestone == .openingMemory })
     }
 
-    /// 只有开场前 3 小时带声音并突破专注模式；刚散场不亮屏；其余是无声音的普通通知。
-    func testOnlyShowDayReminderIsTimeSensitive() {
+    /// 开场前 3 小时与当前现场想看艺人的提醒带声音；刚散场不亮屏。
+    func testOpeningAndInterestedRemindersAreTimeSensitive() {
         for milestone in ShowNotificationMilestone.allCases {
             let request = ScheduledShowNotification(
                 showID: UUID(),
@@ -361,7 +361,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
                 body: "正文"
             ).makeNotificationRequest()
 
-            if milestone == .showDay {
+            if milestone == .showDay || milestone == .interestedPerformance {
                 XCTAssertEqual(request.content.interruptionLevel, .timeSensitive)
                 XCTAssertNotNil(request.content.sound)
             } else if milestone == .postShowRitual {

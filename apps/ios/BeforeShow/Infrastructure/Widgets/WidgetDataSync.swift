@@ -147,7 +147,7 @@ struct LiveActivityShowResolver {
 extension WidgetShowSnapshot {
     init(show: Show, generatedAt: Date) {
         let timetableSnapshot: WidgetTimetableSnapshot?
-        if let timetable = show.timetable {
+        if let timetable = show.lifecycleTimetable {
             let days = timetable.orderedDays.map { day in
                 let perfs = day.stages.flatMap { stage in
                     stage.performances.map { p in

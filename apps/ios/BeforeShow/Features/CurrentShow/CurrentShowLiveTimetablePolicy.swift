@@ -6,7 +6,7 @@ enum CurrentShowLiveTimetablePolicy {
         now: Date,
         calendar: Calendar = .current
     ) -> LiveModeState? {
-        guard let timetable = show.timetable,
+        guard let timetable = show.lifecycleTimetable,
               show.endedAt == nil,
               show.wasAddedAsHistorical != true,
               show.changeStatus != .canceled,
@@ -25,6 +25,7 @@ enum CurrentShowLiveTimetablePolicy {
         case .upcoming(let first):
             return eventCalendar.isDate(first, inSameDayAs: now) ? state : nil
         case .fullyEnded:
+            guard CurrentShowTimeState(show: show, now: now).kind != .today else { return nil }
             guard let finalEnd = timetable.orderedDays.flatMap(\.performances).map(\.endsAt).max() else {
                 return nil
             }

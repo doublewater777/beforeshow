@@ -40,7 +40,7 @@ struct LocalNotificationScheduler {
         scheduledShowDayFireDate: Date? = nil,
         scope: NotificationScheduleScope = .all
     ) -> [ScheduledShowNotification] {
-        let eventCalendar = show.timingCalendar(fallback: calendar)
+        let eventCalendar = show.timingFields.eventCalendar(fallback: calendar)
         let timeState = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
         guard timeState.canScheduleNotifications else {
             return []
@@ -85,7 +85,7 @@ struct LocalNotificationScheduler {
             ))
         }
         // 个性化开演提醒：仅针对明确标记「想看」的 performance（固定 15 分钟提前量）
-        if let timetable = show.timetable {
+        if scope.includesAllMilestones, show.endedAt == nil, let timetable = show.lifecycleTimetable {
             let leadTime: TimeInterval = 15 * 60
             for day in timetable.orderedDays {
                 for stage in day.orderedStages {

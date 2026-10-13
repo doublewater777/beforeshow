@@ -71,13 +71,10 @@ final class ShowDurationFormatterTests: XCTestCase {
         XCTAssertEqual(ShowDurationFormatter.minutes(for: show, timeState: state), 150)
     }
 
-    func testMinutesForShowFallsBackToDefaultEstimateWithoutEndTime() throws {
+    func testMinutesForShowDoesNotCountEstimatedDuration() throws {
         let show = try Show(name: "测试现场", date: day(2026, 8, 15), startTime: day(2026, 8, 15, 19, 30))
         let state = CurrentShowTimeState(show: show, calendar: calendar, now: day(2026, 9, 1))
-        XCTAssertEqual(
-            ShowDurationFormatter.minutes(for: show, timeState: state),
-            CurrentShowTimeState.defaultDurationHours * 60
-        )
+        XCTAssertNil(ShowDurationFormatter.minutes(for: show, timeState: state))
     }
 
     @MainActor
@@ -95,6 +92,6 @@ final class ShowDurationFormatterTests: XCTestCase {
         )
 
         XCTAssertEqual(archive.shows.count, 2)
-        XCTAssertEqual(archive.totalDurationMinutes, 150 + CurrentShowTimeState.defaultDurationHours * 60)
+        XCTAssertEqual(archive.totalDurationMinutes, 150)
     }
 }

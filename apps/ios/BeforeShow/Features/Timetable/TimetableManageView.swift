@@ -31,6 +31,10 @@ struct TimetableManageView: View {
 
     var body: some View {
         List {
+            if let show = timetable.show {
+                TimetableDateConfirmationNotice(timetable: timetable, show: show)
+                    .listRowBackground(Color.clear)
+            }
             if let error = coordinator.dayManagementError {
                 Text(error)
                     .font(BSFont.caption)

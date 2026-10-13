@@ -82,6 +82,11 @@ struct TimetableExperienceView: View {
                 )
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let show {
+                TimetableDateConfirmationNotice(timetable: timetable, show: show, onManage: onManage)
+            }
+        }
         .overlay(alignment: .bottom) { dock }
         .sheet(item: $inspectingPerformance) { perf in
             if let day = currentDay {

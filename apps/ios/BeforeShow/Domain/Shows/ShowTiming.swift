@@ -3,7 +3,27 @@ import Foundation
 /// App 侧便捷入口：`Show`(@Model) → 纯值 `ShowTimingFields` → 共享倒计时核。
 /// widget extension 只编译 Shared，看不到本文件。
 extension Show {
+    var lifecycleTimetable: Timetable? {
+        guard let timetable, !timetable.needsDateConfirmation, timetable.matchesDates(of: self),
+              changeStatus != .canceled,
+              !(changeStatus == .postponed && postponedDate == nil) else { return nil }
+        return timetable
+    }
+
     var timingFields: ShowTimingFields {
+        var timing = declaredTimingFields
+        if let timetable = lifecycleTimetable {
+            timing.sessions = timetable.orderedDays.compactMap { day in
+                guard let start = day.performances.map(\.startsAt).min(),
+                      let end = day.performances.map(\.endsAt).max() else { return nil }
+                return ShowSessionTiming(date: day.date, startsAt: start, endsAt: end)
+            }
+            timing.sessionTimeZoneIdentifier = timetable.timeZoneIdentifier
+        }
+        return timing
+    }
+
+    var declaredTimingFields: ShowTimingFields {
         ShowTimingFields(
             date: date,
             startTime: startTime,
@@ -31,17 +51,21 @@ extension CurrentShowTimeState {
     }
 
     static func isMultiDayDailyCycle(for show: Show, calendar: Calendar) -> Bool {
-        isMultiDayDailyCycle(timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
+        isMultiDayDailyCycle(timing: show.timingFields, calendar: show.timingFields.eventCalendar(fallback: calendar))
     }
 
     static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date {
-        effectiveStartTime(timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
+        effectiveStartTime(timing: show.timingFields, calendar: show.timingFields.eventCalendar(fallback: calendar))
     }
 
     /// Earliest user-confirmable end: the final daily session start for a
     /// multi-day cycle, otherwise the show's effective start.
     static func minimumConfirmableEnd(for show: Show, calendar: Calendar) -> Date {
-        let eventCalendar = show.timingCalendar(fallback: calendar)
+        let eventCalendar = show.timingFields.eventCalendar(fallback: calendar)
+        if let finalStart = show.lifecycleTimetable?.orderedDays.last(where: { !$0.performances.isEmpty })?
+            .performances.map(\.startsAt).min() {
+            return finalStart
+        }
         guard isMultiDayDailyCycle(for: show, calendar: eventCalendar),
               let finalDay = effectiveEndDate(for: show, calendar: eventCalendar) else {
             return effectiveStartTime(for: show, calendar: eventCalendar)
@@ -50,7 +74,7 @@ extension CurrentShowTimeState {
     }
 
     static func effectiveEndDate(for show: Show, calendar: Calendar) -> Date? {
-        effectiveEndDate(timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
+        effectiveEndDate(timing: show.timingFields, calendar: show.timingFields.eventCalendar(fallback: calendar))
     }
 
     static func effectiveEndTime(
@@ -61,17 +85,17 @@ extension CurrentShowTimeState {
     ) -> Date? {
         effectiveEndTime(
             timing: show.timingFields,
-            calendar: show.timingCalendar(fallback: calendar),
+            calendar: show.timingFields.eventCalendar(fallback: calendar),
             effectiveDate: effectiveDate,
             effectiveStartTime: effectiveStartTime
         )
     }
 
     static func dailyStartTime(on day: Date, show: Show, calendar: Calendar) -> Date {
-        dailyStartTime(on: day, timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
+        dailyStartTime(on: day, timing: show.timingFields, calendar: show.timingFields.eventCalendar(fallback: calendar))
     }
 
     static func dailyEndTime(on day: Date, show: Show, calendar: Calendar) -> Date {
-        dailyEndTime(on: day, timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
+        dailyEndTime(on: day, timing: show.timingFields, calendar: show.timingFields.eventCalendar(fallback: calendar))
     }
 }

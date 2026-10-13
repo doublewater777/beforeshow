@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		006C52B3ADEEF3D12108EE95 /* ShowCoverLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7334C72BD3BCF80D90BE2E /* ShowCoverLifecycleTests.swift */; };
 		012947DB8A828216439534C1 /* FootprintCityMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F04AB4FF01354F8710ECB62 /* FootprintCityMapping.swift */; };
+		024CEAD86A1B404B94BD90C8 /* ShowTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB11343B6C405B0FA77E6451 /* ShowTiming.swift */; };
 		025C83B756522659D905DE5E /* MemoryCameraPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B8AF1A6CD58E86208AA287 /* MemoryCameraPicker.swift */; };
 		036CA5ADCF49803B3FF48CD4 /* DynamicCoverMediaFileSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD111DBA85E718A2DDF10C0 /* DynamicCoverMediaFileSupport.swift */; };
 		040390ED0EBB3617B5D59446 /* MemoryFragmentEditCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D611A924D1C3D1709DB9F89F /* MemoryFragmentEditCoordinator.swift */; };
@@ -236,6 +237,7 @@
 		6D4BCB4433A28E5F2F4F9F77 /* ListeningCatalogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF0B073A389CE21CDCDDEAD /* ListeningCatalogStoreTests.swift */; };
 		6D854F6D32E06DDBF0E9717C /* ListeningPlayer.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F02863424C2BC905D82010A /* ListeningPlayer.xcassets */; };
 		6E2BF1111E202BB2795338CE /* FootprintDashboardExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7DCA6E905F85BCF0C3E6389 /* FootprintDashboardExport.swift */; };
+		6E39DE17E5AEA12858AFDACF /* TimetableDateConfirmationNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007B16EBD175BEAC8EE2861C /* TimetableDateConfirmationNotice.swift */; };
 		6E5A5F19B6E0FA31997EC853 /* OpeningFamiliarityCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06086E49C0BEF21E3CA73836 /* OpeningFamiliarityCoordinatorTests.swift */; };
 		6EC3825667823FD4A58A83EA /* TimetableOrientationHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7668B37EC876E36719F32B /* TimetableOrientationHost.swift */; };
 		6F079B245A452BC1F2B56BEB /* TimetablePreviewPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A860EFCC0A5641D73C50D02 /* TimetablePreviewPlayer.swift */; };
@@ -537,7 +539,6 @@
 		FD821F54B271FC0DC35BCD80 /* ListeningRuntimeCatalogLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B577CA002BFD43C95035F706 /* ListeningRuntimeCatalogLoader.swift */; };
 		FDA78B15C1160F368B84A3C5 /* cd-read.caf in Resources */ = {isa = PBXBuildFile; fileRef = 0BD58F80E6360B0E3BB82C17 /* cd-read.caf */; };
 		FEBC9E08C118D102EDC96E0E /* FootprintDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E768B9E9A6E19FC2E2551A79 /* FootprintDashboardView.swift */; };
-		FEBDD6946E6EA9FC1E798715 /* CurrentShowTimeState+Show.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E3A4FF182A86CD30E4B71D /* CurrentShowTimeState+Show.swift */; };
 		FF41122737AE84CF76592644 /* DispersalLightsOutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DAC3BD90045DE6E594A2C1 /* DispersalLightsOutView.swift */; };
 /* End PBXBuildFile section */
 
@@ -573,7 +574,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		00E3A4FF182A86CD30E4B71D /* CurrentShowTimeState+Show.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CurrentShowTimeState+Show.swift"; sourceTree = "<group>"; };
+		007B16EBD175BEAC8EE2861C /* TimetableDateConfirmationNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableDateConfirmationNotice.swift; sourceTree = "<group>"; };
 		010B6CDF1E01858ED504A411 /* NotificationPortfolioPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPortfolioPlanner.swift; sourceTree = "<group>"; };
 		014B681C455051E1D347C68B /* DynamicCoverMediaTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverMediaTypes.swift; sourceTree = "<group>"; };
 		020CE193E6D174DCBF1F45CA /* ListeningSleeveMarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningSleeveMarks.swift; sourceTree = "<group>"; };
@@ -1044,6 +1045,7 @@
 		D9F73275EFB1EC83E825DA94 /* MemoryFragmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryFragmentTests.swift; sourceTree = "<group>"; };
 		DA6C4B7FFF6712CA20842022 /* NotificationDeepLinkRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDeepLinkRouting.swift; sourceTree = "<group>"; };
 		DB033E2DE2C6A4C52A6EE9A1 /* DispersalCeremonyShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyShareView.swift; sourceTree = "<group>"; };
+		DB11343B6C405B0FA77E6451 /* ShowTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTiming.swift; sourceTree = "<group>"; };
 		DB64C1CA1C660E4A20FBF7D9 /* AppStoreWidgetPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreWidgetPreviewView.swift; sourceTree = "<group>"; };
 		DC36A364068105EAB65E3F28 /* RecognizedArtist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecognizedArtist.swift; sourceTree = "<group>"; };
 		DCE0721CA51C4FDB4173FF63 /* ProPaywallPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPaywallPresentation.swift; sourceTree = "<group>"; };
@@ -1543,7 +1545,6 @@
 				73053A1EE3EC823DA417ED53 /* CurrentShowRoutePresentation.swift */,
 				5D88E2E7AC3848D529167745 /* CurrentShowSelection.swift */,
 				44C2E4E0581733EB3FD032AB /* CurrentShowSession.swift */,
-				00E3A4FF182A86CD30E4B71D /* CurrentShowTimeState+Show.swift */,
 				5B51D1A6FD02E111BD1FFEE1 /* DispersalCeremony.swift */,
 				3550DE7A98698B0C5F5B3B4C /* DispersalCeremonyShareCard.swift */,
 				DB033E2DE2C6A4C52A6EE9A1 /* DispersalCeremonyShareView.swift */,
@@ -1796,6 +1797,7 @@
 				7FBD7981808E2DCAD0D8626D /* ShowDeletionCoordinator.swift */,
 				9F776509FF7E96BE13041F24 /* ShowDraft.swift */,
 				5672EB406C774E952C5A524D /* ShowMutationCoordinator.swift */,
+				DB11343B6C405B0FA77E6451 /* ShowTiming.swift */,
 			);
 			path = Shows;
 			sourceTree = "<group>";
@@ -2013,6 +2015,7 @@
 				8AAA6D8D27CB2547E9559BD9 /* TimetableArtistAvatarStore.swift */,
 				A8A08047A2D10E91BECE1897 /* TimetableArtistConnectionView.swift */,
 				7D49CDC5315793DA22732B77 /* TimetableArtistLinker.swift */,
+				007B16EBD175BEAC8EE2861C /* TimetableDateConfirmationNotice.swift */,
 				827488830D9365B1F3ADC662 /* TimetableDateField.swift */,
 				4F6406F84208F0E1C3A43702 /* TimetableExperienceView.swift */,
 				33A6E9171363656CB8A88892 /* TimetableImportReviewView.swift */,
@@ -2319,7 +2322,6 @@
 				5880687D481438E484C94EE6 /* CurrentShowRoutePresentation.swift in Sources */,
 				C933F65E5CFF5361620A425F /* CurrentShowSelection.swift in Sources */,
 				94EC3477C674E2A12F9AC300 /* CurrentShowSession.swift in Sources */,
-				FEBDD6946E6EA9FC1E798715 /* CurrentShowTimeState+Show.swift in Sources */,
 				194DC2CFE086968B6F011C25 /* CurrentShowTimeState.swift in Sources */,
 				343976B8CA553A435C73EF2F /* DebugSampleShowSeeder.swift in Sources */,
 				7270B09F5EABA588967ABA3B /* DispersalCeremony.swift in Sources */,
@@ -2564,6 +2566,7 @@
 				9F231AA64E31FCE87D0EBEFE /* ShowRecentListening.swift in Sources */,
 				C59C216DB3EB1AB600A28E56 /* ShowScreenshotRecognitionService.swift in Sources */,
 				968FB903040751BD650B20DD /* ShowSetlistMemory.swift in Sources */,
+				024CEAD86A1B404B94BD90C8 /* ShowTiming.swift in Sources */,
 				CD2AB94968CCFEF1E39B21B9 /* ShowTimingFields.swift in Sources */,
 				B0D080434512234A656707FA /* ShowWantsLiveSong.swift in Sources */,
 				43A43F872D307E0A29D3A195 /* SongFamiliarityRecord.swift in Sources */,
@@ -2577,6 +2580,7 @@
 				50518259493E55663EE91083 /* TimetableArtistConnectionView.swift in Sources */,
 				BC64FBF9D2B31A204A29CCB5 /* TimetableArtistLinker.swift in Sources */,
 				BCA8D49E59C413641670D6BD /* TimetableClashPolicy.swift in Sources */,
+				6E39DE17E5AEA12858AFDACF /* TimetableDateConfirmationNotice.swift in Sources */,
 				909BBBBFECF17950CE6C45CC /* TimetableDateField.swift in Sources */,
 				BA47158676F4D95BFCE36466 /* TimetableDebugSeeder.swift in Sources */,
 				B203E3D34F4489D52DF883C2 /* TimetableDraft.swift in Sources */,

@@ -64,8 +64,9 @@ struct CurrentShowTimeState: Equatable {
         self.isDatedPostponement = timing.changeStatus == .postponed && timing.postponedDate != nil
         self.effectiveDate = timing.effectiveDate
 
+        let sessions = timing.resolvedSessions(calendar: eventCalendar)
         let resolvedEndDate = hasKnownEffectiveDate
-            ? Self.effectiveEndDate(timing: timing, calendar: eventCalendar)
+            ? sessions.last?.date ?? Self.effectiveEndDate(timing: timing, calendar: eventCalendar)
             : nil
         self.effectiveEndDate = resolvedEndDate
 
@@ -74,7 +75,7 @@ struct CurrentShowTimeState: Equatable {
         let daysToFirst = eventCalendar.dateComponents([.day], from: today, to: showDay).day ?? 0
         self.dayDistance = daysToFirst
 
-        let multiDayDaily = hasKnownEffectiveDate
+        let multiDayDaily = hasKnownEffectiveDate && sessions.isEmpty
             && Self.isMultiDayDailyCycle(timing: timing, calendar: eventCalendar)
 
         let resolvedStart: Date?
@@ -95,7 +96,9 @@ struct CurrentShowTimeState: Equatable {
             resolvedBoundary = nil
             resolvedKind = .postponed
         } else if let endedAt = timing.endedAt {
-            if multiDayDaily {
+            if let final = sessions.last {
+                resolvedStart = final.startsAt
+            } else if multiDayDaily {
                 let endedDay = eventCalendar.startOfDay(for: endedAt)
                 let endedDayStart = Self.dailyStartTime(on: endedDay, timing: timing, calendar: eventCalendar)
                 let candidateSessionDay: Date
@@ -121,6 +124,25 @@ struct CurrentShowTimeState: Equatable {
                 resolvedKind = .postShow
             } else {
                 resolvedKind = .ended
+            }
+        } else if let first = sessions.first, let final = sessions.last {
+            let active = sessions.first { $0.startsAt <= now && now < $0.endsAt }
+            let next = sessions.first { now < $0.startsAt }
+            let previous = sessions.last { $0.endsAt <= now }
+            let session = active ?? next ?? final
+            resolvedStart = session.startsAt
+            resolvedEnd = session.endsAt
+            resolvedBoundary = now < first.startsAt ? final.endsAt : session.endsAt
+            if now >= final.endsAt {
+                let retentionEnd = eventCalendar.date(byAdding: .day, value: retentionDays, to: final.endsAt) ?? final.endsAt
+                resolvedKind = now < retentionEnd ? .postShow : .ended
+            } else if active != nil {
+                resolvedKind = .today
+            } else if previous != nil {
+                // Keep overnight breaks and whole rest days out of LIVE.
+                resolvedKind = next.map { eventCalendar.isDate(now, inSameDayAs: $0.date) } == true ? .today : .dayEnded
+            } else {
+                resolvedKind = eventCalendar.isDate(now, inSameDayAs: first.date) ? .today : .before
             }
         } else if multiDayDaily {
             let lastDay = eventCalendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
@@ -271,6 +293,7 @@ struct CurrentShowTimeState: Equatable {
     /// 多日「每日循环」：有跨日 endDate，且不是一夜连轴（次日凌晨落幕）的单场。
     /// 每日共用同一个 startTime / endTime 钟点。
     static func isMultiDayDailyCycle(timing: ShowTimingFields, calendar: Calendar) -> Bool {
+        guard timing.sessions?.isEmpty != false else { return false }
         guard let endDate = effectiveEndDate(timing: timing, calendar: calendar) else {
             return false
         }

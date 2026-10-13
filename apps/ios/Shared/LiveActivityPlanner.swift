@@ -36,7 +36,9 @@ enum LiveActivityPlanner {
         coverFilename: String?
     ) -> (state: ShowLiveActivityAttributes.ContentState, activityEnd: Date)? {
         guard let snapshot,
-              snapshot.timing.changeStatus != .canceled else {
+              snapshot.timing.changeStatus != .canceled,
+              snapshot.timing.endedAt == nil,
+              !(snapshot.timing.changeStatus == .postponed && snapshot.timing.postponedDate == nil) else {
             return nil
         }
 
@@ -62,16 +64,20 @@ enum LiveActivityPlanner {
             let liveState = LiveModeStateEngine.calculate(days: liveDays, now: now)
 
             switch liveState.phase {
-            case .fullyEnded, .dayEnded:
-                // 当日最后一场结束后 Activity 自动结束；下一演出日重新开始
+            case .dayEnded:
                 return nil
+            case .fullyEnded:
+                // A later explicit closing can outlive the final scheduled set.
+                guard CurrentShowTimeState(timing: snapshot.timing, now: now).kind == .today else { return nil }
+                break
 
             case .active:
                 let dayEnd: Date
                 if let activeDayID = liveState.activeDayID,
                    let day = liveDays.first(where: { $0.id == activeDayID }),
                    let maxEnd = day.performances.map({ $0.endsAt }).max() {
-                    dayEnd = maxEnd
+                    dayEnd = snapshot.timing.resolvedSessions(calendar: snapshot.timing.eventCalendar(fallback: .current))
+                        .first { $0.date == day.date }?.endsAt ?? maxEnd
                 } else {
                     dayEnd = now.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600)
                 }
@@ -92,7 +98,7 @@ enum LiveActivityPlanner {
                         endDate: dayEnd,
                         timeZoneSecondsFromGMT: snapshot.timing.timeZoneSecondsFromGMT,
                         endTimeZoneSecondsFromGMT: snapshot.timing.endTimeZoneSecondsFromGMT,
-                        timeZoneIdentifier: snapshot.timing.timeZoneIdentifier,
+                        timeZoneIdentifier: snapshot.timing.sessionTimeZoneIdentifier ?? snapshot.timing.timeZoneIdentifier,
                         endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
                         coverImageFilename: coverFilename,
                         hasStarted: true,
@@ -116,7 +122,8 @@ enum LiveActivityPlanner {
                 if let activeDayID = liveState.activeDayID,
                    let day = liveDays.first(where: { $0.id == activeDayID }),
                    let maxEnd = day.performances.map({ $0.endsAt }).max() {
-                    activityEnd = maxEnd
+                    activityEnd = snapshot.timing.resolvedSessions(calendar: snapshot.timing.eventCalendar(fallback: .current))
+                        .first { $0.date == day.date }?.endsAt ?? maxEnd
                 } else {
                     activityEnd = firstStartsAt.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600)
                 }
@@ -130,7 +137,7 @@ enum LiveActivityPlanner {
                         endDate: activityEnd,
                         timeZoneSecondsFromGMT: snapshot.timing.timeZoneSecondsFromGMT,
                         endTimeZoneSecondsFromGMT: snapshot.timing.endTimeZoneSecondsFromGMT,
-                        timeZoneIdentifier: snapshot.timing.timeZoneIdentifier,
+                        timeZoneIdentifier: snapshot.timing.sessionTimeZoneIdentifier ?? snapshot.timing.timeZoneIdentifier,
                         endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
                         coverImageFilename: coverFilename,
                         hasStarted: false,
@@ -166,7 +173,7 @@ enum LiveActivityPlanner {
                 endDate: timeState.endBoundary,
                 timeZoneSecondsFromGMT: snapshot.timing.timeZoneSecondsFromGMT,
                 endTimeZoneSecondsFromGMT: snapshot.timing.endTimeZoneSecondsFromGMT,
-                timeZoneIdentifier: snapshot.timing.timeZoneIdentifier,
+                timeZoneIdentifier: snapshot.timing.sessionTimeZoneIdentifier ?? snapshot.timing.timeZoneIdentifier,
                 endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
                 coverImageFilename: coverFilename,
                 hasStarted: now >= start

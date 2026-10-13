@@ -1992,3 +1992,8 @@ First show: %@";
 "识别结果中的日期有误，请检查内容" = "A date in the result isn’t valid. Check it.";
 "识别结果中没有可导入的演出，请检查内容" = "No sets in the result can be imported. Check it.";
 "识别结果中相邻两天的演出时间重叠，请检查内容" = "Sets on two adjacent days overlap. Check the result.";
+
+"日期确认失败，请重试" = "Could not confirm dates. Try again.";
+"现场日期已变化，请核对时刻表" = "Show dates changed. Check the timetable.";
+"确认演出日期" = "Confirm performance dates";
+"修改演出日期" = "Edit performance dates";

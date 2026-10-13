@@ -21,6 +21,7 @@ struct CountdownWidgetView: View {
             Group {
                 if let phase = presentation.festivalPhase {
                     FestivalSmallView(phase: phase, showName: presentation.showName)
+                        .environment(\.timeZone, presentation.calendar.timeZone)
                 } else {
                     SmallCountdownView(presentation: presentation)
                 }
@@ -34,6 +35,7 @@ struct CountdownWidgetView: View {
                     FestivalMediumView(phase: phase, showName: presentation.showName) {
                         WidgetCoverImage(path: entry.coverImagePath)
                     }
+                    .environment(\.timeZone, presentation.calendar.timeZone)
                 } else {
                     MediumCountdownView(presentation: presentation, coverImagePath: entry.coverImagePath)
                 }
@@ -45,6 +47,7 @@ struct CountdownWidgetView: View {
             Group {
                 if let phase = presentation.festivalPhase {
                     FestivalInlineView(phase: phase)
+                        .environment(\.timeZone, presentation.calendar.timeZone)
                 } else {
                     InlineCountdownView(presentation: presentation)
                 }
@@ -54,6 +57,7 @@ struct CountdownWidgetView: View {
             Group {
                 if let phase = presentation.festivalPhase {
                     FestivalCircularView(phase: phase)
+                        .environment(\.timeZone, presentation.calendar.timeZone)
                 } else {
                     CircularCountdownView(presentation: presentation)
                 }
@@ -63,6 +67,7 @@ struct CountdownWidgetView: View {
             Group {
                 if let phase = presentation.festivalPhase {
                     FestivalRectangularView(phase: phase, showName: presentation.showName)
+                        .environment(\.timeZone, presentation.calendar.timeZone)
                 } else {
                     RectangularCountdownView(presentation: presentation)
                 }

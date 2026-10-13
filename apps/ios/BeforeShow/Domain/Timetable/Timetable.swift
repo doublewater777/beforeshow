@@ -22,6 +22,7 @@ final class Timetable {
     private(set) var id: UUID
     private(set) var timeZoneIdentifier: String
     var show: Show?
+    var needsDateConfirmation: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \TimetableDay.timetable)
     private(set) var days: [TimetableDay] = []
@@ -67,6 +68,26 @@ final class Timetable {
 
     var orderedDays: [TimetableDay] {
         days.sorted { $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date }
+    }
+
+    func matchesDates(of show: Show) -> Bool {
+        let populated = orderedDays.filter { !$0.performances.isEmpty }
+        guard !(show.changeStatus == .postponed && show.postponedDate == nil),
+              let first = populated.first, let last = populated.last,
+              calendar.isDate(first.date, inSameDayAs: show.effectiveDate) else { return false }
+        let fields = show.declaredTimingFields
+        if let end = CurrentShowTimeState.effectiveEndDate(timing: fields, calendar: fields.eventCalendar(fallback: calendar)) {
+            return calendar.isDate(last.date, inSameDayAs: end)
+        }
+        return true
+    }
+
+    @discardableResult
+    func confirmDates(for show: Show) -> Bool {
+        guard matchesDates(of: show) else { return false }
+        needsDateConfirmation = false
+        show.updatedAt = Date()
+        return true
     }
 
     func updateDayDate(_ day: TimetableDay, to date: Date) throws {
