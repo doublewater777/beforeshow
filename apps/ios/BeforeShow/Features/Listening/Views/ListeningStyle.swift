@@ -166,7 +166,6 @@ struct ListeningDiscArtwork: View {
                 )
                 .clipShape(Circle())
                 .blendMode(.screen)
-
             }
         }
         .task(id: artworkTaskID) {
