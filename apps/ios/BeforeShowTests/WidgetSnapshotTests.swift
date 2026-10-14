@@ -305,7 +305,7 @@ final class WidgetSnapshotTests: XCTestCase {
             let state = CurrentShowTimeState(timing: timing, calendar: deviceCalendar, now: entryDate)
 
             XCTAssertEqual(
-                WidgetTimelinePlanner.dayCountHeroDays(
+                ShowCountdownRule.dayCount(
                     remainingSeconds: Int(start.timeIntervalSince(entryDate)),
                     dayDistance: state.dayDistance
                 ),
@@ -327,13 +327,13 @@ final class WidgetSnapshotTests: XCTestCase {
 
         for offset in [1.0, 30.0, 60.0] {
             let threshold = midnight.addingTimeInterval(offset)
-            let start = threshold.addingTimeInterval(WidgetTimelinePlanner.dayCountdownThreshold)
+            let start = threshold.addingTimeInterval(ShowCountdownRule.dayThreshold)
             let plan = WidgetTimelinePlanner.entryDates(
                 now: now, startBoundary: start, endBoundary: nil, calendar: calendar
             )
             let entryDate = try XCTUnwrap(plan.dates.last(where: { $0 <= threshold }))
 
-            XCTAssertNil(WidgetTimelinePlanner.dayCountHeroDays(
+            XCTAssertNil(ShowCountdownRule.dayCount(
                 remainingSeconds: Int(start.timeIntervalSince(entryDate)),
                 dayDistance: 1
             ), "the clock threshold must survive a nearby midnight boundary")
@@ -755,7 +755,7 @@ final class WidgetSnapshotTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         // 剩余 24h + 1min:小时点 alone 会让「1 天」多挂 ~59min
         let start = now.addingTimeInterval(86_400 + 60)
-        let threshold = start.addingTimeInterval(-WidgetTimelinePlanner.dayCountdownThreshold)
+        let threshold = start.addingTimeInterval(-ShowCountdownRule.dayThreshold)
 
         let plan = WidgetTimelinePlanner.entryDates(
             now: now,
@@ -771,12 +771,12 @@ final class WidgetSnapshotTests: XCTestCase {
 
         // 该 entry 上 remaining 恰 86400:必须 near,不能仍是 far(days:1)
         let remainingAtThreshold = Int(start.timeIntervalSince(threshold))
-        XCTAssertEqual(remainingAtThreshold, Int(WidgetTimelinePlanner.dayCountdownThreshold))
+        XCTAssertEqual(remainingAtThreshold, Int(ShowCountdownRule.dayThreshold))
         XCTAssertFalse(
-            WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remainingAtThreshold),
+            ShowCountdownRule.isDayCount(remainingSeconds: remainingAtThreshold),
             "threshold entry must already be near, not far"
         )
-        XCTAssertTrue(WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remainingAtThreshold + 1))
+        XCTAssertTrue(ShowCountdownRule.isDayCount(remainingSeconds: remainingAtThreshold + 1))
     }
 
     /// 正确 pending + 旧 start pending 并存:必须 keep(目标态),不能 .none 把去重交给数组顺序。

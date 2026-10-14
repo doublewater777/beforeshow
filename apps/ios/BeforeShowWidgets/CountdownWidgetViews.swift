@@ -148,7 +148,7 @@ struct CountdownPresentation {
             // 但一旦展示 N 天，N 使用演出时区自然日差。
             // 因此 10/1 → 10/3 即使只剩约 40 小时仍显示 2 天；
             // 而 23:50 → 次日 00:10 仍会进入 near，不显示 1 天。
-            if let days = WidgetTimelinePlanner.dayCountHeroDays(
+            if let days = ShowCountdownRule.dayCount(
                 remainingSeconds: remaining,
                 dayDistance: state.dayDistance
             ) {

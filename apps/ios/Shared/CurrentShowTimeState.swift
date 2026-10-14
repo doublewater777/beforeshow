@@ -1,23 +1,5 @@
 import Foundation
 
-enum CountdownCopy {
-    static func value(remainingSeconds: Int) -> Int {
-        let remaining = max(0, remainingSeconds)
-        if remaining >= 3_600 {
-            return remaining / 3_600
-        }
-        return max(1, remaining / 60)
-    }
-
-    static func until(remainingSeconds: Int) -> String {
-        let remaining = max(0, remainingSeconds)
-        if remaining >= 3_600 {
-            return BSLocalization.format("%lld 小时后", Int64(value(remainingSeconds: remaining)))
-        }
-        return BSLocalization.format("%lld 分钟后", Int64(value(remainingSeconds: remaining)))
-    }
-}
-
 enum CurrentShowTimeKind: Equatable {
     case before
     case today
@@ -73,7 +55,11 @@ struct CurrentShowTimeState: Equatable {
 
         let today = eventCalendar.startOfDay(for: now)
         let showDay = eventCalendar.startOfDay(for: effectiveDate)
-        let daysToFirst = eventCalendar.dateComponents([.day], from: today, to: showDay).day ?? 0
+        let daysToFirst = ShowCountdownRule.calendarDays(
+            from: now,
+            to: effectiveDate,
+            calendar: eventCalendar
+        )
         self.dayDistance = daysToFirst
 
         let multiDayDaily = hasKnownEffectiveDate && sessions.isEmpty
@@ -479,7 +465,7 @@ struct CurrentShowTimeState: Equatable {
         case .before:
             if let startTime {
                 let remaining = max(0, Int(startTime.timeIntervalSince(now)))
-                if let days = WidgetTimelinePlanner.dayCountHeroDays(
+                if let days = ShowCountdownRule.dayCount(
                     remainingSeconds: remaining,
                     dayDistance: dayDistance
                 ) {
