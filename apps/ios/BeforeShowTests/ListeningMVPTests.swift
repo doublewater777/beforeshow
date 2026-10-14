@@ -3,6 +3,34 @@ import XCTest
 @testable import BeforeShow
 
 @MainActor final class ListeningMVPTests: XCTestCase {
+    func testCompilationSleeveIdentityUsesShowArtworkNotAnArbitrarySongCover() throws {
+        let start = Date()
+        let show = try Show(name: "Festival", date: start, startTime: start)
+        show.coverImageURL = "https://example.com/show.jpg"
+        show.artists = [ArtistSlot(name: "Artist", avatarURL: "https://example.com/artist.jpg")]
+        let compilation = ListeningDisc(
+            id: "compilation",
+            title: "想看 · Day 1",
+            artworkURL: nil,
+            tracks: [],
+            origin: .compilation(showID: show.id, number: 1)
+        )
+        let identity = ListeningSleeveIdentity(disc: compilation, show: show)
+
+        XCTAssertEqual(identity.title, compilation.title)
+        XCTAssertEqual(identity.artworkURL, URL(string: "https://example.com/show.jpg"))
+
+        show.coverImageURL = nil
+        XCTAssertEqual(identity.artworkURL, URL(string: "https://example.com/artist.jpg"))
+
+        show.artists = []
+        XCTAssertNil(identity.artworkURL)
+
+        let albumArtwork = URL(string: "https://example.com/album.jpg")!
+        let album = ListeningDisc(id: "album", title: "Album", artworkURL: albumArtwork, tracks: [])
+        XCTAssertEqual(ListeningSleeveIdentity(disc: album, show: show).artworkURL, albumArtwork)
+    }
+
     func testAlbumsAreMultiTrackContainersAndHonorTrackOrder() {
         let songs = [CatalogSong(appleMusicSongID: "a", title: "A", artistName: "Artist"),
                      CatalogSong(appleMusicSongID: "b", title: "B", artistName: "Artist")]
