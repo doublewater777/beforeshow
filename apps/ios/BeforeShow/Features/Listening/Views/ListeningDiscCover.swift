@@ -73,6 +73,52 @@ struct ListeningCompilationJacket: View {
     }
 }
 
+
+/// The compilation's CD label shares its sleeve identity, but not its square
+/// typography layout: both text bands must clear the hub and circular edge.
+struct ListeningCompilationDiscLabel: View {
+    let identity: ListeningSleeveIdentity
+    let number: Int
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size.width
+            ZStack {
+                identity.color
+                ListeningSleeveImage(url: identity.artworkURL)
+                    .frame(width: size * 0.78, height: size * 0.78)
+
+                VStack(spacing: 0) {
+                    HStack {
+                        Text(String(format: "%02d", number))
+                            .font(.system(size: size * 0.13, weight: .bold, design: .rounded))
+                            .padding(.horizontal, size * 0.035)
+                            .padding(.vertical, size * 0.012)
+                            .background(BSListeningTokens.paper)
+                        Spacer(minLength: 0)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Text(identity.title)
+                        .font(.system(size: size * 0.075, weight: .semibold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.65)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, size * 0.025)
+                        .padding(.vertical, size * 0.02)
+                        .background(BSListeningTokens.paper.opacity(BSListeningTokens.paperOpacity))
+                }
+                .foregroundStyle(BSListeningTokens.ink)
+                .padding(.horizontal, size * 0.18)
+                .padding(.vertical, size * 0.16)
+            }
+            .clipShape(Circle())
+        }
+    }
+}
+
 struct ListeningSleeveImage: View {
     let url: URL?
     @State private var image: UIImage?
