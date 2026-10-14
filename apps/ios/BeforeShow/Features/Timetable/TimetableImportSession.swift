@@ -13,9 +13,10 @@ final class TimetableImportSession: Identifiable {
     let timetable: Timetable
     /// Originals picked for this import; empty when the source was text.
     let imagesData: [Data]
+    let carriedOverInterestedCount: Int
     var selectedDayID: UUID
 
-    init(result: TimetableImportResult, imagesData: [Data]) throws {
+    init(result: TimetableImportResult, imagesData: [Data], carriedOverInterestedCount: Int = 0) throws {
         let configuration = ModelConfiguration("TimetableImportReview", isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         container = try ModelContainer(
             for: Timetable.self, TimetableDay.self, TimetableStage.self, TimetablePerformance.self,
@@ -26,6 +27,7 @@ final class TimetableImportSession: Identifiable {
         try container.mainContext.save()
         self.timetable = timetable
         self.imagesData = imagesData
+        self.carriedOverInterestedCount = carriedOverInterestedCount
         self.selectedDayID = timetable.orderedDays.first?.id ?? UUID()
     }
 

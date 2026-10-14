@@ -2066,6 +2066,22 @@ First show: %@";
 "将同时删除该舞台下的 %d 场演出，此操作不可撤销。" = "This will also remove all %d performances on this stage. This cannot be undone.";
 "删除第%d天" = "Delete Day %d";
 "删除舞台" = "Delete Stage";
+"正在分析时刻表版面…" = "Analyzing timetable layout…";
+"正在提取舞台与时段…" = "Extracting stages and time slots…";
+"正在整理演出阵容…" = "Organizing lineup and performances…";
+"取消识别" = "Cancel Recognition";
+"排期预览中" = "Schedule Preview";
+"核对舞台与时间无误后，轻点右上角确认保存" = "Verify stages and times, then tap save in top right";
+"已为你保留 %d 场想看演出，请核对后保存" = "Preserved %d wanted performance(s). Please verify and save";
+"对照原图" = "Compare Original";
+"覆盖现有时刻表？" = "Overwrite Existing Timetable?";
+"这场现场已有一份时刻表，保存将替换现有的全部舞台与演出数据。" = "This show already has a timetable. Saving will replace all existing stages and performances.";
+"覆盖并保存" = "Overwrite & Save";
+"先存为原图" = "Save as Photos";
+"改用外部 AI 导入" = "Use External AI";
+"检测到剪贴板中含有排期数据" = "Schedule data detected on clipboard";
+"轻点直接填入，省去手动粘贴" = "Tap to fill directly without manual paste";
+"填入" = "Fill";
 
 
 

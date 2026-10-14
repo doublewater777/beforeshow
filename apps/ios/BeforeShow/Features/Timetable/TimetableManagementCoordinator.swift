@@ -215,11 +215,16 @@ final class TimetableManagementCoordinator: ObservableObject {
         linker: TimetableArtistLinker
     ) -> TimetableImportSession? {
         var result = result
+        var carriedOverCount = 0
         if let saved = show.timetable {
-            TimetableReimportCarryover.apply(from: TimetableDraft(from: saved), to: &result.draft)
+            carriedOverCount = TimetableReimportCarryover.apply(from: TimetableDraft(from: saved), to: &result.draft)
         }
         linker.reuseKnownArtists(in: &result.draft)
-        importSession = try? TimetableImportSession(result: result, imagesData: imagesData)
+        importSession = try? TimetableImportSession(
+            result: result,
+            imagesData: imagesData,
+            carriedOverInterestedCount: carriedOverCount
+        )
         return importSession
     }
 

@@ -87,6 +87,7 @@ targets:
     scheme:
       testTargets:
         - BeforeShowTests
+        - BeforeShowUITests
   BeforeShowWidgets:
     type: app-extension
     platform: iOS
@@ -114,3 +115,15 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.doublewaterapps.beforeshow.tests
         GENERATE_INFOPLIST_FILE: true
+  BeforeShowUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: BeforeShowUITests
+    dependencies:
+      - target: BeforeShow
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.doublewaterapps.beforeshow.uitests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: BeforeShow

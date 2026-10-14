@@ -9,6 +9,7 @@ struct TimetableAIImportView: View {
     @State private var text = ""
     @State private var error: TimetableImportError?
     @State private var didCopy = false
+    @State private var clipboardSuggestion: String?
     @FocusState private var isEditorFocused: Bool
 
     private var trimmedText: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -16,6 +17,38 @@ struct TimetableAIImportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                if let suggestion = clipboardSuggestion, text.isEmpty {
+                    HStack(spacing: 10) {
+                        Image(systemName: "doc.on.clipboard.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TimetableStyle.mine)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(BSLocalization.text("检测到剪贴板中含有排期数据"))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(TimetableStyle.foreground)
+                            Text(BSLocalization.text("轻点直接填入，省去手动粘贴"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(TimetableStyle.dim)
+                        }
+                        Spacer(minLength: 0)
+                        Button(BSLocalization.text("填入")) {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                text = suggestion
+                                clipboardSuggestion = nil
+                            }
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(TimetableStyle.mine)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(TimetableStyle.mine.opacity(0.18)))
+                    }
+                    .padding(12)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                }
+
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 13, weight: .semibold))
@@ -53,6 +86,8 @@ struct TimetableAIImportView: View {
                         Label(Self.message(for: error), systemImage: "exclamationmark.triangle.fill")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(TimetableStyle.attention)
+                            .padding(.top, 4)
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
                     }
                 }
             }
@@ -78,11 +113,20 @@ struct TimetableAIImportView: View {
         }
         .background(TimetableStyle.background.ignoresSafeArea())
         .onChange(of: text) { _, _ in error = nil }
-        #if DEBUG
         .onAppear {
+            checkClipboard()
+            #if DEBUG
             if let sample = ProcessInfo.processInfo.environment["BS_TIMETABLE_IMPORT_SAMPLE"] { text = sample }
+            #endif
         }
-        #endif
+    }
+
+    private func checkClipboard() {
+        guard text.isEmpty, UIPasteboard.general.hasStrings, let string = UIPasteboard.general.string else { return }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (trimmed.contains("timetable") || trimmed.contains("stages") || trimmed.contains("performances") || trimmed.contains("stage")) && trimmed.count > 15 {
+            clipboardSuggestion = trimmed
+        }
     }
 
     private var editor: some View {
@@ -153,8 +197,10 @@ struct TimetableAIImportView: View {
             try onImport(text)
         } catch let importError as TimetableImportError {
             error = importError
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
         } catch {
             self.error = .invalidFormat
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
         }
     }
 

@@ -5,9 +5,12 @@ import UIKit
 struct TimetableEmptyStateView: View {
     let errorMessage: String?
     var quotaBadge: String? = nil
+    var hasPendingImages: Bool = false
     let onSmartRecognition: () -> Void
     let onManualImport: () -> Void
     let onSaveOriginalPhotos: () -> Void
+    var onSavePendingAsOriginal: (() -> Void)? = nil
+    var onDismissError: (() -> Void)? = nil
 
     @State private var breathe = false
 
@@ -39,14 +42,60 @@ struct TimetableEmptyStateView: View {
                 .padding(.top, 10)
 
             if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(TimetableStyle.attention)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(TimetableStyle.attention.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal, 24)
-                    .padding(.top, 18)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TimetableStyle.attention)
+                        Text(errorMessage)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(TimetableStyle.foreground)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        if let onDismissError {
+                            Button(action: onDismissError) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(TimetableStyle.dim)
+                            }
+                            .accessibilityLabel(BSLocalization.text("关闭提示"))
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        if hasPendingImages, let onSavePendingAsOriginal {
+                            Button(action: onSavePendingAsOriginal) {
+                                Label(BSLocalization.text("先存为原图"), systemImage: "photo")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(TimetableStyle.foreground)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.12), in: Capsule())
+                            }
+                            .buttonStyle(TimetablePressStyle())
+                        }
+
+                        Button(action: onManualImport) {
+                            Label(BSLocalization.text("改用外部 AI 导入"), systemImage: "sparkles")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TimetableStyle.foreground)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.12), in: Capsule())
+                        }
+                        .buttonStyle(TimetablePressStyle())
+                    }
+                    .padding(.top, 2)
+                }
+                .padding(14)
+                .background(TimetableStyle.attention.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(TimetableStyle.attention.opacity(0.25), lineWidth: 1)
+                )
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
 
             Spacer(minLength: 24)
@@ -171,11 +220,38 @@ struct TimetableEmptyStateView: View {
 struct TimetableRecognizingView: View {
     let image: UIImage?
     let imageCount: Int
+    var onCancel: (() -> Void)? = nil
 
     @State private var sweep = false
+    @State private var statusStep = 0
+
+    private var statusSubtitle: String {
+        switch statusStep {
+        case 0:
+            return BSLocalization.text("正在分析时刻表版面…")
+        case 1:
+            return BSLocalization.text("正在提取舞台与时段…")
+        default:
+            return BSLocalization.text("正在整理演出阵容…")
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                if let onCancel {
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 26))
+                            .foregroundStyle(Color.white.opacity(0.45))
+                    }
+                    .accessibilityLabel(BSLocalization.text("取消识别"))
+                    .padding(.trailing, 20)
+                    .padding(.top, 12)
+                }
+            }
+
             ZStack {
                 if imageCount > 1 {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -187,12 +263,18 @@ struct TimetableRecognizingView: View {
                 }
                 photo
             }
-            .padding(.top, 70)
+            .padding(.top, 40)
 
             Text(BSLocalization.text("识别中"))
                 .font(.system(size: 22, weight: .heavy))
                 .foregroundStyle(TimetableStyle.foreground)
-                .padding(.top, 48)
+                .padding(.top, 40)
+
+            Text(statusSubtitle)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(TimetableStyle.muted)
+                .padding(.top, 8)
+                .animation(.easeInOut(duration: 0.35), value: statusStep)
 
             Spacer()
             TimetableOnDeviceNote()
@@ -206,6 +288,15 @@ struct TimetableRecognizingView: View {
         }
         .onAppear {
             withAnimation(.linear(duration: 3.2).repeatForever(autoreverses: false)) { sweep = true }
+        }
+        .task {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2.8))
+                if !Task.isCancelled {
+                    statusStep = (statusStep + 1) % 3
+                }
+            }
         }
     }
 

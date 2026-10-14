@@ -11,9 +11,11 @@ enum TimetableReimportCarryover {
         let startsAt: Date
     }
 
-    static func apply(from previous: TimetableDraft, to draft: inout TimetableDraft) {
+    @discardableResult
+    static func apply(from previous: TimetableDraft, to draft: inout TimetableDraft) -> Int {
         let previousByKey = Dictionary(grouping: performances(in: previous), by: \.key)
         let currentCounts = Dictionary(grouping: performances(in: draft), by: \.key).mapValues(\.count)
+        var count = 0
 
         for day in draft.days.indices {
             for stage in draft.days[day].stages.indices {
@@ -24,9 +26,13 @@ enum TimetableReimportCarryover {
                     let old = matches[0].performance
                     draft.days[day].stages[stage].performances[index].isInterested = old.isInterested
                     draft.days[day].stages[stage].performances[index].inheritArtistLink(from: old)
+                    if old.isInterested {
+                        count += 1
+                    }
                 }
             }
         }
+        return count
     }
 
     private static func performances(in draft: TimetableDraft) -> [(key: Key, performance: TimetableDraftPerformance)] {

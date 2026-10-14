@@ -42,6 +42,7 @@ struct TimetableSheet: View {
     @State private var loadedAssetImages: [UIImage] = []
     @State private var isLoadingSavedImages = true
     @State private var isProcessingPhotos = false
+    @State private var recognitionTask: Task<Void, Never>?
     @State private var photoImportError: String?
     @State private var pendingImages: [UIImage] = []
     @State private var selectedDayID: UUID?
@@ -105,7 +106,8 @@ struct TimetableSheet: View {
                 if coordinator.isRecognizing {
                     TimetableRecognizingView(
                         image: pendingImages.first ?? loadedAssetImages.first,
-                        imageCount: max(1, pendingImages.count > 0 ? pendingImages.count : loadedAssetImages.count)
+                        imageCount: max(1, pendingImages.count > 0 ? pendingImages.count : loadedAssetImages.count),
+                        onCancel: cancelRecognition
                     )
                 } else if isAIImporting {
                     TimetableAIImportView(onImport: importText)
@@ -116,6 +118,7 @@ struct TimetableSheet: View {
                         linker: artistLinker,
                         avatarURL: avatarURL(for:),
                         onOpenOriginal: originalImages.isEmpty ? nil : { openOriginalImageViewer() },
+                        hasExistingTimetable: currentShow?.timetable != nil,
                         onCancel: cancelReview,
                         onSave: saveReview
                     )
@@ -146,6 +149,7 @@ struct TimetableSheet: View {
                     TimetableEmptyStateView(
                         errorMessage: coordinator.recognitionError ?? photoImportError,
                         quotaBadge: quota.badgeText(isPro: isPro),
+                        hasPendingImages: !pendingImagesData.isEmpty,
                         onSmartRecognition: {
                             guard quota.canRecognize(isPro: isPro) else {
                                 isProPaywallPresented = true
@@ -158,6 +162,21 @@ struct TimetableSheet: View {
                         onSaveOriginalPhotos: {
                             photoPickerIntent = .saveOriginalOnly
                             isPhotosPickerPresented = true
+                        },
+                        onSavePendingAsOriginal: {
+                            Task {
+                                guard let show = currentShow, !pendingImagesData.isEmpty else { return }
+                                _ = await coordinator.saveOriginalImages(imagesData: pendingImagesData, show: show, modelContext: modelContext)
+                                pendingImagesData = []
+                                pendingImages = []
+                                coordinator.recognitionError = nil
+                                photoImportError = nil
+                                await loadSavedImages()
+                            }
+                        },
+                        onDismissError: {
+                            coordinator.recognitionError = nil
+                            photoImportError = nil
                         }
                     )
                 }
@@ -175,11 +194,19 @@ struct TimetableSheet: View {
                     )
                 }
 
-                if isProcessingPhotos {
-                    TimetableStyle.background.opacity(0.85).ignoresSafeArea()
-                    ProgressView(BSLocalization.text(coordinator.isSaving ? "保存中…" : "正在读取图片…"))
-                        .font(BSFont.body)
-                        .foregroundStyle(TimetableStyle.foreground)
+                if isProcessingPhotos && !coordinator.isRecognizing {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .tint(TimetableStyle.foreground)
+                        Text(BSLocalization.text(coordinator.isSaving ? "保存中…" : "正在读取图片…"))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(TimetableStyle.foreground)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
             .navigationTitle(navigationTitle)
@@ -487,6 +514,16 @@ struct TimetableSheet: View {
         isOriginalVisible = false
     }
 
+    private func cancelRecognition() {
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        coordinator.isRecognizing = false
+        coordinator.recognitionError = nil
+        pendingImages = []
+        pendingImagesData = []
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
     private func saveReview() {
         guard let show = currentShow else { return }
         TimetablePreviewPlayer.shared.stop()
@@ -494,6 +531,7 @@ struct TimetableSheet: View {
             guard await coordinator.saveReview(show: show, modelContext: modelContext) else { return }
             pendingImagesData = []
             pendingImages = []
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             await loadSavedImages()
         }
     }
@@ -604,37 +642,50 @@ struct TimetableSheet: View {
 
     private func performSmartRecognition(images: [UIImage], datas: [Data]) async {
         guard let show = currentShow else { return }
+        recognitionTask?.cancel()
         coordinator.isRecognizing = true
         coordinator.recognitionError = nil
         pendingImages = images
         pendingImagesData = datas
 
-        do {
-            let service = RemoteTimetableRecognitionService.production()
-            let document = try await service.recognize(images: images)
-            let result = try TimetableImportMapper.result(
-                from: document,
-                defaultTimeZoneIdentifier: timeZoneIdentifier(for: show),
-                fallbackDate: show.date,
-                unnamedStage: { BSLocalization.format("舞台 %d", $0) }
-            )
-            quota.consumeQuotaIfFree(isPro: isPro)
-            coordinator.isRecognizing = false
-            let session = coordinator.beginReview(
-                result,
-                imagesData: datas,
-                show: show,
-                linker: artistLinker
-            )
-            if let session {
-                matchArtists(in: session)
+        recognitionTask = Task {
+            do {
+                let service = RemoteTimetableRecognitionService.production()
+                let document = try await service.recognize(images: images)
+                try Task.checkCancellation()
+                let result = try TimetableImportMapper.result(
+                    from: document,
+                    defaultTimeZoneIdentifier: timeZoneIdentifier(for: show),
+                    fallbackDate: show.date,
+                    unnamedStage: { BSLocalization.format("舞台 %d", $0) }
+                )
+                try Task.checkCancellation()
+                quota.consumeQuotaIfFree(isPro: isPro)
+                coordinator.isRecognizing = false
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                let session = coordinator.beginReview(
+                    result,
+                    imagesData: datas,
+                    show: show,
+                    linker: artistLinker
+                )
+                if let session {
+                    matchArtists(in: session)
+                }
+            } catch is CancellationError {
+                coordinator.isRecognizing = false
+                coordinator.recognitionError = nil
+            } catch let err as RemoteTimetableRecognitionError {
+                guard !Task.isCancelled else { return }
+                coordinator.isRecognizing = false
+                coordinator.recognitionError = err.localizedDescription
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+            } catch {
+                guard !Task.isCancelled else { return }
+                coordinator.isRecognizing = false
+                coordinator.recognitionError = BSLocalization.text("识别时刻表失败，请稍后重试")
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
-        } catch let err as RemoteTimetableRecognitionError {
-            coordinator.isRecognizing = false
-            coordinator.recognitionError = err.localizedDescription
-        } catch {
-            coordinator.isRecognizing = false
-            coordinator.recognitionError = BSLocalization.text("识别时刻表失败，请稍后重试")
         }
     }
 
