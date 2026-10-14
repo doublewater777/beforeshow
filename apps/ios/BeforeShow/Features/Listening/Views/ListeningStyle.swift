@@ -86,22 +86,14 @@ struct ListeningJewelCaseFinish: View {
 
 struct ListeningDiscArtwork: View {
     var disc: ListeningDisc?
+    var show: Show?
     var image = "listen_04_disc"
     @State private var artwork: UIImage?
 
     private var artworkTaskID: String {
         guard let disc else { return "empty" }
-        if let artworkURL = disc.artworkURL {
-            return "\(disc.id):\(artworkURL.absoluteString)"
-        }
-        let trackArtworks = disc.tracks.prefix(4).compactMap(\.artworkURL)
-            .map(\.absoluteString).joined(separator: "|")
-        return "\(disc.id):\(trackArtworks)"
+        return "\(disc.id):\(disc.artworkURL?.absoluteString ?? "no-cover")"
     }
-
-    /// Compilation discs have no single cover; tile the first four track
-    /// covers into one label image. Cached by track-artwork fingerprint.
-    private static var mosaicCache: [String: UIImage] = [:]
 
     var body: some View {
         GeometryReader { proxy in
@@ -129,14 +121,31 @@ struct ListeningDiscArtwork: View {
                 .clipShape(Circle())
                 .blendMode(.screen)
 
-                // Album artwork printed on the label area, between hub and rim.
-                if let artwork {
+                // Compilations share the jacket's show artwork, number and title.
+                // Their disc label is laid out separately to avoid the central hub.
+                if let disc, case let .compilation(_, number) = disc.origin {
+                    ListeningCompilationDiscLabel(
+                        identity: ListeningSleeveIdentity(disc: disc, show: show),
+                        number: number
+                    )
+                    .frame(width: size * 0.94, height: size * 0.94)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
+                } else if let artwork {
                     Image(uiImage: artwork)
                         .resizable()
                         .scaledToFill()
                         .frame(width: size * 0.94, height: size * 0.94)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
+                } else {
+                    Text(disc?.title ?? "CD")
+                        .font(.system(size: max(8, size * 0.045), weight: .semibold, design: .monospaced))
+                        .foregroundStyle(ListeningStyle.lcdInk.opacity(0.9))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .frame(width: size * 0.62)
+                        .offset(y: -size * 0.24)
                 }
 
                 // The disc texture runs to the centre; only a small clear hub sits on top.
@@ -158,20 +167,14 @@ struct ListeningDiscArtwork: View {
                 .clipShape(Circle())
                 .blendMode(.screen)
 
-                // CD label title, only when no artwork covers the label
-                if artwork == nil {
-                    Text(disc?.title ?? "CD")
-                        .font(.system(size: max(8, size * 0.045), weight: .semibold, design: .monospaced))
-                        .foregroundStyle(ListeningStyle.lcdInk.opacity(0.9))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .frame(width: size * 0.62)
-                        .offset(y: -size * 0.24)
-                }
             }
         }
         .task(id: artworkTaskID) {
-            if let url = disc?.artworkURL {
+            // Compilation artwork is resolved through ListeningSleeveIdentity,
+            // not through an arbitrary track or a four-cover mosaic.
+            if let disc, case .compilation = disc.origin {
+                artwork = nil
+            } else if let url = disc?.artworkURL {
                 if let cached = ShowCoverImageCache.shared.memoryImage(for: url) {
                     artwork = cached
                     return
@@ -180,54 +183,10 @@ struct ListeningDiscArtwork: View {
                 let loaded = await ShowCoverImageCache.shared.image(from: url)
                 guard !Task.isCancelled else { return }
                 artwork = loaded
-            } else if let disc, !disc.tracks.isEmpty {
-                artwork = nil
-                let loaded = await Self.mosaic(for: disc)
-                guard !Task.isCancelled else { return }
-                artwork = loaded
             } else {
                 artwork = nil
             }
         }
-    }
-
-    private static func mosaic(for disc: ListeningDisc) async -> UIImage? {
-        let urls = disc.tracks.compactMap(\.artworkURL).prefix(4)
-        guard !urls.isEmpty else { return nil }
-        let key = urls.map(\.absoluteString).joined(separator: "|")
-        if let cached = mosaicCache[key] { return cached }
-        var images: [UIImage] = []
-        for url in urls {
-            var image = ShowCoverImageCache.shared.memoryImage(for: url)
-            if image == nil {
-                image = await ShowCoverImageCache.shared.image(from: url)
-            }
-            if let image { images.append(image) }
-        }
-        guard !images.isEmpty else { return nil }
-        let grid: Int = images.count > 1 ? 2 : 1
-        let tile: CGFloat = 300
-        let canvas = tile * CGFloat(grid)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let mosaic = UIGraphicsImageRenderer(size: CGSize(width: canvas, height: canvas), format: format).image { context in
-            UIColor.black.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
-            for (index, image) in images.prefix(grid * grid).enumerated() {
-                let origin = CGPoint(x: CGFloat(index % grid) * tile, y: CGFloat(index / grid) * tile)
-                let side = min(image.size.width, image.size.height)
-                let crop = CGRect(
-                    x: (image.size.width - side) / 2 * image.scale,
-                    y: (image.size.height - side) / 2 * image.scale,
-                    width: side * image.scale,
-                    height: side * image.scale
-                )
-                guard let cg = image.cgImage?.cropping(to: crop) else { continue }
-                UIImage(cgImage: cg).draw(in: CGRect(origin: origin, size: CGSize(width: tile, height: tile)))
-            }
-        }
-        mosaicCache[key] = mosaic
-        return mosaic
     }
 }
 
