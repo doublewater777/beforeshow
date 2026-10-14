@@ -215,7 +215,7 @@ private struct CDPlayerDiscView: View {
             isRotating: isRotating && !hardware.reducedMotion,
             revolutionsPerMinute: BSListeningTokens.discRotationRPM
         ) {
-            ListeningDiscArtwork(disc: room.disc(id: hardware.discID ?? ""), image: configuration.assets.disc)
+            ListeningDiscArtwork(disc: room.disc(id: hardware.discID ?? ""), show: room.show, image: configuration.assets.disc)
         }
             .frame(width: geometry.discDiameter, height: geometry.discDiameter)
             .scaleEffect(hardware.discScale)
