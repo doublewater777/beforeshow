@@ -21,7 +21,7 @@ enum ListeningMiniPlayerPlaybackAppearance {
 
 enum ListeningMiniPlayerArtworkSource {
     static func resolve(trackArtworkURL: URL?, discArtworkURL: URL?) -> URL? {
-        discArtworkURL ?? trackArtworkURL
+        trackArtworkURL ?? discArtworkURL
     }
 }
 
@@ -322,6 +322,7 @@ private struct ListeningCompactPlaybackControl: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var artworkImage: UIImage?
+    @State private var artworkImageURL: URL?
     @State private var frozenDiscAngle = 0.0
     @State private var spinAnchor = Date()
     @State private var swipeOffset: CGFloat = 0
@@ -345,7 +346,10 @@ private struct ListeningCompactPlaybackControl: View {
         )
     }
     private var displayedArtwork: UIImage? {
-        ListeningMiniPlayerArtworkImage.displayed(loaded: artworkImage, url: artworkURL)
+        ListeningMiniPlayerArtworkImage.displayed(
+            loaded: artworkImageURL == artworkURL ? artworkImage : nil,
+            url: artworkURL
+        )
     }
 
     var body: some View {
@@ -421,16 +425,18 @@ private struct ListeningCompactPlaybackControl: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
         .task(id: artworkURL) {
-            guard let artworkURL else {
-                artworkImage = nil
-                return
-            }
+            // The previous song's image must not linger while a new cover loads.
+            artworkImage = nil
+            artworkImageURL = nil
+            guard let artworkURL else { return }
             if let cached = ShowCoverImageCache.shared.memoryImage(for: artworkURL) {
+                artworkImageURL = artworkURL
                 artworkImage = cached
                 return
             }
             let loaded = await ShowCoverImageCache.shared.image(from: artworkURL)
             guard !Task.isCancelled else { return }
+            artworkImageURL = artworkURL
             artworkImage = loaded
         }
         .onChange(of: showsPlayingState, initial: true) { wasPlaying, nowPlaying in
