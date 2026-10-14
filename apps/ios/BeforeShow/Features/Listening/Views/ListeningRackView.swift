@@ -16,6 +16,7 @@ struct ListeningRackView: View {
     @State private var placeholderGroupID: String?
     @State private var scrubOrigin: Int?
     @State private var carriedDisc: ListeningDisc?
+    @State private var carriedPose = ListeningRackPose()
     @State private var carryOffset: CGSize = .zero
     /// Cases the row has travelled under the finger, fractional while a swipe is in flight.
     @State private var dragShift: Double = 0
@@ -124,7 +125,7 @@ struct ListeningRackView: View {
         let row = row(entries)
         let c = focusIndex(row)
         let focused = row.indices.contains(c) ? row[c] : nil
-        let out = discOut(focused)
+        let out = carriedDisc != nil || discOut(focused)
         VStack(spacing: 0) {
             GeometryReader { proxy in
                 let width = proxy.size.width
@@ -141,12 +142,11 @@ struct ListeningRackView: View {
                                 isLive: entry.group.kind == .live,
                                 isPlaceholder: entry.isPlaceholder,
                                 marked: entry.index == 0 && openIndex == entry.groupIndex && entry.group.discs.count > 1,
-                                showsDisc: entry.id == focused?.id && out && (carriedDisc == nil || isSwapCarry)
+                                showsDisc: entry.id == focused?.id && out && carriedDisc == nil
                             ),
                             width: width,
                             show: room.show
                         )
-                        .offset(isSwapCarry && entry.id == focused?.id ? carryOffset : .zero)
                         .modifier(ListeningRackBreathing(isActive: entry.isPlaceholder && !reduceMotion))
                         .zIndex(100 - abs(Double((row.firstIndex { $0.id == entry.id } ?? 50) - c) + dragShift))
                     }
@@ -159,7 +159,8 @@ struct ListeningRackView: View {
                 .frame(width: width, height: proxy.size.height, alignment: .topLeading)
                 .contentShape(Rectangle())
                 .gesture(swipeGesture(row: row, focus: c))
-                .gesture(carryGesture(center: width / 2 + L.pose(at: 0, discOut: out).x, focused: focused))
+                .gesture(carryGesture(width: width, focused: focused,
+                                      pose: focused.map { pose($0, row: row, focus: c, discOut: out) }))
                 .simultaneousGesture(
                     SpatialTapGesture(coordinateSpace: .local).onEnded { value in
                         guard carriedDisc == nil else { return }
@@ -169,11 +170,25 @@ struct ListeningRackView: View {
             }
             .frame(height: L.canvasHeight)
             .modifier(ListeningRackEdgeFade())
+            .overlay(alignment: .topLeading) {
+                GeometryReader { proxy in
+                    if isSwapCarry, let disc = carriedDisc {
+                        ListeningPeekingDisc(disc: disc, size: L.discSize)
+                            .projectionEffect(ListeningRackProjector.effect(
+                                ListeningRackProjector(width: proxy.size.width).box(carriedPose)
+                                    * ListeningRackFace.disc(peek: carriedPose.peek)
+                            ))
+                            .offset(carryOffset)
+                            .allowsHitTesting(false)
+                    }
+                }
+            }
 
             if let focused {
                 plate(for: focused, row: row, focus: c)
             }
         }
+        .zIndex(isSwapCarry ? 1 : 0)
         .sensoryFeedback(.selection, trigger: focusedID)
         .onChange(of: row.map(\.id), initial: true) { _, ids in
             guard focusedID == nil || !ids.contains(focusedID ?? "") else { return }
@@ -338,13 +353,23 @@ struct ListeningRackView: View {
             .onEnded { _ in scrubOrigin = nil }
     }
 
-    /// Press and hold the pulled-out case, then drag its disc down into the player.
-    private func carryGesture(center: CGFloat, focused: Entry?) -> ListeningRackCarryRecognizer {
+    /// Only the exposed part of the CD can be picked up; the case stays on the shelf.
+    private func carryGesture(width: CGFloat, focused: Entry?, pose: ListeningRackPose?) -> ListeningRackCarryRecognizer {
         ListeningRackCarryRecognizer(
             onBegan: { location in
-                guard abs(location.x - center) < L.caseSize * 0.65,
-                      let disc = focused?.disc, !isLoaded(disc),
+                guard let pose, let disc = focused?.disc, !isLoaded(disc) else { return }
+                let box = ListeningRackProjector(width: width).box(pose)
+                guard let discBounds = ListeningRackProjector.bounds(
+                    box * ListeningRackFace.disc(peek: pose.peek),
+                    size: CGSize(width: L.discSize, height: L.discSize)
+                ), let coverBounds = ListeningRackProjector.bounds(
+                    box * ListeningRackFace.right,
+                    size: CGSize(width: L.caseSize, height: L.caseSize)
+                ), !coverBounds.contains(location),
+                      ListeningDiscDetailTapPolicy.contains(location,
+                          center: CGPoint(x: discBounds.midX, y: discBounds.midY), size: discBounds.size),
                       room.beginCabinetDragIfNeeded(disc) else { return }
+                carriedPose = pose
                 carriedDisc = disc
             },
             onChanged: { translation in
@@ -352,9 +377,9 @@ struct ListeningRackView: View {
                 if isSwapCarry { carryOffset = translation }
                 room.updateCabinetDrag(of: disc, translation: translation, scale: scale)
             },
-            onEnded: {
+            onEnded: { cancelled in
                 guard let disc = carriedDisc else { return }
-                room.endCabinetDrag(of: disc)
+                room.endCabinetDrag(of: disc, cancelled: cancelled)
                 carriedDisc = nil
                 withAnimation(reduceMotion ? nil : L.motion) { carryOffset = .zero }
             }
@@ -414,7 +439,7 @@ private struct ListeningRackBreathing: ViewModifier {
 struct ListeningRackCarryRecognizer: UIGestureRecognizerRepresentable {
     let onBegan: (CGPoint) -> Void
     let onChanged: (CGSize) -> Void
-    let onEnded: () -> Void
+    let onEnded: (Bool) -> Void
 
     final class Coordinator {
         var origin: CGPoint = .zero
@@ -438,8 +463,12 @@ struct ListeningRackCarryRecognizer: UIGestureRecognizerRepresentable {
         case .changed:
             let origin = context.coordinator.origin
             onChanged(CGSize(width: location.x - origin.x, height: location.y - origin.y))
-        case .ended, .cancelled, .failed:
-            onEnded()
+        case .ended:
+            let origin = context.coordinator.origin
+            onChanged(CGSize(width: location.x - origin.x, height: location.y - origin.y))
+            onEnded(false)
+        case .cancelled, .failed:
+            onEnded(true)
         default:
             break
         }

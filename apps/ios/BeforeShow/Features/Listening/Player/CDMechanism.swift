@@ -254,13 +254,13 @@ import SwiftUI
         motion.wake()
     }
 
-    func endDiscDrag() {
+    func endDiscDrag(cancelled: Bool = false) {
         guard discOrigin != nil else { return }
         discOrigin = nil
         let fromCabinet = isCabinetDragging
         isCabinetDragging = false
-        let center = configuration.geometry.discCenter
-        if (isOpen || motion.lid.target == 1), hypot(motion.discX.value - center.x, motion.discY.value - center.y) < 220 {
+        if !cancelled, (isOpen || motion.lid.target == 1),
+           configuration.geometry.containsDiscDrop(CGPoint(x: motion.discX.value, y: motion.discY.value)) {
             insertDisc()
         } else if fromCabinet || cabinetDropZone.contains(CGPoint(x: motion.discX.value, y: motion.discY.value)) {
             returnDisc()

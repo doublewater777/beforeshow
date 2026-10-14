@@ -28,6 +28,10 @@ struct CDPlayerConfiguration {
         func projectedY(_ y: CGFloat) -> CGFloat {
             hingeY + (y - hingeY) * cos(tiltDegrees * .pi / 180)
         }
+
+        func containsDiscDrop(_ point: CGPoint) -> Bool {
+            hypot(point.x - discCenter.x, point.y - discCenter.y) <= discWellDiameter / 2
+        }
     }
     enum Motion {
         // Mechanical travel stays legible; subpixel tails must not delay playback.

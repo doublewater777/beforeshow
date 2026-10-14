@@ -28,8 +28,8 @@ struct TimetablePerformanceInspectorSheet: View {
     @State private var isSearchingLoading = false
     @State private var searchFailure: ArtistSearchFailureMessage?
     @State private var searchAttempt = 0
-    /// Set while the user replaces a link, so the exact-name match does not silently relink the same artist.
     @State private var isRelinking = false
+    @State private var isEditing = false
     @State private var isConfirmingDelete = false
     @State private var saveErrorMessage: String? = nil
     @FocusState private var isNameFocused: Bool
@@ -59,7 +59,9 @@ struct TimetablePerformanceInspectorSheet: View {
     }
 
     private var durationMinutes: Int {
-        let seconds = draftEndsAt.timeIntervalSince(draftStartsAt)
+        let currentStart = isEditing ? draftStartsAt : performance.startsAt
+        let currentEnd = isEditing ? draftEndsAt : performance.endsAt
+        let seconds = currentEnd.timeIntervalSince(currentStart)
         return max(0, Int((seconds / 60).rounded()))
     }
 
@@ -107,25 +109,19 @@ struct TimetablePerformanceInspectorSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    if let saveErrorMessage {
-                        Text(saveErrorMessage)
-                            .font(BSFont.caption)
-                            .foregroundStyle(TimetableStyle.attention)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    header
-                    stageSection
-                    timeSection
-                    deleteButton
+                if isEditing {
+                    editingContent
+                } else {
+                    inspectionContent
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollContentBackground(.hidden)
+            .overlay(alignment: .top) {
+                errorBanner
+            }
             .task(id: "\(draftArtistName)|\(draftAppleMusicArtistID ?? "")|\(searchAttempt)") {
+                guard isEditing else { return }
                 await searchArtists()
             }
             .onChange(of: "\(draftArtistName)|\(draftAppleMusicArtistID ?? "")") { _, _ in
@@ -138,18 +134,47 @@ struct TimetablePerformanceInspectorSheet: View {
                     TimetablePreviewPlayer.shared.stop()
                 }
             }
-            .navigationTitle(BSLocalization.text("演出详情"))
+            .navigationTitle(isEditing ? BSLocalization.text("编辑演出") : BSLocalization.text("演出详情"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .bsClearNavigationContainer()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: commitAndDismiss) {
-                        Image(systemName: "checkmark")
+                if isEditing {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(BSLocalization.text("取消")) {
+                            resetDraft()
+                            withAnimation(TimetableStyle.pressSpring) {
+                                isEditing = false
+                            }
+                        }
+                        .font(.system(size: 15))
+                        .foregroundStyle(TimetableStyle.muted)
                     }
-                    .tint(BSColor.Stage.foreground)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .accessibilityLabel(BSLocalization.text("完成"))
+                    ToolbarItem(placement: .topBarTrailing) {
+                        let isNameEmpty = draftArtistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        Button(BSLocalization.text("保存"), action: commitAndReturn)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(TimetableStyle.mine)
+                            .disabled(isNameEmpty)
+                            .opacity(isNameEmpty ? 0.35 : 1)
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(BSLocalization.text("完成")) {
+                            dismiss()
+                        }
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(TimetableStyle.foreground)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(BSLocalization.text("编辑")) {
+                            withAnimation(TimetableStyle.pressSpring) {
+                                isEditing = true
+                            }
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(TimetableStyle.mine)
+                    }
                 }
             }
             .alert(
@@ -167,9 +192,234 @@ struct TimetablePerformanceInspectorSheet: View {
         }
     }
 
-    // MARK: - Header (Artist, Avatar & Direct Preview)
+    // MARK: - Inspection Content (Read-only Details)
 
-    private var header: some View {
+    private var inspectionContent: some View {
+        VStack(spacing: 16) {
+            // 1. Artist & Audio Preview Card
+            HStack(spacing: 14) {
+                TimetableArtistAvatar(name: performance.artistName, url: currentAvatarURL, size: 56)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(performance.artistName)
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(TimetableStyle.foreground)
+                        .lineLimit(2)
+
+                    if let trackTitle = activeTrackTitle {
+                        Label(BSLocalization.format("正在试听 · %@", trackTitle), systemImage: "music.note")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(TimetableStyle.mine)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    } else if let id = performance.appleMusicArtistID, !id.isEmpty {
+                        Label(BSLocalization.text("已关联 Apple Music"), systemImage: "checkmark.seal.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(TimetableStyle.mine)
+                    } else {
+                        Text(BSLocalization.text("未关联音乐库"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(TimetableStyle.dim)
+                    }
+                }
+
+                Spacer()
+
+                previewPlayButton
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(TimetableStyle.card)
+            )
+
+            // 2. Schedule & Stage Card
+            VStack(spacing: 12) {
+                // Stage row
+                HStack {
+                    Label {
+                        Text(BSLocalization.text("所属舞台"))
+                            .foregroundStyle(TimetableStyle.muted)
+                    } icon: {
+                        Image(systemName: "music.mic")
+                            .foregroundStyle(TimetableStyle.muted)
+                    }
+                    .font(.system(size: 14))
+
+                    Spacer()
+
+                    if let stage = performance.stage {
+                        HStack(spacing: 6) {
+                            TimetableStageLight.marker(stage.sortOrder)
+                                .fill(TimetableStageLight.color(stage.sortOrder))
+                                .frame(width: 8, height: 8)
+                            Text(stage.name)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(TimetableStyle.foreground)
+                        }
+                    }
+                }
+
+                Divider().overlay(Color.white.opacity(0.06))
+
+                // Time range row
+                HStack {
+                    Label {
+                        Text(BSLocalization.text("演出时段"))
+                            .foregroundStyle(TimetableStyle.muted)
+                    } icon: {
+                        Image(systemName: "clock")
+                            .foregroundStyle(TimetableStyle.muted)
+                    }
+                    .font(.system(size: 14))
+
+                    Spacer()
+
+                    HStack(spacing: 8) {
+                        Text(TimetableTimeFormat.range(performance.startsAt, performance.endsAt, timeZone: timeZone))
+                            .font(TimetableStyle.mono(14, weight: .semibold))
+                            .foregroundStyle(TimetableStyle.foreground)
+
+                        Text(BSLocalization.format("%d 分钟", durationMinutes))
+                            .font(TimetableStyle.mono(12))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.white.opacity(0.08)))
+                            .foregroundStyle(TimetableStyle.dim)
+                    }
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(TimetableStyle.card)
+            )
+
+            // 3. Interested Action Button
+            Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                withAnimation(TimetableStyle.pressSpring) {
+                    performance.isInterested.toggle()
+                    day.timetable?.show?.updatedAt = Date()
+                    try? modelContext.save()
+                    onPerformanceChanged?()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: performance.isInterested ? "heart.fill" : "heart")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(performance.isInterested ? TimetableStyle.mine : TimetableStyle.foreground)
+                    Text(performance.isInterested ? BSLocalization.text("已设为想看") : BSLocalization.text("设为想看"))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(performance.isInterested ? TimetableStyle.mine : TimetableStyle.foreground)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(performance.isInterested ? TimetableStyle.cardMine : TimetableStyle.card)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(performance.isInterested ? TimetableStyle.mine.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 1)
+                )
+            }
+            .buttonStyle(TimetablePressStyle())
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 28)
+    }
+
+    private var previewPlayButton: some View {
+        Button {
+            TimetablePreviewPlayer.shared.toggle(
+                performanceID: performance.id,
+                artistName: isEditing ? draftArtistName : performance.artistName,
+                artistID: isEditing ? draftAppleMusicArtistID : performance.appleMusicArtistID
+            )
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.25) : Color.white.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                if isLoadingPreview {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                } else if isPlayingPreview {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(TimetableStyle.mine)
+                } else {
+                    Image(systemName: TimetablePreviewPlayer.shared.failedPerformanceID == performance.id ? "arrow.clockwise" : "play.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .offset(x: 1)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(BSLocalization.text(isPlayingPreview ? "暂停试听" : "试听"))
+    }
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let saveErrorMessage {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(TimetableStyle.attention)
+                Text(saveErrorMessage)
+                    .font(BSFont.caption.weight(.medium))
+                    .foregroundStyle(TimetableStyle.foreground)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(Color(red: 0.16, green: 0.16, blue: 0.18).opacity(0.96))
+                    .shadow(color: Color.black.opacity(0.35), radius: 10, y: 4)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(TimetableStyle.attention.opacity(0.35), lineWidth: 1)
+            )
+            .padding(.top, 8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .onTapGesture {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    self.saveErrorMessage = nil
+                }
+            }
+            .task(id: saveErrorMessage) {
+                try? await Task.sleep(for: .seconds(3.5))
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    self.saveErrorMessage = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Editing Content (Editable Form)
+
+    private var editingContent: some View {
+        VStack(spacing: 16) {
+            editHeader
+            stageSection
+            timeSection
+            deleteButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 28)
+    }
+
+    // MARK: - Edit Header (Artist, Avatar & Direct Preview)
+
+    private var editHeader: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 TimetableArtistAvatar(name: draftArtistName, url: currentAvatarURL, size: 52)
@@ -228,35 +478,7 @@ struct TimetablePerformanceInspectorSheet: View {
 
                 Spacer()
 
-                Button {
-                    TimetablePreviewPlayer.shared.toggle(
-                        performanceID: performance.id,
-                        artistName: draftArtistName,
-                        artistID: draftAppleMusicArtistID
-                    )
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.25) : Color.white.opacity(0.12))
-                            .frame(width: 40, height: 40)
-                        if isLoadingPreview {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white)
-                        } else if isPlayingPreview {
-                            Image(systemName: "pause.fill")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(TimetableStyle.mine)
-                        } else {
-                            Image(systemName: TimetablePreviewPlayer.shared.failedPerformanceID == performance.id ? "arrow.clockwise" : "play.fill")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.white)
-                                .offset(x: 1)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(BSLocalization.text(isPlayingPreview ? "暂停试听" : "试听"))
+                previewPlayButton
             }
 
             if TimetablePreviewPlayer.shared.failedPerformanceID == performance.id,
@@ -497,15 +719,21 @@ struct TimetablePerformanceInspectorSheet: View {
 
     // MARK: - Confirmation & Committing
 
-    private func commitAndDismiss() {
+    private func commitAndReturn() {
         let trimmedName = draftArtistName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
-            saveErrorMessage = BSLocalization.text("请输入艺人名称")
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveErrorMessage = BSLocalization.text("请输入艺人名称")
+            }
             return
         }
 
         guard draftStartsAt < draftEndsAt else {
-            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            }
             return
         }
 
@@ -541,11 +769,28 @@ struct TimetablePerformanceInspectorSheet: View {
             }
 
             saveErrorMessage = nil
-            dismiss()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            withAnimation(TimetableStyle.pressSpring) {
+                isEditing = false
+            }
         } catch {
             modelContext.rollback()
-            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            }
         }
+    }
+
+    private func resetDraft() {
+        draftArtistName = performance.artistName
+        draftAppleMusicArtistID = performance.appleMusicArtistID
+        draftArtistAvatarURL = performance.artistAvatarURL
+        draftStageID = performance.stage?.id
+        draftStartsAt = performance.startsAt
+        draftEndsAt = performance.endsAt
+        saveErrorMessage = nil
+        isNameFocused = false
     }
 
     // MARK: - Delete

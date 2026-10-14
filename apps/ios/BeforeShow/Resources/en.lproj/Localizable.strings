@@ -2054,4 +2054,19 @@ First show: %@";
 "已达到免费 20 场上限" = "Free 20-Show Limit Reached";
 "免费版最多可添加 20 场现场；删除现场可释放容量。开通 Pro 后不限制新增场次。" = "Free tier supports up to 20 shows. Deleting shows frees up capacity. Upgrade to Pro for unlimited shows.";
 "突破免费版 20 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。" = "Break through the free 20-show cap. Every upcoming show can join Current and Footprints.";
+"重命名舞台" = "Rename Stage";
+"编辑演出" = "Edit Performance";
+"已设为想看" = "Added to Want-to-See";
+"设为想看" = "Add to Want-to-See";
+"关闭提示" = "Dismiss Notice";
+"删除第%d天？" = "Delete Day %d?";
+"确认删除第%d天吗？" = "Are you sure you want to delete Day %d?";
+"将同时删除该天下的 %d 场演出，此操作不可撤销。" = "This will also remove all %d performances on this day. This cannot be undone.";
+"确认删除舞台「%@」吗？" = "Are you sure you want to delete stage \"%@\"?";
+"将同时删除该舞台下的 %d 场演出，此操作不可撤销。" = "This will also remove all %d performances on this stage. This cannot be undone.";
+"删除第%d天" = "Delete Day %d";
+"删除舞台" = "Delete Stage";
+
+
+
 

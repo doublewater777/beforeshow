@@ -108,11 +108,6 @@ struct TimetableAddPerformanceSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if let saveErrorMessage {
-                        Text(saveErrorMessage)
-                            .font(BSFont.caption)
-                            .foregroundStyle(TimetableStyle.attention)
-                    }
                     header
                     stageSection
                     timeSection
@@ -122,6 +117,9 @@ struct TimetableAddPerformanceSheet: View {
                 .padding(.bottom, 40)
             }
             .scrollContentBackground(.hidden)
+            .overlay(alignment: .top) {
+                errorBanner
+            }
             .task(id: "\(artistName)|\(connectedArtist?.id ?? "")|\(searchAttempt)") {
                 await searchArtists()
             }
@@ -159,6 +157,44 @@ struct TimetableAddPerformanceSheet: View {
         .preferredColorScheme(.dark)
         .onAppear {
             isNameFocused = true
+        }
+    }
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let saveErrorMessage {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(TimetableStyle.attention)
+                Text(saveErrorMessage)
+                    .font(BSFont.caption.weight(.medium))
+                    .foregroundStyle(TimetableStyle.foreground)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(Color(red: 0.16, green: 0.16, blue: 0.18).opacity(0.96))
+                    .shadow(color: Color.black.opacity(0.35), radius: 10, y: 4)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(TimetableStyle.attention.opacity(0.35), lineWidth: 1)
+            )
+            .padding(.top, 8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .onTapGesture {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    self.saveErrorMessage = nil
+                }
+            }
+            .task(id: saveErrorMessage) {
+                try? await Task.sleep(for: .seconds(3.5))
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    self.saveErrorMessage = nil
+                }
+            }
         }
     }
 
@@ -336,45 +372,24 @@ struct TimetableAddPerformanceSheet: View {
     // MARK: - Time Section
 
     private var timeSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(BSLocalization.text("演出时段"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(TimetableStyle.muted)
                 Spacer()
                 Text(BSLocalization.format("%d 分钟", durationMinutes))
-                    .font(TimetableStyle.mono(13))
+                    .font(TimetableStyle.mono(13, weight: .medium))
                     .foregroundStyle(TimetableStyle.dim)
             }
 
-            // Quick shift buttons
-            HStack(spacing: 8) {
-                ForEach([-15, -5, 5, 15], id: \.self) { minutes in
-                    Button {
-                        withAnimation(.snappy) {
-                            let delta = TimeInterval(minutes * 60)
-                            startsAt = startsAt.addingTimeInterval(delta)
-                            endsAt = endsAt.addingTimeInterval(delta)
-                        }
-                    } label: {
-                        Text("\(minutes > 0 ? "+" : "")\(minutes)分")
-                            .font(TimetableStyle.mono(13, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 1))
-                            .foregroundStyle(TimetableStyle.foreground)
-                    }
-                    .buttonStyle(TimetablePressStyle())
-                }
-            }
-
-            // Pickers
-            HStack {
-                HStack(spacing: 8) {
-                    Text(BSLocalization.text("开始"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(TimetableStyle.muted)
+            VStack(spacing: 0) {
+                // Starts At Row
+                HStack {
+                    Label(BSLocalization.text("开始"), systemImage: "clock")
+                        .font(.system(size: 15))
+                        .foregroundStyle(TimetableStyle.foreground)
+                    Spacer()
                     DatePicker("", selection: Binding(
                         get: { startsAt },
                         set: { newStart in
@@ -390,21 +405,25 @@ struct TimetableAddPerformanceSheet: View {
                     .environment(\.locale, Locale(identifier: "en_GB"))
                     .environment(\.timeZone, timeZone)
                 }
+                .padding(.vertical, 8)
 
-                Spacer()
+                Divider()
+                    .overlay(Color.white.opacity(0.08))
 
-                HStack(spacing: 8) {
-                    Text(BSLocalization.text("结束"))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(TimetableStyle.muted)
+                // Ends At Row
+                HStack {
+                    Label(BSLocalization.text("结束"), systemImage: "clock.badge.checkmark")
+                        .font(.system(size: 15))
+                        .foregroundStyle(TimetableStyle.foreground)
+                    Spacer()
                     DatePicker("", selection: $endsAt, displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .environment(\.locale, Locale(identifier: "en_GB"))
                     .environment(\.timeZone, timeZone)
                 }
+                .padding(.vertical, 8)
             }
-            .padding(.top, 4)
         }
         .padding(14)
         .background(
@@ -415,14 +434,20 @@ struct TimetableAddPerformanceSheet: View {
 
     private func add() {
         guard !trimmedName.isEmpty else {
-            saveErrorMessage = BSLocalization.text("请输入艺人名称")
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveErrorMessage = BSLocalization.text("请输入艺人名称")
+            }
             return
         }
         guard let stage = day.stages.first(where: { $0.id == stageID }) else { return }
 
         let end = resolvedEnd > startsAt ? resolvedEnd : startsAt.addingTimeInterval(45 * 60)
         guard startsAt < end else {
-            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            }
             return
         }
 
@@ -447,7 +472,10 @@ struct TimetableAddPerformanceSheet: View {
             dismiss()
         } catch {
             modelContext.rollback()
-            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            }
         }
     }
 }

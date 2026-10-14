@@ -165,21 +165,14 @@ struct TimetableStageMatrixView: View {
         let laneCount = stages.count
         let laneHeight = max(layout.laneHeight, layout.contentHeight - 24)
         return ZStack(alignment: .topLeading) {
-            // 1. Time markings on the left (scroll vertically with the content)
-            ForEach(layout.hours, id: \.date) { mark in
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(TimetableTimeFormat.time(mark.date, timeZone: timeZone))
-                        .font(TimetableStyle.mono(11))
-                        .lineLimit(1)
-                    if mark.isMidnight {
-                        Image(systemName: "moon.fill")
-                            .font(BSFont.V3.caption)
-                    }
-                }
-                .foregroundStyle(mark.isMidnight ? TimetableStyle.night : TimetableStyle.muted)
-                .frame(width: Self.ruler - 4, alignment: .trailing)
-                .offset(x: 0, y: mark.y - 8)
-            }
+            // 1. Pinned Time Ruler on the left (fixed horizontally, scrolls vertically with timeline)
+            TimetableMatrixRulerView(
+                layout: layout,
+                timeZone: timeZone,
+                now: now,
+                viewport: viewport
+            )
+            .zIndex(10)
 
             // 2. Stage column backgrounds with atmospheric lighting and empty area tap-to-add
             ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
@@ -249,8 +242,7 @@ struct TimetableStageMatrixView: View {
                     .zIndex(2)
             }
 
-            // 5. Live now line and ruler time badge: the page's one red marker. The line runs
-            // under the cards so it never strikes through a name; live cards carry their own glow.
+            // 5. Live now line across stage lanes
             if let nowY = layout.nowY {
                 let actualNowY = nowY - 9
                 Rectangle()
@@ -260,19 +252,6 @@ struct TimetableStageMatrixView: View {
                     .offset(x: Self.ruler, y: actualNowY)
                     .allowsHitTesting(false)
                     .zIndex(0.8)
-
-                // Current time badge on the ruler
-                Text(TimetableTimeFormat.time(now, timeZone: timeZone))
-                    .font(TimetableStyle.mono(10.5, weight: .bold))
-                    .foregroundStyle(TimetableStyle.background)
-                    .lineLimit(1)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(TimetableStyle.now))
-                    .shadow(color: TimetableStyle.now.opacity(0.6), radius: 4)
-                    .offset(x: 2, y: actualNowY - 7)
-                    .allowsHitTesting(false)
-                    .zIndex(3)
             }
         }
         .animation(.easeOut(duration: 0.35), value: wantOnly)

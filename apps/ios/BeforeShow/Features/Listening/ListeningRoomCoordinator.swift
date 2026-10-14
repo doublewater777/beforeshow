@@ -65,7 +65,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     var showsPlaybackFailureAlert = false
     /// A shelf disc carried while another is seated; it swaps in only when dropped on the player.
     var pendingCabinetSwap: ListeningDisc?
-    @ObservationIgnored var pendingCabinetSwapDrop: CGFloat = 0
+    @ObservationIgnored var pendingCabinetSwapDrop: CGSize = .zero
     @ObservationIgnored private var foreground = true
     @ObservationIgnored private var musicAccessRequestGeneration = UUID()
     private(set) var accessResolved = false
@@ -461,7 +461,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         compilationDiscs = []; browseArtists = []; openingTiers = []
         wantedSongIDs = []; familiarSongIDs = []; actualSongIDs = []; excludedArtistIDs = []
         pendingCabinetSwap = nil
-        pendingCabinetSwapDrop = 0
+        pendingCabinetSwapDrop = .zero
         projectedShowInputs = nil
         // Visible failures belong to the room the user just left. Retry work,
         // including playback-evidence persistence, continues independently.

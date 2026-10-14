@@ -56,6 +56,10 @@ struct TimetableMatrixHeadersView: View {
             }
             .buttonStyle(.plain)
             .offset(x: laneX(stages.count, lane: lane), y: 4)
+
+            // Pinned corner cover above ruler column
+            cornerCover(scrollOffsetX: viewport.scrollOffsetX, scrollOffsetY: scrollOffset)
+                .zIndex(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background {
@@ -68,6 +72,33 @@ struct TimetableMatrixHeadersView: View {
                 }
             }
         }
+    }
+
+    private func cornerCover(scrollOffsetX: CGFloat, scrollOffsetY: CGFloat) -> some View {
+        ZStack(alignment: .trailing) {
+            TimetableStyle.background
+                .overlay(alignment: .bottom) {
+                    if scrollOffsetY > 2 {
+                        Rectangle()
+                            .fill(Color.white.opacity(min(0.08, scrollOffsetY / 200.0 * 0.08)))
+                            .frame(height: 0.5)
+                    }
+                }
+            if scrollOffsetX > 1 {
+                Rectangle()
+                    .fill(Color.white.opacity(min(0.12, scrollOffsetX / 20.0 * 0.12)))
+                    .frame(width: 0.5)
+            }
+        }
+        .frame(width: TimetableStyle.matrixRulerWidth, height: Self.capHeight)
+        .shadow(
+            color: Color.black.opacity(scrollOffsetX > 1 ? min(0.35, scrollOffsetX / 20.0 * 0.35) : 0),
+            radius: 4,
+            x: 2,
+            y: 0
+        )
+        .offset(x: max(0, scrollOffsetX), y: 0)
+        .contentShape(Rectangle())
     }
 
     /// Header light mirrors the lane: live glows energetically, while idle/soon
@@ -86,68 +117,73 @@ struct TimetableMatrixHeadersView: View {
         let scrollDist = max(0, scrollOffset)
         let idleProgress = min(1.0, scrollDist / 240.0)
 
-        return Button {
-            draftStageName = stage.name
-            editingStageID = stage.id
-            focusedStageID = stage.id
-        } label: {
-            HStack(spacing: 6) {
-                if isLive {
-                    TimetableEqualizer(color: tint)
-                } else {
-                    ZStack {
-                        // 现场舞台待机光晕：无演出时带轻微呼吸氛围，随滑动距离增强
-                        TimetableStageLight.marker(stage.sortOrder)
-                            .fill(tint)
-                            .frame(width: 13, height: 13)
-                            .blur(radius: 2.5)
-                            .opacity(0.35 + idleProgress * 0.35)
+        return HStack(spacing: 6) {
+            if isLive {
+                TimetableEqualizer(color: tint)
+            } else {
+                ZStack {
+                    // 现场舞台待机光晕：无演出时带轻微呼吸氛围，随滑动距离增强
+                    TimetableStageLight.marker(stage.sortOrder)
+                        .fill(tint)
+                        .frame(width: 13, height: 13)
+                        .blur(radius: 2.5)
+                        .opacity(0.35 + idleProgress * 0.35)
 
-                        TimetableStageLight.marker(stage.sortOrder)
-                            .fill(tint)
-                            .frame(width: 7, height: 7)
+                    TimetableStageLight.marker(stage.sortOrder)
+                        .fill(tint)
+                        .frame(width: 7, height: 7)
+                }
+            }
+            if editingStageID == stage.id {
+                TextField(BSLocalization.text("舞台名称"), text: $draftStageName)
+                    .font(.system(size: 13, weight: .bold))
+                    .textFieldStyle(.plain)
+                    .focused($focusedStageID, equals: stage.id)
+                    .submitLabel(.done)
+                    .onSubmit { commitRename(stage) }
+                    .onChange(of: focusedStageID) { _, focused in
+                        if focused != stage.id && editingStageID == stage.id {
+                            commitRename(stage)
+                        }
                     }
-                }
-                if editingStageID == stage.id {
-                    TextField(BSLocalization.text("舞台名称"), text: $draftStageName)
-                        .font(.system(size: 13, weight: .bold))
-                        .textFieldStyle(.plain)
-                        .focused($focusedStageID, equals: stage.id)
-                        .submitLabel(.done)
-                        .onSubmit { commitRename(stage) }
-                } else {
-                    Text(stage.name)
-                        .font(.system(size: 13, weight: .bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .foregroundStyle(
-                            isLive
-                                ? TimetableStyle.foreground
-                                : Color.white.opacity(0.60 + idleProgress * 0.35)
-                        )
-                }
-                if activity == .soon, let soonMinutes {
-                    Text(BSLocalization.format("%d 分钟后", soonMinutes))
-                        .font(TimetableStyle.mono(10.5, weight: .semibold))
-                        .foregroundStyle(tint)
-                        .lineLimit(1)
-                }
+            } else {
+                Text(stage.name)
+                    .font(.system(size: 13, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(
+                        isLive
+                            ? TimetableStyle.foreground
+                            : Color.white.opacity(0.60 + idleProgress * 0.35)
+                    )
             }
-            .padding(.horizontal, BSSpacing.sm)
-            .frame(width: lane, height: Self.capHeight)
-            .background {
-                TimetableStageHeaderAtmosphere(
-                    tint: tint,
-                    activity: activity,
-                    index: index,
-                    scrollOffset: scrollOffset,
-                    lane: lane
-                )
+            if activity == .soon, let soonMinutes {
+                Text(BSLocalization.format("%d 分钟后", soonMinutes))
+                    .font(TimetableStyle.mono(10.5, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, BSSpacing.sm)
+        .frame(width: lane, height: Self.capHeight)
+        .background {
+            TimetableStageHeaderAtmosphere(
+                tint: tint,
+                activity: activity,
+                index: index,
+                scrollOffset: scrollOffset,
+                lane: lane
+            )
+        }
+        .contentShape(Rectangle())
         .contextMenu {
+            Button {
+                draftStageName = stage.name
+                editingStageID = stage.id
+                focusedStageID = stage.id
+            } label: {
+                Label(BSLocalization.text("重命名舞台"), systemImage: "pencil")
+            }
             Button {
                 onAddPerformance(stage, nil)
             } label: {
@@ -161,12 +197,9 @@ struct TimetableMatrixHeadersView: View {
 
     private func commitRename(_ stage: TimetableStage) {
         let name = draftStageName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else {
-            draftStageName = stage.name
-            focusedStageID = stage.id
-            return
+        if !name.isEmpty && name != stage.name {
+            onRenameStage(stage, name)
         }
-        if name != stage.name { onRenameStage(stage, name) }
         focusedStageID = nil
         editingStageID = nil
     }

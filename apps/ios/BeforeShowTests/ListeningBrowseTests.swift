@@ -29,6 +29,47 @@ import SwiftData
         XCTAssertEqual(ListeningRackLayout.tapOffset(atX: 160, focus: 0, count: 2, discOut: true, halfWidth: 195), 1)
     }
 
+    func testCabinetSwapRequiresDroppingOnTheTray() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        await room.load(show: show)
+        defer { room.stop(); room.mechanism.motion.stop() }
+        let current = try XCTUnwrap(room.discs.first)
+        let replacement = try XCTUnwrap(room.browseArtists.first?.albums.first)
+        XCTAssertNotEqual(current.id, replacement.id)
+        room.restoreDisc(current)
+        let geometry = room.hardwareGeometry
+        let origin = CGPoint(x: 280, y: 100)
+        let scale: CGFloat = 0.8
+        room.mechanism.cabinetSlots[replacement.id] = origin
+
+        for (drop, cancelled) in [(CGPoint(x: 800, y: geometry.discCenter.y), false),
+                                  (CGPoint(x: geometry.discCenter.x, y: geometry.discCenter.y + 300), false),
+                                  (origin, false),
+                                  (geometry.discCenter, true)] {
+            XCTAssertTrue(room.beginCabinetDragIfNeeded(replacement))
+            room.updateCabinetDrag(of: replacement, translation: CGSize(
+                width: (drop.x - origin.x) * scale,
+                height: (drop.y - origin.y) * scale * cos(geometry.tiltDegrees * .pi / 180)
+            ), scale: scale)
+            room.endCabinetDrag(of: replacement, cancelled: cancelled)
+            await room.settlePendingOperation()
+            XCTAssertNil(room.pendingCabinetSwap)
+            XCTAssertEqual(room.mechanism.disc?.id, current.id, "A missed drop must retain the loaded CD")
+            XCTAssertFalse(room.isPlaying)
+        }
+
+        XCTAssertTrue(room.beginCabinetDragIfNeeded(replacement))
+        room.updateCabinetDrag(of: replacement, translation: CGSize(
+            width: (geometry.discCenter.x - origin.x) * scale,
+            height: (geometry.discCenter.y - origin.y) * scale * cos(geometry.tiltDegrees * .pi / 180)
+        ), scale: scale)
+        room.endCabinetDrag(of: replacement)
+        try await ListenTestData.settle(room) { !room.busy && room.isPlaying }
+        XCTAssertNil(room.pendingCabinetSwap)
+        XCTAssertEqual(room.mechanism.disc?.id, replacement.id)
+    }
+
     func testDelayedPlaybackFailureAllowsSleeveRetry() async throws {
         let (container, show) = try ListenTestData.make()
         let player = ListeningTestPlayer()

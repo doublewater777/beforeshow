@@ -52,6 +52,7 @@ struct TimetableMatrixCard: View {
                     cardBorder
                 }
                 .opacity(isEnded ? 0.6 : 1)
+                .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             }
             .buttonStyle(TimetablePressStyle())
             .disabled(isGhost)
@@ -269,9 +270,11 @@ struct TimetableMatrixCard: View {
     }
 
     private func heartButton(size: CGFloat) -> some View {
-        Button(action: onToggle) {
+        let hitTarget = max(36.0, size + 10)
+        return Button(action: onToggle) {
             heartIcon
                 .frame(width: size, height: size, alignment: .trailing)
+                .frame(width: hitTarget, height: hitTarget, alignment: .trailing)
                 .contentShape(Rectangle())
         }
         .buttonStyle(TimetableHeartButtonStyle())
@@ -282,6 +285,7 @@ struct TimetableMatrixCard: View {
         let circleSize = max(size - 4, 22)
         let playIconSize = circleSize >= 26 ? 11.0 : 9.5
         let pauseIconSize = circleSize >= 26 ? 12.0 : 10.5
+        let hitTarget = max(36.0, size + 8)
         return Button {
             TimetablePreviewPlayer.shared.toggle(performanceID: card.id, artistName: card.artistName, artistID: artistID)
         } label: {
@@ -304,8 +308,8 @@ struct TimetableMatrixCard: View {
                         .offset(x: 0.5)
                 }
             }
-            .frame(width: size, height: size)
-            .contentShape(Circle())
+            .frame(width: hitTarget, height: hitTarget)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(BSLocalization.text(isPlayingPreview ? "暂停试听" : "试听"))

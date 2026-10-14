@@ -5,20 +5,26 @@ import Observation
 @MainActor
 @Observable
 final class TimetableMatrixViewport {
+    private(set) var scrollOffsetX: CGFloat = 0
     private(set) var scrollOffsetY: CGFloat = 0
     private(set) var visibleRect: CGRect = .zero
 
-    @ObservationIgnored private var scrollOffsetX: CGFloat = 0
     @ObservationIgnored private var size: CGSize = .zero
 
     func updateVerticalOffset(_ offset: CGFloat) {
-        scrollOffsetY = max(0, offset)
-        updateVisibleRect()
+        let clamped = max(0, offset)
+        if scrollOffsetY != clamped {
+            scrollOffsetY = clamped
+            updateVisibleRect()
+        }
     }
 
     func updateHorizontalOffset(_ offset: CGFloat) {
-        scrollOffsetX = max(0, offset)
-        updateVisibleRect()
+        let clamped = max(0, offset)
+        if scrollOffsetX != clamped {
+            scrollOffsetX = clamped
+            updateVisibleRect()
+        }
     }
 
     func updateSize(_ size: CGSize) {

@@ -63,6 +63,7 @@
 		189F34799D46101F56803D17 /* ListeningShowMutationIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96BCCE8E6C07F3498C570F28 /* ListeningShowMutationIntegrationTests.swift */; };
 		194DC2CFE086968B6F011C25 /* CurrentShowTimeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B39A4E64872B01B1D5ACD2C /* CurrentShowTimeState.swift */; };
 		19645DC456965F57A491F211 /* NotificationSchedulingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EB908B138A60313182CD37 /* NotificationSchedulingModels.swift */; };
+		19657809518C47AA9A445E88 /* TimetableMatrixRulerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521FF7D65B152CE7B17D10CE /* TimetableMatrixRulerView.swift */; };
 		19EA9BA22FCE0C48314AF88B /* TimetableRecognitionQuota.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D5A43567FFF060CA50B52A /* TimetableRecognitionQuota.swift */; };
 		1A1EE36FF238B695B38AAB83 /* ListeningEvidenceFailureOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEFC4B2586B395FD1EB79EE1 /* ListeningEvidenceFailureOwner.swift */; };
 		1A8D401C461EFE73B20025F8 /* FootprintDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BCCB27E81B3A5E694AEAEC9 /* FootprintDetailView.swift */; };
@@ -748,6 +749,7 @@
 		508DB68B83B2097DF18FB49D /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		5160DCEA85D12B4C0E01EA2A /* ListeningCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningCompatibilityTests.swift; sourceTree = "<group>"; };
 		516DF3C7FBA9DCEE4D53C56D /* ListeningWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningWidget.swift; sourceTree = "<group>"; };
+		521FF7D65B152CE7B17D10CE /* TimetableMatrixRulerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableMatrixRulerView.swift; sourceTree = "<group>"; };
 		549AE91F39CB50C1426B2AF6 /* ProSubscriptionCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProSubscriptionCatalog.swift; sourceTree = "<group>"; };
 		54EEDEF9A9463CF5585F6DE6 /* ShowWantsLiveSong.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowWantsLiveSong.swift; sourceTree = "<group>"; };
 		557AC879B9E89687337D68A7 /* FootprintArtistArtworkWriteback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintArtistArtworkWriteback.swift; sourceTree = "<group>"; };
@@ -2040,6 +2042,7 @@
 				F935EE0E499434604D6987DD /* TimetableMatrixCardsView.swift */,
 				6C8845084061FF5382A85F30 /* TimetableMatrixHeadersView.swift */,
 				892BF721888752C09B437D77 /* TimetableMatrixLayout.swift */,
+				521FF7D65B152CE7B17D10CE /* TimetableMatrixRulerView.swift */,
 				48893B10FD5DA326717B9CDB /* TimetableMatrixViewport.swift */,
 				3AD6F90CFFA590687D320534 /* TimetableOrientationController.swift */,
 				CF7668B37EC876E36719F32B /* TimetableOrientationHost.swift */,
@@ -2612,6 +2615,7 @@
 				5DDF6971C0438D20B24205F6 /* TimetableMatrixCardsView.swift in Sources */,
 				4ECD2A2395E3B89F0B38D8E9 /* TimetableMatrixHeadersView.swift in Sources */,
 				9B87AF7662DC187A83689DF9 /* TimetableMatrixLayout.swift in Sources */,
+				19657809518C47AA9A445E88 /* TimetableMatrixRulerView.swift in Sources */,
 				E21CF50FC2CE63182C649E82 /* TimetableMatrixViewport.swift in Sources */,
 				21C473D9942CEF7E68DCF547 /* TimetableOCRTextParser.swift in Sources */,
 				62B7C7966F459EF24E2AF4B5 /* TimetableOrientationController.swift in Sources */,
