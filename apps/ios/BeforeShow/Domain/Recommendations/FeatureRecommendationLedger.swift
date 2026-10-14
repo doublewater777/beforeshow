@@ -43,7 +43,9 @@ enum FeatureRecommendationLedger {
         var used = Set<RecommendedFeature>()
         if facts.hasInstalledWidget { used.insert(.widget) }
         if !show.companionMembers.isEmpty || show.companionInvitationShared { used.insert(.companion) }
-        if show.assets.contains(where: { $0.kind == .timetable }) { used.insert(.timetable) }
+        if ShowAssetManagementPolicy.hasSavedAsset(for: show, kind: .timetable, assets: show.assets) {
+            used.insert(.timetable)
+        }
         if show.hasCompletedDispersalCeremony { used.insert(.dispersal) }
         if !show.memoryFragments.isEmpty { used.insert(.memoryFragments) }
         if hasFutureShow { used.insert(.addShow) }

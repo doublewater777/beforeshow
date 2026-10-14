@@ -24,6 +24,8 @@ Review-time standards for BeforeShow. Implementation agents should not load this
 
 - Keep presentation discipline: one primary surface per user transaction.
 
+- Sheet/navigation chrome controls stay neutral (`BSColor.Stage.foreground` / muted). Done stays `checkmark` +「完成」semantics; close stays `BSChromeToolbarCloseButton` / `xmark`. Never paint either with feature accent / `TimetableStyle.mine` / warm yellow. See `docs/agents/issue-notes/toolbar-chrome-tint-2026-10-14.md`.
+
 - Mechanical violations belong in scripts/hooks/CI, not more prompt text.
 
 ## When adding a rule

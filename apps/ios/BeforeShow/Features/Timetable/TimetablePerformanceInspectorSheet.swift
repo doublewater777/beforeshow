@@ -4,7 +4,7 @@ import SwiftUI
 /// Compact inspector sheet for inspecting, listening to,
 /// switching stage, adjusting time, or deleting a single performance.
 /// Changes are staged in local draft state and only committed to the stage
-/// after the user taps "完成".
+/// when the user confirms via the trailing done control.
 struct TimetablePerformanceInspectorSheet: View {
     let performance: TimetablePerformance
     let day: TimetableDay
@@ -145,11 +145,11 @@ struct TimetablePerformanceInspectorSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: commitAndDismiss) {
-                        Text(BSLocalization.text("完成"))
+                        Image(systemName: "checkmark")
                     }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(TimetableStyle.mine)
+                    .tint(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .accessibilityLabel(BSLocalization.text("完成"))
                 }
             }
             .alert(

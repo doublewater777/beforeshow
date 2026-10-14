@@ -107,6 +107,7 @@ struct FootprintTileCaption: View {
 struct FootprintKeepsakeTile: View {
     let kind: ShowAssetKind
     let asset: ShowAsset?
+    let hasSavedAsset: Bool
 
     var body: some View {
         Group {
@@ -142,7 +143,7 @@ struct FootprintKeepsakeTile: View {
                         Text(kind.title)
                             .font(BSFont.caption)
                             .foregroundColor(BSColor.Stage.foreground)
-                        Text(BSLocalization.text("点击添加"))
+                        Text(hasSavedAsset ? kind.savedSubtitle : BSLocalization.text("点击添加"))
                             .font(BSFont.V3.caption)
                             .foregroundColor(BSColor.Stage.muted)
                     }

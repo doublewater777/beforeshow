@@ -5,6 +5,35 @@ import XCTest
 
 @MainActor
 final class ShowAssetTests: XCTestCase {
+    func testTimetablePresenceIncludesStructuredScheduleAndOriginalImages() throws {
+        let date = Date(timeIntervalSince1970: 1_800_057_600)
+        let show = try Show(name: "Festival", date: date, startTime: date)
+        let performance = try TimetablePerformance(
+            artistName: "Artist", startsAt: date, endsAt: date.addingTimeInterval(3600)
+        )
+        let stage = try TimetableStage(name: "Main", performances: [performance])
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = try TimetableDay(date: calendar.startOfDay(for: date), stages: [stage])
+        let timetable = try Timetable(timeZoneIdentifier: "UTC", days: [day])
+        let image = ShowAsset(showID: show.id, kind: .timetable, relativePath: "original.jpg")
+        let otherShowImage = ShowAsset(showID: UUID(), kind: .timetable, relativePath: "other.jpg")
+
+        for (hasSchedule, hasImage) in [(false, false), (true, false), (true, true), (false, true), (false, false)] {
+            show.timetable = hasSchedule ? timetable : nil
+            show.assets = hasImage ? [image] : []
+            let entries = ShowAssetManagementPolicy.entries(for: show, assets: show.assets + [otherShowImage])
+            XCTAssertEqual(entries.first { $0.kind == .timetable }?.hasSavedAsset, hasSchedule || hasImage)
+            XCTAssertEqual(entries.first { $0.kind == .ticket }?.hasSavedAsset, false)
+            let used = FeatureRecommendationLedger.usedFeatures(
+                in: show,
+                facts: FeatureUsageFacts(hasInstalledWidget: false, isICloudAvailable: false),
+                hasFutureShow: false
+            )
+            XCTAssertEqual(used.contains(.timetable), hasSchedule || hasImage)
+        }
+    }
+
     override func tearDown() {
         ShowAssetCleanupRetry.clearFullCleanupPrepared()
         ShowAssetCleanupRetry.clearFullCleanupPending()

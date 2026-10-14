@@ -455,14 +455,18 @@ struct FootprintDetailView: View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
             sectionHeader(BSLocalization.text("留下的东西"))
             HStack(spacing: BSSpacing.sm) {
-                ForEach(ShowAssetKind.allCases) { kind in
+                ForEach(ShowAssetManagementPolicy.entries(for: show, assets: assets)) { entry in
                     Button {
-                        showingAssetKind = kind
+                        showingAssetKind = entry.kind
                     } label: {
-                        FootprintKeepsakeTile(kind: kind, asset: asset(for: kind))
+                        FootprintKeepsakeTile(
+                            kind: entry.kind,
+                            asset: asset(for: entry.kind),
+                            hasSavedAsset: entry.hasSavedAsset
+                        )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(BSLocalization.format("管理%@，%@", kind.title, asset(for: kind) == nil ? BSLocalization.text("未添加") : BSLocalization.text("已保存")))
+                    .accessibilityLabel(BSLocalization.format("管理%@，%@", entry.kind.title, entry.subtitle))
                 }
             }
         }

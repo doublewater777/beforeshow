@@ -82,11 +82,14 @@ enum ShowAssetManagementPolicy {
         ShowAssetKind.allCases.map { kind in
             ShowAssetManagementEntry(
                 kind: kind,
-                hasSavedAsset: assets.contains { asset in
-                    asset.showID == show.id && asset.kind == kind
-                }
+                hasSavedAsset: hasSavedAsset(for: show, kind: kind, assets: assets)
             )
         }
+    }
+
+    static func hasSavedAsset(for show: Show, kind: ShowAssetKind, assets: [ShowAsset]) -> Bool {
+        (kind == .timetable && show.timetable != nil)
+            || assets.contains { $0.showID == show.id && $0.kind == kind }
     }
 }
 

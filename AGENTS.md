@@ -116,6 +116,8 @@ Before implementing a module:
 - UI style, spacing, font sizes, colors must follow design tokens — no hardcoded values
 - Keep components atomic and reusable; don't mix page logic with UI in one file
 
+- Sheet/navigation chrome 用中性前景色：完成用 `checkmark`（语义仍是完成），关闭才用 `BSChromeToolbarCloseButton`/`xmark`；不要把 `TimetableStyle.mine` / accent / warm 黄涂到 chrome 上（见 `docs/agents/issue-notes/toolbar-chrome-tint-2026-10-14.md`）
+
 ## 5. Presentation Discipline
 
 **一次只看到一个主界面；完成一个主要动作后，最多只给一次轻反馈，不再立刻要求第二次确认。**
