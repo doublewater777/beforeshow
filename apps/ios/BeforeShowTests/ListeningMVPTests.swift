@@ -8,11 +8,13 @@ import XCTest
         let show = try Show(name: "Festival", date: start, startTime: start)
         show.coverImageURL = "https://example.com/show.jpg"
         show.artists = [ArtistSlot(name: "Artist", avatarURL: "https://example.com/artist.jpg")]
+        let song = CatalogSong(appleMusicSongID: "song", title: "Song", artistName: "Artist")
+        song.artworkURL = "https://example.com/song.jpg"
         let compilation = ListeningDisc(
             id: "compilation",
             title: "想看 · Day 1",
             artworkURL: nil,
-            tracks: [],
+            tracks: [ListeningDiscTrack(song)],
             origin: .compilation(showID: show.id, number: 1)
         )
         let identity = ListeningSleeveIdentity(disc: compilation, show: show)
