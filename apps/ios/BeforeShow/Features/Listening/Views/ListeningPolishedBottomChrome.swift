@@ -19,12 +19,6 @@ enum ListeningMiniPlayerPlaybackAppearance {
     }
 }
 
-enum ListeningMiniPlayerArtworkSource {
-    static func resolve(trackArtworkURL: URL?, discArtworkURL: URL?) -> URL? {
-        trackArtworkURL ?? discArtworkURL
-    }
-}
-
 enum ListeningMiniPlayerSwipeAction: Equatable {
     case previous
     case next
@@ -69,18 +63,6 @@ enum ListeningMiniPlayerSwipeIntent {
 
         let resisted = direct * unavailableEdgeResistance
         return min(max(resisted, -18), 18)
-    }
-}
-
-enum ListeningMiniPlayerArtworkImage {
-    static func displayed(
-        loaded: UIImage?,
-        url: URL?,
-        memoryImage: (URL) -> UIImage? = { ShowCoverImageCache.shared.memoryImage(for: $0) }
-    ) -> UIImage? {
-        if let loaded { return loaded }
-        guard let url else { return nil }
-        return memoryImage(url)
     }
 }
 
@@ -321,8 +303,6 @@ private struct ListeningCompactPlaybackControl: View {
     let onSelectListen: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var artworkImage: UIImage?
-    @State private var artworkImageURL: URL?
     @State private var frozenDiscAngle = 0.0
     @State private var spinAnchor = Date()
     @State private var swipeOffset: CGFloat = 0
@@ -339,17 +319,9 @@ private struct ListeningCompactPlaybackControl: View {
             for: room.display.player.phase
         )
     }
-    private var artworkURL: URL? {
-        ListeningMiniPlayerArtworkSource.resolve(
-            trackArtworkURL: track.artworkURL,
-            discArtworkURL: room.display.hardware.artworkURL
-        )
-    }
-    private var displayedArtwork: UIImage? {
-        ListeningMiniPlayerArtworkImage.displayed(
-            loaded: artworkImageURL == artworkURL ? artworkImage : nil,
-            url: artworkURL
-        )
+    private var loadedDisc: ListeningDisc? {
+        guard let id = room.display.hardware.discID else { return nil }
+        return room.disc(id: id)
     }
 
     var body: some View {
@@ -424,21 +396,6 @@ private struct ListeningCompactPlaybackControl: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
-        .task(id: artworkURL) {
-            // The previous song's image must not linger while a new cover loads.
-            artworkImage = nil
-            artworkImageURL = nil
-            guard let artworkURL else { return }
-            if let cached = ShowCoverImageCache.shared.memoryImage(for: artworkURL) {
-                artworkImageURL = artworkURL
-                artworkImage = cached
-                return
-            }
-            let loaded = await ShowCoverImageCache.shared.image(from: artworkURL)
-            guard !Task.isCancelled else { return }
-            artworkImageURL = artworkURL
-            artworkImage = loaded
-        }
         .onChange(of: showsPlayingState, initial: true) { wasPlaying, nowPlaying in
             let now = Date()
             if wasPlaying && !nowPlaying {
@@ -513,7 +470,8 @@ private struct ListeningCompactPlaybackControl: View {
     private func trackPage(_ pageTrack: ListeningDiscTrack, at date: Date) -> some View {
         HStack(spacing: 9) {
             ListeningArtworkDisc(
-                artwork: displayedArtwork(for: pageTrack),
+                disc: loadedDisc,
+                show: room.show,
                 angle: discAngle(at: date),
                 size: 34,
                 isPlaying: showsPlayingState
@@ -535,20 +493,6 @@ private struct ListeningCompactPlaybackControl: View {
         .padding(.leading, 10)
         .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
         .allowsHitTesting(false)
-    }
-
-    private func displayedArtwork(for pageTrack: ListeningDiscTrack) -> UIImage? {
-        let pageArtworkURL = ListeningMiniPlayerArtworkSource.resolve(
-            trackArtworkURL: pageTrack.artworkURL,
-            discArtworkURL: room.display.hardware.artworkURL
-        )
-        if pageArtworkURL == artworkURL {
-            return displayedArtwork
-        }
-        return ListeningMiniPlayerArtworkImage.displayed(
-            loaded: nil,
-            url: pageArtworkURL
-        )
     }
 
     private func adjacentTrack(for action: ListeningMiniPlayerSwipeAction) -> ListeningDiscTrack? {
@@ -660,47 +604,22 @@ private struct ListeningCompactPlaybackControl: View {
 }
 
 private struct ListeningArtworkDisc: View {
-    let artwork: UIImage?
+    let disc: ListeningDisc?
+    let show: Show?
     let angle: Double
     let size: CGFloat
     var isPlaying: Bool = false
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(BSColor.Stage.surface)
-
-            if let artwork {
-                Image(uiImage: artwork)
-                    .resizable()
-                    .scaledToFill()
-                    .transaction { $0.animation = nil }
+            if let disc {
+                // Use exactly the same CD face as the player. The MiniPlayer's
+                // song and artist text can change without changing the CD cover.
+                ListeningDiscArtwork(disc: disc, show: show)
+                    .id(disc.id)
             } else {
                 fallbackArtwork
             }
-
-            Circle()
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
-                .frame(width: size * 0.72, height: size * 0.72)
-            Circle()
-                .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
-                .frame(width: size * 0.48, height: size * 0.48)
-
-            AngularGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.16),
-                    BSColor.Accent.info.opacity(0.12),
-                    Color.clear,
-                    BSColor.Accent.violet.opacity(0.14),
-                    Color.clear,
-                    Color.white.opacity(0.18),
-                    Color.clear
-                ]),
-                center: .center,
-                angle: .degrees(-angle * 0.35)
-            )
-            .blendMode(.screen)
-
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
