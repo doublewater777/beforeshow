@@ -8,6 +8,7 @@ struct TimetableAddPerformanceSheet: View {
     let linker: TimetableArtistLinker
     let avatarURL: ((TimetablePerformance) -> URL?)?
     let timeZone: TimeZone
+    var onPerformanceAdded: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -22,6 +23,7 @@ struct TimetableAddPerformanceSheet: View {
     @State private var searchFailure: ArtistSearchFailureMessage?
     @State private var searchAttempt = 0
     @State private var previewSessionID = UUID()
+    @State private var saveErrorMessage: String? = nil
     @FocusState private var isNameFocused: Bool
 
     init(
@@ -31,12 +33,14 @@ struct TimetableAddPerformanceSheet: View {
         end: Date,
         linker: TimetableArtistLinker = TimetableArtistLinker(),
         avatarURL: ((TimetablePerformance) -> URL?)? = nil,
-        timeZone: TimeZone
+        timeZone: TimeZone,
+        onPerformanceAdded: (() -> Void)? = nil
     ) {
         self.day = day
         self.linker = linker
         self.avatarURL = avatarURL
         self.timeZone = timeZone
+        self.onPerformanceAdded = onPerformanceAdded
         _stageID = State(initialValue: stage.id)
         _startsAt = State(initialValue: start)
         _endsAt = State(initialValue: end)
@@ -104,6 +108,11 @@ struct TimetableAddPerformanceSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if let saveErrorMessage {
+                        Text(saveErrorMessage)
+                            .font(BSFont.caption)
+                            .foregroundStyle(TimetableStyle.attention)
+                    }
                     header
                     stageSection
                     timeSection
@@ -405,25 +414,40 @@ struct TimetableAddPerformanceSheet: View {
     }
 
     private func add() {
-        guard !trimmedName.isEmpty,
-              let stage = day.stages.first(where: { $0.id == stageID }) else { return }
+        guard !trimmedName.isEmpty else {
+            saveErrorMessage = BSLocalization.text("请输入艺人名称")
+            return
+        }
+        guard let stage = day.stages.first(where: { $0.id == stageID }) else { return }
 
         let end = resolvedEnd > startsAt ? resolvedEnd : startsAt.addingTimeInterval(45 * 60)
-        guard let performance = try? TimetablePerformance(
-            artistName: trimmedName,
-            startsAt: startsAt,
-            endsAt: end,
-            appleMusicArtistID: connectedArtist?.id,
-            artistAvatarURL: connectedArtist?.avatarURL?.absoluteString
-        ) else { return }
-
-        modelContext.insert(performance)
-        performance.stage = stage
-        if let connectedArtist {
-            linker.rememberConnectedArtist(connectedArtist)
+        guard startsAt < end else {
+            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            return
         }
-        try? modelContext.save()
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        dismiss()
+
+        do {
+            let performance = try TimetablePerformance(
+                artistName: trimmedName,
+                startsAt: startsAt,
+                endsAt: end,
+                appleMusicArtistID: connectedArtist?.id,
+                artistAvatarURL: connectedArtist?.avatarURL?.absoluteString
+            )
+            modelContext.insert(performance)
+            performance.stage = stage
+            if let connectedArtist {
+                linker.rememberConnectedArtist(connectedArtist)
+            }
+            day.timetable?.show?.updatedAt = Date()
+            try modelContext.save()
+            saveErrorMessage = nil
+            onPerformanceAdded?()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            dismiss()
+        } catch {
+            modelContext.rollback()
+            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+        }
     }
 }

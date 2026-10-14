@@ -284,6 +284,7 @@ final class Show {
     }
 
     func markPostponed(newDate: Date?) {
+        if newDate != effectiveDate { timetable?.needsDateConfirmation = true }
         postponedDate = newDate
         changeStatus = .postponed
         endedAt = nil
@@ -297,6 +298,7 @@ final class Show {
     }
 
     func markScheduled() {
+        if postponedDate != nil { timetable?.needsDateConfirmation = true }
         postponedDate = nil
         changeStatus = .scheduled
         discardConfirmedEndBeforeEffectiveStart()
@@ -395,6 +397,19 @@ final class Show {
             newSlots[index].appleMusicURL = nil
             newSlots[index].appleMusicArtistID = nil
             newSlots[index].albumArtworkURL = nil
+        }
+        let oldCalendar = timingCalendar()
+        var newCalendar = oldCalendar
+        if let identifier = prepared.timeZoneIdentifier, let zone = TimeZone(identifier: identifier) {
+            newCalendar.timeZone = zone
+        } else if let offset = prepared.timeZoneSecondsFromGMT, let zone = TimeZone(secondsFromGMT: offset) {
+            newCalendar.timeZone = zone
+        }
+        if oldCalendar.startOfDay(for: date) != newCalendar.startOfDay(for: prepared.date)
+            || endDate.map({ oldCalendar.startOfDay(for: $0) }) != prepared.endDate.map({ newCalendar.startOfDay(for: $0) })
+            || timeZoneIdentifier != prepared.timeZoneIdentifier
+            || timeZoneSecondsFromGMT != prepared.timeZoneSecondsFromGMT {
+            timetable?.needsDateConfirmation = true
         }
         name = prepared.name
         date = prepared.date

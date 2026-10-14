@@ -22,7 +22,11 @@ struct WidgetFestivalNow {
     let firstPick: LivePerformanceSnapshot?
 
     init?(snapshot: WidgetShowSnapshot?, now: Date) {
-        guard let snapshot, let timetable = snapshot.timetable, !timetable.days.isEmpty else { return nil }
+        guard let snapshot, snapshot.timing.endedAt == nil,
+              snapshot.timing.changeStatus != .canceled,
+              !(snapshot.timing.changeStatus == .postponed && snapshot.timing.postponedDate == nil),
+              let timetable = snapshot.timetable, !timetable.days.isEmpty else { return nil }
+        let calendar = snapshot.timing.eventCalendar(fallback: .current)
         let days = timetable.days.map { day in
             LiveDayInput(id: day.id, date: day.date, performances: day.performances.map {
                 LivePerformanceInput(
@@ -47,7 +51,7 @@ struct WidgetFestivalNow {
             }
         case .upcoming(let start):
             // 与首页一致：演出日当天才进现场模式。
-            if Calendar.current.isDate(start, inSameDayAs: now), let first = upcoming.first {
+            if calendar.isDate(start, inSameDayAs: now), let first = upcoming.first {
                 phase = .firstSet(first: first, later: Array(upcoming.dropFirst().prefix(2)))
             } else {
                 phase = nil
@@ -55,12 +59,12 @@ struct WidgetFestivalNow {
         case .dayEnded:
             let ended = days.lastIndex { $0.performances.allSatisfy { $0.endsAt <= now } } ?? 0
             let resumes = upcoming.first.map {
-                FestivalDay.word(for: $0.startsAt, distance: FestivalDay.distance(from: now, to: $0.startsAt, calendar: .current), calendar: .current)
+                FestivalDay.word(for: $0.startsAt, distance: FestivalDay.distance(from: now, to: $0.startsAt, calendar: calendar), calendar: calendar)
             } ?? BSLocalization.text("明天")
             phase = .dayEnded(day: ended + 1, next: Array(upcoming.prefix(3)), resumes: resumes)
         case .fullyEnded:
             let all = days.flatMap(\.performances)
-            phase = snapshot.timing.endedAt == nil && !all.isEmpty
+            phase = CurrentShowTimeState(timing: snapshot.timing, now: now).kind != .today && !all.isEmpty
                 ? .finished(days: days.count, sets: all.count, picks: all.filter(\.isInterested).count)
                 : nil
         }
@@ -73,20 +77,23 @@ struct WidgetFestivalNow {
         // Day-ended copy flips at the 06:00 day turn (明天 → 今天) and when the next
         // day comes within the engine's lead time (back to 今日首场).
         dates += timetable.days.compactMap { $0.performances.map(\.startsAt).min()?.addingTimeInterval(-LiveModeStateEngine.nextDayLead) }
-        dates += FestivalDay.turns(after: now, through: end, calendar: .current)
+        dates += FestivalDay.turns(after: now, through: end, calendar: snapshot?.timing.eventCalendar(fallback: .current) ?? .current)
         return dates.filter { $0 > now && $0 <= end }
     }
 }
 
 enum FestivalWidgetCopy {
-    static func clock(_ date: Date) -> String {
-        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+    static func clock(_ date: Date, timeZone: TimeZone) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 }
 
 /// 「♥ 18:00 椅子乐团 爱舞台」一行：想看给金心，快开始给红环。
 struct FestivalNextLine: View {
+    @Environment(\.timeZone) private var timeZone
     let performance: LivePerformanceSnapshot
     var showsTime = true
     var showsStage = false
@@ -104,7 +111,7 @@ struct FestivalNextLine: View {
                     .foregroundStyle(WidgetTheme.accent)
             }
             if showsTime {
-                Text(FestivalWidgetCopy.clock(performance.startsAt))
+                Text(FestivalWidgetCopy.clock(performance.startsAt, timeZone: timeZone))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.muted)
             }
@@ -156,12 +163,13 @@ private struct FestivalSetProgress: View {
 }
 
 private struct FestivalBigClock: View {
+    @Environment(\.timeZone) private var timeZone
     let date: Date
     var size: CGFloat = 40
     var color: Color = WidgetTheme.heroIvory
 
     var body: some View {
-        Text(FestivalWidgetCopy.clock(date))
+        Text(FestivalWidgetCopy.clock(date, timeZone: timeZone))
             .font(.system(size: size, weight: .semibold))
             .monospacedDigit()
             .foregroundStyle(color)
@@ -213,6 +221,7 @@ private struct FestivalStats: View {
 // MARK: - 小号
 
 struct FestivalSmallView: View {
+    @Environment(\.timeZone) private var timeZone
     let phase: WidgetFestivalNow.Phase
     let showName: String
 
@@ -247,7 +256,7 @@ struct FestivalSmallView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(WidgetTheme.foreground)
                         .lineLimit(1)
-                    Text("\(first.stageName) · \(FestivalWidgetCopy.clock(first.startsAt))")
+                    Text("\(first.stageName) · \(FestivalWidgetCopy.clock(first.startsAt, timeZone: timeZone))")
                         .font(.system(size: 10))
                         .foregroundStyle(WidgetTheme.dim)
                         .lineLimit(1)
@@ -291,6 +300,7 @@ struct FestivalSmallView: View {
 // MARK: - 中号
 
 struct FestivalMediumView<Cover: View>: View {
+    @Environment(\.timeZone) private var timeZone
     let phase: WidgetFestivalNow.Phase
     let showName: String
     @ViewBuilder let cover: () -> Cover
@@ -312,7 +322,7 @@ struct FestivalMediumView<Cover: View>: View {
             HStack {
                 FestivalTag(text: "正在演出", color: WidgetTheme.liveTitle, dot: true)
                 Spacer(minLength: 4)
-                Text("\(FestivalWidgetCopy.clock(main.startsAt))–\(FestivalWidgetCopy.clock(main.endsAt))")
+                Text("\(FestivalWidgetCopy.clock(main.startsAt, timeZone: timeZone))–\(FestivalWidgetCopy.clock(main.endsAt, timeZone: timeZone))")
                     .font(.system(size: 10, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.muted)
@@ -338,7 +348,7 @@ struct FestivalMediumView<Cover: View>: View {
                 HStack {
                     FestivalTag(text: "下一场", color: WidgetTheme.accent)
                     Spacer(minLength: 4)
-                    Text(FestivalWidgetCopy.clock(first.startsAt))
+                    Text(FestivalWidgetCopy.clock(first.startsAt, timeZone: timeZone))
                         .font(.system(size: 10, weight: .medium))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.muted)
@@ -372,7 +382,7 @@ struct FestivalMediumView<Cover: View>: View {
         case .dayEnded(let day, let next, let resumes):
             FestivalTag(text: "DAY \(day) 已结束", color: WidgetTheme.night, moon: true)
             if let first = next.first {
-                Text("\(resumes) \(FestivalWidgetCopy.clock(first.startsAt)) 继续")
+                Text("\(resumes) \(FestivalWidgetCopy.clock(first.startsAt, timeZone: timeZone)) 继续")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(WidgetTheme.foreground)
                     .lineLimit(1)
@@ -403,6 +413,7 @@ struct FestivalMediumView<Cover: View>: View {
 // MARK: - 锁屏(单色)
 
 struct FestivalInlineView: View {
+    @Environment(\.timeZone) private var timeZone
     let phase: WidgetFestivalNow.Phase
 
     var body: some View {
@@ -411,11 +422,11 @@ struct FestivalInlineView: View {
             case .live(let main, _):
                 Text("\(Image(systemName: "waveform")) \(main.artistName) · \(main.stageName)")
             case .between(let slot, _):
-                Text("下一场 \(FestivalWidgetCopy.clock(slot.first?.startsAt ?? .now)) · \(slot.first?.artistName ?? "")")
+                Text("下一场 \(FestivalWidgetCopy.clock(slot.first?.startsAt ?? .now, timeZone: timeZone)) · \(slot.first?.artistName ?? "")")
             case .firstSet(let first, _):
-                Text("今日首场 \(FestivalWidgetCopy.clock(first.startsAt)) · \(first.artistName)")
+                Text("今日首场 \(FestivalWidgetCopy.clock(first.startsAt, timeZone: timeZone)) · \(first.artistName)")
             case .dayEnded(let day, let next, let resumes):
-                Text("DAY \(day) 已结束 · \(resumes) \(FestivalWidgetCopy.clock(next.first?.startsAt ?? .now))")
+                Text("DAY \(day) 已结束 · \(resumes) \(FestivalWidgetCopy.clock(next.first?.startsAt ?? .now, timeZone: timeZone))")
             case .finished(_, _, let picks):
                 Text("全部结束 · 想看 \(picks) 场")
             }
@@ -426,6 +437,7 @@ struct FestivalInlineView: View {
 }
 
 struct FestivalCircularView: View {
+    @Environment(\.timeZone) private var timeZone
     let phase: WidgetFestivalNow.Phase
 
     var body: some View {
@@ -445,12 +457,12 @@ struct FestivalCircularView: View {
         case .firstSet(let first, _):
             ZStack {
                 AccessoryWidgetBackground()
-                label(Text(FestivalWidgetCopy.clock(first.startsAt)), caption: "首场", captionOnTop: true)
+                label(Text(FestivalWidgetCopy.clock(first.startsAt, timeZone: timeZone)), caption: "首场", captionOnTop: true)
             }
         case .dayEnded(_, let next, let resumes):
             ZStack {
                 AccessoryWidgetBackground()
-                label(Text(FestivalWidgetCopy.clock(next.first?.startsAt ?? .now)), caption: LocalizedStringKey(resumes), captionOnTop: true)
+                label(Text(FestivalWidgetCopy.clock(next.first?.startsAt ?? .now, timeZone: timeZone)), caption: LocalizedStringKey(resumes), captionOnTop: true)
             }
         case .finished:
             ZStack {
@@ -474,6 +486,7 @@ struct FestivalCircularView: View {
 }
 
 struct FestivalRectangularView: View {
+    @Environment(\.timeZone) private var timeZone
     let phase: WidgetFestivalNow.Phase
     let showName: String
 
@@ -482,16 +495,16 @@ struct FestivalRectangularView: View {
             switch phase {
             case .live(let main, let next):
                 lines(Text("\(Image(systemName: "waveform")) \(main.stageName)"), Text(main.artistName),
-                      next.first.map { Text("\(FestivalWidgetCopy.clock($0.startsAt)) \($0.artistName)") })
+                      next.first.map { Text("\(FestivalWidgetCopy.clock($0.startsAt, timeZone: timeZone)) \($0.artistName)") })
             case .between(let slot, _):
                 if let first = slot.first {
-                    lines(Text("下一场 · \(FestivalWidgetCopy.clock(first.startsAt))"), Text(first.artistName), Text(first.stageName))
+                    lines(Text("下一场 · \(FestivalWidgetCopy.clock(first.startsAt, timeZone: timeZone))"), Text(first.artistName), Text(first.stageName))
                 }
             case .firstSet(let first, _):
-                lines(Text("今日首场 · \(FestivalWidgetCopy.clock(first.startsAt))"), Text(first.artistName), Text(first.stageName))
+                lines(Text("今日首场 · \(FestivalWidgetCopy.clock(first.startsAt, timeZone: timeZone))"), Text(first.artistName), Text(first.stageName))
             case .dayEnded(let day, let next, let resumes):
                 lines(Text("DAY \(day) 已结束"),
-                      Text("\(resumes) \(FestivalWidgetCopy.clock(next.first?.startsAt ?? .now)) 继续"),
+                      Text("\(resumes) \(FestivalWidgetCopy.clock(next.first?.startsAt ?? .now, timeZone: timeZone)) 继续"),
                       next.first.map { Text($0.artistName) })
             case .finished(let days, _, let picks):
                 lines(Text("全部结束"), Text(showName), Text("\(days) 天 · 想看 \(picks) 场"))

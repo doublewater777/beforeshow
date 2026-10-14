@@ -30,12 +30,11 @@ enum ShowDurationFormatter {
         return daysText(days: totalHours / 24, restHours: totalHours % 24)
     }
 
-    /// 单场观看时长(分钟):已确认散场用真实时刻,否则用录入的结束时间,
-    /// 再否则回落到默认估算(endBoundary)。无法计算时返回 nil。
+    /// 仅确认散场后统计时长；计划和默认估算不作为观看事实。
     static func minutes(for show: Show, timeState: CurrentShowTimeState) -> Int? {
         let start = timeState.effectiveStartTime
             ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar())
-        guard let end = show.endedAt ?? timeState.effectiveEndTime ?? timeState.endBoundary else {
+        guard let end = show.endedAt else {
             return nil
         }
         return minutes(from: start, to: end)

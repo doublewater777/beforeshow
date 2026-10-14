@@ -82,6 +82,11 @@ struct TimetableExperienceView: View {
                 )
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let show {
+                TimetableDateConfirmationNotice(timetable: timetable, show: show, onManage: onManage)
+            }
+        }
         .overlay(alignment: .bottom) { dock }
         .sheet(item: $inspectingPerformance) { perf in
             if let day = currentDay {
@@ -91,6 +96,9 @@ struct TimetableExperienceView: View {
                     avatarURL: avatarURL(perf),
                     linker: linker,
                     timeZone: timeZone,
+                    onPerformanceChanged: {
+                        notifyShowMutation()
+                    },
                     onDelete: {
                         deletePerformance(perf)
                     }
@@ -110,7 +118,10 @@ struct TimetableExperienceView: View {
                     end: slot.end,
                     linker: linker,
                     avatarURL: avatarURL,
-                    timeZone: timeZone
+                    timeZone: timeZone,
+                    onPerformanceAdded: {
+                        notifyShowMutation()
+                    }
                 )
                 .bsSystemGlassSheet(detents: [.fraction(0.74), .large])
             }
@@ -209,11 +220,20 @@ struct TimetableExperienceView: View {
 
     // MARK: - Actions
 
+    private func notifyShowMutation() {
+        show?.updatedAt = Date()
+        try? modelContext.save()
+        let container = modelContext.container
+        Task {
+            await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))
+        }
+    }
+
     private func toggleInterested(_ performance: TimetablePerformance) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
             performance.isInterested.toggle()
         }
-        try? modelContext.save()
+        notifyShowMutation()
     }
 
     private func renameStage(_ stage: TimetableStage, to name: String) {
@@ -265,7 +285,7 @@ struct TimetableExperienceView: View {
         }
         inspectingPerformance = nil
         modelContext.delete(performance)
-        try? modelContext.save()
+        notifyShowMutation()
     }
 }
 

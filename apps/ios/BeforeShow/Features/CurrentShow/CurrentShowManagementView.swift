@@ -116,7 +116,7 @@ struct CurrentShowManagementSection: View {
                             for: show,
                             calendar: show.timingCalendar()
                         ),
-                    calendar: show.endTimingCalendar(),
+                    calendar: show.timingFields.endEventCalendar(fallback: .current),
                     allowsJustEnded: currentPhase == .live,
                     onConfirm: { date, intent in
                         pendingConfirmedEndDate = date

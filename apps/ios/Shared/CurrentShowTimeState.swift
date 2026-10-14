@@ -41,6 +41,7 @@ struct CurrentShowTimeState: Equatable {
     let effectiveEndDate: Date?
     let effectiveStartTime: Date?
     let effectiveEndTime: Date?
+    let nextSessionStartsAt: Date?
     /// Resolved show-end instant for the *current* phase boundary.
     /// Multi-day daily cycle: today's daily end (or last day's end after the run).
     /// Single / overnight: whole-event end. Drives live→ended and 本场时长.
@@ -64,8 +65,9 @@ struct CurrentShowTimeState: Equatable {
         self.isDatedPostponement = timing.changeStatus == .postponed && timing.postponedDate != nil
         self.effectiveDate = timing.effectiveDate
 
+        let sessions = timing.resolvedSessions(calendar: eventCalendar)
         let resolvedEndDate = hasKnownEffectiveDate
-            ? Self.effectiveEndDate(timing: timing, calendar: eventCalendar)
+            ? sessions.last?.date ?? Self.effectiveEndDate(timing: timing, calendar: eventCalendar)
             : nil
         self.effectiveEndDate = resolvedEndDate
 
@@ -74,7 +76,7 @@ struct CurrentShowTimeState: Equatable {
         let daysToFirst = eventCalendar.dateComponents([.day], from: today, to: showDay).day ?? 0
         self.dayDistance = daysToFirst
 
-        let multiDayDaily = hasKnownEffectiveDate
+        let multiDayDaily = hasKnownEffectiveDate && sessions.isEmpty
             && Self.isMultiDayDailyCycle(timing: timing, calendar: eventCalendar)
 
         let resolvedStart: Date?
@@ -95,7 +97,9 @@ struct CurrentShowTimeState: Equatable {
             resolvedBoundary = nil
             resolvedKind = .postponed
         } else if let endedAt = timing.endedAt {
-            if multiDayDaily {
+            if let final = sessions.last {
+                resolvedStart = final.startsAt
+            } else if multiDayDaily {
                 let endedDay = eventCalendar.startOfDay(for: endedAt)
                 let endedDayStart = Self.dailyStartTime(on: endedDay, timing: timing, calendar: eventCalendar)
                 let candidateSessionDay: Date
@@ -121,6 +125,25 @@ struct CurrentShowTimeState: Equatable {
                 resolvedKind = .postShow
             } else {
                 resolvedKind = .ended
+            }
+        } else if let first = sessions.first, let final = sessions.last {
+            let active = sessions.first { $0.startsAt <= now && now < $0.endsAt }
+            let next = sessions.first { now < $0.startsAt }
+            let previous = sessions.last { $0.endsAt <= now }
+            let session = active ?? next ?? final
+            resolvedStart = session.startsAt
+            resolvedEnd = session.endsAt
+            resolvedBoundary = now < first.startsAt ? final.endsAt : session.endsAt
+            if now >= final.endsAt {
+                let retentionEnd = eventCalendar.date(byAdding: .day, value: retentionDays, to: final.endsAt) ?? final.endsAt
+                resolvedKind = now < retentionEnd ? .postShow : .ended
+            } else if active != nil {
+                resolvedKind = .today
+            } else if previous != nil {
+                // Keep overnight breaks and whole rest days out of LIVE.
+                resolvedKind = next.map { eventCalendar.isDate(now, inSameDayAs: $0.date) } == true ? .today : .dayEnded
+            } else {
+                resolvedKind = eventCalendar.isDate(now, inSameDayAs: first.date) ? .today : .before
             }
         } else if multiDayDaily {
             let lastDay = eventCalendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
@@ -188,6 +211,17 @@ struct CurrentShowTimeState: Equatable {
             }
         }
 
+        let resolvedNextStart: Date?
+        if !sessions.isEmpty {
+            resolvedNextStart = sessions.first { now < $0.startsAt }?.startsAt
+        } else if multiDayDaily,
+                  let resolvedStart,
+                  let nextDayStart = eventCalendar.date(byAdding: .day, value: 1, to: resolvedStart) {
+            resolvedNextStart = nextDayStart
+        } else {
+            resolvedNextStart = nil
+        }
+        self.nextSessionStartsAt = resolvedNextStart
         self.effectiveStartTime = resolvedStart
         self.effectiveEndTime = resolvedEnd
         self.endBoundary = resolvedBoundary
@@ -198,6 +232,7 @@ struct CurrentShowTimeState: Equatable {
             dayDistance: daysToFirst,
             startTime: resolvedStart,
             endBoundary: resolvedBoundary,
+            nextSessionStartsAt: resolvedNextStart,
             now: now,
             retentionDays: retentionDays,
             calendar: eventCalendar
@@ -271,6 +306,7 @@ struct CurrentShowTimeState: Equatable {
     /// 多日「每日循环」：有跨日 endDate，且不是一夜连轴（次日凌晨落幕）的单场。
     /// 每日共用同一个 startTime / endTime 钟点。
     static func isMultiDayDailyCycle(timing: ShowTimingFields, calendar: Calendar) -> Bool {
+        guard timing.sessions?.isEmpty != false else { return false }
         guard let endDate = effectiveEndDate(timing: timing, calendar: calendar) else {
             return false
         }
@@ -428,6 +464,7 @@ struct CurrentShowTimeState: Equatable {
         dayDistance: Int,
         startTime: Date?,
         endBoundary: Date?,
+        nextSessionStartsAt: Date?,
         now: Date,
         retentionDays: Int,
         calendar: Calendar
@@ -497,13 +534,19 @@ struct CurrentShowTimeState: Equatable {
             )
         case .dayEnded:
             let helper: String
-            if let startTime,
-               let nextStart = calendar.date(byAdding: .day, value: 1, to: startTime) {
+            if let nextStart = nextSessionStartsAt {
+                let distance = FestivalDay.distance(from: now, to: nextStart, calendar: calendar)
+                let word = FestivalDay.word(for: nextStart, distance: distance, calendar: calendar)
+                let components = calendar.dateComponents([.hour, .minute], from: nextStart)
+                let clock = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+                helper = BSLocalization.format("%@ %@ 再开", word, clock)
+            } else if let startTime,
+                      let nextStart = calendar.date(byAdding: .day, value: 1, to: startTime) {
                 let components = calendar.dateComponents([.hour, .minute], from: nextStart)
                 let clock = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
                 helper = BSLocalization.format("明天 %@ 再开", clock)
             } else {
-                helper = BSLocalization.text("明天再开")
+                helper = BSLocalization.text("稍作休息，下次现场见")
             }
             return (
                 BSLocalization.text("今日已落幕"),

@@ -2,17 +2,27 @@ import SwiftData
 import SwiftUI
 
 /// Compact inspector sheet for inspecting, listening to,
-/// shifting time, switching stage, or deleting a single performance.
+/// switching stage, adjusting time, or deleting a single performance.
+/// Changes are staged in local draft state and only committed to the stage
+/// after the user taps "完成".
 struct TimetablePerformanceInspectorSheet: View {
-    @Bindable var performance: TimetablePerformance
+    let performance: TimetablePerformance
     let day: TimetableDay
     let avatarURL: URL?
     let linker: TimetableArtistLinker
     let timeZone: TimeZone
     let onDelete: () -> Void
+    var onPerformanceChanged: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+
+    @State private var draftArtistName: String
+    @State private var draftAppleMusicArtistID: String?
+    @State private var draftArtistAvatarURL: String?
+    @State private var draftStageID: UUID?
+    @State private var draftStartsAt: Date
+    @State private var draftEndsAt: Date
 
     @State private var artistCandidates: [RecognizedArtist] = []
     @State private var isSearchingLoading = false
@@ -21,10 +31,35 @@ struct TimetablePerformanceInspectorSheet: View {
     /// Set while the user replaces a link, so the exact-name match does not silently relink the same artist.
     @State private var isRelinking = false
     @State private var isConfirmingDelete = false
+    @State private var saveErrorMessage: String? = nil
     @FocusState private var isNameFocused: Bool
 
+    init(
+        performance: TimetablePerformance,
+        day: TimetableDay,
+        avatarURL: URL?,
+        linker: TimetableArtistLinker,
+        timeZone: TimeZone,
+        onPerformanceChanged: (() -> Void)? = nil,
+        onDelete: @escaping () -> Void
+    ) {
+        self.performance = performance
+        self.day = day
+        self.avatarURL = avatarURL
+        self.linker = linker
+        self.timeZone = timeZone
+        self.onPerformanceChanged = onPerformanceChanged
+        self.onDelete = onDelete
+        _draftArtistName = State(initialValue: performance.artistName)
+        _draftAppleMusicArtistID = State(initialValue: performance.appleMusicArtistID)
+        _draftArtistAvatarURL = State(initialValue: performance.artistAvatarURL)
+        _draftStageID = State(initialValue: performance.stage?.id)
+        _draftStartsAt = State(initialValue: performance.startsAt)
+        _draftEndsAt = State(initialValue: performance.endsAt)
+    }
+
     private var durationMinutes: Int {
-        let seconds = performance.endsAt.timeIntervalSince(performance.startsAt)
+        let seconds = draftEndsAt.timeIntervalSince(draftStartsAt)
         return max(0, Int((seconds / 60).rounded()))
     }
 
@@ -40,28 +75,45 @@ struct TimetablePerformanceInspectorSheet: View {
         TimetablePreviewPlayer.shared.currentTrackTitle(for: performance.id)
     }
 
+    private var currentAvatarURL: URL? {
+        if let draftArtistAvatarURL, let url = URL(string: draftArtistAvatarURL) {
+            return url
+        }
+        if ArtistNameMatching.normalized(draftArtistName) == ArtistNameMatching.normalized(performance.artistName) {
+            return avatarURL
+        }
+        return nil
+    }
+
     private var artistName: Binding<String> {
         Binding(
-            get: { performance.artistName },
+            get: { draftArtistName },
             set: { name in
-                if ArtistNameMatching.normalized(name) != ArtistNameMatching.normalized(performance.artistName) {
-                    performance.disconnectArtist()
+                if ArtistNameMatching.normalized(name) != ArtistNameMatching.normalized(draftArtistName) {
+                    draftAppleMusicArtistID = nil
+                    draftArtistAvatarURL = nil
                 }
-                performance.artistName = name
+                draftArtistName = name
             }
         )
     }
 
     private var needsArtistSearch: Bool {
-        performance.appleMusicArtistID == nil
-            && !performance.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && performance.artistName != BSLocalization.text("新演出")
+        draftAppleMusicArtistID == nil
+            && !draftArtistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && draftArtistName != BSLocalization.text("新演出")
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    if let saveErrorMessage {
+                        Text(saveErrorMessage)
+                            .font(BSFont.caption)
+                            .foregroundStyle(TimetableStyle.attention)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     header
                     stageSection
                     timeSection
@@ -73,10 +125,10 @@ struct TimetablePerformanceInspectorSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollContentBackground(.hidden)
-            .task(id: "\(performance.artistName)|\(performance.appleMusicArtistID ?? "")|\(searchAttempt)") {
+            .task(id: "\(draftArtistName)|\(draftAppleMusicArtistID ?? "")|\(searchAttempt)") {
                 await searchArtists()
             }
-            .onChange(of: "\(performance.artistName)|\(performance.appleMusicArtistID ?? "")") { _, _ in
+            .onChange(of: "\(draftArtistName)|\(draftAppleMusicArtistID ?? "")") { _, _ in
                 if TimetablePreviewPlayer.shared.activePerformanceID == performance.id {
                     TimetablePreviewPlayer.shared.stop()
                 }
@@ -91,10 +143,11 @@ struct TimetablePerformanceInspectorSheet: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .bsClearNavigationContainer()
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(BSLocalization.text("完成")) {
-                        dismiss()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: commitAndDismiss) {
+                        Text(BSLocalization.text("完成"))
                     }
+                    .buttonStyle(.plain)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(TimetableStyle.mine)
                 }
@@ -119,7 +172,7 @@ struct TimetablePerformanceInspectorSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                TimetableArtistAvatar(name: performance.artistName, url: avatarURL, size: 52)
+                TimetableArtistAvatar(name: draftArtistName, url: currentAvatarURL, size: 52)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
@@ -132,7 +185,6 @@ struct TimetablePerformanceInspectorSheet: View {
                             .submitLabel(.done)
                             .onSubmit {
                                 isNameFocused = false
-                                try? modelContext.save()
                             }
 
                         if !isNameFocused {
@@ -148,12 +200,12 @@ struct TimetablePerformanceInspectorSheet: View {
                             .foregroundStyle(TimetableStyle.mine)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                    } else if let id = performance.appleMusicArtistID, !id.isEmpty {
+                    } else if let id = draftAppleMusicArtistID, !id.isEmpty {
                         Menu {
                             Button(role: .destructive) {
                                 isRelinking = true
-                                performance.disconnectArtist()
-                                try? modelContext.save()
+                                draftAppleMusicArtistID = nil
+                                draftArtistAvatarURL = nil
                             } label: {
                                 Label(BSLocalization.text("断开 Apple Music 关联"), systemImage: "link.badge.plus")
                             }
@@ -179,8 +231,8 @@ struct TimetablePerformanceInspectorSheet: View {
                 Button {
                     TimetablePreviewPlayer.shared.toggle(
                         performanceID: performance.id,
-                        artistName: performance.artistName,
-                        artistID: performance.appleMusicArtistID
+                        artistName: draftArtistName,
+                        artistID: draftAppleMusicArtistID
                     )
                 } label: {
                     ZStack {
@@ -235,11 +287,12 @@ struct TimetablePerformanceInspectorSheet: View {
     }
 
     private func connectArtist(_ artist: RecognizedArtist) {
-        performance.connectArtist(artist)
+        draftArtistName = artist.canonicalName
+        draftAppleMusicArtistID = artist.id
+        draftArtistAvatarURL = artist.avatarURL?.absoluteString
         linker.rememberConnectedArtist(artist)
         isRelinking = false
         isNameFocused = false
-        try? modelContext.save()
     }
 
     private func searchArtists() async {
@@ -247,7 +300,7 @@ struct TimetablePerformanceInspectorSheet: View {
         searchFailure = nil
         isSearchingLoading = false
         guard needsArtistSearch else { return }
-        let name = performance.artistName
+        let name = draftArtistName
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines)
         artistCandidates = linker.savedCandidates(for: query)
         isSearchingLoading = true
@@ -255,14 +308,15 @@ struct TimetablePerformanceInspectorSheet: View {
             try await Task.sleep(for: .milliseconds(350))
             let results = try await linker.candidates(for: query, includingRemote: true)
             try Task.checkCancellation()
-            guard performance.artistName == name, performance.appleMusicArtistID == nil else { return }
+            guard draftArtistName == name, draftAppleMusicArtistID == nil else { return }
             artistCandidates = results
             isSearchingLoading = false
             if !isRelinking, let match = ArtistNameMatching.uniqueExactMatch(for: query, among: results) {
-                performance.connectArtist(match)
+                draftArtistName = match.canonicalName
+                draftAppleMusicArtistID = match.id
+                draftArtistAvatarURL = match.avatarURL?.absoluteString
                 linker.rememberConnectedArtist(match)
             }
-            try? modelContext.save()
         } catch {
             guard !Task.isCancelled else { return }
             searchFailure = ArtistSearchFailureMessage(error: error)
@@ -283,12 +337,11 @@ struct TimetablePerformanceInspectorSheet: View {
                 if day.orderedStages.count <= 3 {
                     HStack(spacing: 6) {
                         ForEach(day.orderedStages) { stage in
-                            let isSelected = performance.stage?.id == stage.id
+                            let isSelected = draftStageID == stage.id
                             let color = TimetableStageLight.color(stage.sortOrder)
                             Button {
                                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                    performance.moveTo(stage: stage)
-                                    try? modelContext.save()
+                                    draftStageID = stage.id
                                 }
                             } label: {
                                 HStack(spacing: 6) {
@@ -319,12 +372,11 @@ struct TimetablePerformanceInspectorSheet: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(day.orderedStages) { stage in
-                                let isSelected = performance.stage?.id == stage.id
+                                let isSelected = draftStageID == stage.id
                                 let color = TimetableStageLight.color(stage.sortOrder)
                                 Button {
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                        performance.moveTo(stage: stage)
-                                        try? modelContext.save()
+                                        draftStageID = stage.id
                                     }
                                 } label: {
                                     HStack(spacing: 6) {
@@ -378,11 +430,10 @@ struct TimetablePerformanceInspectorSheet: View {
                         .foregroundStyle(TimetableStyle.foreground)
                     Spacer()
                     DatePicker("", selection: Binding(
-                        get: { performance.startsAt },
+                        get: { draftStartsAt },
                         set: {
-                            if $0 < performance.endsAt {
-                                performance.startsAt = $0
-                                try? modelContext.save()
+                            if $0 < draftEndsAt {
+                                draftStartsAt = $0
                             }
                         }
                     ), displayedComponents: .hourAndMinute)
@@ -404,11 +455,10 @@ struct TimetablePerformanceInspectorSheet: View {
                         .foregroundStyle(TimetableStyle.foreground)
                     Spacer()
                     DatePicker("", selection: Binding(
-                        get: { performance.endsAt },
+                        get: { draftEndsAt },
                         set: {
-                            if $0 > performance.startsAt {
-                                performance.endsAt = $0
-                                try? modelContext.save()
+                            if $0 > draftStartsAt {
+                                draftEndsAt = $0
                             }
                         }
                     ), displayedComponents: .hourAndMinute)
@@ -423,7 +473,7 @@ struct TimetablePerformanceInspectorSheet: View {
                     .padding(.leading, 16)
                     .overlay(Color.white.opacity(0.06))
 
-                // Duration & Shifting Row
+                // Duration Row
                 HStack {
                     Text(BSLocalization.text("总时长"))
                         .font(.system(size: 14))
@@ -434,11 +484,6 @@ struct TimetablePerformanceInspectorSheet: View {
                         .foregroundStyle(TimetableStyle.mine)
 
                     Spacer()
-
-                    HStack(spacing: 6) {
-                        shiftButton(minutes: -10)
-                        shiftButton(minutes: 10)
-                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -450,28 +495,57 @@ struct TimetablePerformanceInspectorSheet: View {
         }
     }
 
-    private func shiftButton(minutes: Int) -> some View {
-        Button {
-            withAnimation(.snappy) {
-                performance.shiftTimes(by: TimeInterval(minutes * 60))
-                try? modelContext.save()
-            }
-        } label: {
-            Text("\(minutes > 0 ? "+" : "")\(minutes)m")
-                .font(TimetableStyle.mono(12, weight: .semibold))
-                .foregroundStyle(TimetableStyle.foreground)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.08))
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-                )
+    // MARK: - Confirmation & Committing
+
+    private func commitAndDismiss() {
+        let trimmedName = draftArtistName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            saveErrorMessage = BSLocalization.text("请输入艺人名称")
+            return
         }
-        .buttonStyle(.plain)
+
+        guard draftStartsAt < draftEndsAt else {
+            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            return
+        }
+
+        do {
+            var didChange = false
+
+            if performance.artistName != trimmedName
+                || performance.appleMusicArtistID != draftAppleMusicArtistID
+                || performance.artistAvatarURL != draftArtistAvatarURL
+                || performance.startsAt != draftStartsAt
+                || performance.endsAt != draftEndsAt {
+                try performance.updateDetails(
+                    artistName: trimmedName,
+                    startsAt: draftStartsAt,
+                    endsAt: draftEndsAt,
+                    appleMusicArtistID: draftAppleMusicArtistID,
+                    artistAvatarURL: draftArtistAvatarURL
+                )
+                didChange = true
+            }
+
+            if let draftStageID,
+               draftStageID != performance.stage?.id,
+               let targetStage = day.stages.first(where: { $0.id == draftStageID }) {
+                performance.moveTo(stage: targetStage)
+                didChange = true
+            }
+
+            if didChange {
+                day.timetable?.show?.updatedAt = Date()
+                try modelContext.save()
+                onPerformanceChanged?()
+            }
+
+            saveErrorMessage = nil
+            dismiss()
+        } catch {
+            modelContext.rollback()
+            saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+        }
     }
 
     // MARK: - Delete

@@ -6,8 +6,13 @@ enum ShowChangeStatus: String, CaseIterable, Codable, Equatable {
     case canceled
 }
 
-/// 现场的时间字段，纯值类型——SwiftData `Show` 与 widget 快照共用同一组输入，
-/// 让 `CurrentShowTimeState` 可以脱离 @Model 在 extension 进程里重算倒计时。
+struct ShowSessionTiming: Equatable, Codable {
+    var date: Date
+    var startsAt: Date
+    var endsAt: Date
+}
+
+/// App 与 Widget 共用的生命周期时间输入。
 struct ShowTimingFields: Equatable, Codable {
     var date: Date
     var startTime: Date
@@ -22,6 +27,8 @@ struct ShowTimingFields: Equatable, Codable {
     /// IANA timezone identifiers preserve DST rules when the source provides them.
     var timeZoneIdentifier: String? = nil
     var endTimeZoneIdentifier: String? = nil
+    var sessions: [ShowSessionTiming]? = nil
+    var sessionTimeZoneIdentifier: String? = nil
     var endedAt: Date? = nil
     var postponedDate: Date?
     var changeStatus: ShowChangeStatus
@@ -31,8 +38,8 @@ struct ShowTimingFields: Equatable, Codable {
     }
 
     func eventCalendar(fallback: Calendar) -> Calendar {
-        if let timeZoneIdentifier,
-           let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+        if let identifier = sessionTimeZoneIdentifier ?? timeZoneIdentifier,
+           let timeZone = TimeZone(identifier: identifier) {
             var calendar = fallback
             calendar.timeZone = timeZone
             return calendar
@@ -46,8 +53,26 @@ struct ShowTimingFields: Equatable, Codable {
         return calendar
     }
 
+    /// Timetable days define actual sessions, including skipped dates. Preserve
+    /// an earlier opening and a later explicit closing without truncating sets.
+    func resolvedSessions(calendar: Calendar) -> [ShowSessionTiming] {
+        var ranges = (sessions ?? []).filter { $0.startsAt < $0.endsAt }
+            .sorted { $0.startsAt < $1.startsAt }
+        guard !ranges.isEmpty else { return [] }
+        let opening = CurrentShowTimeState.effectiveStartTime(timing: self, calendar: calendar)
+        if calendar.isDate(opening, inSameDayAs: ranges[0].date) {
+            ranges[0].startsAt = min(opening, ranges[0].startsAt)
+        }
+        if endTime != nil {
+            let final = ranges.count - 1
+            let closing = CurrentShowTimeState.dailyEndTime(on: ranges[final].date, timing: self, calendar: calendar)
+            ranges[final].endsAt = max(closing, ranges[final].endsAt)
+        }
+        return ranges
+    }
+
     func endEventCalendar(fallback: Calendar) -> Calendar {
-        if let timeZoneIdentifier = endTimeZoneIdentifier ?? timeZoneIdentifier,
+        if let timeZoneIdentifier = endTimeZoneIdentifier ?? sessionTimeZoneIdentifier ?? timeZoneIdentifier,
            let timeZone = TimeZone(identifier: timeZoneIdentifier) {
             var calendar = fallback
             calendar.timeZone = timeZone

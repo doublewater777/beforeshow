@@ -231,6 +231,219 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         XCTAssertFalse(inventory.isEmpty)
     }
 
+    func testTimetableKeepsShowLiveBeyondDefaultEstimateAcrossAppAndWidget() throws {
+        let show = try lifecycleShow(sessions: [(14, 23)])
+        let now = date(20)
+        let state = CurrentShowTimeState(show: show, now: now)
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(state.endBoundary, date(23))
+        XCTAssertEqual(LiveActivityShowResolver().resolve(shows: [show], currentShow: show, now: now)?.id, show.id)
+        XCTAssertTrue(FootprintArchiveBuilder.make(shows: [show], now: now).shows.isEmpty)
+        let snapshot = WidgetShowSnapshot(show: show, generatedAt: now)
+        XCTAssertEqual(CurrentShowTimeState(timing: snapshot.timing, now: now).kind, .today)
+        let reminders = LocalNotificationScheduler().futureRequests(for: show, now: date(10))
+        XCTAssertEqual(reminders.first { $0.milestone == .postShowRitual }?.fireDate, date(23, 15))
+    }
+
+    func testChangedDatesSuspendOldTimetableWithoutMovingPerformances() throws {
+        for postponement in [true, false] {
+            let show = try lifecycleShow(sessions: [(14, 23)])
+            let performance = try XCTUnwrap(show.timetable?.orderedDays.first?.performances.first)
+            performance.isInterested = true
+            if postponement {
+                show.markPostponed(newDate: date(24 * 30))
+            } else {
+                var draft = ShowDraft(show: show)
+                draft.date = date(24 * 30)
+                try show.apply(draft)
+            }
+            XCTAssertEqual(performance.startsAt, date(14))
+            XCTAssertNil(CurrentShowLiveTimetablePolicy.resolve(for: show, now: date(15)))
+            XCTAssertNil(WidgetShowSnapshot(show: show, generatedAt: date(10)).timetable)
+            XCTAssertFalse(LocalNotificationScheduler().futureRequests(for: show, now: date(10))
+                .contains { $0.milestone == .interestedPerformance })
+        }
+    }
+
+    func testFinalDayUpcomingCannotConfirmWholeShowEnd() throws {
+        let show = try lifecycleShow(sessions: [(14, 23), (39, 47)], endDay: 24)
+        let now = date(36)
+        let state = CurrentShowTimeState(show: show, now: now)
+        XCTAssertFalse(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, now: now))
+        XCTAssertFalse(CurrentShowEndPolicy.isValidConfirmedEnd(date(36), for: show, now: date(48)))
+        XCTAssertTrue(CurrentShowEndPolicy.isValidConfirmedEnd(date(40), for: show, now: date(48)))
+    }
+
+    func testTimetableRestDayDoesNotBecomeDailyLiveSession() throws {
+        let show = try lifecycleShow(sessions: [(14, 23), (63, 71)], endDay: 48)
+        let state = CurrentShowTimeState(show: show, now: date(36))
+        XCTAssertEqual(state.kind, .dayEnded)
+        XCTAssertNil(LiveActivityPlanner.desiredState(
+            snapshot: WidgetShowSnapshot(show: show, generatedAt: date(36)), now: date(36), coverFilename: nil))
+        XCTAssertTrue(FootprintArchiveBuilder.make(shows: [show], now: date(36)).shows.isEmpty)
+    }
+
+    func testNonCurrentShowOnlySchedulesShowDayDespiteInterestedPerformances() throws {
+        let show = try lifecycleShow(sessions: [(14, 23)])
+        show.timetable?.orderedDays.first?.performances.first?.isInterested = true
+        let scheduler = LocalNotificationScheduler()
+        XCTAssertTrue(scheduler.futureRequests(for: show, now: date(6), scope: .all)
+            .contains { $0.milestone == .interestedPerformance })
+        XCTAssertEqual(scheduler.futureRequests(for: show, now: date(6), scope: .showDayOnly).map(\.milestone), [.showDay])
+    }
+
+    func testPostponedTimetableRequiresSavedConfirmationAfterDatesAreCorrected() throws {
+        let show = try lifecycleShow(sessions: [(14, 23)])
+        let timetable = try XCTUnwrap(show.timetable)
+        let day = try XCTUnwrap(timetable.orderedDays.first)
+        show.markPostponed(newDate: date(24))
+        XCTAssertFalse(timetable.confirmDates(for: show))
+        try timetable.updateDayDate(day, to: date(24))
+        XCTAssertNil(show.lifecycleTimetable)
+        try context.save()
+        let reloadedContext = ModelContext(container)
+        let reloaded = try XCTUnwrap(reloadedContext.fetch(FetchDescriptor<Show>()).first)
+        XCTAssertNil(reloaded.lifecycleTimetable)
+        let restoredTimetable = try XCTUnwrap(reloaded.timetable)
+        XCTAssertTrue(restoredTimetable.confirmDates(for: reloaded))
+        try reloadedContext.save()
+        XCTAssertEqual(CurrentShowTimeState(show: reloaded, now: date(44)).kind, .today)
+        XCTAssertEqual(CurrentShowTimeState(show: reloaded, now: date(44)).endBoundary, date(47))
+    }
+
+    func testTimetableVenueZoneWinsOverDeviceZoneAndConfirmedEndWinsOverSets() throws {
+        let show = try lifecycleShow(sessions: [(14, 23)])
+        var deviceCalendar = Calendar(identifier: .gregorian)
+        deviceCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let state = CurrentShowTimeState(show: show, calendar: deviceCalendar, now: date(6))
+        XCTAssertEqual(state.dayDistance, 0)
+        let timetable = try XCTUnwrap(show.timetable)
+        timetable.orderedDays.first?.performances.first?.isInterested = true
+        let requests = LocalNotificationScheduler(calendar: deviceCalendar).futureRequests(for: show, now: date(6))
+        XCTAssertTrue(try XCTUnwrap(requests.first { $0.milestone == .interestedPerformance }).body.contains("14:00 - 23:00"))
+        show.markEnded(at: date(20))
+        let snapshot = WidgetShowSnapshot(show: show, generatedAt: date(21))
+        XCTAssertEqual(CurrentShowTimeState(timing: snapshot.timing, calendar: deviceCalendar, now: date(21)).kind, .postShow)
+        XCTAssertNil(LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(21), coverFilename: nil))
+    }
+
+    func testTimetableCannotOverrideLaterExplicitClosing() throws {
+        let show = try lifecycleShow(sessions: [(14, 20)])
+        var draft = ShowDraft(show: show)
+        draft.endTime = date(23)
+        try show.apply(draft)
+        let now = date(21)
+        XCTAssertEqual(CurrentShowTimeState(show: show, now: now).kind, .today)
+        XCTAssertNil(CurrentShowLiveTimetablePolicy.resolve(for: show, now: now))
+        let activity = LiveActivityPlanner.desiredState(
+            snapshot: WidgetShowSnapshot(show: show, generatedAt: now), now: now, coverFilename: nil)
+        XCTAssertEqual(activity?.activityEnd, date(23))
+    }
+
+    private func lifecycleShow(sessions: [(Int, Int)], endDay: Int? = nil) throws -> Show {
+        let show = try Show(name: "Festival", date: date(0), startTime: date(10),
+                            endDate: endDay.map { date($0) }, timeZoneIdentifier: "Asia/Taipei")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Taipei")!
+        let days = try sessions.map { start, end in
+            let performance = try TimetablePerformance(artistName: "Artist", startsAt: date(start), endsAt: date(end))
+            let stage = try TimetableStage(name: "Main", performances: [performance])
+            return try TimetableDay(date: calendar.startOfDay(for: date(start)), stages: [stage])
+        }
+        show.timetable = try Timetable(timeZoneIdentifier: "Asia/Taipei", days: days)
+        context.insert(show)
+        return show
+    }
+
+
+    func testOvernightShowTimetableMatchesEndDateAndKeepsLiveState() throws {
+        // Oct 15 22:00 -> Oct 16 01:00 (single service day spanning midnight)
+        let show = try Show(
+            name: "Overnight Club",
+            date: date(22),
+            startTime: date(22),
+            endDate: date(25),
+            endTime: date(25),
+            timeZoneIdentifier: "Asia/Taipei"
+        )
+        let p = try TimetablePerformance(artistName: "DJ", startsAt: date(23), endsAt: date(24, 45))
+        let stage = try TimetableStage(name: "Club", performances: [p])
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Taipei")!
+        let day = try TimetableDay(date: calendar.startOfDay(for: date(22)), stages: [stage])
+        let timetable = try Timetable(timeZoneIdentifier: "Asia/Taipei", days: [day])
+        timetable.show = show
+        show.timetable = timetable
+        context.insert(show)
+
+        XCTAssertTrue(timetable.matchesDates(of: show))
+        XCTAssertNotNil(show.lifecycleTimetable)
+
+        let state = CurrentShowTimeState(show: show, now: date(24))
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(state.endBoundary, date(25))
+    }
+
+    func testRestDayCountdownHelperDoesNotSayTomorrow() throws {
+        // Friday 14:00-23:00 (h: 14..23), Sunday 14:00-23:00 (h: 62..71)
+        let show = try lifecycleShow(sessions: [(14, 23), (62, 71)], endDay: 48)
+        let state = CurrentShowTimeState(show: show, now: date(23, 30))
+        XCTAssertEqual(state.kind, .dayEnded)
+        XCTAssertEqual(state.nextSessionStartsAt, date(62))
+        XCTAssertFalse(state.helperText.contains("明天"))
+        XCTAssertTrue(state.helperText.contains("后天") || state.helperText.contains("14:00"))
+    }
+
+
+    func testModifyingPerformanceEndTimeTouchesShowUpdatedAtAndUpdatesPostShowNotification() throws {
+        let show = try lifecycleShow(sessions: [(14, 20)])
+        let initialUpdated = show.updatedAt
+        let performance = try XCTUnwrap(show.timetable?.orderedDays.first?.performances.first)
+
+        // Modify performance endsAt from 20:00 to 23:00
+        performance.endsAt = date(23)
+        show.updatedAt = Date()
+        try context.save()
+
+        XCTAssertTrue(show.updatedAt >= initialUpdated)
+        let state = CurrentShowTimeState(show: show, now: date(21))
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(state.endBoundary, date(23))
+
+        let scheduler = LocalNotificationScheduler()
+        let requests = scheduler.futureRequests(for: show, now: date(10), scope: .all)
+        XCTAssertEqual(requests.first { $0.milestone == .postShowRitual }?.fireDate, date(23, 15))
+    }
+
+    func testAddingPerformanceToLastDayExtendsShowEndBoundary() throws {
+        let show = try lifecycleShow(sessions: [(14, 20)])
+        let day = try XCTUnwrap(show.timetable?.orderedDays.first)
+        let stage = try XCTUnwrap(day.stages.first)
+
+        let newPerf = try TimetablePerformance(artistName: "Headliner", startsAt: date(21), endsAt: date(23, 30))
+        context.insert(newPerf)
+        newPerf.stage = stage
+        show.updatedAt = Date()
+        try context.save()
+
+        let state = CurrentShowTimeState(show: show, now: date(22))
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(state.endBoundary, date(23, 30))
+
+        let snapshot = WidgetShowSnapshot(show: show, generatedAt: date(22))
+        XCTAssertEqual(CurrentShowTimeState(timing: snapshot.timing, now: date(22)).endBoundary, date(23, 30))
+    }
+
+
+    func testPerformanceRejectsEmptyNameAndInvalidInterval() {
+        XCTAssertThrowsError(try TimetablePerformance(artistName: "   ", startsAt: date(14), endsAt: date(15))) { error in
+            XCTAssertEqual(error as? TimetableValidationError, .emptyArtistName)
+        }
+        XCTAssertThrowsError(try TimetablePerformance(artistName: "Valid Artist", startsAt: date(15), endsAt: date(14))) { error in
+            XCTAssertEqual(error as? TimetableValidationError, .invalidPerformanceInterval)
+        }
+    }
+
     private func date(_ hour: Int, _ minute: Int = 0) -> Date {
         Date(timeIntervalSince1970: 1790956800 + Double(hour) * 3_600 + Double(minute) * 60)
     }

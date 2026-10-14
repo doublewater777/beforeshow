@@ -289,7 +289,7 @@ struct HomeLiveModeView: View {
     @ViewBuilder
     private func dayEnded(_ next: Date?) -> some View {
         let now = Date()
-        let calendar = Calendar.current
+        let calendar = eventCalendar
         let days = timetable.orderedDays.filter { !$0.performances.isEmpty }
         let endedIndex = days.lastIndex { $0.performances.allSatisfy { $0.endsAt <= now } }
         let nextDay = endedIndex.flatMap { $0 + 1 < days.count ? days[$0 + 1] : nil }
@@ -578,8 +578,14 @@ struct HomeLiveModeView: View {
         HomeLiveStageChip(name: perf.stageName, index: stageOrder[perf.stageID] ?? 0, small: small)
     }
 
+    private var eventCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timetable.timeZoneIdentifier) ?? .current
+        return calendar
+    }
+
     private func clock(_ date: Date) -> String {
-        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+        let parts = eventCalendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 }
