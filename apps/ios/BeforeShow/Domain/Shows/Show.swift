@@ -432,7 +432,7 @@ final class Show {
     /// A confirmed curtain time must never precede the show's effective start.
     /// Status changes that mean the show did not happen clear it explicitly;
     /// edits preserve a still-valid confirmation and discard only stale values.
-    private func discardConfirmedEndBeforeEffectiveStart(calendar: Calendar = .current) {
+    func discardConfirmedEndBeforeEffectiveStart(calendar: Calendar = .current) {
         guard let endedAt else { return }
         let minimumConfirmableEnd = CurrentShowTimeState.minimumConfirmableEnd(for: self, calendar: calendar)
         if endedAt < minimumConfirmableEnd {
@@ -478,7 +478,7 @@ final class Show {
         )
     }
 
-    private func touch() {
+    func touch() {
         updatedAt = Date()
     }
 

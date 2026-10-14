@@ -3,6 +3,7 @@ import Foundation
 struct ProFeatureGate {
     static let freeBaseShowCapacity = 5
     static let minimumMonthlyFreeCapacity = 6
+    static let maxFreeShowCapacity = 20
 
     func canAddShow(
         from shows: [Show],
@@ -12,11 +13,16 @@ struct ProFeatureGate {
         guard !entitlement.isProActive else { return true }
 
         let currentCount = selfAddedShowCount(from: shows)
+        guard currentCount < Self.maxFreeShowCapacity else {
+            return false
+        }
         guard let baseline = state?.baselineSelfAddedShowCount else {
             return currentCount < Self.minimumMonthlyFreeCapacity
         }
 
-        return currentCount < max(Self.minimumMonthlyFreeCapacity, baseline + 1)
+        let monthlyAllowance = max(Self.minimumMonthlyFreeCapacity, baseline + 1)
+        let effectiveCapacity = min(Self.maxFreeShowCapacity, monthlyAllowance)
+        return currentCount < effectiveCapacity
     }
 
     /// Pure policy for establishing or advancing the durable free-capacity baseline.

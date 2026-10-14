@@ -38,6 +38,39 @@ extension Show {
             changeStatus: changeStatus
         )
     }
+
+    /// Aligns the show's date and times to match the timetable's schedule.
+    func alignDate(with timetable: Timetable) {
+        guard let firstDay = timetable.orderedDays.first else { return }
+        let cal = timingCalendar()
+        let oldStart = cal.startOfDay(for: effectiveDate)
+        let newStart = cal.startOfDay(for: firstDay.date)
+        let offset = cal.dateComponents([.day], from: oldStart, to: newStart).day ?? 0
+        if offset != 0 {
+            if let newDate = cal.date(byAdding: .day, value: offset, to: date) {
+                date = newDate
+            }
+            if let newStartTime = cal.date(byAdding: .day, value: offset, to: startTime) {
+                startTime = newStartTime
+            }
+            if let et = endTime, let newEndTime = cal.date(byAdding: .day, value: offset, to: et) {
+                endTime = newEndTime
+            }
+        }
+        if timetable.orderedDays.count > 1, let lastDay = timetable.orderedDays.last {
+            endDate = lastDay.date
+        } else if let end = endDate {
+            if offset != 0, let newEnd = cal.date(byAdding: .day, value: offset, to: end) {
+                endDate = newEnd
+            }
+            if let currentEnd = endDate, !cal.isDate(firstDay.date, inSameDayAs: currentEnd) {
+                endDate = endTime != nil ? date : nil
+            }
+        }
+        _ = timetable.confirmDates(for: self)
+        discardConfirmedEndBeforeEffectiveStart()
+        touch()
+    }
 }
 
 extension CurrentShowTimeState {

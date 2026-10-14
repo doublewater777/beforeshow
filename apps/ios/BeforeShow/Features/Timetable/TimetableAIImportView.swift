@@ -20,7 +20,7 @@ struct TimetableAIImportView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(TimetableStyle.mine)
-                    Text(BSLocalization.text("AI 导入后续将直接集成进 App，当前可先配合外部 AI 工具生成。"))
+                    Text(BSLocalization.text("支持配合外部工具生成排期结果，粘贴后即可一键导入。"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(TimetableStyle.dim)
                         .lineSpacing(3)
@@ -45,7 +45,7 @@ struct TimetableAIImportView: View {
                     .sensoryFeedback(.success, trigger: didCopy) { _, copied in copied }
                 }
 
-                step(2, BSLocalization.text("在 AI 工具中上传时刻表图片并发送指令"))
+                step(2, BSLocalization.text("在外部工具中上传时刻表图片并发送指令"))
 
                 step(3, BSLocalization.text("粘贴识别结果")) {
                     editor

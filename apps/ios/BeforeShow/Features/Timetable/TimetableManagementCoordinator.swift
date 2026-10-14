@@ -113,6 +113,7 @@ final class TimetableManagementCoordinator: ObservableObject {
             }
 
             show.timetable = newTimetable
+            show.alignDate(with: newTimetable)
             show.updatedAt = Date()
             modelContext.insert(newTimetable)
 
@@ -131,6 +132,10 @@ final class TimetableManagementCoordinator: ObservableObject {
             }
 
             try modelContext.save()
+            let container = modelContext.container
+            Task {
+                await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))
+            }
             await deleteImages(oldPaths, showID: show.id)
             await ShowAssetMediaStore.shared.releaseCommitGate()
             self.draft = nil
@@ -194,7 +199,6 @@ final class TimetableManagementCoordinator: ObservableObject {
             await deleteImages(newAssets.map(\.path), showID: show.id)
             await ShowAssetMediaStore.shared.releaseCommitGate()
             self.isSaving = false
-            presentToast(.failure, message: BSLocalization.text("图片保存失败，请重试"))
             return false
         }
     }
@@ -216,9 +220,6 @@ final class TimetableManagementCoordinator: ObservableObject {
         }
         linker.reuseKnownArtists(in: &result.draft)
         importSession = try? TimetableImportSession(result: result, imagesData: imagesData)
-        if importSession != nil, result.skippedCount > 0 {
-            presentToast(.neutral, message: BSLocalization.format("%d 场缺少艺人名，未导入", result.skippedCount))
-        }
         return importSession
     }
 

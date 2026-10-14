@@ -248,12 +248,13 @@ struct TimetableArtistAvatar: View {
     }
 }
 
-/// Lock line shown under import actions; recognition never leaves the device.
+/// Privacy notice shown under import actions; timetable photos are processed securely.
 struct TimetableOnDeviceNote: View {
     var body: some View {
-        Label(BSLocalization.text("仅在本机识别"), systemImage: "lock")
+        Label(BSLocalization.text("时刻表图片仅用于排期整理，不存储个人信息"), systemImage: "lock.shield")
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(TimetableStyle.dim)
             .labelStyle(.titleAndIcon)
     }
 }
+

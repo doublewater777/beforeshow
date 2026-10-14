@@ -128,6 +128,37 @@ final class Timetable {
         }
     }
 
+    /// Shifts all days and their performances so that Day 1 begins on targetDate.
+    func shift(toStartDate targetDate: Date, for show: Show? = nil) throws {
+        guard let firstDay = orderedDays.first else { return }
+        let targetStart = calendar.startOfDay(for: targetDate)
+        let offset = calendar.dateComponents([.day], from: firstDay.date, to: targetStart).day ?? 0
+        guard offset != 0 else {
+            if let show { _ = confirmDates(for: show) }
+            return
+        }
+
+        let sorted = offset > 0 ? orderedDays.reversed() : orderedDays
+        for day in sorted {
+            guard let newDayDate = calendar.date(byAdding: .day, value: offset, to: day.date) else { continue }
+            let shifted = try day.performances.map { performance in
+                guard let start = calendar.date(byAdding: .day, value: offset, to: performance.startsAt),
+                      let end = calendar.date(byAdding: .day, value: offset, to: performance.endsAt), start < end else {
+                    throw TimetableValidationError.invalidPerformanceInterval
+                }
+                return (performance, start, end)
+            }
+            day.setDate(newDayDate)
+            for (performance, start, end) in shifted {
+                performance.startsAt = start
+                performance.endsAt = end
+            }
+        }
+        if let show {
+            _ = confirmDates(for: show)
+        }
+    }
+
     @discardableResult
     /// New days start with named, empty stages; sets are only added on purpose.
     func addDay(date: Date, stageNames: [String]) throws -> TimetableDay {

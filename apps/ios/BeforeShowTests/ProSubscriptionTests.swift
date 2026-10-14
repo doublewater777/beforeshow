@@ -251,23 +251,23 @@ final class ProSubscriptionTests: XCTestCase {
         let now = quotaDate(2026, 9, 15, calendar: calendar)
         let active = ProEntitlementState.active(productID: "pro", expirationDate: nil)
         let expired = ProEntitlementState.expired(productID: "pro", expirationDate: now)
-        let twentyFive = try quotaShows(count: 25, date: now)
+        let twelve = try quotaShows(count: 12, date: now)
 
         capacity.synchronizeFreeCapacity(
-            from: twentyFive,
+            from: twelve,
             entitlement: active,
             now: now,
             calendar: calendar
         )
 
         XCTAssertTrue(capacity.canAddShow(
-            from: twentyFive,
+            from: twelve,
             entitlement: expired,
             now: now,
             calendar: calendar
         ))
         XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 26, date: now),
+            from: try quotaShows(count: 13, date: now),
             entitlement: expired,
             now: now,
             calendar: calendar
@@ -368,7 +368,7 @@ final class ProSubscriptionTests: XCTestCase {
         let october = quotaDate(2026, 10, 2, calendar: calendar)
 
         capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 20, date: september),
+            from: try quotaShows(count: 10, date: september),
             entitlement: .free,
             now: september,
             calendar: calendar
@@ -376,27 +376,109 @@ final class ProSubscriptionTests: XCTestCase {
         // Production synchronizes immediately after a successful add. Preserve
         // September's retained count before crossing the month boundary.
         capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 21, date: september),
+            from: try quotaShows(count: 11, date: september),
             entitlement: .free,
             now: september,
             calendar: calendar
         )
         capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 21, date: october),
+            from: try quotaShows(count: 11, date: october),
             entitlement: .free,
             now: october,
             calendar: calendar
         )
 
         XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 21, date: october),
+            from: try quotaShows(count: 11, date: october),
             entitlement: .free,
             now: october,
             calendar: calendar
         ))
         XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 22, date: october),
+            from: try quotaShows(count: 12, date: october),
             entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+    }
+
+    func testFreeCapacityHardCapAtTwentyShows() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let september = quotaDate(2026, 9, 10, calendar: calendar)
+        let october = quotaDate(2026, 10, 2, calendar: calendar)
+
+        // 19 shows in September with baseline 19 allows adding the 20th show.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 19, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 19, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        ))
+
+        // Once 20 shows are reached, adding is blocked.
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        ))
+
+        // Crossing into October must NOT grant a 21st slot for free users.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 20, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        )
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+
+        // Deleting a show frees space back to 19, allowing an add up to 20.
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 19, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+
+        // Pro subscribers are not bound by the 20-show cap.
+        let active = ProEntitlementState.active(productID: "pro", expirationDate: nil)
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: october),
+            entitlement: active,
+            now: october,
+            calendar: calendar
+        ))
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 25, date: october),
+            entitlement: active,
+            now: october,
+            calendar: calendar
+        ))
+
+        // Expired Pro users with >= 20 shows cannot add more shows.
+        let expired = ProEntitlementState.expired(productID: "pro", expirationDate: october)
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: october),
+            entitlement: expired,
+            now: october,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 25, date: october),
+            entitlement: expired,
             now: october,
             calendar: calendar
         ))
@@ -598,7 +680,16 @@ final class ProSubscriptionTests: XCTestCase {
             ProLimitReason.saveLimit.message,
             "免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。"
         )
-
+        XCTAssertEqual(ProLimitReason.hardCapLimit.title, "已达到免费 20 场上限")
+        XCTAssertEqual(
+            ProLimitReason.hardCapLimit.message,
+            "免费版最多可添加 20 场现场；删除现场可释放容量。开通 Pro 后不限制新增场次。"
+        )
+        XCTAssertEqual(ProLimitReason.recognitionLimit.title, "免费智能识别次数已用完")
+        XCTAssertEqual(
+            ProLimitReason.recognitionLimit.message,
+            "普通用户赠送 2 次时刻表智能识别；开通 Pro 后不限使用次数。自行导入排期与原图保存始终免费。"
+        )
     }
 
     func testEntitlementCanBePersistedForAppGates() {
@@ -790,7 +881,15 @@ final class ProSubscriptionTests: XCTestCase {
             "本月免费容量已用完",
             "免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。",
             "免费版基础 5 场，之后每个自然月容量 +1。Pro 不限制新增场次。",
-            "以特惠价升级，错过恢复原价；免费版仍会每个自然月增加 1 场容量。"
+            "以特惠价升级，错过恢复原价；免费版仍会每个自然月增加 1 场容量。",
+            "已达到免费 20 场上限",
+            "免费版最多可添加 20 场现场；删除现场可释放容量。开通 Pro 后不限制新增场次。",
+            "免费版基础 5 场容量（每月 +1，最多 20 场）与 2 次智能识别。Pro 解锁无限场次与不限次时刻表智能识别。",
+            "突破免费版 20 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。",
+            "免费智能识别次数已用完",
+            "普通用户赠送 2 次时刻表智能识别；开通 Pro 后不限使用次数。自行导入排期与原图保存始终免费。",
+            "不限次数通过图片识别演出排期与舞台矩阵（普通用户赠送 2 次）。",
+            "Pro 已启用，已解锁无限添加现场与时刻表智能识别。"
         ]
 
         for code in ["en", "zh-Hant"] {

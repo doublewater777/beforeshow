@@ -125,24 +125,18 @@ struct ProPaywallHero: View {
 
 struct ProPaywallBenefitCard: View {
     var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(BSColor.Stage.accent)
-                .frame(width: 24, height: 24)
-                .background(BSColor.Stage.accent.opacity(0.12))
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(BSLocalization.text("无限添加现场"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.text("未来的每一场，都可以继续进入「当前」并最终留进「足迹」。"))
-                    .font(.system(size: 11.8))
-                    .lineSpacing(2)
-                    .foregroundColor(BSColor.Stage.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        VStack(spacing: 12) {
+            benefitRow(
+                icon: "infinity",
+                title: BSLocalization.text("无限添加现场"),
+                subtitle: BSLocalization.text("突破免费版 20 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。")
+            )
+            Divider().overlay(BSColor.Stage.border)
+            benefitRow(
+                icon: "sparkles",
+                title: BSLocalization.text("时刻表智能识别"),
+                subtitle: BSLocalization.text("不限次数通过图片识别演出排期与舞台矩阵（普通用户赠送 2 次）。")
+            )
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 14)
@@ -154,6 +148,28 @@ struct ProPaywallBenefitCard: View {
                 .stroke(BSColor.Stage.border, lineWidth: 1)
         )
     }
+
+    private func benefitRow(icon: String, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(BSColor.Stage.accent)
+                .frame(width: 24, height: 24)
+                .background(BSColor.Stage.accent.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text(subtitle)
+                    .font(.system(size: 11.8))
+                    .lineSpacing(2)
+                    .foregroundColor(BSColor.Stage.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
 }
 
 struct ProPaywallActiveCard: View {
@@ -162,7 +178,7 @@ struct ProPaywallActiveCard: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 20))
                 .foregroundStyle(BSColor.brandGradient)
-            Text(BSLocalization.text("Pro 已启用，可以继续添加现场。"))
+            Text(BSLocalization.text("Pro 已启用，已解锁无限添加现场与时刻表智能识别。"))
                 .font(BSFont.body)
                 .foregroundColor(BSColor.Stage.foreground)
         }

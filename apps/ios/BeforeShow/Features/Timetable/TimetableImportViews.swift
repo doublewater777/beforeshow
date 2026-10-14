@@ -4,8 +4,10 @@ import UIKit
 /// No timetable yet: an empty stage waiting for its schedule.
 struct TimetableEmptyStateView: View {
     let errorMessage: String?
-    let onPickPhotos: () -> Void
-    let onAIImport: () -> Void
+    var quotaBadge: String? = nil
+    let onSmartRecognition: () -> Void
+    let onManualImport: () -> Void
+    let onSaveOriginalPhotos: () -> Void
 
     @State private var breathe = false
 
@@ -31,7 +33,7 @@ struct TimetableEmptyStateView: View {
                 .font(.system(size: 26, weight: .heavy))
                 .foregroundStyle(TimetableStyle.foreground)
                 .padding(.top, 20)
-            Text(BSLocalization.text("借助 AI 整理时刻表，或直接保存官方原图"))
+            Text(BSLocalization.text("智能整理时刻表，或直接保存官方原图"))
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(TimetableStyle.muted)
                 .padding(.top, 10)
@@ -49,28 +51,64 @@ struct TimetableEmptyStateView: View {
 
             Spacer(minLength: 24)
 
-            Button(action: onAIImport) {
-                Label(BSLocalization.text("借助 AI 导入"), systemImage: "sparkles")
-                    .font(.system(size: 17, weight: .bold))
+            VStack(spacing: 12) {
+                Button(action: onSmartRecognition) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 17, weight: .bold))
+                        Text(BSLocalization.text("智能识别时刻表"))
+                            .font(.system(size: 16, weight: .bold))
+                        Spacer()
+                        if let quotaBadge, !quotaBadge.isEmpty {
+                            Text(quotaBadge)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TimetableStyle.background.opacity(0.85))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Color.white.opacity(0.25)))
+                        }
+                    }
                     .foregroundStyle(TimetableStyle.background)
+                    .padding(.horizontal, 18)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 56)
+                    .frame(height: 54)
                     .background(Capsule().fill(TimetableStyle.foreground))
-            }
-            .buttonStyle(TimetablePressStyle())
-            .padding(.horizontal, 24)
+                }
+                .buttonStyle(TimetablePressStyle())
 
-            Button(action: onPickPhotos) {
-                Label(BSLocalization.text("仅保存图片"), systemImage: "photo")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(TimetableStyle.foreground)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: BSLayout.minTouchTarget)
+                HStack(spacing: 10) {
+                    Button(action: onManualImport) {
+                        Label(BSLocalization.text("自行导入排期"), systemImage: "doc.text")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TimetableStyle.foreground)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.white.opacity(0.08))
+                            )
+                    }
+                    .buttonStyle(TimetablePressStyle())
+
+                    Button(action: onSaveOriginalPhotos) {
+                        Label(BSLocalization.text("仅保存原图"), systemImage: "photo")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(TimetableStyle.foreground)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.white.opacity(0.08))
+                            )
+                    }
+                    .buttonStyle(TimetablePressStyle())
+                }
+
+                TimetableOnDeviceNote()
+                    .padding(.top, 4)
             }
-            .buttonStyle(TimetablePressStyle())
-            .padding(.horizontal, 24)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)
         .background(alignment: .top) {

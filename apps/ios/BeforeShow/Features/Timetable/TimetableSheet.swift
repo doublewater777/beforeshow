@@ -16,7 +16,19 @@ struct TimetableSheet: View {
     @Query private var shows: [Show]
     @Query private var timetableAssets: [ShowAsset]
 
+    private enum PhotoPickerIntent {
+        case smartRecognition
+        case saveOriginalOnly
+        case addOrReplaceOriginal
+    }
+
+    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @StateObject private var coordinator = TimetableManagementCoordinator()
+    @State private var quota = TimetableRecognitionQuota()
+    @State private var isProPaywallPresented = false
+    @State private var isChromeVisible = true
+    @State private var photoPickerIntent: PhotoPickerIntent = .saveOriginalOnly
+
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var pendingImagesData: [Data] = []
     @State private var isPhotosPickerPresented = false
@@ -28,6 +40,9 @@ struct TimetableSheet: View {
     @State private var originalImagePage = 0
     @State private var addPerformanceTrigger = 0
     @State private var loadedAssetImages: [UIImage] = []
+    @State private var isLoadingSavedImages = true
+    @State private var isProcessingPhotos = false
+    @State private var photoImportError: String?
     @State private var pendingImages: [UIImage] = []
     @State private var selectedDayID: UUID?
     @State private var avatars: TimetableArtistAvatarStore
@@ -52,6 +67,10 @@ struct TimetableSheet: View {
         })
     }
 
+    private var isPro: Bool {
+        ProEntitlementStorage.decode(entitlementRawValue).isProActive
+    }
+
     private var currentShow: Show? { shows.first }
     private var hasStructuredTimetable: Bool { currentShow?.timetable != nil }
     private var hasSavedImages: Bool { !timetableAssets.isEmpty }
@@ -66,11 +85,12 @@ struct TimetableSheet: View {
     private var isReviewing: Bool { coordinator.importSession != nil }
 
     private var showsTimetable: Bool {
-        !coordinator.isRecognizing && (hasStructuredTimetable || isReviewing)
+        !coordinator.isRecognizing && (hasStructuredTimetable || hasSavedImages || isReviewing)
     }
 
     private var navigationTitle: String {
-        if isAIImporting { return BSLocalization.text("AI 导入") }
+        if isAIImporting { return BSLocalization.text("导入时刻表") }
+        if coordinator.isRecognizing { return BSLocalization.text("正在智能识别…") }
         if let session = coordinator.importSession {
             return session.timetable.days.count > 1 ? "" : BSLocalization.text("核对时刻表")
         }
@@ -82,7 +102,12 @@ struct TimetableSheet: View {
             ZStack {
                 TimetableStyle.background.ignoresSafeArea()
 
-                if isAIImporting {
+                if coordinator.isRecognizing {
+                    TimetableRecognizingView(
+                        image: pendingImages.first ?? loadedAssetImages.first,
+                        imageCount: max(1, pendingImages.count > 0 ? pendingImages.count : loadedAssetImages.count)
+                    )
+                } else if isAIImporting {
                     TimetableAIImportView(onImport: importText)
                 } else if let session = coordinator.importSession {
                     TimetableImportReviewView(
@@ -105,12 +130,35 @@ struct TimetableSheet: View {
                         onManage: openManagement
                     )
                 } else if hasSavedImages {
-                    legacyImagesContent
+                    TimetableSavedImagesView(
+                        images: loadedAssetImages,
+                        currentIndex: $originalImagePage,
+                        isLoading: isLoadingSavedImages,
+                        onRetry: { Task { await loadSavedImages() } },
+                        onRecognizePoster: triggerSmartRecognitionFromSaved,
+                        onAddPhotos: {
+                            photoPickerIntent = .addOrReplaceOriginal
+                            isPhotosPickerPresented = true
+                        },
+                        isChromeVisible: $isChromeVisible
+                    )
                 } else {
                     TimetableEmptyStateView(
-                        errorMessage: coordinator.recognitionError,
-                        onPickPhotos: { isPhotosPickerPresented = true },
-                        onAIImport: openAIImport
+                        errorMessage: coordinator.recognitionError ?? photoImportError,
+                        quotaBadge: quota.badgeText(isPro: isPro),
+                        onSmartRecognition: {
+                            guard quota.canRecognize(isPro: isPro) else {
+                                isProPaywallPresented = true
+                                return
+                            }
+                            photoPickerIntent = .smartRecognition
+                            isPhotosPickerPresented = true
+                        },
+                        onManualImport: openAIImport,
+                        onSaveOriginalPhotos: {
+                            photoPickerIntent = .saveOriginalOnly
+                            isPhotosPickerPresented = true
+                        }
                     )
                 }
 
@@ -127,10 +175,17 @@ struct TimetableSheet: View {
                     )
                 }
 
+                if isProcessingPhotos {
+                    TimetableStyle.background.opacity(0.85).ignoresSafeArea()
+                    ProgressView(BSLocalization.text(coordinator.isSaving ? "保存中…" : "正在读取图片…"))
+                        .font(BSFont.body)
+                        .foregroundStyle(TimetableStyle.foreground)
+                }
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar(isChromeVisible ? .visible : .hidden, for: .navigationBar)
             .bsClearNavigationContainer()
             .toolbar {
                 if isAIImporting {
@@ -144,14 +199,8 @@ struct TimetableSheet: View {
                         .accessibilityLabel(BSLocalization.text("返回"))
                     }
                 } else if !isReviewing {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .foregroundColor(BSColor.textSecondary)
-                        }
-                        .accessibilityLabel(BSLocalization.text("关闭"))
+                    BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("关闭")) {
+                        dismiss()
                     }
                     if showsTimetable, let timetable = currentShow?.timetable, timetable.days.count > 1 {
                         ToolbarItem(placement: .principal) {
@@ -161,22 +210,14 @@ struct TimetableSheet: View {
                             )
                         }
                     }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        if !originalImages.isEmpty {
-                            Button {
-                                openOriginalImageViewer()
-                            } label: {
-                                Image(systemName: "photo")
-                                    .foregroundColor(BSColor.textSecondary)
-                            }
-                            .accessibilityLabel(BSLocalization.text("查看原图"))
-                        }
-                        if hasStructuredTimetable || hasSavedImages {
+                    if hasStructuredTimetable || hasSavedImages {
+                        ToolbarItem(placement: .topBarTrailing) {
                             managementMenu
                         }
                     }
                 }
             }
+            .disabled(isProcessingPhotos || coordinator.isSaving)
             .navigationDestination(isPresented: $isManagingDays) {
                 if let timetable = currentShow?.timetable {
                     TimetableManageView(timetable: timetable, selectedDayID: dayBinding(for: timetable), coordinator: coordinator)
@@ -187,7 +228,35 @@ struct TimetableSheet: View {
             TimetableOrientationHost(controller: orientation, isEnabled: showsTimetable && !isPhotosPickerPresented && !isManagingDays && !isAIImporting)
         }
         .bsToastOverlay(coordinator.toast, bottomPadding: 36)
-        .interactiveDismissDisabled(coordinator.isSaving)
+        .safeAreaInset(edge: .bottom) {
+            if let photoImportError {
+                HStack(spacing: BSSpacing.md) {
+                    Label(photoImportError, systemImage: "exclamationmark.triangle")
+                        .font(BSFont.caption)
+                        .foregroundStyle(TimetableStyle.attention)
+                    Spacer(minLength: 0)
+                    Button {
+                        isPhotosPickerPresented = true
+                    } label: {
+                        Image(systemName: "photo.badge.plus")
+                    }
+                    .accessibilityLabel(BSLocalization.text("更换图片"))
+                    Button {
+                        self.photoImportError = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel(BSLocalization.text("关闭"))
+                }
+                .foregroundStyle(TimetableStyle.foreground)
+                .frame(minHeight: BSLayout.minTouchTarget)
+                .padding(.horizontal, BSSpacing.lg)
+                .padding(.vertical, BSSpacing.sm)
+                .background(TimetableStyle.lane)
+                .disabled(isProcessingPhotos)
+            }
+        }
+        .interactiveDismissDisabled(isProcessingPhotos || coordinator.isSaving)
         .fullScreenCover(isPresented: $isFullScreenImagePresented) {
             TimetableOriginalImageViewer(
                 images: originalImages,
@@ -201,10 +270,18 @@ struct TimetableSheet: View {
             maxSelectionCount: 10,
             matching: .images
         )
+        .sheet(isPresented: $isProPaywallPresented) {
+            ProPaywallView()
+        }
         .onChange(of: selectedPhotoItems) { _, items in
             guard !items.isEmpty else { return }
             Task {
-                await processPickedPhotos(items)
+                switch photoPickerIntent {
+                case .smartRecognition:
+                    await processPickedPhotosForRecognition(items)
+                case .saveOriginalOnly, .addOrReplaceOriginal:
+                    await processPickedPhotos(items)
+                }
             }
         }
         .task {
@@ -257,57 +334,101 @@ struct TimetableSheet: View {
 
     private var managementMenu: some View {
         Menu {
-            if !originalImages.isEmpty {
-                Section {
-                    Button {
-                        openOriginalImageViewer()
-                    } label: {
-                        Label(BSLocalization.text("查看原图"), systemImage: "photo")
-                    }
-                    Button {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            isOriginalVisible.toggle()
+            if hasStructuredTimetable {
+                if !originalImages.isEmpty {
+                    Section {
+                        Button {
+                            openOriginalImageViewer()
+                        } label: {
+                            Label(BSLocalization.text("查看时刻表原图"), systemImage: "photo")
                         }
-                    } label: {
-                        Label(
-                            BSLocalization.text(isOriginalVisible ? "隐藏原图对照" : "查看原图对照"),
-                            systemImage: isOriginalVisible ? "pip.exit" : "pip"
-                        )
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                isOriginalVisible.toggle()
+                            }
+                        } label: {
+                            Label(
+                                BSLocalization.text(isOriginalVisible ? "隐藏原图对照" : "画中画对照原图"),
+                                systemImage: isOriginalVisible ? "pip.exit" : "pip"
+                            )
+                        }
                     }
                 }
-            }
 
-            if hasStructuredTimetable {
                 Section {
                     Button {
                         addPerformanceTrigger += 1
                     } label: {
-                        Label(BSLocalization.text("添加演出"), systemImage: "plus")
+                        Label(BSLocalization.text("添加单场演出"), systemImage: "plus")
                     }
                     Button(action: openManagement) {
-                        Label(BSLocalization.text("管理时刻表"), systemImage: "slider.horizontal.3")
+                        Label(BSLocalization.text("管理天数与舞台"), systemImage: "slider.horizontal.3")
                     }
                 }
-            }
 
-            Section {
-                Button(action: openAIImport) {
-                    Label(BSLocalization.text(hasStructuredTimetable ? "借助 AI 重新导入" : "借助 AI 导入"), systemImage: "sparkles")
+                Section {
+                    if !originalImages.isEmpty {
+                        Button(action: triggerSmartRecognitionFromSaved) {
+                            Label(BSLocalization.text("重新智能识别此图"), systemImage: "sparkles")
+                        }
+                    }
+                    Button(action: openAIImport) {
+                        Label(BSLocalization.text("自行导入排期 (文本/JSON)"), systemImage: "doc.text")
+                    }
+                    Button {
+                        photoPickerIntent = .addOrReplaceOriginal
+                        isPhotosPickerPresented = true
+                    } label: {
+                        Label(BSLocalization.text(hasSavedImages ? "更换时刻表图片" : "添加时刻表图片"), systemImage: "photo.badge.plus")
+                    }
                 }
-                Button {
-                    isPhotosPickerPresented = true
-                } label: {
-                    Label(BSLocalization.text(hasSavedImages ? "更换时刻表图片" : "保存时刻表图片"), systemImage: "photo")
+
+                Section {
+                    Button(role: .destructive) {
+                        isConfirmingDelete = true
+                    } label: {
+                        Label(BSLocalization.text("删除时刻表排期"), systemImage: "trash")
+                    }
                 }
-                Button(role: .destructive) {
-                    isConfirmingDelete = true
-                } label: {
-                    Label(BSLocalization.text("删除时刻表"), systemImage: "trash")
+            } else if hasSavedImages {
+                Section {
+                    Button {
+                        openOriginalImageViewer()
+                    } label: {
+                        Label(BSLocalization.text("全屏查看图片"), systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+                }
+
+                Section {
+                    Button(action: triggerSmartRecognitionFromSaved) {
+                        Label(BSLocalization.text("智能识别为排期"), systemImage: "sparkles")
+                    }
+                    Button(action: openAIImport) {
+                        Label(BSLocalization.text("自行导入排期 (文本/JSON)"), systemImage: "doc.text")
+                    }
+                }
+
+                Section {
+                    Button {
+                        photoPickerIntent = .addOrReplaceOriginal
+                        isPhotosPickerPresented = true
+                    } label: {
+                        Label(BSLocalization.text("更换时刻表图片"), systemImage: "photo.badge.plus")
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        isConfirmingDelete = true
+                    } label: {
+                        Label(BSLocalization.text("删除已存图片"), systemImage: "trash")
+                    }
                 }
             }
         } label: {
             Image(systemName: "ellipsis")
                 .foregroundColor(BSColor.textSecondary)
+                .frame(minWidth: 32, minHeight: 32)
         }
         .accessibilityLabel(BSLocalization.text("更多"))
     }
@@ -384,71 +505,86 @@ struct TimetableSheet: View {
         return avatars.url(for: performance.artistName)
     }
 
-    private var legacyImagesContent: some View {
-        VStack(spacing: BSSpacing.lg) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(Array(loadedAssetImages.enumerated()), id: \.offset) { index, img in
-                        Button {
-                            openOriginalImageViewer(page: index)
-                        } label: {
-                            Image(uiImage: img)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 240, height: 340)
-                                .background(Color.black.opacity(0.6))
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, BSSpacing.lg)
+    private func processPickedPhotos(_ items: [PhotosPickerItem]) async {
+        guard !isProcessingPhotos else { return }
+        isProcessingPhotos = true
+        photoImportError = nil
+        defer { isProcessingPhotos = false }
+        var datas: [Data] = []
+        for item in items {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               UIImage(data: data) != nil {
+                datas.append(data)
             }
-
-            VStack(spacing: 12) {
-                Button(action: openAIImport) {
-                    Label(BSLocalization.text("借助 AI 导入时刻表"), systemImage: "sparkles")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(TimetableStyle.background)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Capsule().fill(TimetableStyle.foreground))
-                }
-                .buttonStyle(TimetablePressStyle())
-
-                HStack(spacing: 12) {
-                    Button {
-                        openOriginalImageViewer()
-                    } label: {
-                        Text(BSLocalization.text("全屏查看"))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(TimetableStyle.foreground)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .background(Capsule().fill(Color.white.opacity(0.10)))
-                    }
-                    .buttonStyle(TimetablePressStyle())
-
-                    Button {
-                        isPhotosPickerPresented = true
-                    } label: {
-                        Text(BSLocalization.text("更换图片"))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(TimetableStyle.foreground)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .background(Capsule().fill(Color.white.opacity(0.10)))
-                    }
-                    .buttonStyle(TimetablePressStyle())
-                }
-            }
-            .padding(.horizontal, BSSpacing.lg)
         }
-        .padding(.vertical, BSSpacing.lg)
+        selectedPhotoItems = []
+        guard datas.count == items.count else {
+            photoImportError = BSLocalization.text("图片读取失败，请重试")
+            return
+        }
+        guard let show = currentShow else { return }
+        let saved = await coordinator.saveOriginalImages(imagesData: datas, show: show, modelContext: modelContext)
+        if saved {
+            originalImagePage = 0
+            await loadSavedImages()
+        } else {
+            photoImportError = BSLocalization.text("图片保存失败，请重试")
+        }
     }
 
-    private func processPickedPhotos(_ items: [PhotosPickerItem]) async {
+    private func loadSavedImages() async {
+        isLoadingSavedImages = true
+        defer { isLoadingSavedImages = false }
+        guard let show = currentShow else { return }
+        var loaded: [UIImage] = []
+        for asset in timetableAssets.sorted(by: { $0.createdAt < $1.createdAt }) {
+            if let url = try? await ShowAssetMediaStore.shared.absoluteURL(
+                for: asset.relativePath,
+                showID: show.id,
+                kind: .timetable
+            ), let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
+                loaded.append(img)
+            }
+        }
+        loadedAssetImages = loaded
+        originalImagePage = min(originalImagePage, max(0, loaded.count - 1))
+    }
+
+    private func triggerSmartRecognitionFromSaved() {
+        guard !loadedAssetImages.isEmpty else { return }
+        guard quota.canRecognize(isPro: isPro) else {
+            isProPaywallPresented = true
+            return
+        }
+        Task {
+            var datas: [Data] = []
+            for asset in timetableAssets.sorted(by: { $0.createdAt < $1.createdAt }) {
+                if let show = currentShow,
+                   let url = try? await ShowAssetMediaStore.shared.absoluteURL(
+                    for: asset.relativePath,
+                    showID: show.id,
+                    kind: .timetable
+                ), let data = try? Data(contentsOf: url) {
+                    datas.append(data)
+                }
+            }
+            if datas.isEmpty {
+                for img in loadedAssetImages {
+                    if let d = img.jpegData(compressionQuality: 0.8) {
+                        datas.append(d)
+                    }
+                }
+            }
+            await performSmartRecognition(images: loadedAssetImages, datas: datas)
+        }
+    }
+
+    private func processPickedPhotosForRecognition(_ items: [PhotosPickerItem]) async {
+        guard !isProcessingPhotos else { return }
+        isProcessingPhotos = true
+        photoImportError = nil
+        defer { isProcessingPhotos = false }
+
         var images: [UIImage] = []
         var datas: [Data] = []
         for item in items {
@@ -459,25 +595,53 @@ struct TimetableSheet: View {
             }
         }
         selectedPhotoItems = []
-        guard !datas.isEmpty, let show = currentShow else { return }
-        let saved = await coordinator.saveOriginalImages(imagesData: datas, show: show, modelContext: modelContext)
-        if saved {
-            await loadSavedImages()
+        guard !images.isEmpty else {
+            photoImportError = BSLocalization.text("图片读取失败，请重试")
+            return
+        }
+        await performSmartRecognition(images: images, datas: datas)
+    }
+
+    private func performSmartRecognition(images: [UIImage], datas: [Data]) async {
+        guard let show = currentShow else { return }
+        coordinator.isRecognizing = true
+        coordinator.recognitionError = nil
+        pendingImages = images
+        pendingImagesData = datas
+
+        do {
+            let service = RemoteTimetableRecognitionService.production()
+            let document = try await service.recognize(images: images)
+            let result = try TimetableImportMapper.result(
+                from: document,
+                defaultTimeZoneIdentifier: timeZoneIdentifier(for: show),
+                fallbackDate: show.date,
+                unnamedStage: { BSLocalization.format("舞台 %d", $0) }
+            )
+            quota.consumeQuotaIfFree(isPro: isPro)
+            coordinator.isRecognizing = false
+            let session = coordinator.beginReview(
+                result,
+                imagesData: datas,
+                show: show,
+                linker: artistLinker
+            )
+            if let session {
+                matchArtists(in: session)
+            }
+        } catch let err as RemoteTimetableRecognitionError {
+            coordinator.isRecognizing = false
+            coordinator.recognitionError = err.localizedDescription
+        } catch {
+            coordinator.isRecognizing = false
+            coordinator.recognitionError = BSLocalization.text("识别时刻表失败，请稍后重试")
         }
     }
 
-    private func loadSavedImages() async {
-        guard let show = currentShow else { return }
-        var loaded: [UIImage] = []
-        for asset in timetableAssets {
-            if let url = try? await ShowAssetMediaStore.shared.absoluteURL(
-                for: asset.relativePath,
-                showID: show.id,
-                kind: .timetable
-            ), let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
-                loaded.append(img)
-            }
+    private func timeZoneIdentifier(for show: Show) -> String {
+        if let identifier = show.timeZoneIdentifier, TimeZone(identifier: identifier) != nil {
+            return identifier
         }
-        loadedAssetImages = loaded
+        return "Asia/Shanghai"
     }
 }
