@@ -1,8 +1,17 @@
 import Foundation
 import SwiftData
 
-/// Pure policy: which scheduled, not-yet-ended shows come after the current one.
+/// Pure policy: which scheduled, not-yet-started shows come after the current one.
 enum CurrentShowFollowUpPolicy {
+    /// The first actual opening, not the next session when a festival pauses overnight.
+    /// Filtering, ordering and row countdowns must use the same instant.
+    static func firstStart(for show: Show, calendar: Calendar = .current) -> Date {
+        let timing = show.timingFields
+        let eventCalendar = timing.eventCalendar(fallback: calendar)
+        return timing.resolvedSessions(calendar: eventCalendar).first?.startsAt
+            ?? CurrentShowTimeState.effectiveStartTime(timing: timing, calendar: eventCalendar)
+    }
+
     static func laterShows(
         from shows: [Show],
         excluding currentShowID: UUID?,
@@ -14,12 +23,11 @@ enum CurrentShowFollowUpPolicy {
                 guard show.id != currentShowID,
                       show.changeStatus == .scheduled,
                       show.endedAt == nil else { return false }
-                let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
-                return start > now
+                return firstStart(for: show, calendar: calendar) > now
             }
             .sorted {
-                CurrentShowTimeState.effectiveStartTime(for: $0, calendar: calendar)
-                    < CurrentShowTimeState.effectiveStartTime(for: $1, calendar: calendar)
+                firstStart(for: $0, calendar: calendar)
+                    < firstStart(for: $1, calendar: calendar)
             }
     }
 }

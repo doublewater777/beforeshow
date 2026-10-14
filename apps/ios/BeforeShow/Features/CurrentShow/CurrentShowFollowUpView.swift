@@ -130,13 +130,11 @@ struct CurrentShowFollowUpSummary: View {
     }
 
     private func distanceText(to show: Show) -> String {
-        let timeState = CurrentShowTimeState(show: show, now: now)
-        guard let start = timeState.effectiveStartTime else {
-            return BSLocalization.text("时间待定")
-        }
+        let start = CurrentShowFollowUpPolicy.firstStart(for: show)
+        let calendar = show.timingFields.eventCalendar(fallback: .current)
         return CountdownCopy.until(
             remainingSeconds: max(0, Int(start.timeIntervalSince(now))),
-            dayDistance: timeState.dayDistance
+            dayDistance: ShowCountdownRule.calendarDays(from: now, to: start, calendar: calendar)
         )
     }
 }
