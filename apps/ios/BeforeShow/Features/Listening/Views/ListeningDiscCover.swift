@@ -73,7 +73,6 @@ struct ListeningCompilationJacket: View {
     }
 }
 
-
 /// The compilation's CD label shares its sleeve identity, but not its square
 /// typography layout: both text bands must clear the hub and circular edge.
 struct ListeningCompilationDiscLabel: View {
