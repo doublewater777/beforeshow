@@ -124,13 +124,13 @@ final class ArchitectureModuleTests: XCTestCase {
     func testCountdownBoundaryAtExactly24HoursShowsClockNotOneDay() {
         // 与 widget 同一阈值:remaining == 86400 必须是时钟,只有 > 86400 才进入「天」档。
         XCTAssertNil(
-            WidgetTimelinePlanner.dayCountHeroDays(
+            ShowCountdownRule.dayCount(
                 remainingSeconds: 86_400,
                 dayDistance: 1
             )
         )
         XCTAssertEqual(
-            WidgetTimelinePlanner.dayCountHeroDays(
+            ShowCountdownRule.dayCount(
                 remainingSeconds: 86_401,
                 dayDistance: 1
             ),
@@ -163,7 +163,7 @@ final class ArchitectureModuleTests: XCTestCase {
         XCTAssertEqual(remaining / 86_400, 1, "旧算法会把约 41 小时截断成 1 天")
         XCTAssertEqual(state.dayDistance, 2)
         XCTAssertEqual(
-            WidgetTimelinePlanner.dayCountHeroDays(
+            ShowCountdownRule.dayCount(
                 remainingSeconds: remaining,
                 dayDistance: state.dayDistance
             ),
@@ -201,6 +201,52 @@ final class ArchitectureModuleTests: XCTestCase {
         )
         XCTAssertEqual(state.countdownNumber, "23")
         XCTAssertEqual(state.countdownUnit, BSLocalization.text("小时"))
+    }
+
+    func testSharedCountdownRuleUsesCalendarDaysBeyond24Hours() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 14, hour: 21
+        )))
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 16, hour: 19, minute: 30
+        )))
+        XCTAssertEqual(ShowCountdownRule.calendarDays(from: now, to: start, calendar: calendar), 2)
+        XCTAssertEqual(ShowCountdownRule.upcoming(from: now, to: start, calendar: calendar), .days(2))
+        XCTAssertEqual(
+            CountdownCopy.until(remainingSeconds: Int(start.timeIntervalSince(now)), dayDistance: 2),
+            BSLocalization.format("%lld 天后", Int64(2))
+        )
+    }
+
+    func testSharedCountdownRuleSwitchesAtExactly24Hours() {
+        XCTAssertEqual(ShowCountdownRule.upcoming(remainingSeconds: 86_401, dayDistance: 2), .days(2))
+        XCTAssertEqual(ShowCountdownRule.upcoming(remainingSeconds: 86_400, dayDistance: 1), .hours(24))
+        XCTAssertEqual(ShowCountdownRule.upcoming(remainingSeconds: 3_599, dayDistance: 1), .minutes(59))
+        XCTAssertEqual(
+            CountdownCopy.until(remainingSeconds: 86_400, dayDistance: 1),
+            BSLocalization.format("%lld 小时后", Int64(24))
+        )
+    }
+
+    func testSharedCountdownRuleHandlesDSTAndYearBoundary() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let beforeDST = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 3, day: 7, hour: 20
+        )))
+        let afterDST = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 3, day: 9, hour: 19
+        )))
+        XCTAssertEqual(ShowCountdownRule.upcoming(from: beforeDST, to: afterDST, calendar: calendar), .days(2))
+        let yearEnd = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 12, day: 31, hour: 9
+        )))
+        let nextYear = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2027, month: 1, day: 2, hour: 22
+        )))
+        XCTAssertEqual(ShowCountdownRule.upcoming(from: yearEnd, to: nextYear, calendar: calendar), .days(2))
     }
 
     func testCountdownCopyUsesHoursThenMinutes() {

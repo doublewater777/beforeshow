@@ -130,11 +130,12 @@ struct CurrentShowFollowUpSummary: View {
     }
 
     private func distanceText(to show: Show) -> String {
-        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current)
-        let seconds = max(0, Int(start.timeIntervalSince(now)))
-        if seconds >= 86_400 { return BSLocalization.format("%lld 天后", seconds / 86_400) }
-        if seconds >= 3_600 { return BSLocalization.format("%lld 小时后", seconds / 3_600) }
-        return BSLocalization.format("%lld 分钟后", max(1, seconds / 60))
+        let start = CurrentShowFollowUpPolicy.firstStart(for: show)
+        let calendar = show.timingFields.eventCalendar(fallback: .current)
+        return CountdownCopy.until(
+            remainingSeconds: max(0, Int(start.timeIntervalSince(now))),
+            dayDistance: ShowCountdownRule.calendarDays(from: now, to: start, calendar: calendar)
+        )
     }
 }
 

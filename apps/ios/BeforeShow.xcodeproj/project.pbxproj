@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A15A0BC123D4E5F601234568 /* ShowCountdownRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15A0BC123D4E5F601234567 /* ShowCountdownRule.swift */; };
+		A15A0BC123D4E5F601234569 /* ShowCountdownRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15A0BC123D4E5F601234567 /* ShowCountdownRule.swift */; };
 		006C52B3ADEEF3D12108EE95 /* ShowCoverLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7334C72BD3BCF80D90BE2E /* ShowCoverLifecycleTests.swift */; };
 		012947DB8A828216439534C1 /* FootprintCityMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F04AB4FF01354F8710ECB62 /* FootprintCityMapping.swift */; };
 		024CEAD86A1B404B94BD90C8 /* ShowTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB11343B6C405B0FA77E6451 /* ShowTiming.swift */; };
@@ -577,6 +579,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A15A0BC123D4E5F601234567 /* ShowCountdownRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowCountdownRule.swift; sourceTree = "<group>"; };
 		007B16EBD175BEAC8EE2861C /* TimetableDateConfirmationNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableDateConfirmationNotice.swift; sourceTree = "<group>"; };
 		010B6CDF1E01858ED504A411 /* NotificationPortfolioPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPortfolioPlanner.swift; sourceTree = "<group>"; };
 		014B681C455051E1D347C68B /* DynamicCoverMediaTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverMediaTypes.swift; sourceTree = "<group>"; };
@@ -1644,6 +1647,7 @@
 				FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */,
 				5D60439CAF8DA94BC59DA37C /* WidgetListeningSnapshot.swift */,
 				921D23A27473F26969BB142A /* WidgetShowSnapshot.swift */,
+				A15A0BC123D4E5F601234567 /* ShowCountdownRule.swift */,
 				BA1A165A2C555CC97C803683 /* WidgetTimelinePlanner.swift */,
 			);
 			path = Shared;
@@ -2637,6 +2641,7 @@
 				A2EBAC357E3D3A5E02C1CE2C /* WidgetListeningSnapshot.swift in Sources */,
 				71B8211141BA72B93C9A7018 /* WidgetSettingsView.swift in Sources */,
 				FD5DA7B7C313D0D3EFFEA326 /* WidgetShowSnapshot.swift in Sources */,
+				A15A0BC123D4E5F601234568 /* ShowCountdownRule.swift in Sources */,
 				C332BC3929EFC7AF98DDEB54 /* WidgetTimelinePlanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2761,6 +2766,7 @@
 				0680B0F4DCCA5ED3CA8201A2 /* WidgetCoverCache.swift in Sources */,
 				D2657E252A74CB1FB8C58AC5 /* WidgetListeningSnapshot.swift in Sources */,
 				632162FBDC297B15A3177ABA /* WidgetShowSnapshot.swift in Sources */,
+				A15A0BC123D4E5F601234569 /* ShowCountdownRule.swift in Sources */,
 				139793E7F8784E714606B08D /* WidgetTimelinePlanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

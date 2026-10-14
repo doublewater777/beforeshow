@@ -78,6 +78,111 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         XCTAssertEqual(try reloaded.fetchCount(FetchDescriptor<Show>()), 1)
     }
 
+    // MARK: - Upcoming shows must use the first confirmed timetable opening
+
+    func testFollowUpExcludesStartedTimetableEvenIfDeclaredStartIsLater() throws {
+        let show = try Show(
+            name: "Earlier timetable opening",
+            date: date(0),
+            startTime: date(19, 30),
+            timeZoneIdentifier: "Asia/Taipei"
+        )
+        let first = try TimetablePerformance(
+            artistName: "Opening Act", startsAt: date(15), endsAt: date(16)
+        )
+        let second = try TimetablePerformance(
+            artistName: "Headliner", startsAt: date(19), endsAt: date(21)
+        )
+        let stage = try TimetableStage(name: "Main", performances: [first, second])
+        let day = try TimetableDay(date: date(0), stages: [stage])
+        show.timetable = try Timetable(timeZoneIdentifier: "Asia/Taipei", days: [day])
+        context.insert(show)
+        try context.save()
+
+        XCTAssertNotNil(show.lifecycleTimetable)
+        XCTAssertEqual(CurrentShowFollowUpPolicy.firstStart(for: show), date(15))
+        XCTAssertEqual(CurrentShowTimeState(show: show, now: date(14, 30)).effectiveStartTime, date(15))
+
+        // Before the first set, list and countdown both use 15:00.
+        XCTAssertEqual(CurrentShowFollowUpPolicy.laterShows(
+            from: [show], excluding: nil, now: date(14, 30)
+        ).map(\.id), [show.id])
+        XCTAssertEqual(
+            Int(CurrentShowFollowUpPolicy.firstStart(for: show).timeIntervalSince(date(14, 30))),
+            30 * 60
+        )
+
+        // At / after the real opening, 19:30 in basic details cannot keep it listed.
+        for now in [date(15), date(16, 30), date(19), date(20)] {
+            XCTAssertTrue(CurrentShowFollowUpPolicy.laterShows(
+                from: [show], excluding: nil, now: now
+            ).isEmpty, "Started show must not reappear at \(now)")
+        }
+    }
+
+    func testFollowUpDoesNotReappearInMultiDaySessionBreak() throws {
+        let show = try Show(
+            name: "Two-day festival",
+            date: date(0),
+            startTime: date(19, 30),
+            endDate: date(24),
+            timeZoneIdentifier: "Asia/Taipei"
+        )
+        let first = try TimetablePerformance(
+            artistName: "Day One", startsAt: date(15), endsAt: date(16)
+        )
+        let second = try TimetablePerformance(
+            artistName: "Day Two", startsAt: date(39), endsAt: date(40)
+        )
+        let firstDay = try TimetableDay(
+            date: date(0),
+            stages: [TimetableStage(name: "A", performances: [first])]
+        )
+        let secondDay = try TimetableDay(
+            date: date(24),
+            stages: [TimetableStage(name: "B", performances: [second])]
+        )
+        show.timetable = try Timetable(
+            timeZoneIdentifier: "Asia/Taipei", days: [firstDay, secondDay]
+        )
+        context.insert(show)
+        try context.save()
+
+        XCTAssertNotNil(show.lifecycleTimetable)
+        XCTAssertEqual(CurrentShowFollowUpPolicy.firstStart(for: show), date(15))
+        XCTAssertEqual(CurrentShowTimeState(show: show, now: date(26)).effectiveStartTime, date(39))
+        XCTAssertTrue(CurrentShowFollowUpPolicy.laterShows(
+            from: [show], excluding: nil, now: date(26)
+        ).isEmpty)
+    }
+
+    func testFollowUpUsesDeclaredTimeWhenTimetableUnconfirmed() throws {
+        let show = try Show(
+            name: "Unconfirmed timetable",
+            date: date(0),
+            startTime: date(19, 30),
+            timeZoneIdentifier: "Asia/Taipei"
+        )
+        let first = try TimetablePerformance(
+            artistName: "Opening Act", startsAt: date(15), endsAt: date(16)
+        )
+        let day = try TimetableDay(
+            date: date(0),
+            stages: [TimetableStage(name: "Main", performances: [first])]
+        )
+        let timetable = try Timetable(timeZoneIdentifier: "Asia/Taipei", days: [day])
+        timetable.needsDateConfirmation = true
+        show.timetable = timetable
+        context.insert(show)
+        try context.save()
+
+        XCTAssertNil(show.lifecycleTimetable)
+        XCTAssertEqual(CurrentShowFollowUpPolicy.firstStart(for: show), date(19, 30))
+        XCTAssertEqual(CurrentShowFollowUpPolicy.laterShows(
+            from: [show], excluding: nil, now: date(16, 30)
+        ).map(\.id), [show.id])
+    }
+
     // MARK: - 1. Multi-Day Festival End Policy: Only Final Day Can Disperse
 
     func testMultiDayFestivalEndPolicyAllowsEndOnlyOnFinalDay() throws {

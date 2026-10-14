@@ -314,7 +314,7 @@ struct HomeCountdownLockup: View {
     @ViewBuilder
     private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
         if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now) {
-            if let days = WidgetTimelinePlanner.dayCountHeroDays(
+            if let days = ShowCountdownRule.dayCount(
                 remainingSeconds: total,
                 dayDistance: timeState.dayDistance
             ) {
