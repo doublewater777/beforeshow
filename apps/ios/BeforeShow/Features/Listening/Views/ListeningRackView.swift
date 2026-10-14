@@ -16,7 +16,8 @@ struct ListeningRackView: View {
     @State private var placeholderGroupID: String?
     @State private var scrubOrigin: Int?
     @State private var carriedDisc: ListeningDisc?
-    @State private var carriedPose = ListeningRackPose()
+    @State private var carriedFrame = CGRect.zero
+    @State private var carryScale: CGFloat = 1
     @State private var carryOffset: CGSize = .zero
     /// Cases the row has travelled under the finger, fractional while a swipe is in flight.
     @State private var dragShift: Double = 0
@@ -171,18 +172,24 @@ struct ListeningRackView: View {
             .frame(height: L.canvasHeight)
             .modifier(ListeningRackEdgeFade())
             .overlay(alignment: .topLeading) {
-                GeometryReader { proxy in
+                GeometryReader { _ in
                     if isSwapCarry, let disc = carriedDisc {
-                        ListeningPeekingDisc(disc: disc, size: L.discSize)
-                            .projectionEffect(ListeningRackProjector.effect(
-                                ListeningRackProjector(width: proxy.size.width).box(carriedPose)
-                                    * ListeningRackFace.disc(peek: carriedPose.peek)
-                            ))
-                            .offset(carryOffset)
+                        let geometry = room.hardwareGeometry
+                        let diameter = geometry.discDiameter * scale
+                        ListeningDiscArtwork(disc: disc, image: room.playerConfiguration.assets.disc)
+                            .frame(width: diameter, height: diameter)
+                            .scaleEffect(x: carryScale, y: carryScale * cos(geometry.tiltDegrees * .pi / 180))
+                            .shadow(color: .black.opacity(0.3), radius: 3, y: 4)
+                            .position(x: carriedFrame.midX + carryOffset.width,
+                                      y: carriedFrame.midY + carryOffset.height)
                             .allowsHitTesting(false)
+                            .onAppear {
+                                withAnimation(reduceMotion ? nil : L.motion) { carryScale = 1 }
+                            }
                     }
                 }
             }
+            .zIndex(isSwapCarry ? 1 : 0)
 
             if let focused {
                 plate(for: focused, row: row, focus: c)
@@ -369,7 +376,9 @@ struct ListeningRackView: View {
                       ListeningDiscDetailTapPolicy.contains(location,
                           center: CGPoint(x: discBounds.midX, y: discBounds.midY), size: discBounds.size),
                       room.beginCabinetDragIfNeeded(disc) else { return }
-                carriedPose = pose
+                carriedFrame = discBounds
+                carryScale = discBounds.width / (room.hardwareGeometry.discDiameter * scale)
+                carryOffset = .zero
                 carriedDisc = disc
             },
             onChanged: { translation in

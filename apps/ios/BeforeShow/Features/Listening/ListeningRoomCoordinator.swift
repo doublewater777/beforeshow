@@ -440,6 +440,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         if self.show?.id != show.id || showCatalogKey != key { return true }
         if isLoadingShow || isCatalogEnriching { return false }
         if completedCatalogKey != key || pendingArtistMatching || unmatchedArtistInputsChanged(for: show) { return true }
+        guard access.authorizationStatus == .authorized else { return false }
         let ids = show.artists.compactMap(\.appleMusicArtistID) + Self.wantedArtistIDs(for: show)
         return ids.contains { id in
             let fetchedAt = runtimeFetchedAt[id] ?? catalogSnapshots.first { $0.artistID == id }?.fetchedAt
@@ -1019,8 +1020,11 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                 releaseDates[song.appleMusicSongID] = date
             }
         }
+        let showCoverURL = show.coverImageURL.flatMap(URL.init(string:))
+            ?? show.artists.compactMap { $0.avatarURL.flatMap(URL.init(string:)) }.first
         compilationDiscs = ListeningCompilationAssembler.discs(
             showID: show.id,
+            coverURL: showCoverURL,
             releaseDates: releaseDates,
             livePrograms: Self.livePrograms(for: show, topTracks: topTracks),
             artistTracks: browseArtists.compactMap { $0.appleMusicArtistID.map(topTracks) }

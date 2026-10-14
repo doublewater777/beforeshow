@@ -48,13 +48,14 @@ enum ListeningCompilationAssembler {
     /// released of the rest; 深挖 takes what remains in rank order. Empty themes are skipped.
     static func discs(
         showID: UUID,
+        coverURL: URL? = nil,
         releaseDates: [String: Date] = [:],
         livePrograms: [LiveProgram] = [],
         artistTracks: [[ListeningDiscTrack]]
     ) -> [ListeningDisc] {
         let live: [Volume] = livePrograms.map { Volume(key: $0.key, title: $0.title, tracks: filled($0.sets)) }
         let activeArtists = artistTracks.filter { !$0.isEmpty }
-        guard !activeArtists.isEmpty else { return numbered(live, showID: showID) }
+        guard !activeArtists.isEmpty else { return numbered(live, showID: showID, coverURL: coverURL) }
 
         let capacity = activeArtists.count == 1 ? singleArtistTracksPerDisc : maxTracksPerDisc
         let stream = coverageFirstStream(from: activeArtists)
@@ -76,7 +77,7 @@ enum ListeningCompilationAssembler {
         let themed = [(Theme.singalong, singalong), (.latest, latest), (.deepCuts, deepCuts)].map { theme, items in
             Volume(key: theme.rawValue, title: theme.title, tracks: groupedByArtist(items))
         }
-        return numbered(live + themed, showID: showID)
+        return numbered(live + themed, showID: showID, coverURL: coverURL)
     }
 
     private struct Volume {
@@ -85,12 +86,12 @@ enum ListeningCompilationAssembler {
         let tracks: [ListeningDiscTrack]
     }
 
-    private static func numbered(_ volumes: [Volume], showID: UUID) -> [ListeningDisc] {
+    private static func numbered(_ volumes: [Volume], showID: UUID, coverURL: URL? = nil) -> [ListeningDisc] {
         volumes.filter { !$0.tracks.isEmpty }.enumerated().map { index, volume in
             ListeningDisc(
                 id: "compilation-\(showID)-\(volume.key)",
                 title: volume.title,
-                artworkURL: nil,
+                artworkURL: coverURL,
                 tracks: volume.tracks,
                 origin: .compilation(showID: showID, number: index + 1)
             )

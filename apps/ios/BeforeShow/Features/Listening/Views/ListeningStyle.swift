@@ -94,14 +94,8 @@ struct ListeningDiscArtwork: View {
         if let artworkURL = disc.artworkURL {
             return "\(disc.id):\(artworkURL.absoluteString)"
         }
-        let trackArtworks = disc.tracks.prefix(4).compactMap(\.artworkURL)
-            .map(\.absoluteString).joined(separator: "|")
-        return "\(disc.id):\(trackArtworks)"
+        return "\(disc.id):empty"
     }
-
-    /// Compilation discs have no single cover; tile the first four track
-    /// covers into one label image. Cached by track-artwork fingerprint.
-    private static var mosaicCache: [String: UIImage] = [:]
 
     var body: some View {
         GeometryReader { proxy in
@@ -180,54 +174,10 @@ struct ListeningDiscArtwork: View {
                 let loaded = await ShowCoverImageCache.shared.image(from: url)
                 guard !Task.isCancelled else { return }
                 artwork = loaded
-            } else if let disc, !disc.tracks.isEmpty {
-                artwork = nil
-                let loaded = await Self.mosaic(for: disc)
-                guard !Task.isCancelled else { return }
-                artwork = loaded
             } else {
                 artwork = nil
             }
         }
-    }
-
-    private static func mosaic(for disc: ListeningDisc) async -> UIImage? {
-        let urls = disc.tracks.compactMap(\.artworkURL).prefix(4)
-        guard !urls.isEmpty else { return nil }
-        let key = urls.map(\.absoluteString).joined(separator: "|")
-        if let cached = mosaicCache[key] { return cached }
-        var images: [UIImage] = []
-        for url in urls {
-            var image = ShowCoverImageCache.shared.memoryImage(for: url)
-            if image == nil {
-                image = await ShowCoverImageCache.shared.image(from: url)
-            }
-            if let image { images.append(image) }
-        }
-        guard !images.isEmpty else { return nil }
-        let grid: Int = images.count > 1 ? 2 : 1
-        let tile: CGFloat = 300
-        let canvas = tile * CGFloat(grid)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let mosaic = UIGraphicsImageRenderer(size: CGSize(width: canvas, height: canvas), format: format).image { context in
-            UIColor.black.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
-            for (index, image) in images.prefix(grid * grid).enumerated() {
-                let origin = CGPoint(x: CGFloat(index % grid) * tile, y: CGFloat(index / grid) * tile)
-                let side = min(image.size.width, image.size.height)
-                let crop = CGRect(
-                    x: (image.size.width - side) / 2 * image.scale,
-                    y: (image.size.height - side) / 2 * image.scale,
-                    width: side * image.scale,
-                    height: side * image.scale
-                )
-                guard let cg = image.cgImage?.cropping(to: crop) else { continue }
-                UIImage(cgImage: cg).draw(in: CGRect(origin: origin, size: CGSize(width: tile, height: tile)))
-            }
-        }
-        mosaicCache[key] = mosaic
-        return mosaic
     }
 }
 

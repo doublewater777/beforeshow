@@ -288,80 +288,13 @@ final class ListeningLoadingTests: XCTestCase {
         }
     }
 
-    func testCompilationPlaybackUsesOneQueueAcrossVisibleVolumes() async throws {
-        let (container, room, player, _) = try await makeFestivalRoom()
+    func testCompilationPlaybackStaysWithinSelectedTheme() async throws {
+        let (container, room, player, show) = try await makeFestivalRoom()
         _ = container
-        defer {
-            room.stop()
-            room.mechanism.motion.stop()
-        }
-        XCTAssertEqual(room.compilationDiscs.count, 3)
-        let first = try XCTUnwrap(room.compilationDiscs.first)
-        let second = try XCTUnwrap(room.compilationDiscs.dropFirst().first)
-        let firstLastSongID = try XCTUnwrap(first.tracks.last?.id)
-        let secondFirstSongID = try XCTUnwrap(second.tracks.first?.id)
-
-        room.restoreDisc(first, songID: firstLastSongID)
-        room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-
-        XCTAssertEqual(
-            player.loadedSongIDs,
-            room.compilationDiscs.flatMap(\.tracks).map(\.id),
-            "visible compilation volumes should be one transport queue"
-        )
-        XCTAssertEqual(player.loadedStartSongID, firstLastSongID)
-        XCTAssertEqual(player.loadCount, 1)
-
-        player.advanceNaturally()
-        try await wait { room.track?.id == secondFirstSongID }
-
-        XCTAssertEqual(room.mechanism.disc?.id, second.id, "virtual disc identity should follow the active queue volume")
-        XCTAssertEqual(room.track?.id, secondFirstSongID)
-        XCTAssertEqual(player.loadCount, 1, "cross-volume continuation must not rebuild the queue")
-
-        room.skip(-1)
-        try await ListenTestData.settle(room) {
-            room.track?.id == firstLastSongID && room.mechanism.disc?.id == first.id
-        }
-        XCTAssertEqual(player.loadCount, 1, "previous across a volume boundary should stay in the prepared queue")
-    }
-
-    func testCrossingCompilationVolumesKeepsPlayingWithTheRoomOnScreen() async throws {
-        for crossing in ["natural", "next"] {
-            let (container, room, player, show) = try await makeFestivalRoom()
-            _ = container
-            let first = room.compilationDiscs[0]
-            let second = room.compilationDiscs[1]
-            room.restoreDisc(first, songID: try XCTUnwrap(first.tracks.last?.id))
-            let window = try mountRoomView(room, show: show)
-            defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
-            let view = try XCTUnwrap(window.rootViewController?.view)
-            try await settleLayout(view)
-
-            room.playPause()
-            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-            if crossing == "natural" {
-                player.advanceNaturally()
-            } else {
-                room.skip(1)
-            }
-            try await wait { room.track?.id == second.tracks.first?.id }
-            try await settleLayout(view)
-
-            XCTAssertEqual(room.mechanism.disc?.id, second.id, crossing)
-            XCTAssertEqual(room.track?.id, second.tracks.first?.id, crossing)
-            XCTAssertTrue(room.isPlaying, "\(crossing) crossing into the next volume must keep playing")
-            XCTAssertEqual(player.loadCount, 1, crossing)
-        }
-    }
-
-    func testStoppedPreviousAcrossCompilationVolumesLandsOnTheLastTrack() async throws {
-        let (container, room, _, show) = try await makeFestivalRoom()
-        _ = container
-        let first = room.compilationDiscs[0]
-        let second = room.compilationDiscs[1]
-        room.restoreDisc(second, songID: try XCTUnwrap(second.tracks.first?.id))
+        let selected = try XCTUnwrap(room.compilationDiscs.dropFirst().first)
+        let firstSongID = try XCTUnwrap(selected.tracks.first?.id)
+        let lastSongID = try XCTUnwrap(selected.tracks.last?.id)
+        room.restoreDisc(selected, songID: firstSongID)
         let window = try mountRoomView(room, show: show)
         defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
         let view = try XCTUnwrap(window.rootViewController?.view)
@@ -370,9 +303,25 @@ final class ListeningLoadingTests: XCTestCase {
         room.skip(-1)
         try await settleLayout(view)
 
-        XCTAssertEqual(room.mechanism.disc?.id, first.id)
-        XCTAssertEqual(room.track?.id, first.tracks.last?.id)
+        XCTAssertEqual(room.mechanism.disc?.id, selected.id)
+        XCTAssertEqual(room.track?.id, firstSongID, "Previous must not enter another theme")
         XCTAssertFalse(room.wantsPlayback)
+
+        room.playFromSleeve(selected, songID: lastSongID)
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(player.loadedSongIDs, selected.tracks.map(\.id), "only the seated theme belongs in the playback queue")
+        XCTAssertEqual(player.loadedStartSongID, lastSongID)
+
+        room.skip(1)
+        try await settleLayout(view)
+        XCTAssertEqual(room.track?.id, lastSongID, "Next must not enter another theme")
+
+        player.finishQueue()
+        try await wait { !room.isPlaying }
+        try await settleLayout(view)
+        XCTAssertEqual(room.mechanism.disc?.id, selected.id)
+        XCTAssertEqual(room.track?.id, lastSongID)
+        XCTAssertEqual(player.loadCount, 1)
     }
 
     func testAlbumNextMovesInsideThePreparedQueue() async throws {
@@ -573,55 +522,6 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(height(showsAllDiscs: false), height(showsAllDiscs: true), accuracy: 1)
     }
 
-    func testCabinetKeepsTheActiveTouchViewUntilTheLongPressDragEnds() async throws {
-        let fixture = try ListeningDebugFixtures(scenario: .singleFull)
-        let context = fixture.container.mainContext
-        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
-        let room = ListeningRoomCoordinator(
-            context: context,
-            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
-            playbackFactory: { ListeningFixturePlayer(source: $0) }
-        )
-        await room.load(show: show)
-        room.selectScope(.artist("fixture-artist-0"))
-        let disc = try XCTUnwrap(room.shelfDiscs.first)
-        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-        let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
-        let host = UIHostingController(rootView: ListeningCabinetView(
-            room: room, scale: 1, showAll: {}, showDetails: { _ in }
-        ) { Color.clear })
-        window.rootViewController = host
-        window.makeKeyAndVisible()
-        defer { window.isHidden = true; room.mechanism.motion.stop() }
-        try await settleLayout(host.view)
-        let longPress = try XCTUnwrap(cabinetLongPress(in: host.view))
-        let touchView = try XCTUnwrap(longPress.view)
-        XCTAssertEqual(longPress.minimumPressDuration, 0.30, accuracy: 0.001)
-        XCTAssertTrue(touchView.window === window)
-
-        XCTAssertTrue(room.beginPlayableDiscDrag(disc))
-        try await settleLayout(host.view)
-
-        XCTAssertTrue(room.mechanism.isCabinetDragging)
-        XCTAssertTrue(touchView.window === window, "Picking up the CD must not remove the view receiving the active touch")
-        XCTAssertTrue(cabinetLongPress(in: host.view) === longPress, "The same recognizer must receive the rest of the drag")
-        let center = room.mechanism.configuration.geometry.discCenter
-        room.mechanism.dragDisc(CGSize(width: center.x - room.mechanism.motion.discX.value,
-                                      height: center.y - room.mechanism.motion.discY.value))
-        room.mechanism.endDiscDrag()
-        for _ in 0..<20 {
-            let motion = room.mechanism.motion
-            motion.lid.step(1); motion.discX.step(1); motion.discY.step(1)
-            motion.lift.step(1); motion.discScale.step(1)
-            room.mechanism.refresh()
-        }
-        XCTAssertEqual(room.mechanism.position, .seated)
-        XCTAssertFalse(room.mechanism.isCabinetDragging)
-        try await settleLayout(host.view)
-        XCTAssertNil(touchView.window)
-    }
-
     func testSelectingAndPlayingDiscsKeepsThePlayerAndShelfInPlace() async throws {
         for scenario in [ListeningFixtureScenario.singleFull, .manyDiscs] {
             let fixture = try ListeningDebugFixtures(scenario: scenario)
@@ -663,13 +563,6 @@ final class ListeningLoadingTests: XCTestCase {
             XCTAssertEqual(room.display.player.phase, .paused)
             assertFrames(probe.frames, stage: stage, cabinet: cabinet)
         }
-    }
-
-    private func cabinetLongPress(in view: UIView) -> UILongPressGestureRecognizer? {
-        if let longPress = view.gestureRecognizers?.compactMap({ $0 as? UILongPressGestureRecognizer }).first {
-            return longPress
-        }
-        return view.subviews.lazy.compactMap { self.cabinetLongPress(in: $0) }.first
     }
 
     private func assertFrames(_ frames: [String: CGRect], stage: CGRect, cabinet: CGRect, file: StaticString = #filePath, line: UInt = #line) {

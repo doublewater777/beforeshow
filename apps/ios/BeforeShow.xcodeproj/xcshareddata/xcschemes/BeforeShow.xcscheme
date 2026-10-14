@@ -50,17 +50,6 @@
                ReferencedContainer = "container:BeforeShow.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E6436444D3C785B96501FDAD"
-               BuildableName = "BeforeShowUITests.xctest"
-               BlueprintName = "BeforeShowUITests"
-               ReferencedContainer = "container:BeforeShow.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>
