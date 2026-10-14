@@ -66,7 +66,7 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
         )
     }
 
-    func testLoadedDiscArtworkWinsOverTrackArtwork() {
+    func testCurrentTrackArtworkWinsOverLoadedDiscArtwork() {
         let trackURL = URL(string: "https://example.com/track.jpg")!
         let discURL = URL(string: "https://example.com/disc.jpg")!
 
@@ -75,11 +75,11 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
                 trackArtworkURL: trackURL,
                 discArtworkURL: discURL
             ),
-            discURL
+            trackURL
         )
     }
 
-    func testTrackArtworkIsFallbackWhenDiscArtworkIsMissing() {
+    func testTrackArtworkIsPreferredWhenDiscArtworkIsMissing() {
         let trackURL = URL(string: "https://example.com/track.jpg")!
 
         XCTAssertEqual(
@@ -88,6 +88,18 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
                 discArtworkURL: nil
             ),
             trackURL
+        )
+    }
+
+    func testDiscArtworkIsFallbackWhenTrackArtworkIsMissing() {
+        let discURL = URL(string: "https://example.com/disc.jpg")!
+
+        XCTAssertEqual(
+            ListeningMiniPlayerArtworkSource.resolve(
+                trackArtworkURL: nil,
+                discArtworkURL: discURL
+            ),
+            discURL
         )
     }
 
