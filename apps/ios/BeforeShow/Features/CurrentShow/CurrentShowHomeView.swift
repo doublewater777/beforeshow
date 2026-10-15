@@ -223,8 +223,21 @@ struct CurrentShowHomeView: View {
                 if scenePhase == .active {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
                     Task {
+                        await refreshAutomaticCurrentShowIfNeeded()
                         await reconcileNotificationPortfolio()
                         await requestNotificationPermissionIfEligible()
+                    }
+                }
+            }
+            .task {
+                // Reconcile on entry and while the Current tab is mounted. The
+                // minute cadence also handles show starts and retention expiry.
+                while !Task.isCancelled {
+                    await refreshAutomaticCurrentShowIfNeeded()
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                    } catch {
+                        break
                     }
                 }
             }
@@ -403,6 +416,29 @@ struct CurrentShowHomeView: View {
             in: modelContext,
             session: session
         )
+    }
+
+    @MainActor
+    private func refreshAutomaticCurrentShowIfNeeded() async {
+        let selection = CurrentShowSelectionStore.canonical(in: selections)
+        // Legacy selections are manual, and must not be silently converted.
+        if let selection, selection.isManual != false { return }
+        let candidate = InitialCurrentShowPolicy().candidate(
+            from: liveShows,
+            retaining: selection?.selectedShowID
+        )
+        guard selection?.selectedShowID != candidate?.id else { return }
+        do {
+            let state = try ShowMutationCoordinator.commitCurrentShowState(
+                shows: liveShows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
+            _ = await ShowMutationCoordinator.syncPostCommit(state, in: modelContext)
+        } catch {
+            modelContext.rollback()
+        }
     }
 
     private func selectCurrentShow(_ target: Show) {
