@@ -3,7 +3,8 @@ import SwiftUI
 import UIKit
 
 /// Full-bleed artwork wash behind the disc detail: the cover blurred once off the main
-/// thread into a static image, deepened toward the bottom so text stays legible.
+/// thread into a static image, kept at its own saturation and slightly dimmed so bright
+/// covers don't glare, deepened toward the bottom so text stays legible.
 struct ListeningDiscBackdrop: View {
     let artworkURL: URL?
     let tint: Color
@@ -33,9 +34,9 @@ struct ListeningDiscBackdrop: View {
 
             LinearGradient(
                 stops: [
-                    .init(color: BSColor.Stage.background.opacity(0.1), location: 0),
-                    .init(color: BSColor.Stage.background.opacity(0.4), location: 0.4),
-                    .init(color: BSColor.Stage.background.opacity(0.85), location: 0.72),
+                    .init(color: BSColor.Stage.background.opacity(0.35), location: 0),
+                    .init(color: BSColor.Stage.background.opacity(0.55), location: 0.4),
+                    .init(color: BSColor.Stage.background.opacity(0.88), location: 0.72),
                     .init(color: BSColor.Stage.background, location: 1)
                 ],
                 startPoint: .top,
@@ -76,8 +77,8 @@ struct ListeningDiscBackdrop: View {
         guard let input = CIImage(image: small) else { return nil }
         let output = input
             .clampedToExtent()
-            .applyingGaussianBlur(sigma: 5)
-            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 1.8])
+            .applyingGaussianBlur(sigma: 9)
+            .applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: -0.08])
             .cropped(to: input.extent)
         guard let cgImage = CIContext().createCGImage(output, from: input.extent) else { return nil }
         return UIImage(cgImage: cgImage)
