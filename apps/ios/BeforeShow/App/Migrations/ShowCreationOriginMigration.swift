@@ -62,6 +62,15 @@ enum CurrentShowOwnershipMigration {
         }
 
         if let canonical {
+            // v2 automatic ownership is intentional. Only legacy automatic rows
+            // (without the version marker) need conversion to a manual choice.
+            if canonical.isManual == false,
+               canonical.selectionPolicyVersion == 2 {
+                if selections.count > 1 {
+                    try? modelContext.save()
+                }
+                return
+            }
             if canonical.isManual == true,
                let selectedShowID = canonical.selectedShowID,
                shows.contains(where: { $0.id == selectedShowID }) {
