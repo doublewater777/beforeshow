@@ -380,6 +380,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         )
         XCTAssertEqual(selection.selectedShowID, show.id)
         XCTAssertEqual(selection.isManual, false)
+        XCTAssertEqual(selection.selectionPolicyVersion, 2)
         XCTAssertNotNil(result.notificationState)
         XCTAssertEqual(result.outcome, .future)
     }
