@@ -64,61 +64,15 @@ Single-context: `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
 
 Scheduled weekly runs are hands-off: write `docs/agents/architecture-reviews/`, file a `needs-triage` GitHub issue only for guard failures or one clear Strong candidate, stay quiet otherwise, never auto-refactor.
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+## 工作方式
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
-
-## 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-## 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-## 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. UI Consistency & Component Reuse
-
-**Same design system, same set of components. Don't reinvent the wheel.**
-
-Before implementing a module:
-- Check for existing shared components first (Button, Card, Modal, Form, etc.)
-- Need a component that doesn't exist? Abstract it as a shared component first, then use it in your module
-- UI style, spacing, font sizes, colors must follow design tokens — no hardcoded values
-- Keep components atomic and reusable; don't mix page logic with UI in one file
-
+- 只做被要求的事；不加推测性的抽象、配置项和不可能场景的错误处理。
+- 死代码：发现生产路径无人调用的代码（包括只被测试引用的），证明无消费者后连同其测试一起删除；涉及持久化格式的按顶部兼容规则处理。
+- 先用已有组件和 design token，不硬编码样式。
 - Sheet/navigation chrome 用中性前景色：完成用 `checkmark`（语义仍是完成），关闭才用 `BSChromeToolbarCloseButton`/`xmark`；不要把 `TimetableStyle.mine` / accent / warm 黄涂到 chrome 上（见 `docs/agents/issue-notes/toolbar-chrome-tint-2026-10-14.md`）
+- 改动要可验证：先写复现/约束测试，再改实现。
 
-## 5. Presentation Discipline
+## Presentation Discipline
 
 **一次只看到一个主界面；完成一个主要动作后，最多只给一次轻反馈，不再立刻要求第二次确认。**
 
@@ -129,25 +83,3 @@ Before implementing a module:
 - 如果某个后续动作不是完成当前事务所必需，就延后到用户下一次自然进入相关上下文时再处理。
 - 系统权限弹窗也算一次阻塞式 presentation；不要紧跟在刚完成的 sheet/fullScreenCover 后面触发。
 - Review UI 流程时按用户连续看到的界面序列检查，而不是只看各状态在代码里是否“合法”。
-
-## 6. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
