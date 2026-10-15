@@ -166,22 +166,6 @@ final class PreviewListeningPlaybackServiceTests: XCTestCase {
         XCTAssertEqual(AVAudioSession.sharedInstance().category, .playback)
     }
 
-    func testReturningFromSuspensionIsNotAnInterruption() async throws {
-        try await start()
-        NotificationCenter.default.post(
-            name: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance(),
-            userInfo: [
-                AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue,
-                AVAudioSessionInterruptionReasonKey: AVAudioSession.InterruptionReason.appWasSuspended.rawValue
-            ]
-        )
-        XCTAssertEqual(service.phase, .playing)
-
-        player.pause()
-        XCTAssertEqual(service.phase, .paused)
-    }
-
     func testResumePositionBeyondThePreviewStartsAtItsBeginning() async throws {
         try await service.load([item("first")], startingAt: "first", at: 42)
         XCTAssertEqual(service.currentTime, 0, accuracy: 0.01)

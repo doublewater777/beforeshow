@@ -249,10 +249,8 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
             let options = AVAudioSession.InterruptionOptions(
                 rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             )
-            let reason = notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
-            // Delivered on return from suspension; no ended notification follows.
-            guard reason != AVAudioSession.InterruptionReason.appWasSuspended.rawValue else { return }
-            let routeDisconnected = reason == AVAudioSession.InterruptionReason.routeDisconnected.rawValue
+            let routeDisconnected = notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
+                == AVAudioSession.InterruptionReason.routeDisconnected.rawValue
             MainActor.assumeIsolated {
                 self?.handleInterruption(type, options: options, routeDisconnected: routeDisconnected)
             }
