@@ -1,102 +1,155 @@
 import SwiftUI
 
 struct OnboardingWidgetFeatureVisual: View {
+    @State private var showStart = Date.now.addingTimeInterval(2 * 3600 + 14 * 60 + 36)
+    private let showName = BSLocalization.text("「夜航」巡演 · 上海站")
+
     var body: some View {
         VStack(spacing: BSSpacing.compact) {
             mediumWidget
-            lockScreenWidget
+            liveActivity
             reminder
-                .offset(x: 12, y: -2)
         }
-        .frame(maxWidth: 320)
+        .frame(maxWidth: 330)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            BSLocalization.text("小组件显示现场倒计时，锁屏显示日期，开场前会在重要节点提醒")
+            BSLocalization.text("小组件显示现场倒计时，锁屏实时活动倒数开场，开场前会在重要节点提醒")
         )
     }
 
+    // 对齐 CountdownWidgetViews.MediumCountdownView 的 far 态。
     private var mediumWidget: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(BSLocalization.text("距离开场"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .tracking(1.1)
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(1.2)
                     .foregroundStyle(BSColor.Stage.muted)
 
+                Spacer(minLength: 4)
+
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("56")
-                        .font(.system(size: 43, weight: .semibold))
+                    Text("3")
+                        .font(.system(size: 44, weight: .semibold))
+                        .tracking(-0.5)
                         .foregroundStyle(BSColor.Stage.heroIvory)
-                        .monospacedDigit()
                     Text(BSLocalization.text("天"))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(BSColor.Stage.muted)
                 }
-                .padding(.top, 10)
 
-                Spacer(minLength: 5)
+                Spacer(minLength: 8)
 
-                Text(BSLocalization.text("「夜航」巡演 · 上海站"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .lineLimit(1)
-                Text(BSLocalization.text("10月14日 19:30 · 回声剧场"))
-                    .font(.system(size: 8.5))
-                    .foregroundStyle(BSColor.Stage.dim)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(showName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .lineLimit(1)
+                    Text(BSLocalization.text("10月14日 19:30 · 回声剧场"))
+                        .font(.system(size: 10))
+                        .foregroundStyle(BSColor.Stage.dim)
+                        .lineLimit(1)
+                }
             }
-            .padding(.leading, 16)
-            .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Image("default_cover")
                 .resizable()
                 .scaledToFill()
-                .frame(width: 86)
-                .clipped()
-                .overlay(alignment: .leading) {
-                    LinearGradient(
-                        colors: [BSColor.Stage.background, .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: 36)
-                }
+                .frame(width: 81, height: 108)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
+        .padding(16)
         .frame(height: 150)
-        .background(BSColor.Stage.background.opacity(0.94))
-        .clipShape(RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).stroke(BSColor.Stage.border))
+        .background {
+            ZStack {
+                BSColor.Stage.background
+                RadialGradient(
+                    colors: [BSColor.Stage.glowBlue.opacity(0.38), .clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: 180
+                )
+                RadialGradient(
+                    colors: [BSColor.Stage.accent.opacity(0.22), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 0,
+                    endRadius: 160
+                )
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(BSColor.Stage.border))
         .shadow(color: .black.opacity(0.30), radius: 26, y: 14)
     }
 
-    private var lockScreenWidget: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(BSLocalization.format("还有 %lld 天", Int64(56)))
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(BSColor.Stage.foreground)
-            Text(BSLocalization.text("「夜航」巡演 · 上海站 · 10月14日 19:30"))
-                .font(.system(size: 9))
-                .foregroundStyle(BSColor.Stage.dim)
+    // 对齐 ShowLiveActivity.LiveActivityBannerView 的开场前态。
+    private var liveActivity: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(BSLocalization.text("距离开场"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.muted)
+                Text(showStart, style: .timer)
+                    .font(.system(size: 21, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(BSColor.Stage.heroWarmGold)
+            }
+            .frame(width: 92, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(showName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .lineLimit(1)
+                Text(
+                    BSLocalization.format(
+                        "%1$@ · %2$@",
+                        BSLocalization.format("%@ 开场", "19:30"),
+                        BSLocalization.text("回声剧场")
+                    )
+                )
+                .font(.system(size: 11))
+                .foregroundStyle(BSColor.Stage.muted)
                 .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(BSColor.Stage.surface.opacity(0.94))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(BSColor.Stage.border))
+        .padding(14)
+        .background {
+            ZStack {
+                Color.black.opacity(0.72)
+                RadialGradient(
+                    colors: [BSColor.Stage.accent.opacity(0.22), .clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: 200
+                )
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(BSColor.Stage.border))
     }
 
     private var reminder: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(BSLocalization.text("开场之前，我来提醒你"))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.foreground)
-            Text(BSLocalization.text("在几个值得记一下的节点轻轻提醒，不推销任何东西。"))
+        HStack(spacing: 10) {
+            Image("AppLogo")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 26, height: 26)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(BSLocalization.text("准备这场"))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                Text(
+                    BSLocalization.format("还有 %lld 天。", Int64(3))
+                        + BSLocalization.format("先听听 %@ 的歌。", BSLocalization.text("夜航"))
+                )
                 .font(.system(size: 9))
                 .foregroundStyle(BSColor.Stage.muted)
-                .lineLimit(2)
+                .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
@@ -109,104 +162,158 @@ struct OnboardingWidgetFeatureVisual: View {
 }
 
 struct OnboardingTimetableFeatureVisual: View {
-    private let rows = [
-        ("17:30", "开始入场"),
-        ("18:40", "暖场"),
-        ("19:30", "夜航"),
-        ("21:20", "预计散场")
-    ]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(BSLocalization.text("时刻表"))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Spacer()
-                Text(BSLocalization.text("已保存"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(BSColor.glowBlueFallback)
-            }
-            .padding(.bottom, 15)
-
-            ZStack(alignment: .top) {
-                timetableImage
-                Text(BSLocalization.text("保存的图片"))
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.76))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.black.opacity(0.56), in: Capsule())
-                    .padding(.top, 6)
-            }
-
-            Spacer(minLength: 14)
-
-            Text(BSLocalization.text("查看原图"))
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(BSColor.Stage.border))
-        }
-        .padding(18)
-        .frame(maxWidth: 280)
-        .frame(height: 368)
-        .background(BSColor.Stage.surface.opacity(0.96), in: RoundedRectangle(cornerRadius: 26))
-        .overlay(RoundedRectangle(cornerRadius: 26).stroke(BSColor.Stage.border))
-        .shadow(color: .black.opacity(0.32), radius: 28, y: 16)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(BSLocalization.text("已保存一张时刻表图片，可以快速查看原图"))
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private struct MockSet: Identifiable {
+        let id: Int
+        let lane: Int
+        let artist: String
+        let start: Double
+        let end: Double
+        var isInterested = false
     }
 
-    private var timetableImage: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(BSLocalization.text("演出时刻表"))
-                .font(.custom("Songti SC", size: 19, relativeTo: .headline))
-                .foregroundStyle(Color(red: 0.09, green: 0.075, blue: 0.06))
-            Text("OCT 04 · LEGACY TERA")
-                .font(.system(size: 8))
-                .foregroundStyle(Color.black.opacity(0.48))
-                .padding(.top, 3)
-                .padding(.bottom, 10)
+    private let stages = ["主舞台", "星空舞台"]
+    private let sets = [
+        MockSet(id: 0, lane: 0, artist: "回声乐队", start: 19.0, end: 19.75),
+        MockSet(id: 1, lane: 0, artist: "夜航", start: 20.0, end: 21.0, isInterested: true),
+        MockSet(id: 2, lane: 0, artist: "Lumen", start: 21.25, end: 22.25),
+        MockSet(id: 3, lane: 1, artist: "雾港", start: 19.5, end: 20.25),
+        MockSet(id: 4, lane: 1, artist: "白日梦", start: 20.75, end: 21.75)
+    ]
+    private let firstHour = 19.0
+    private let now = 20.6
+    private let hourHeight: CGFloat = 76
+    private let rulerWidth: CGFloat = 36
+    private let laneGap: CGFloat = 6
+    private let headerHeight: CGFloat = 34
 
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 9) {
-                    Text(row.0)
-                        .foregroundStyle(Color.black.opacity(0.48))
-                        .frame(width: 38, alignment: .leading)
-                    Text(BSLocalization.text(key: row.1))
-                        .fontWeight(.semibold)
+    var body: some View {
+        GeometryReader { proxy in
+            let laneWidth = (proxy.size.width - rulerWidth - laneGap) / CGFloat(stages.count)
+            ZStack(alignment: .topLeading) {
+                ForEach(stages.indices, id: \.self) { index in
+                    header(stages[index], index: index)
+                        .frame(width: laneWidth, height: headerHeight)
+                        .offset(x: laneX(index, laneWidth))
                 }
-                .font(.system(size: 9))
-                .foregroundStyle(Color.black.opacity(0.82))
-                .padding(.vertical, 7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(Color.black.opacity(0.10))
-                        .frame(height: 1)
+                ForEach(0..<4) { hour in
+                    Text(String(format: "%02d:00", Int(firstHour) + hour))
+                        .font(TimetableStyle.mono(9, weight: .medium))
+                        .foregroundStyle(TimetableStyle.dim)
+                        .offset(y: y(firstHour + Double(hour)) - 5)
                 }
+                ForEach(sets) { item in
+                    card(item)
+                        .frame(width: laneWidth, height: y(item.end) - y(item.start) - 4)
+                        .offset(x: laneX(item.lane, laneWidth), y: y(item.start))
+                }
+                nowLine(width: proxy.size.width)
+                    .offset(y: y(now))
             }
         }
-        .padding(15)
-        .background(Color(red: 0.94, green: 0.91, blue: 0.86))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .rotationEffect(.degrees(-1.3))
+        .frame(height: headerHeight + hourHeight * 3.5)
+        .padding(14)
+        .frame(maxWidth: 304)
+        .background(TimetableStyle.background, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(BSColor.Stage.border))
+        .shadow(color: .black.opacity(0.32), radius: 28, y: 16)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(BSLocalization.text("时刻表按舞台显示，正在演夜航"))
+    }
+
+    private func laneX(_ lane: Int, _ laneWidth: CGFloat) -> CGFloat {
+        rulerWidth + CGFloat(lane) * (laneWidth + laneGap)
+    }
+
+    private func y(_ hour: Double) -> CGFloat {
+        headerHeight + CGFloat(hour - firstHour) * hourHeight
+    }
+
+    private func isLive(_ item: MockSet) -> Bool {
+        (item.start..<item.end).contains(now)
+    }
+
+    private func header(_ name: String, index: Int) -> some View {
+        HStack(spacing: 6) {
+            TimetableStageLight.marker(index)
+                .fill(TimetableStageLight.color(index))
+                .frame(width: 7, height: 7)
+            Text(BSLocalization.text(key: name))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(TimetableStyle.foreground)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.bottom, 8)
+    }
+
+    private func card(_ item: MockSet) -> some View {
+        let live = isLive(item)
+        let ended = item.end <= now
+        let tint = TimetableStageLight.color(item.lane)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(item.artist)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(ended ? TimetableStyle.dim : TimetableStyle.foreground)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if item.isInterested {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(TimetableStyle.mine)
+                }
+            }
+            Text(String(format: "%02d:%02d", Int(item.start), Int((item.start.truncatingRemainder(dividingBy: 1) * 60).rounded())))
+                .font(TimetableStyle.mono(9, weight: .medium))
+                .foregroundStyle(live ? TimetableStyle.nowSoft : TimetableStyle.dim)
+        }
+        .padding(9)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            (item.isInterested ? TimetableStyle.cardMine : TimetableStyle.card)
+                .overlay(live ? tint.opacity(0.12) : .clear)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(live ? tint.opacity(0.85) : Color.white.opacity(0.08), lineWidth: live ? 1.5 : 1)
+        )
+        .phaseAnimator(live && !reduceMotion ? [false, true] : [false]) { content, glowing in
+            content.shadow(color: live ? tint.opacity(glowing ? 0.6 : 0.3) : .clear, radius: glowing ? 14 : 6)
+        } animation: { _ in .easeInOut(duration: 1.2) }
+    }
+
+    private func nowLine(width: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            Text("20:36")
+                .font(TimetableStyle.mono(8.5, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(TimetableStyle.now))
+                .shadow(color: TimetableStyle.now.opacity(0.6), radius: 4)
+                .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, beat in
+                    content.scaleEffect(beat ? 1.1 : 1)
+                } animation: { _ in .easeInOut(duration: 1) }
+            Rectangle()
+                .fill(TimetableStyle.now)
+                .frame(height: 1.5)
+        }
+        .frame(width: width)
+        .offset(y: -7)
     }
 }
 
 struct OnboardingMemoryFeatureVisual: View {
+    let isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var emojiLanded = false
     private let selectedRating = DispersalRating.golden
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            Text(BSLocalization.format("%@ · %@", BSLocalization.text("记忆碎片"), BSLocalization.text("散场以后")))
-                .font(.system(size: 9, weight: .bold))
-                .tracking(1)
-                .foregroundStyle(BSColor.Stage.accent)
-
             HStack(spacing: 10) {
                 photoTile
                 textTile
@@ -219,6 +326,20 @@ struct OnboardingMemoryFeatureVisual: View {
         .accessibilityLabel(
             BSLocalization.text("记忆碎片包含照片和文字，散场评价当前选择人上人，明显高于预期")
         )
+        .task(id: isActive) {
+            guard isActive else {
+                emojiLanded = false
+                return
+            }
+            guard !reduceMotion else {
+                emojiLanded = true
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(450))
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.5)) {
+                emojiLanded = true
+            }
+        }
     }
 
     private var photoTile: some View {
@@ -277,6 +398,8 @@ struct OnboardingMemoryFeatureVisual: View {
             HStack(spacing: 9) {
                 Text(selectedRating.emoji)
                     .font(.system(size: 27))
+                    .scaleEffect(emojiLanded ? 1 : 0.4)
+                    .opacity(emojiLanded ? 1 : 0)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(selectedRating.label)
                         .font(.system(size: 16, weight: .bold))
@@ -324,6 +447,8 @@ struct OnboardingMemoryFeatureVisual: View {
 }
 
 struct OnboardingStartFeatureVisual: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack {
             Circle()
@@ -335,11 +460,46 @@ struct OnboardingStartFeatureVisual: View {
                 .frame(width: 150, height: 150)
                 .offset(x: 62, y: 45)
                 .blur(radius: 42)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(BSLocalization.text("距离开场"))
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(1.1)
+                    .foregroundStyle(BSColor.Stage.muted)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("--")
+                        .font(.system(size: 43, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.heroIvory.opacity(0.42))
+                    Text(BSLocalization.text("天"))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(BSColor.Stage.dim)
+                }
+                .padding(.top, 10)
+                Spacer(minLength: 5)
+                Text(BSLocalization.text("你的下一场"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.muted)
+            }
+            .padding(16)
+            .frame(maxWidth: 320, alignment: .leading)
+            .frame(height: 150)
+            .background(BSColor.Stage.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 22))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22)
+                    .strokeBorder(Color.white.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+            )
+            .overlay(alignment: .trailing) {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.accent)
+                    .frame(width: 44, height: 44)
+                    .background(BSColor.Stage.accent.opacity(0.12), in: Circle())
+                    .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, beat in
+                        content.scaleEffect(beat ? 1.12 : 1).opacity(beat ? 0.75 : 1)
+                    } animation: { _ in .easeInOut(duration: 0.9) }
+                    .padding(.trailing, 22)
+            }
         }
         .accessibilityHidden(true)
     }
-}
-
-private extension BSColor {
-    static let glowBlueFallback = Color(red: 0.49, green: 0.81, blue: 1.0)
 }

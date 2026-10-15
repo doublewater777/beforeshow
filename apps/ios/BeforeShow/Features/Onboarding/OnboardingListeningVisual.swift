@@ -1,6 +1,10 @@
 import SwiftUI
 
 struct OnboardingListeningVisual: View {
+    let isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var discsOut = false
+
     var body: some View {
         GeometryReader { proxy in
             let size: CGFloat = 136
@@ -17,8 +21,8 @@ struct OnboardingListeningVisual: View {
                 HStack(spacing: -18) {
                     // Sleeve 1 with peeking CD disc
                     ZStack(alignment: .leading) {
-                        ListeningOnboardingPeekingDisc(size: 108)
-                            .offset(x: 118 - 108 + 24)
+                        ListeningOnboardingPeekingDisc(size: 108, isSpinning: isActive && !reduceMotion)
+                            .offset(x: discsOut ? 118 - 108 + 24 : 0)
                         ListeningOnboardingSleeve(number: 1, title: "夜色", color: BSListeningTokens.sleevePalette[1], size: 118)
                     }
                     .offset(y: 8)
@@ -26,8 +30,8 @@ struct OnboardingListeningVisual: View {
 
                     // Sleeve 2 with peeking CD disc pulled out slightly more
                     ZStack(alignment: .leading) {
-                        ListeningOnboardingPeekingDisc(size: discSize)
-                            .offset(x: size - discSize + 32)
+                        ListeningOnboardingPeekingDisc(size: discSize, isSpinning: isActive && !reduceMotion)
+                            .offset(x: discsOut ? size - discSize + 32 : 0)
                         ListeningOnboardingSleeve(number: 2, title: "最后一班车", color: BSListeningTokens.sleevePalette[0], size: size)
                     }
                     .rotationEffect(.degrees(4))
@@ -37,6 +41,20 @@ struct OnboardingListeningVisual: View {
                 .padding(.trailing, 34)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+        }
+        .task(id: isActive) {
+            guard isActive else {
+                discsOut = false
+                return
+            }
+            guard !reduceMotion else {
+                discsOut = true
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                discsOut = true
+            }
         }
         .accessibilityHidden(true)
     }
@@ -78,8 +96,17 @@ private struct ListeningOnboardingSleeve: View {
 
 private struct ListeningOnboardingPeekingDisc: View {
     var size: CGFloat = 68
+    var isSpinning = false
 
     var body: some View {
+        TimelineView(.animation(paused: !isSpinning)) { context in
+            disc.rotationEffect(.degrees(context.date.timeIntervalSinceReferenceDate * 60))
+        }
+        .frame(width: size, height: size)
+        .shadow(color: Color.black.opacity(0.55), radius: 5, x: -2, y: 3)
+    }
+
+    private var disc: some View {
         ZStack {
             AngularGradient(
                 gradient: Gradient(colors: [
@@ -116,6 +143,5 @@ private struct ListeningOnboardingPeekingDisc: View {
                 .frame(width: size * 0.32, height: size * 0.32)
         }
         .frame(width: size, height: size)
-        .shadow(color: Color.black.opacity(0.55), radius: 5, x: -2, y: 3)
     }
 }

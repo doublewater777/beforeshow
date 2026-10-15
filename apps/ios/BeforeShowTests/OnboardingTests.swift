@@ -74,6 +74,18 @@ final class OnboardingTests: XCTestCase {
         )
     }
 
+    func testPhaseLabelsDoNotRepeatTheBrandMark() {
+        for page in OnboardingPage.allCases {
+            XCTAssertNotEqual(page.phaseText, "开场前")
+        }
+    }
+
+    func testFeatureCopyMatchesShippedFeatures() {
+        XCTAssertFalse(OnboardingPage.listening.bodyText.contains("想现场听"))
+        XCTAssertFalse(OnboardingPage.showDay.bodyText.contains("图片"))
+        XCTAssertTrue(OnboardingPage.showDay.bodyText.contains("时刻表"))
+    }
+
     func testOnboardingPageCopyCustomizedForInvitedSnapshot() {
         let futureSnapshot = CompanionInviteSnapshot(
             token: "test-token-future",

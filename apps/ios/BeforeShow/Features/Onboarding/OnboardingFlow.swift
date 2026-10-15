@@ -45,7 +45,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
 
     func phaseText(for snapshot: CompanionInviteSnapshot? = nil) -> String {
         switch self {
-        case .beforeShow: return BSLocalization.text("开场前")
+        case .beforeShow: return BSLocalization.text("倒数")
         case .listening: return BSLocalization.text("听")
         case .showDay: return BSLocalization.text("现场当天")
         case .afterShow: return BSLocalization.text("散场以后")
@@ -84,13 +84,13 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
     func bodyText(for snapshot: CompanionInviteSnapshot? = nil) -> String {
         switch self {
         case .listening:
-            return BSLocalization.text("从唱片柜选一张 CD，提前熟悉演出的歌，留下你想现场听的那一首。")
+            return BSLocalization.text("从唱片柜选一张 CD，把演出的歌提前听熟。")
         case .beforeShow:
-            return BSLocalization.text("主屏幕和锁屏都替你数着那一天，再在几个值得记一下的节点轻轻提醒。")
+            return BSLocalization.text("主屏幕和锁屏替你数着那一天，重要的节点轻轻提醒。")
         case .showDay:
-            return BSLocalization.text("选择一张演出流程、阵容安排或时间图片，保存到这场现场，需要时快速打开。")
+            return BSLocalization.text("导入时刻表，按舞台看清谁在演、下一位是谁。")
         case .afterShow:
-            return BSLocalization.text("照片、视频和小记按现场阶段收在一起，散场时再用五档情绪评价，为这一晚收尾。")
+            return BSLocalization.text("照片、视频和小记收在一起，散场时用一个表情收尾。")
         case .start:
             if let snapshot {
                 let isPast = snapshot.showStartTime < Date()
@@ -106,7 +106,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
                     )
                 }
             }
-            return BSLocalization.text("开场前的期待、现场当天的重要内容和散场后的记忆，都收在同一场现场里。")
+            return BSLocalization.text("期待、时刻表和散场后的记忆，都收在同一场现场里。")
         }
     }
 
@@ -149,6 +149,7 @@ struct OnboardingFlowView: View {
                 ForEach(OnboardingPage.allCases) { item in
                     OnboardingPageView(
                         page: item,
+                        isActive: item == page,
                         invitedSnapshot: invitedSnapshot,
                         onAddShow: {
                             isShowingAddShow = true
@@ -315,6 +316,7 @@ struct OnboardingFlowView: View {
 
 private struct OnboardingPageView: View {
     let page: OnboardingPage
+    let isActive: Bool
     var invitedSnapshot: CompanionInviteSnapshot? = nil
     let onAddShow: () -> Void
     var onJoinInvite: ((String) async -> (success: Bool, errorMessage: String?))? = nil
@@ -334,11 +336,11 @@ private struct OnboardingPageView: View {
                 case .beforeShow:
                     OnboardingWidgetFeatureVisual()
                 case .listening:
-                    OnboardingListeningVisual()
+                    OnboardingListeningVisual(isActive: isActive)
                 case .showDay:
                     OnboardingTimetableFeatureVisual()
                 case .afterShow:
-                    OnboardingMemoryFeatureVisual()
+                    OnboardingMemoryFeatureVisual(isActive: isActive)
                 case .start:
                     if let snapshot = invitedSnapshot {
                         OnboardingInvitedFeatureVisual(snapshot: snapshot)

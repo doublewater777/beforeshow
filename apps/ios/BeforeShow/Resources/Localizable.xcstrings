@@ -2514,22 +2514,6 @@
         }
       }
     },
-    "「夜航」巡演 · 上海站 · 10月14日 19:30" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Night Voyage Tour · Shanghai · Oct 14, 7:30 PM"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「夜航」巡演 · 上海站 · 10月14日 19:30"
-          }
-        }
-      }
-    },
     "「夜航」巡演 · 上海站 · 回声剧场" : {
       "shouldTranslate" : false
     },
@@ -2967,18 +2951,19 @@
         }
       }
     },
-    "主屏幕和锁屏都替你数着那一天，再在几个值得记一下的节点轻轻提醒。" : {
+    "主屏幕和锁屏替你数着那一天，重要的节点轻轻提醒。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your Home Screen and Lock Screen keep the count, with a gentle nudge at a few moments worth noting."
+            "value" : "Your Home and Lock Screens count down to the day, with gentle reminders when it matters."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主畫面和鎖定畫面都替你數著那一天，再在幾個值得記一下的節點輕輕提醒。"
+            "value" : "主畫面和鎖定畫面替你數著那一天，重要的節點輕輕提醒。"
           }
         }
       }
@@ -3464,18 +3449,19 @@
         }
       }
     },
-    "从唱片柜选一张 CD，提前熟悉演出的歌，留下你想现场听的那一首。" : {
+    "从唱片柜选一张 CD，把演出的歌提前听熟。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pick a CD, get to know the songs before the show, and save the ones you want to hear live."
+            "value" : "Pick a CD and get to know the setlist before the show."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從唱片櫃選一張 CD，提前熟悉演出的歌，留下你想現場聽的那一首。"
+            "value" : "從唱片櫃選一張 CD，把演出的歌提前聽熟。"
           }
         }
       }
@@ -3653,6 +3639,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你最常回去的場館 · %lld 次"
+          }
+        }
+      }
+    },
+    "你的下一场" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your next show"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的下一場"
           }
         }
       }
@@ -3881,22 +3884,6 @@
         }
       }
     },
-    "保存的图片" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved Image"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已儲存的圖片"
-          }
-        }
-      }
-    },
     "信息已保存，同步暂未更新" : {
       "localizations" : {
         "en" : {
@@ -3990,6 +3977,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修改散場時間"
+          }
+        }
+      }
+    },
+    "倒数" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Countdown"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "倒數"
           }
         }
       }
@@ -6562,6 +6566,23 @@
         }
       }
     },
+    "回声剧场" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echo Theater"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回聲劇場"
+          }
+        }
+      }
+    },
     "回忆" : {
       "localizations" : {
         "en" : {
@@ -6767,22 +6788,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Apple Music 中查看 %@"
-          }
-        }
-      }
-    },
-    "在几个值得记一下的节点轻轻提醒，不推销任何东西。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A gentle nudge at a few moments worth noting. Nothing is being sold."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在幾個值得記一下的節點輕輕提醒，不推銷任何東西。"
           }
         }
       }
@@ -7524,6 +7529,23 @@
         }
       }
     },
+    "导入时刻表，按舞台看清谁在演、下一位是谁。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import the timetable and see who's on and who's next, stage by stage."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入時刻表，按舞台看清誰在演、下一位是誰。"
+          }
+        }
+      }
+    },
     "封面" : {
       "localizations" : {
         "en" : {
@@ -7668,18 +7690,19 @@
         }
       }
     },
-    "小组件显示现场倒计时，锁屏显示日期，开场前会在重要节点提醒" : {
+    "小组件显示现场倒计时，锁屏实时活动倒数开场，开场前会在重要节点提醒" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A widget shows the countdown, the Lock Screen shows the date, and gentle reminders arrive before the show"
+            "value" : "The widget counts down to the show, a Live Activity counts down on the Lock Screen, and reminders arrive at key moments"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "小工具顯示現場倒數，鎖定畫面顯示日期，開場前會在重要節點提醒"
+            "value" : "小工具顯示現場倒數，鎖定畫面即時動態倒數開場，開場前會在重要節點提醒"
           }
         }
       }
@@ -7859,22 +7882,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已儲存"
-          }
-        }
-      }
-    },
-    "已保存一张时刻表图片，可以快速查看原图" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A timetable image is saved and ready to open quickly"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已儲存一張時刻表圖片，可以快速查看原圖"
           }
         }
       }
@@ -8970,22 +8977,6 @@
         }
       }
     },
-    "开场之前，我来提醒你" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I will remind you before the show"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開場之前，我來提醒你"
-          }
-        }
-      }
-    },
     "开场了" : {
       "localizations" : {
         "en" : {
@@ -9014,22 +9005,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開場前"
-          }
-        }
-      }
-    },
-    "开场前的期待、现场当天的重要内容和散场后的记忆，都收在同一场现场里。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep the anticipation, the important details on show day, and the memories afterward together in one show."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開場前的期待、現場當天的重要內容和散場後的記憶，都收在同一場現場裡。"
           }
         }
       }
@@ -9142,23 +9117,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始了。現場怎麼樣，可以記一段記憶。"
-          }
-        }
-      }
-    },
-    "开始入场" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Doors Open"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開始入場"
           }
         }
       }
@@ -11915,6 +11873,23 @@
         }
       }
     },
+    "时刻表按舞台显示，正在演夜航" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timetable by stage, Night Voyage is on now"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時刻表按舞台顯示，正在演夜航"
+          }
+        }
+      }
+    },
     "时刻表排期：%@" : {
       "localizations" : {
         "en" : {
@@ -12200,6 +12175,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "明顯高於預期"
+          }
+        }
+      }
+    },
+    "星空舞台" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starlight Stage"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星空舞台"
           }
         }
       }
@@ -12749,23 +12741,6 @@
         }
       }
     },
-    "暖场" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opening Act"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暖場"
-          }
-        }
-      }
-    },
     "更多" : {
       "localizations" : {
         "en" : {
@@ -13164,6 +13139,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "朋友接受邀請後，會出現在這裡。"
+          }
+        }
+      }
+    },
+    "期待、时刻表和散场后的记忆，都收在同一场现场里。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The build-up, the timetable and the memories after, all in one show."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "期待、時刻表和散場後的記憶，都收在同一場現場裡。"
           }
         }
       }
@@ -15236,18 +15228,19 @@
         }
       }
     },
-    "照片、视频和小记按现场阶段收在一起，散场时再用五档情绪评价，为这一晚收尾。" : {
+    "照片、视频和小记收在一起，散场时用一个表情收尾。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Photos, videos, and notes stay together by show phase, with a five-level mood rating to close the night."
+            "value" : "Photos, videos and notes kept together, closed out with one emoji when the night ends."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "照片、影片和小記依現場階段收在一起，散場時再用五檔情緒評價，為這一晚收尾。"
+            "value" : "照片、影片和小記收在一起，散場時用一個表情收尾。"
           }
         }
       }
@@ -20650,22 +20643,6 @@
         }
       }
     },
-    "选择一张演出流程、阵容安排或时间图片，保存到这场现场，需要时快速打开。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save an image of the schedule, lineup, or set times to this show and open it quickly when you need it."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇一張演出流程、陣容安排或時間圖片，儲存到這場現場，需要時快速開啟。"
-          }
-        }
-      }
-    },
     "选择一张电子票截图或实体票照片，保存到这场现场。" : {
       "localizations" : {
         "en" : {
@@ -21335,23 +21312,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預計 %@ 結束"
-          }
-        }
-      }
-    },
-    "预计散场" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expected End"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預計散場"
           }
         }
       }
