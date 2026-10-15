@@ -20,6 +20,7 @@ struct TimetableExperienceView: View {
     @State private var returnToNowRequest = 0
     @State private var inspectingPerformance: TimetablePerformance?
     @State private var addingSlot: AddSlot?
+    @State private var reconcileTask: Task<Void, Never>?
     @Namespace private var dockIndicator
 
     init(
@@ -224,7 +225,11 @@ struct TimetableExperienceView: View {
         show?.updatedAt = Date()
         try? modelContext.save()
         let container = modelContext.container
-        Task {
+        // 对账会在主线程拉取全部演出，防抖到交互动画之后，连续点击只执行一次。
+        reconcileTask?.cancel()
+        reconcileTask = Task {
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
             await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))
         }
     }

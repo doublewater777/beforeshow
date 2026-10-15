@@ -3,7 +3,7 @@ import Foundation
 
 /// Pure geometry for the stage matrix: time runs down, stages run across.
 /// Overnight sets stay on the official day; the axis simply continues past 24:00.
-struct TimetableMatrixLayout {
+struct TimetableMatrixLayout: Equatable {
     struct Performance: Equatable {
         let id: UUID
         let artistName: String

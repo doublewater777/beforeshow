@@ -22,7 +22,7 @@ struct TimetableMatrixHeadersView: View {
     }
 
     var body: some View {
-        let scrollOffset = viewport.scrollOffsetY
+        let progress = viewport.headerProgress
         ZStack(alignment: .leading) {
             ForEach(Array(stages.enumerated()), id: \.element.id) { index, stage in
                 let x = laneX(index, lane: lane)
@@ -34,7 +34,7 @@ struct TimetableMatrixHeadersView: View {
                     activity: layout.activity.indices.contains(index) ? layout.activity[index] : .idle,
                     soonMinutes: layout.soonMinutes[index],
                     index: index,
-                    scrollOffset: scrollOffset
+                    progress: progress
                 )
                 .offset(x: x, y: 0)
             }
@@ -58,47 +58,20 @@ struct TimetableMatrixHeadersView: View {
             .offset(x: laneX(stages.count, lane: lane), y: 4)
 
             // Pinned corner cover above ruler column
-            cornerCover(scrollOffsetX: viewport.scrollOffsetX, scrollOffsetY: scrollOffset)
+            TimetableMatrixCornerCover(viewport: viewport, progress: progress)
                 .zIndex(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background {
             ZStack(alignment: .bottom) {
                 TimetableStyle.background
-                if scrollOffset > 2 {
+                if progress > 0 {
                     Rectangle()
-                        .fill(Color.white.opacity(min(0.08, scrollOffset / 200.0 * 0.08)))
+                        .fill(Color.white.opacity(TimetableMatrixCornerCover.dividerOpacity(progress)))
                         .frame(height: 0.5)
                 }
             }
         }
-    }
-
-    private func cornerCover(scrollOffsetX: CGFloat, scrollOffsetY: CGFloat) -> some View {
-        ZStack(alignment: .trailing) {
-            TimetableStyle.background
-                .overlay(alignment: .bottom) {
-                    if scrollOffsetY > 2 {
-                        Rectangle()
-                            .fill(Color.white.opacity(min(0.08, scrollOffsetY / 200.0 * 0.08)))
-                            .frame(height: 0.5)
-                    }
-                }
-            if scrollOffsetX > 1 {
-                Rectangle()
-                    .fill(Color.white.opacity(min(0.12, scrollOffsetX / 20.0 * 0.12)))
-                    .frame(width: 0.5)
-            }
-        }
-        .frame(width: TimetableStyle.matrixRulerWidth, height: Self.capHeight)
-        .shadow(
-            color: Color.black.opacity(scrollOffsetX > 1 ? min(0.35, scrollOffsetX / 20.0 * 0.35) : 0),
-            radius: 4,
-            x: 2,
-            y: 0
-        )
-        .offset(x: max(0, scrollOffsetX), y: 0)
-        .contentShape(Rectangle())
     }
 
     /// Header light mirrors the lane: live glows energetically, while idle/soon
@@ -111,11 +84,10 @@ struct TimetableMatrixHeadersView: View {
         activity: TimetableMatrixLayout.Activity,
         soonMinutes: Int?,
         index: Int,
-        scrollOffset: CGFloat
+        progress: CGFloat
     ) -> some View {
         let isLive = activity == .live
-        let scrollDist = max(0, scrollOffset)
-        let idleProgress = min(1.0, scrollDist / 240.0)
+        let idleProgress = min(1.0, progress * TimetableMatrixViewport.headerProgressDistance / 240.0)
 
         return HStack(spacing: 6) {
             if isLive {
@@ -171,7 +143,7 @@ struct TimetableMatrixHeadersView: View {
                 tint: tint,
                 activity: activity,
                 index: index,
-                scrollOffset: scrollOffset,
+                progress: progress,
                 lane: lane
             )
         }
@@ -205,14 +177,65 @@ struct TimetableMatrixHeadersView: View {
     }
 }
 
+
+/// Pinned corner cover above the ruler column. The only header piece that follows
+/// horizontal scrolling frame by frame, so it stays a tiny view of its own.
+private struct TimetableMatrixCornerCover: View {
+    let viewport: TimetableMatrixViewport
+    let progress: CGFloat
+
+    static func dividerOpacity(_ progress: CGFloat) -> Double {
+        0.08 * min(1, progress * TimetableMatrixViewport.headerProgressDistance / 200)
+    }
+
+    var body: some View {
+        let scrollOffsetX = viewport.scrollOffsetX
+        let edge = min(1, scrollOffsetX / 20)
+        ZStack(alignment: .trailing) {
+            TimetableStyle.background
+                .overlay(alignment: .bottom) {
+                    if progress > 0 {
+                        Rectangle()
+                            .fill(Color.white.opacity(Self.dividerOpacity(progress)))
+                            .frame(height: 0.5)
+                    }
+                }
+            if scrollOffsetX > 1 {
+                Rectangle()
+                    .fill(Color.white.opacity(0.12 * edge))
+                    .frame(width: 0.5)
+            }
+        }
+        .frame(width: TimetableStyle.matrixRulerWidth, height: TimetableStyle.matrixHeaderHeight)
+        .overlay(alignment: .trailing) {
+            TimetableMatrixEdgeShadow(opacity: scrollOffsetX > 1 ? 0.35 * edge : 0)
+        }
+        .offset(x: max(0, scrollOffsetX), y: 0)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Soft shadow cast to the right of a pinned column, drawn as a gradient strip
+/// instead of `.shadow` so scrolling never re-renders a blurred silhouette.
+struct TimetableMatrixEdgeShadow: View {
+    let opacity: Double
+
+    var body: some View {
+        LinearGradient(colors: [Color.black.opacity(opacity), .clear], startPoint: .leading, endPoint: .trailing)
+            .frame(width: 7)
+            .offset(x: 7)
+            .allowsHitTesting(false)
+    }
+}
+
 /// Ambient theatrical stage lighting for sticky stage header caps.
-/// When idle (no performance), presents gentle standby haze and moving-head beam flare that
-/// responds smoothly to vertical scroll distance.
+/// Idle headers carry a standby haze that deepens as the timeline scrolls; breathing
+/// only animates opacity, and scroll depth arrives in coarse steps.
 private struct TimetableStageHeaderAtmosphere: View {
     let tint: Color
     let activity: TimetableMatrixLayout.Activity
     let index: Int
-    let scrollOffset: CGFloat
+    let progress: CGFloat
     let lane: CGFloat
 
     @State private var breathe = false
@@ -221,26 +244,24 @@ private struct TimetableStageHeaderAtmosphere: View {
     private var isLive: Bool { activity == .live }
 
     var body: some View {
-        let scrollDist = max(0, scrollOffset)
-        let progress = min(1.0, scrollDist / 260.0)
-        let dynamicPhase = scrollDist / 160.0
-        let sweepDelta = sin(dynamicPhase + Double(index) * 1.3) * 14.0
-
         ZStack(alignment: .bottom) {
             // 1. Base lane pillar cap
             TimetableStyle.lane
 
             // 2. Ambient Stage Color Wash (无演出时带柔和底色，随滑动距离慢慢加深)
-            ambientWash(progress: progress)
+            ambientWash
+                .opacity(breathe ? 1 : (isLive ? 0.75 : 0.55))
 
-            // 3. Downward Spotlight Cone / Origin Flare (光束起点随滑动微调偏角)
-            spotlightFlare(progress: progress, sweepDelta: sweepDelta)
+            // 3. Downward Spotlight Cone / Origin Flare
+            spotlightFlare
+                .opacity(breathe || isLive ? 1 : 0.78)
 
             // 4. Subtle Top Truss Highlight (顶边高光)
-            topTrussHighlight(progress: progress)
+            topTrussHighlight
 
             // 5. Bottom Stage Light / Laser Edge (连接下方舞台立柱光束的底边光条)
-            bottomEdge(progress: progress, dynamicPhase: dynamicPhase)
+            bottomEdge
+                .opacity(isLive && !breathe ? 0.79 : 1)
         }
         .clipShape(UnevenRoundedRectangle(
             topLeadingRadius: TimetableStyle.matrixLaneRadius,
@@ -254,20 +275,9 @@ private struct TimetableStageHeaderAtmosphere: View {
         }
     }
 
-    private func ambientWash(progress: CGFloat) -> some View {
-        let breatheOffset = breathe ? 0.03 : -0.02
-        let topOpacity: Double
-        let bottomOpacity: Double
-
-        if isLive {
-            topOpacity = 0.12 + (breathe ? 0.04 : 0.0)
-            bottomOpacity = 0.22 + (breathe ? 0.06 : 0.0)
-        } else {
-            // 没有演出时：静止时带柔和底色，滑动时随距离渐渐加深丰富
-            topOpacity = max(0.02, 0.05 + progress * 0.08 + breatheOffset)
-            bottomOpacity = max(0.04, 0.09 + progress * 0.14 + breatheOffset)
-        }
-
+    private var ambientWash: some View {
+        let topOpacity = isLive ? 0.16 : 0.08 + progress * 0.08
+        let bottomOpacity = isLive ? 0.28 : 0.12 + progress * 0.14
         return LinearGradient(
             stops: [
                 .init(color: tint.opacity(topOpacity), location: 0),
@@ -278,24 +288,21 @@ private struct TimetableStageHeaderAtmosphere: View {
         )
     }
 
-    private func spotlightFlare(progress: CGFloat, sweepDelta: Double) -> some View {
-        let centerShift = reduceMotion ? 0.0 : (sweepDelta / max(lane, 1.0))
-        let flareOpacity = isLive ? 0.32 : (0.10 + progress * 0.18 + (breathe ? 0.03 : 0.0))
-
+    private var spotlightFlare: some View {
+        let flareOpacity = isLive ? 0.32 : 0.13 + progress * 0.18
         return RadialGradient(
             colors: [
                 tint.opacity(flareOpacity),
                 tint.opacity(flareOpacity * 0.45),
                 .clear
             ],
-            center: UnitPoint(x: 0.5 + centerShift, y: 1.0),
+            center: .bottom,
             startRadius: 0,
             endRadius: max(lane * 0.70, 48)
         )
-        .blendMode(.screen)
     }
 
-    private func topTrussHighlight(progress: CGFloat) -> some View {
+    private var topTrussHighlight: some View {
         UnevenRoundedRectangle(
             topLeadingRadius: TimetableStyle.matrixLaneRadius,
             topTrailingRadius: TimetableStyle.matrixLaneRadius
@@ -314,33 +321,33 @@ private struct TimetableStageHeaderAtmosphere: View {
         )
     }
 
-    private func bottomEdge(progress: CGFloat, dynamicPhase: CGFloat) -> some View {
-        let edgeOpacity: Double
-        let edgeHeight: CGFloat
-
-        if isLive {
-            edgeOpacity = breathe ? 0.70 : 0.55
-            edgeHeight = 1.5
-        } else {
-            // 随滑动距离，底边从微光渐变到清晰的舞台激光切线
-            let wave = reduceMotion ? 0.0 : sin(dynamicPhase + Double(index) * 1.5) * 0.06
-            edgeOpacity = max(0.15, min(0.70, 0.22 + progress * 0.38 + wave))
-            edgeHeight = 1.0 + progress * 0.5
-        }
-
-        return Rectangle()
-            .fill(
-                LinearGradient(
-                    stops: [
-                        .init(color: tint.opacity(edgeOpacity * 0.5), location: 0),
-                        .init(color: tint.opacity(edgeOpacity), location: 0.5),
-                        .init(color: tint.opacity(edgeOpacity * 0.5), location: 1)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
+    private var bottomEdge: some View {
+        let edgeOpacity = isLive ? 0.70 : min(0.70, 0.22 + progress * 0.38)
+        let edgeHeight: CGFloat = isLive ? 1.5 : 1.0 + progress * 0.5
+        let glowHeight = edgeHeight + 2 * (2.5 + progress * 2.0)
+        return ZStack {
+            // Glow under the edge line, standing in for a blurred shadow.
+            LinearGradient(
+                colors: [.clear, tint.opacity(edgeOpacity * 0.45), .clear],
+                startPoint: .top,
+                endPoint: .bottom
             )
-            .frame(height: edgeHeight)
-            .shadow(color: tint.opacity(edgeOpacity * 0.6), radius: 2.5 + progress * 2.0, y: 0.5)
+            .frame(height: glowHeight)
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        stops: [
+                            .init(color: tint.opacity(edgeOpacity * 0.5), location: 0),
+                            .init(color: tint.opacity(edgeOpacity), location: 0.5),
+                            .init(color: tint.opacity(edgeOpacity * 0.5), location: 1)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: edgeHeight)
+        }
+        .frame(height: glowHeight)
+        .offset(y: glowHeight / 2 - edgeHeight / 2)
     }
 }

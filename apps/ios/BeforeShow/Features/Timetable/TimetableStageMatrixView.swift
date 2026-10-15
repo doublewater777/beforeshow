@@ -405,6 +405,10 @@ private struct StageBeamConeShape: Shape {
 /// Theatrical stage light beam: atmospheric moving-head cone beams and truss wash.
 /// When live, energetic and focused; when idle (no performance), soft atmospheric
 /// crossing stage light beams cutting through the haze with gentle breathing and swaying.
+///
+/// Performance: each beam is blurred once into a cached `drawingGroup` texture; breathing
+/// and swaying only animate opacity and rotation on top of it, so neither the endless
+/// animation nor scrolling re-runs the blur every frame.
 private struct TimetableStageBeam: View {
     let color: Color
     let activity: TimetableMatrixLayout.Activity
@@ -423,16 +427,8 @@ private struct TimetableStageBeam: View {
     var body: some View {
         ZStack(alignment: .top) {
             // 1. Ambient truss wash
-            LinearGradient(
-                stops: [
-                    .init(color: color.opacity(washMaxOpacity), location: 0),
-                    .init(color: color.opacity(washMidOpacity), location: 0.35),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: isLive ? 360 : 300)
+            wash
+                .frame(height: isLive ? 360 : 300)
 
             // 2. Primary angled spotlight beam (主现场光束)
             primaryBeam
@@ -454,16 +450,26 @@ private struct TimetableStageBeam: View {
         }
     }
 
-    private var washMaxOpacity: Double {
-        if isLive { return breathe ? 0.30 : 0.22 }
-        if isSoon { return breathe ? 0.20 : 0.14 }
-        return breathe ? 0.13 : 0.07
+    /// Opacity at the dim end of a breath, relative to the bright end.
+    private var breatheFloor: Double {
+        if isLive { return 0.72 }
+        if isSoon { return 0.65 }
+        return 0.55
     }
 
-    private var washMidOpacity: Double {
-        if isLive { return breathe ? 0.12 : 0.08 }
-        if isSoon { return breathe ? 0.08 : 0.04 }
-        return breathe ? 0.05 : 0.02
+    private var wash: some View {
+        let top: Double = isLive ? 0.30 : isSoon ? 0.20 : 0.13
+        let mid: Double = isLive ? 0.12 : isSoon ? 0.08 : 0.05
+        return LinearGradient(
+            stops: [
+                .init(color: color.opacity(top), location: 0),
+                .init(color: color.opacity(mid), location: 0.35),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .opacity(breathe ? 1 : breatheFloor)
     }
 
     private var primaryBeam: some View {
@@ -471,27 +477,16 @@ private struct TimetableStageBeam: View {
         let swayAngle = (sway ? 2.8 : -2.8) * (index % 2 == 0 ? 1.0 : -1.0)
         let angle = reduceMotion ? baseAngle : (baseAngle + swayAngle)
 
-        let topOpacity = isLive ? (breathe ? 0.28 : 0.20) : (breathe ? 0.15 : 0.09)
-        let midOpacity = isLive ? (breathe ? 0.12 : 0.08) : (breathe ? 0.06 : 0.03)
-
-        return StageBeamConeShape(
+        return beam(
             topWidthRatio: isLive ? 0.45 : 0.30,
-            bottomWidthRatio: isLive ? 0.95 : 0.85
+            bottomWidthRatio: isLive ? 0.95 : 0.85,
+            topOpacity: isLive ? 0.28 : 0.15,
+            midOpacity: isLive ? 0.12 : 0.06,
+            midLocation: 0.4,
+            blur: isLive ? 7 : 10
         )
-        .fill(
-            LinearGradient(
-                stops: [
-                    .init(color: color.opacity(topOpacity), location: 0),
-                    .init(color: color.opacity(midOpacity), location: 0.4),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .opacity(breathe ? 1 : (isLive ? 0.7 : 0.6))
         .rotationEffect(.degrees(angle), anchor: .top)
-        .blur(radius: isLive ? 7 : 10)
-        .blendMode(.screen)
     }
 
     private var crossingBeam: some View {
@@ -499,27 +494,42 @@ private struct TimetableStageBeam: View {
         let swayAngle = (sway ? -2.2 : 2.2) * (index % 2 == 0 ? 1.0 : -1.0)
         let angle = reduceMotion ? baseAngle : (baseAngle + swayAngle)
 
-        let topOpacity = isLive ? (breathe ? 0.16 : 0.11) : (breathe ? 0.08 : 0.045)
-        let midOpacity = isLive ? (breathe ? 0.06 : 0.03) : (breathe ? 0.03 : 0.015)
-
-        return StageBeamConeShape(
+        return beam(
             topWidthRatio: 0.25,
-            bottomWidthRatio: 0.75
+            bottomWidthRatio: 0.75,
+            topOpacity: isLive ? 0.16 : 0.08,
+            midOpacity: isLive ? 0.06 : 0.03,
+            midLocation: 0.45,
+            blur: 12
         )
-        .fill(
-            LinearGradient(
-                stops: [
-                    .init(color: color.opacity(topOpacity), location: 0),
-                    .init(color: color.opacity(midOpacity), location: 0.45),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .opacity(breathe ? 1 : 0.6)
         .rotationEffect(.degrees(angle), anchor: .top)
-        .blur(radius: 12)
-        .blendMode(.screen)
+    }
+
+    /// A soft cone rendered once into an offscreen texture. Inputs only change with
+    /// the stage's live/idle state, never per animation frame.
+    private func beam(
+        topWidthRatio: CGFloat,
+        bottomWidthRatio: CGFloat,
+        topOpacity: Double,
+        midOpacity: Double,
+        midLocation: CGFloat,
+        blur: CGFloat
+    ) -> some View {
+        StageBeamConeShape(topWidthRatio: topWidthRatio, bottomWidthRatio: bottomWidthRatio)
+            .fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: color.opacity(topOpacity), location: 0),
+                        .init(color: color.opacity(midOpacity), location: midLocation),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .blur(radius: blur)
+            .drawingGroup()
     }
 }
 

@@ -32,6 +32,7 @@ struct TimetableMatrixCardsView: View {
                     onSelect: { if let performance { onSelect(performance) } },
                     onToggle: { if let performance { onToggle(performance) } }
                 )
+                .equatable()
                 .offset(x: x(for: card), y: card.top)
             }
         }

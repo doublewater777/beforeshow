@@ -4,7 +4,9 @@ import SwiftUI
 /// - Heart tap toggles "想看".
 /// - Play button directly previews audio.
 /// - Card body tap opens the Inspector.
-struct TimetableMatrixCard: View {
+/// Equatable so a matrix rebuild (a heart toggle, the 30 s clock tick) only redraws the
+/// cards whose values changed; preview-player state lives in small child views.
+struct TimetableMatrixCard: View, Equatable {
     let card: TimetableMatrixLayout.Card
     let width: CGFloat
     let avatarURL: URL?
@@ -19,20 +21,16 @@ struct TimetableMatrixCard: View {
     let onSelect: () -> Void
     let onToggle: () -> Void
 
-    private var isPlayingPreview: Bool {
-        TimetablePreviewPlayer.shared.isPlaying(performanceID: card.id)
-    }
-
-    private var isLoadingPreview: Bool {
-        TimetablePreviewPlayer.shared.isLoading(performanceID: card.id)
-    }
-
-    private var isToastVisible: Bool {
-        TimetablePreviewPlayer.shared.toastPerformanceID == card.id
-    }
-
-    private var toastTrackTitle: String? {
-        TimetablePreviewPlayer.shared.toastTrackTitle
+    /// Callbacks are left out: they always act on the performance behind `card.id`.
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.card == rhs.card
+            && lhs.width == rhs.width
+            && lhs.avatarURL == rhs.avatarURL
+            && lhs.artistID == rhs.artistID
+            && lhs.isGhost == rhs.isGhost
+            && lhs.nowOffset == rhs.nowOffset
+            && lhs.stageTint == rhs.stageTint
+            && lhs.timeZone == rhs.timeZone
     }
 
     private var isEnded: Bool {
@@ -51,6 +49,11 @@ struct TimetableMatrixCard: View {
                 .overlay {
                     cardBorder
                 }
+                .overlay {
+                    if !isGhost {
+                        TimetablePreviewGlowBorder(performanceID: card.id)
+                    }
+                }
                 .opacity(isEnded ? 0.6 : 1)
                 .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             }
@@ -65,24 +68,14 @@ struct TimetableMatrixCard: View {
                     .opacity(isEnded ? 0.6 : 1)
             }
 
-            if isToastVisible, let toastTrackTitle {
-                previewToastBubble(title: toastTrackTitle)
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .offset(y: 4)),
-                            removal: .opacity.combined(with: .offset(y: -4))
-                        )
-                    )
-                    .zIndex(10)
-            }
+            TimetablePreviewToast(performanceID: card.id, width: width)
+                .zIndex(10)
         }
         .frame(width: width, height: card.height)
         .accessibilityLabel(card.artistName)
         .accessibilityAddTraits(card.isInterested ? .isSelected : [])
         .animation(.easeOut(duration: 0.35), value: isGhost)
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: card.isInterested)
-        .animation(.snappy, value: isPlayingPreview)
-        .animation(.spring(response: 0.32, dampingFraction: 0.8), value: isToastVisible)
     }
 
     @ViewBuilder
@@ -90,11 +83,6 @@ struct TimetableMatrixCard: View {
         if isGhost {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        } else if isPlayingPreview {
-            // 正在试听：高亮发光边框，最高优先级，表示正在播放音频
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(TimetableStyle.mine, lineWidth: 2)
-                .shadow(color: TimetableStyle.mine.opacity(0.55), radius: 8)
         } else if nowOffset != nil {
             // 正在演出：舞台专属灯光边框
             RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -110,33 +98,6 @@ struct TimetableMatrixCard: View {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         }
-    }
-
-    private func previewToastBubble(title: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "music.note")
-                .font(.system(size: 8.5, weight: .bold))
-                .foregroundStyle(TimetableStyle.mine)
-            Text(BSLocalization.format("正在试听 · %@", title))
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(Color.white)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3.5)
-        .frame(maxWidth: max(width - 8, 40))
-        .background(
-            Capsule()
-                .fill(Color(red: 0.12, green: 0.13, blue: 0.16).opacity(0.96))
-                .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
-        )
-        .overlay(
-            Capsule()
-                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
-        )
-        .offset(x: -4, y: -12)
-        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -282,37 +243,7 @@ struct TimetableMatrixCard: View {
     }
 
     private func playPreviewButton(size: CGFloat) -> some View {
-        let circleSize = max(size - 4, 22)
-        let playIconSize = circleSize >= 26 ? 11.0 : 9.5
-        let pauseIconSize = circleSize >= 26 ? 12.0 : 10.5
-        let hitTarget = max(36.0, size + 8)
-        return Button {
-            TimetablePreviewPlayer.shared.toggle(performanceID: card.id, artistName: card.artistName, artistID: artistID)
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.35) : Color.white.opacity(0.15))
-                    .frame(width: circleSize, height: circleSize)
-                if isLoadingPreview {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(.white)
-                } else if isPlayingPreview {
-                    Image(systemName: "pause.fill")
-                        .font(.system(size: pauseIconSize, weight: .bold))
-                        .foregroundStyle(TimetableStyle.mine)
-                } else {
-                    Image(systemName: TimetablePreviewPlayer.shared.failedPerformanceID == card.id ? "arrow.clockwise" : "play.fill")
-                        .font(.system(size: playIconSize, weight: .bold))
-                        .foregroundStyle(.white)
-                        .offset(x: 0.5)
-                }
-            }
-            .frame(width: hitTarget, height: hitTarget)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(BSLocalization.text(isPlayingPreview ? "暂停试听" : "试听"))
+        TimetablePreviewPlayButton(performanceID: card.id, artistName: card.artistName, artistID: artistID, size: size)
     }
 
     private func name(compact: Bool, lines: Int) -> some View {
@@ -392,5 +323,121 @@ enum TimetableTimeFormat {
 
     static func range(_ start: Date, _ end: Date, timeZone: TimeZone) -> String {
         "\(time(start, timeZone: timeZone))–\(time(end, timeZone: timeZone))"
+    }
+}
+
+// MARK: - Preview player pieces
+// Each reads `TimetablePreviewPlayer` on its own, so playback state changes redraw
+// these few views instead of every card on screen.
+
+/// 正在试听：高亮发光边框，叠在卡片原有边框之上。
+private struct TimetablePreviewGlowBorder: View {
+    let performanceID: UUID
+
+    var body: some View {
+        let isPlaying = TimetablePreviewPlayer.shared.isPlaying(performanceID: performanceID)
+        ZStack {
+            if isPlaying {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(TimetableStyle.mine, lineWidth: 2)
+                    .shadow(color: TimetableStyle.mine.opacity(0.55), radius: 8)
+            }
+        }
+        .allowsHitTesting(false)
+        .animation(.snappy, value: isPlaying)
+    }
+}
+
+private struct TimetablePreviewToast: View {
+    let performanceID: UUID
+    let width: CGFloat
+
+    var body: some View {
+        let player = TimetablePreviewPlayer.shared
+        let isVisible = player.toastPerformanceID == performanceID
+        ZStack {
+            if isVisible, let title = player.toastTrackTitle {
+                bubble(title: title)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: 4)),
+                            removal: .opacity.combined(with: .offset(y: -4))
+                        )
+                    )
+            }
+        }
+        .allowsHitTesting(false)
+        .animation(.spring(response: 0.32, dampingFraction: 0.8), value: isVisible)
+    }
+
+    private func bubble(title: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "music.note")
+                .font(.system(size: 8.5, weight: .bold))
+                .foregroundStyle(TimetableStyle.mine)
+            Text(BSLocalization.format("正在试听 · %@", title))
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3.5)
+        .frame(maxWidth: max(width - 8, 40))
+        .background(
+            Capsule()
+                .fill(Color(red: 0.12, green: 0.13, blue: 0.16).opacity(0.96))
+                .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
+        )
+        .offset(x: -4, y: -12)
+    }
+}
+
+private struct TimetablePreviewPlayButton: View {
+    let performanceID: UUID
+    let artistName: String
+    let artistID: String?
+    let size: CGFloat
+
+    var body: some View {
+        let player = TimetablePreviewPlayer.shared
+        let isPlaying = player.isPlaying(performanceID: performanceID)
+        let isLoading = player.isLoading(performanceID: performanceID)
+        let circleSize = max(size - 4, 22)
+        let playIconSize = circleSize >= 26 ? 11.0 : 9.5
+        let pauseIconSize = circleSize >= 26 ? 12.0 : 10.5
+        let hitTarget = max(36.0, size + 8)
+        Button {
+            player.toggle(performanceID: performanceID, artistName: artistName, artistID: artistID)
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(isPlaying ? TimetableStyle.mine.opacity(0.35) : Color.white.opacity(0.15))
+                    .frame(width: circleSize, height: circleSize)
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(.white)
+                } else if isPlaying {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: pauseIconSize, weight: .bold))
+                        .foregroundStyle(TimetableStyle.mine)
+                } else {
+                    Image(systemName: player.failedPerformanceID == performanceID ? "arrow.clockwise" : "play.fill")
+                        .font(.system(size: playIconSize, weight: .bold))
+                        .foregroundStyle(.white)
+                        .offset(x: 0.5)
+                }
+            }
+            .frame(width: hitTarget, height: hitTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(BSLocalization.text(isPlaying ? "暂停试听" : "试听"))
+        .animation(.snappy, value: isPlaying)
     }
 }
