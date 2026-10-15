@@ -6,7 +6,7 @@ final class CurrentShowSelection {
     var id: UUID
     var selectedShowID: UUID?
     /// Kept optional for lightweight repair of existing development stores.
-    /// New writes always represent an explicit, durable user-owned selection.
+    /// nil is treated as a legacy manual choice; new automatic writes store false.
     var isManual: Bool?
     var updatedAt: Date
 
