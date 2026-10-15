@@ -120,7 +120,7 @@ struct TimetablePerformanceInspectorSheet: View {
             .overlay(alignment: .top) {
                 errorBanner
             }
-            .task(id: "\(draftArtistName)|\(draftAppleMusicArtistID ?? "")|\(searchAttempt)") {
+            .task(id: "\(isEditing)|\(draftArtistName)|\(draftAppleMusicArtistID ?? "")|\(searchAttempt)") {
                 guard isEditing else { return }
                 await searchArtists()
             }
