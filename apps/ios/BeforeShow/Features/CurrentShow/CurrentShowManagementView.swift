@@ -85,7 +85,7 @@ struct CurrentShowManagementSection: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(CurrentShowTimelineSchedule(isActive: isHeroPlaybackActive)) { context in
             GeometryReader { geometry in
                 homeContent(now: context.date, availableWidth: geometry.size.width)
             }

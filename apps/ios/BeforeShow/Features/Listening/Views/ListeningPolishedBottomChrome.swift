@@ -207,7 +207,6 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 ListeningCompactPlaybackControl(
                     room: room,
                     track: track,
-                    isVisible: showsMiniPlayer,
                     onSelectListen: { selectTab(.listen) }
                 )
                 .transition(.opacity)
@@ -317,21 +316,16 @@ private struct ListeningLiquidGlassBottomChrome: View {
 private struct ListeningCompactPlaybackControl: View {
     @Bindable var room: ListeningRoomCoordinator
     let track: ListeningDiscTrack
-    let isVisible: Bool
     let onSelectListen: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var artworkImage: UIImage?
-    @State private var frozenDiscAngle = 0.0
-    @State private var spinAnchor = Date()
     @State private var swipeOffset: CGFloat = 0
     @State private var swipeSourceTrack: ListeningDiscTrack?
     @State private var swipePreviousTrack: ListeningDiscTrack?
     @State private var swipeNextTrack: ListeningDiscTrack?
     @State private var isCompletingSwipe = false
     @State private var swipeFeedbackCount = 0
-
-    private let spinDegreesPerSecond = 360.0 * BSListeningTokens.discRotationRPM / 60
 
     private var showsPlayingState: Bool {
         ListeningMiniPlayerPlaybackAppearance.showsPlayingState(
@@ -349,70 +343,63 @@ private struct ListeningCompactPlaybackControl: View {
     }
 
     var body: some View {
-        TimelineView(
-            .animation(
-                minimumInterval: 1.0 / 30.0,
-                paused: reduceMotion || !showsPlayingState || !isVisible
-            )
-        ) { timeline in
-            HStack(spacing: 6) {
-                ZStack {
-                    if let previousTrack = pagingPreviousTrack {
-                        trackPage(previousTrack, at: timeline.date)
-                            .offset(
-                                x: swipeOffset - ListeningMiniPlayerSwipeIntent.pageTravel
-                            )
-                    }
-
-                    trackPage(pagingSourceTrack, at: timeline.date)
-                        .offset(x: swipeOffset)
-
-                    if let nextTrack = pagingNextTrack {
-                        trackPage(nextTrack, at: timeline.date)
-                            .offset(
-                                x: swipeOffset + ListeningMiniPlayerSwipeIntent.pageTravel
-                            )
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
-                .contentShape(Rectangle())
-                .clipped()
-                .onTapGesture {
-                    guard !isCompletingSwipe else { return }
-                    onSelectListen()
-                }
-                .gesture(trackSwipeGesture)
-                .accessibilityElement(children: .ignore)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityLabel("\(track.title)，\(track.artistName)")
-                .accessibilityHint(BSLocalization.text("返回听"))
-                .accessibilityAction {
-                    guard !isCompletingSwipe else { return }
-                    onSelectListen()
-                }
-                .accessibilityIdentifier("listening.miniPlayer.openListen")
-
-                Button {
-                    room.perform(.playPause)
-                } label: {
-                    Image(systemName: room.display.player.showsPauseControl ? "pause.fill" : "play.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(BSColor.textPrimary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(
-                            width: BSLayout.minTouchTarget,
-                            height: BSLayout.minTouchTarget
+        HStack(spacing: 6) {
+            ZStack {
+                if let previousTrack = pagingPreviousTrack {
+                    trackPage(previousTrack)
+                        .offset(
+                            x: swipeOffset - ListeningMiniPlayerSwipeIntent.pageTravel
                         )
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(BSListeningPressStyle(scale: 0.96))
-                .padding(.trailing, 4)
-                .disabled(isCompletingSwipe || !room.display.player.canPlayPause)
-                .accessibilityLabel(BSLocalization.text(
-                    room.display.player.showsPauseControl ? "暂停" : "播放"
-                ))
-                .accessibilityIdentifier("listening.miniPlayer.playPause")
+
+                trackPage(pagingSourceTrack)
+                    .offset(x: swipeOffset)
+
+                if let nextTrack = pagingNextTrack {
+                    trackPage(nextTrack)
+                        .offset(
+                            x: swipeOffset + ListeningMiniPlayerSwipeIntent.pageTravel
+                        )
+                }
             }
+            .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
+            .contentShape(Rectangle())
+            .clipped()
+            .onTapGesture {
+                guard !isCompletingSwipe else { return }
+                onSelectListen()
+            }
+            .gesture(trackSwipeGesture)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("\(track.title)，\(track.artistName)")
+            .accessibilityHint(BSLocalization.text("返回听"))
+            .accessibilityAction {
+                guard !isCompletingSwipe else { return }
+                onSelectListen()
+            }
+            .accessibilityIdentifier("listening.miniPlayer.openListen")
+
+            Button {
+                room.perform(.playPause)
+            } label: {
+                Image(systemName: room.display.player.showsPauseControl ? "pause.fill" : "play.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(BSColor.textPrimary)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(
+                        width: BSLayout.minTouchTarget,
+                        height: BSLayout.minTouchTarget
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(BSListeningPressStyle(scale: 0.96))
+            .padding(.trailing, 4)
+            .disabled(isCompletingSwipe || !room.display.player.canPlayPause)
+            .accessibilityLabel(BSLocalization.text(
+                room.display.player.showsPauseControl ? "暂停" : "播放"
+            ))
+            .accessibilityIdentifier("listening.miniPlayer.playPause")
         }
         .sensoryFeedback(
             .impact(weight: .light, intensity: 0.7),
@@ -432,22 +419,6 @@ private struct ListeningCompactPlaybackControl: View {
             let loaded = await ShowCoverImageCache.shared.image(from: artworkURL)
             guard !Task.isCancelled else { return }
             artworkImage = loaded
-        }
-        .onChange(of: showsPlayingState, initial: true) { wasPlaying, nowPlaying in
-            let now = Date()
-            if wasPlaying && !nowPlaying {
-                frozenDiscAngle = runningDiscAngle(at: now)
-            } else if !wasPlaying && nowPlaying {
-                spinAnchor = now
-            }
-        }
-        .onChange(of: reduceMotion) { wasReduced, isReduced in
-            let now = Date()
-            if !wasReduced && isReduced && showsPlayingState {
-                frozenDiscAngle = runningDiscAngle(at: now)
-            } else if wasReduced && !isReduced && showsPlayingState {
-                spinAnchor = now
-            }
         }
     }
 
@@ -504,14 +475,20 @@ private struct ListeningCompactPlaybackControl: View {
     }
 
     @ViewBuilder
-    private func trackPage(_ pageTrack: ListeningDiscTrack, at date: Date) -> some View {
+    private func trackPage(_ pageTrack: ListeningDiscTrack) -> some View {
         HStack(spacing: 9) {
-            ListeningArtworkDisc(
-                artwork: displayedArtwork(for: pageTrack),
-                angle: discAngle(at: date),
-                size: 34,
-                isPlaying: showsPlayingState
-            )
+            CDContinuousRotationLayer(
+                identity: pageTrack.id,
+                isRotating: showsPlayingState && !reduceMotion,
+                revolutionsPerMinute: BSListeningTokens.discRotationRPM
+            ) {
+                ListeningArtworkDisc(
+                    artwork: displayedArtwork(for: pageTrack),
+                    size: 34,
+                    isPlaying: showsPlayingState
+                )
+            }
+            .frame(width: 34, height: 34)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(pageTrack.title)
@@ -642,20 +619,11 @@ private struct ListeningCompactPlaybackControl: View {
         }
     }
 
-    private func runningDiscAngle(at date: Date) -> Double {
-        (frozenDiscAngle + date.timeIntervalSince(spinAnchor) * spinDegreesPerSecond)
-            .truncatingRemainder(dividingBy: 360)
-    }
 
-    private func discAngle(at date: Date) -> Double {
-        guard showsPlayingState, !reduceMotion else { return frozenDiscAngle }
-        return runningDiscAngle(at: date)
-    }
 }
 
 private struct ListeningArtworkDisc: View {
     let artwork: UIImage?
-    let angle: Double
     let size: CGFloat
     var isPlaying: Bool = false
 
@@ -690,8 +658,7 @@ private struct ListeningArtworkDisc: View {
                     Color.white.opacity(0.18),
                     Color.clear
                 ]),
-                center: .center,
-                angle: .degrees(-angle * 0.35)
+                center: .center
             )
             .blendMode(.screen)
 
@@ -707,7 +674,6 @@ private struct ListeningArtworkDisc: View {
                     lineWidth: 0.8
                 )
         )
-        .rotationEffect(.degrees(angle))
         .accessibilityHidden(true)
     }
 

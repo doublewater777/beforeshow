@@ -89,6 +89,7 @@ enum ListeningChromeBootstrapper {
 
 extension EnvironmentValues {
     @Entry var rootTabSelection: Binding<BeforeShowTab>?
+    @Entry var isRootTabActive = true
 }
 
 /// Root pages own the bottom chrome so a push slides it away with the page

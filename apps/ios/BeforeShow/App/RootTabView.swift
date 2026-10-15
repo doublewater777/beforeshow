@@ -7,12 +7,14 @@ struct RootTabView: View {
     var body: some View {
         ZStack {
             CurrentShowFeatureRootView(isPlaybackActive: selectedTab == .current)
+                .environment(\.isRootTabActive, selectedTab == .current)
                 .opacity(selectedTab == .current ? 1 : 0)
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
 
             if mountedTabs.contains(.listen) || selectedTab == .listen {
                 ListeningFeatureRootView(isActive: selectedTab == .listen)
+                    .environment(\.isRootTabActive, selectedTab == .listen)
                     .opacity(selectedTab == .listen ? 1 : 0)
                     .allowsHitTesting(selectedTab == .listen)
                     .accessibilityHidden(selectedTab != .listen)
@@ -20,6 +22,7 @@ struct RootTabView: View {
 
             if mountedTabs.contains(.footprints) || selectedTab == .footprints {
                 FootprintsView()
+                    .environment(\.isRootTabActive, selectedTab == .footprints)
                     .opacity(selectedTab == .footprints ? 1 : 0)
                     .allowsHitTesting(selectedTab == .footprints)
                     .accessibilityHidden(selectedTab != .footprints)
