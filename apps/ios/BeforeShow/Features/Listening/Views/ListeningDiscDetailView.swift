@@ -91,8 +91,8 @@ struct ListeningDiscDetailView: View {
                         badgeSection
                     }
 
-                    if let editorial = cleanEditorial {
-                        editorialSection(editorial)
+                    if let editorial = editorialContent {
+                        editorialSection(editorial.attributed, isLong: editorial.isLong)
                     }
 
                     trackListSection
@@ -405,33 +405,59 @@ struct ListeningDiscDetailView: View {
         }
     }
 
-    private var cleanEditorial: String? {
+    private var editorialContent: (attributed: AttributedString, isLong: Bool)? {
         guard let raw = disc.editorialText?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             return nil
         }
-        let cleaned = Self.cleanHTML(raw)
-        return cleaned.isEmpty ? nil : cleaned
+        let (attributed, plain) = Self.renderHTMLToAttributedString(raw)
+        guard !plain.isEmpty else { return nil }
+        let isLong = plain.count > 140 || plain.contains("\n")
+        return (attributed, isLong)
     }
 
-    private static func cleanHTML(_ html: String) -> String {
-        var text = html
-        text = text.replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
-        text = text.replacingOccurrences(of: "</p>", with: "\n\n", options: .caseInsensitive)
-        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-        text = text.replacingOccurrences(of: "&amp;", with: "&")
-        text = text.replacingOccurrences(of: "&quot;", with: "\"")
-        text = text.replacingOccurrences(of: "&#39;", with: "'")
-        text = text.replacingOccurrences(of: "&apos;", with: "'")
-        text = text.replacingOccurrences(of: "&lt;", with: "<")
-        text = text.replacingOccurrences(of: "&gt;", with: ">")
-        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-        text = text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func renderHTMLToAttributedString(_ html: String) -> (attributed: AttributedString, plain: String) {
+        var md = html
+        // Line breaks & paragraphs
+        md = md.replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
+        md = md.replacingOccurrences(of: "<p>", with: "\n\n", options: .caseInsensitive)
+        md = md.replacingOccurrences(of: "</p>", with: "", options: .caseInsensitive)
+
+        // Bold / strong
+        md = md.replacingOccurrences(of: "<(b|strong)>", with: "**", options: .regularExpression)
+        md = md.replacingOccurrences(of: "</(b|strong)>", with: "**", options: .regularExpression)
+
+        // Italic / emphasis
+        md = md.replacingOccurrences(of: "<(i|em)>", with: "*", options: .regularExpression)
+        md = md.replacingOccurrences(of: "</(i|em)>", with: "*", options: .regularExpression)
+
+        // Links: <a href="url">text</a> -> [text](url)
+        let linkRegex = "<a\\s+[^>]*href=[\"']([^\"']*)[\"'][^>]*>(.*?)</a>"
+        md = md.replacingOccurrences(of: linkRegex, with: "[$2]($1)", options: .regularExpression)
+
+        // Strip remaining unsupported HTML tags
+        md = md.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+
+        // Decode HTML entities
+        md = md.replacingOccurrences(of: "&amp;", with: "&")
+        md = md.replacingOccurrences(of: "&quot;", with: "\"")
+        md = md.replacingOccurrences(of: "&#39;", with: "'")
+        md = md.replacingOccurrences(of: "&apos;", with: "'")
+        md = md.replacingOccurrences(of: "&lt;", with: "<")
+        md = md.replacingOccurrences(of: "&gt;", with: ">")
+        md = md.replacingOccurrences(of: "&nbsp;", with: " ")
+
+        // Normalize multiple blank lines
+        md = md.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+        let plain = md.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let attr = try? AttributedString(markdown: plain, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            return (attr, plain)
+        }
+        return (AttributedString(plain), plain)
     }
 
-    private func editorialSection(_ editorial: String) -> some View {
-        let isLong = editorial.count > 140 || editorial.contains("\n")
-        return VStack(alignment: .leading, spacing: BSSpacing.xs) {
+    private func editorialSection(_ attributed: AttributedString, isLong: Bool) -> some View {
+        VStack(alignment: .leading, spacing: BSSpacing.xs) {
             HStack {
                 Text(BSLocalization.text("编辑评语"))
                     .font(BSListeningTokens.sectionTitle)
@@ -442,7 +468,7 @@ struct ListeningDiscDetailView: View {
             .padding(.bottom, BSSpacing.xs)
 
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text(editorial)
+                Text(attributed)
                     .font(BSListeningTokens.body)
                     .lineSpacing(5)
                     .foregroundStyle(BSColor.Stage.foreground.opacity(0.92))

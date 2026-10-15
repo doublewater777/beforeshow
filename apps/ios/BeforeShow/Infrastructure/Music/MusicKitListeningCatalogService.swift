@@ -426,38 +426,20 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
         guard let notes else { return nil }
         var parts: [String] = []
         if let tagline = notes.tagline?.trimmingCharacters(in: .whitespacesAndNewlines), !tagline.isEmpty {
-            let cleanedTagline = cleanHTML(tagline)
-            if !cleanedTagline.isEmpty {
-                parts.append(cleanedTagline)
+            if tagline.hasPrefix("<") {
+                parts.append(tagline)
+            } else {
+                parts.append("<strong>\(tagline)</strong>")
             }
         }
         let body = notes.standard ?? notes.short
         if let body = body?.trimmingCharacters(in: .whitespacesAndNewlines), !body.isEmpty {
-            let cleanedBody = cleanHTML(body)
-            if !cleanedBody.isEmpty {
-                if parts.first == nil || !cleanedBody.contains(parts[0]) {
-                    parts.append(cleanedBody)
-                }
+            if parts.first == nil || !body.contains(parts[0]) {
+                parts.append(body)
             }
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: "\n\n")
-    }
-
-    static func cleanHTML(_ html: String) -> String {
-        var text = html
-        text = text.replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
-        text = text.replacingOccurrences(of: "</p>", with: "\n\n", options: .caseInsensitive)
-        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-        text = text.replacingOccurrences(of: "&amp;", with: "&")
-        text = text.replacingOccurrences(of: "&quot;", with: "\"")
-        text = text.replacingOccurrences(of: "&#39;", with: "'")
-        text = text.replacingOccurrences(of: "&apos;", with: "'")
-        text = text.replacingOccurrences(of: "&lt;", with: "<")
-        text = text.replacingOccurrences(of: "&gt;", with: ">")
-        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
-        text = text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
