@@ -185,6 +185,17 @@ struct ListeningFeatureRootView: View {
                     try? await Task.sleep(for: .milliseconds(200))
                 }
             }
+            // `--listen-open-detail` opens a shelf disc (with artwork when there is one) for simulator captures.
+            .task {
+                guard ProcessInfo.processInfo.arguments.contains("--listen-open-detail") else { return }
+                while !Task.isCancelled {
+                    if let room = ListeningRoomSessionStore.shared.room, let disc = room.discs.first(where: { $0.artworkURL != nil }) ?? room.discs.first {
+                        room.browser.detail = disc
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+            }
         } else {
             ListenRootView(isActive: isActive)
         }

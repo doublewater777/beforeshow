@@ -37,6 +37,9 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
     let artworkURL: URL?
     let tracks: [ListeningDiscTrack]
     let artistNames: [String]
+    /// Apple Music IDs aligned with `artistNames`. Optional so discs encoded by
+    /// earlier versions still decode.
+    let artistIDs: [String]?
     let editorialText: String?
     let genreNames: [String]
     let releaseDate: Date?
@@ -55,6 +58,7 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
         artworkURL: URL?,
         tracks: [ListeningDiscTrack],
         artistNames: [String] = [],
+        artistIDs: [String]? = nil,
         editorialText: String? = nil,
         genreNames: [String] = [],
         releaseDate: Date? = nil,
@@ -74,6 +78,7 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
         self.artworkURL = artworkURL
         self.tracks = tracks
         self.artistNames = artistNames
+        self.artistIDs = artistIDs
         self.editorialText = editorialText
         self.genreNames = genreNames
         self.releaseDate = releaseDate
@@ -95,7 +100,8 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
             let tracks = album.orderedTrackIDs.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
             return ListeningDisc(id: album.appleMusicAlbumID, title: album.title,
                                  artworkURL: album.artworkURL.flatMap(URL.init(string:)), tracks: tracks,
-                                 artistNames: album.artistNames, editorialText: album.editorialText,
+                                 artistNames: album.artistNames, artistIDs: album.artistIDs,
+                                 editorialText: album.editorialText,
                                  genreNames: album.genreNames, releaseDate: album.releaseDate,
                                  copyright: album.copyright, recordLabelName: album.recordLabelName,
                                  contentRatingRawValue: album.contentRatingRawValue,

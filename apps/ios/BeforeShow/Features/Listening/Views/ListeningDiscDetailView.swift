@@ -14,10 +14,10 @@ struct ListeningDiscDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var tone: Color?
     @State private var isEditorialExpanded = false
+    @State private var showsNavigationTitle = false
 
     private let isMultiArtist: Bool
     private let metadataSummary: String
-    private let artistsSummary: String
     private let indexedTracks: [IndexedTrack]
 
     init(room: ListeningRoomCoordinator, disc: ListeningDisc, onLoad: @escaping () -> Void = {}) {
@@ -47,13 +47,10 @@ struct ListeningDiscDetailView: View {
             items.append("\(Int(total) / 60) \(BSLocalization.text("分钟"))")
         }
         self.metadataSummary = items.joined(separator: " · ")
-
-        let artists = disc.artistNames.isEmpty
-            ? Array(Set(disc.tracks.map(\.artistName))).sorted() : disc.artistNames
-        self.artistsSummary = artists.count > 3
-            ? ListeningCopy.format("%@ 等 %d 位艺人", artists.prefix(2).joined(separator: " / "), artists.count)
-            : artists.joined(separator: " / ")
     }
+
+    /// Roughly where the hero's title scrolls under the navigation bar.
+    private static let titleRevealOffset: CGFloat = BSListeningTokens.detailArtwork + 120
 
     private var isLoaded: Bool {
         room.display.hardware.discID == disc.id && room.display.hardware.position != .stored
@@ -81,7 +78,8 @@ struct ListeningDiscDetailView: View {
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
                     ListeningDiscDetailHero(
-                        disc: disc, show: room.show, artists: artistsSummary,
+                        disc: disc, show: room.show,
+                        artistLinks: ListeningDiscArtistLinks.links(for: disc, lineup: room.show?.artists ?? []),
                         metadata: metadataSummary, isLoaded: isLoaded,
                         isPlaying: isLoaded && room.display.player.isPlaybackActive,
                         containsHeardSongs: room.containsHeardSongs(disc)
@@ -103,10 +101,15 @@ struct ListeningDiscDetailView: View {
                 .padding(.top, BSSpacing.sm)
                 .padding(.bottom, BSSpacing.xl)
             }
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top > Self.titleRevealOffset
+            } action: { _, shows in
+                withAnimation(.easeInOut(duration: 0.2)) { showsNavigationTitle = shows }
+            }
             .background(
-                ListeningSheetBackground(
-                    tint: tone ?? ListeningSleeveIdentity(disc: disc).color,
-                    intensity: BSListeningTokens.detailGlowOpacity
+                ListeningDiscBackdrop(
+                    artworkURL: disc.artworkURL,
+                    tint: tone ?? ListeningSleeveIdentity(disc: disc).color
                 )
                 .animation(.easeInOut(duration: 0.5), value: tone)
             )
@@ -118,15 +121,33 @@ struct ListeningDiscDetailView: View {
                 actionSection
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.vertical, BSSpacing.md)
-                    .background(BSColor.Stage.background)
-                    .overlay(alignment: .top) {
-                        Rectangle().fill(BSColor.Stage.border).frame(height: BSListeningTokens.hairline)
+                    .background {
+                        // Fades the backdrop out under the action instead of cutting it off.
+                        LinearGradient(
+                            stops: [
+                                .init(color: BSColor.Stage.background.opacity(0), location: 0),
+                                .init(color: BSColor.Stage.background.opacity(0.9), location: 0.45),
+                                .init(color: BSColor.Stage.background, location: 1)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .padding(.top, -BSSpacing.xl)
+                        .ignoresSafeArea(edges: .bottom)
                     }
             }
             .foregroundStyle(BSColor.Stage.foreground)
-            .navigationTitle(BSLocalization.text("专辑详情"))
+            .navigationTitle(disc.title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
+                // The hero already shows the title; it joins the bar once scrolled away.
+                ToolbarItem(placement: .principal) {
+                    Text(disc.title)
+                        .font(BSFont.body.weight(.semibold))
+                        .lineLimit(1)
+                        .opacity(showsNavigationTitle ? 1 : 0)
+                }
                 BSChromeToolbarCloseButton { dismiss() }
             }
         }
@@ -274,14 +295,6 @@ struct ListeningDiscDetailView: View {
                 }
             }
             .padding(.vertical, BSSpacing.xs)
-            .background(
-                BSColor.Stage.surface.opacity(0.62),
-                in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                    .stroke(BSColor.Stage.border, lineWidth: BSListeningTokens.hairline)
-            )
         }
     }
 
@@ -488,15 +501,7 @@ struct ListeningDiscDetailView: View {
                     .padding(.top, 2)
                 }
             }
-            .padding(BSSpacing.md)
-            .background(
-                BSColor.Stage.surface.opacity(0.62),
-                in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                    .stroke(BSColor.Stage.border, lineWidth: BSListeningTokens.hairline)
-            )
+            .padding(.horizontal, BSSpacing.xs)
         }
     }
 

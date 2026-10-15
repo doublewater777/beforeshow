@@ -4,7 +4,7 @@ import SwiftUI
 struct ListeningDiscDetailHero: View {
     let disc: ListeningDisc
     let show: Show?
-    let artists: String
+    let artistLinks: [ListeningDiscArtistLink]
     let metadata: String
     let isLoaded: Bool
     let isPlaying: Bool
@@ -39,13 +39,7 @@ struct ListeningDiscDetailHero: View {
                     .foregroundStyle(BSColor.Stage.foreground)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                if !artists.isEmpty {
-                    Text(artists)
-                        .font(BSFont.body)
-                        .foregroundStyle(BSColor.Stage.accent)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                ListeningDiscArtistCredits(links: artistLinks)
                 HStack(spacing: BSSpacing.xs) {
                     Text(metadata)
                         .font(BSListeningTokens.caption)
