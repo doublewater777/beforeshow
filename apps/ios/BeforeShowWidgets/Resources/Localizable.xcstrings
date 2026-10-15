@@ -17,23 +17,6 @@
         }
       }
     },
-    "%@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@"
-          }
-        }
-      }
-    },
     "%@ %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -111,23 +94,6 @@
       },
       "shouldTranslate" : false
     },
-    "%@ 倒计时已开始" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ countdown started"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 倒數計時已開始"
-          }
-        }
-      }
-    },
     "%@ 开场" : {
       "localizations" : {
         "en" : {
@@ -140,29 +106,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 開場"
-          }
-        }
-      }
-    },
-    "%@ 开场 · 预计 %@ 谢幕" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Starts %1$@ · Est. ends %2$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 开场 · 预计 %2$@ 谢幕"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 開場 · 預計 %2$@ 謝幕"
           }
         }
       }
@@ -300,23 +243,6 @@
         }
       }
     },
-    "%lld 天前" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days ago"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 天前"
-          }
-        }
-      }
-    },
     "%lld 天后" : {
       "localizations" : {
         "en" : {
@@ -329,23 +255,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 天後"
-          }
-        }
-      }
-    },
-    "%lld 天后灯亮 · %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days until lights up · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 天後燈亮 · %@"
           }
         }
       }
@@ -533,23 +442,6 @@
         }
       }
     },
-    "LIVE · 已进行 %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LIVE · %@ performed"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LIVE · 已進行 %@"
-          }
-        }
-      }
-    },
     "LIVE · 开场中" : {
       "localizations" : {
         "en" : {
@@ -562,23 +454,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LIVE · 現場進行中"
-          }
-        }
-      }
-    },
-    "ON STAGE" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ON STAGE"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ON STAGE"
           }
         }
       }
@@ -787,74 +662,6 @@
         }
       }
     },
-    "今晚" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tonight"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今晚"
-          }
-        }
-      }
-    },
-    "今晚 %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tonight %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今晚 %@"
-          }
-        }
-      }
-    },
-    "今晚开场" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opening Tonight"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今晚開場"
-          }
-        }
-      }
-    },
-    "今晚灯亮" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tonight, lights up"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今晚燈亮"
-          }
-        }
-      }
-    },
     "停留期还剩 %@" : {
       "localizations" : {
         "en" : {
@@ -1027,40 +834,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "即將開場 · %@站"
-          }
-        }
-      }
-    },
-    "即将灯亮" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lights up soon"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "即將燈亮"
-          }
-        }
-      }
-    },
-    "后灯亮" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "until lights up"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "後燈亮"
           }
         }
       }
@@ -1253,40 +1026,6 @@
         }
       }
     },
-    "已到预计散场时间" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Past expected end time"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已到預計散場時間"
-          }
-        }
-      }
-    },
-    "已到预计结束时间" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Past expected end time"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已到預計結束時間"
-          }
-        }
-      }
-    },
     "已取消" : {
       "localizations" : {
         "en" : {
@@ -1399,23 +1138,6 @@
         }
       }
     },
-    "已落幕 · %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ended · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已落幕 · %@"
-          }
-        }
-      }
-    },
     "已落幕 · %@站" : {
       "localizations" : {
         "en" : {
@@ -1428,57 +1150,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已落幕 · %@站"
-          }
-        }
-      }
-    },
-    "已落幕 · 回味还在" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show ended · The afterglow remains"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已落幕 · 餘韻還在"
-          }
-        }
-      }
-    },
-    "已进行" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elapsed"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已進行"
-          }
-        }
-      }
-    },
-    "开场中 · 已进行 %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show in progress · Elapsed %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現場進行中 · 已進行 %@"
           }
         }
       }
@@ -1511,40 +1182,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開場前"
-          }
-        }
-      }
-    },
-    "开场前 · 还没有现场" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "BeforeShow · No show yet"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開場前 · 還沒有現場"
-          }
-        }
-      }
-    },
-    "开场计时" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Countdown"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開場計時"
           }
         }
       }
@@ -1597,23 +1234,6 @@
         }
       }
     },
-    "待确认 · %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pending · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待確認 · %@"
-          }
-        }
-      }
-    },
     "想看" : {
       "localizations" : {
         "en" : {
@@ -1642,23 +1262,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "慢慢進入狀態"
-          }
-        }
-      }
-    },
-    "打开开场前,添加下一场" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open BeforeShow to add your next show"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟開場前，新增下一場"
           }
         }
       }
@@ -1775,23 +1378,6 @@
         }
       }
     },
-    "时 : 分 : 秒" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "hours : minutes : seconds"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "時 : 分 : 秒"
-          }
-        }
-      }
-    },
     "时间待定" : {
       "localizations" : {
         "en" : {
@@ -1840,23 +1426,6 @@
         }
       }
     },
-    "明天再开" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Starts again tomorrow"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "明天再開"
-          }
-        }
-      }
-    },
     "昨天 %@" : {
       "localizations" : {
         "en" : {
@@ -1869,29 +1438,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "昨天 %@"
-          }
-        }
-      }
-    },
-    "最近一场现场,灯亮之前一点点靠近。" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your next show, a little closer before the lights come up."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近一场现场，灯亮之前一点点靠近。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近一場現場，燈亮之前一點點靠近。"
           }
         }
       }
@@ -1940,40 +1486,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在"
-          }
-        }
-      }
-    },
-    "正在演: %1$@ · %2$@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Now: %1$@ · %2$@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在演: %1$@ · %2$@"
-          }
-        }
-      }
-    },
-    "正在演: %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Now: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在演: %@"
           }
         }
       }
@@ -2042,74 +1554,6 @@
         }
       }
     },
-    "演出进行中" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Live now"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "演出進行中"
-          }
-        }
-      }
-    },
-    "灯亮之前,先进入状态" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Before the lights come up, get in the mood"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "燈亮之前,先進入狀態"
-          }
-        }
-      }
-    },
-    "灯光已亮" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lights are up"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "燈光已亮"
-          }
-        }
-      }
-    },
-    "灯光已亮 · 开场中" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lights are up · Show in progress"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "燈光已亮 · 現場進行中"
-          }
-        }
-      }
-    },
     "现场" : {
       "localizations" : {
         "en" : {
@@ -2158,74 +1602,6 @@
         }
       }
     },
-    "落幕" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "End"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "落幕"
-          }
-        }
-      }
-    },
-    "谢幕了 · 回味还在" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The curtain call is over·The aftertaste is still there"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "謝幕了 · 回味還在"
-          }
-        }
-      }
-    },
-    "距灯亮 %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Until lights up %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "距燈亮 %@"
-          }
-        }
-      }
-    },
-    "距灯亮还有 %lld 天" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days until the lights come up"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "距燈亮還有 %lld 天"
-          }
-        }
-      }
-    },
     "距离开场" : {
       "localizations" : {
         "en" : {
@@ -2238,40 +1614,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "距離開場"
-          }
-        }
-      }
-    },
-    "距离开场还有" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Until the show starts"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "距離開場還有"
-          }
-        }
-      }
-    },
-    "距离灯亮还有" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lights on in"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "距離燈亮還有"
           }
         }
       }
@@ -2326,23 +1668,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還有 %lld 天"
-          }
-        }
-      }
-    },
-    "还有 %lld 天 · %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days left · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還有 %lld 天 · %@"
           }
         }
       }
@@ -2471,23 +1796,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預計 %@ 散場"
-          }
-        }
-      }
-    },
-    "预计 %@ 谢幕" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Estimated curtain at %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預計 %@ 謝幕"
           }
         }
       }

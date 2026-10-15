@@ -74,7 +74,7 @@ final class AppReviewPromptTests: XCTestCase {
     }
 
     func testRateAppCopyResolvesInEnglishAndTraditionalChinese() {
-        let keys = ["评价此应用", "打开 App Store 写下评价"]
+        let keys = ["评价此应用"]
         for code in ["en", "zh-Hant"] {
             guard let path = Bundle.main.path(forResource: code, ofType: "lproj"),
                   let tablePath = Bundle(path: path)?.path(forResource: "Localizable", ofType: "strings"),
