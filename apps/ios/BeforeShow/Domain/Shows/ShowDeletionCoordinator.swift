@@ -41,11 +41,9 @@ enum ShowDeletionCoordinator {
             let selectionStore = CurrentShowSelectionStore(modelContext: modelContext)
             if try selectionStore.canonicalSelection()?.selectedShowID == showID,
                !hasRemainingSameBusinessID {
-                if let fallback = InitialCurrentShowPolicy().candidate(from: remainingShows) {
-                    _ = try selectionStore.select(showID: fallback.id)
-                } else {
-                    _ = try selectionStore.clear()
-                }
+                let fallback = InitialCurrentShowPolicy().candidate(from: remainingShows)
+                let record = try selectionStore.canonicalSelection()
+                record?.selectAutomatically(showID: fallback?.id)
             }
 
             // Listening rows deliberately use showID instead of SwiftData relationships.
