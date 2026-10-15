@@ -1,29 +1,32 @@
-# BeforeShow
+# BeforeShow（开场前）
 
-Monorepo for BeforeShow, a concert-prep companion focused on helping users enter the show mood during the 14 days before a live event.
+iOS concert companion: count down to a show, get familiar with its songs, and keep footprints afterwards. Live on the App Store.
 
 ## Structure
 
-- `apps/web`: official Next.js website, app preview, legal pages, invitation landing page, and event tracking client.
-- `packages/core`: shared product constants, copy, and domain logic.
-- `packages/ui`: shared UI tokens and reusable web/mobile-friendly primitives.
-- `packages/config`: shared tooling config placeholder.
+- `apps/ios`: the app (SwiftUI, SwiftData, iOS 26+). `BeforeShow/` app, `BeforeShowWidgets/` widgets and Live Activity, `Shared/` code both need. Architecture: `apps/ios/ARCHITECTURE.md`.
+- `apps/web`: website, legal pages and invitation landing (Next.js on Cloudflare Pages).
+- `apps/cloudbase-functions`: feedback backend (Tencent CloudBase).
+- `docs/adr/`: decisions. `GLOSSARY.md`: product language. `docs/archive/`: delivered plans, historical only.
 
-## Run The Website
+## iOS
+
+```bash
+./scripts/setup-hooks.sh   # once per clone: commit-msg + architecture pre-commit hooks
+cd apps/ios
+xcodegen generate          # project.yml is the source of truth
+xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
+  -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
+python3 scripts/check_architecture.py
+```
+
+Why the team flag matters: `AGENTS.md`.
+
+## Web
 
 ```bash
 npm install
 npm run dev
-```
-
-The website lives in `apps/web`. The interactive preview stores anonymous product events in browser localStorage.
-
-For local build verification:
-
-```bash
 npm run build:web
 ```
-
-## Validation
-
-Fake-door evidence lives in `.builder/evidence/experiments/` in this repo. The current test checks whether users with a real upcoming show will leave an email and name that show.
