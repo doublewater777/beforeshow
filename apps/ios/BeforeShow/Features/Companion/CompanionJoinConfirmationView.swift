@@ -284,13 +284,10 @@ private struct CompanionJoinConfirmationView: View {
 
     private var showTimeText: String {
         guard let session else { return "" }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        formatter.timeZone = session.show.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+        let timeZone = session.show.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
             ?? session.show.timeZoneSecondsFromGMT.flatMap(TimeZone.init(secondsFromGMT:))
             ?? .current
-        return formatter.string(from: session.show.showStartTime)
+        return BSDateFormat.dateTime(session.show.showStartTime, timeZone: timeZone)
     }
 
     private var isLiveNow: Bool {

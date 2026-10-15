@@ -176,12 +176,7 @@ struct CompanionPairFootprintView: View {
     }
 
     private func relationshipShowMetadata(_ show: Show) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.calendar = show.timingCalendar()
-        formatter.timeZone = formatter.calendar.timeZone
-        formatter.dateFormat = "yyyy.MM.dd"
-        let date = formatter.string(from: show.effectiveDate)
+        let date = BSDateFormat.dottedDate(show.effectiveDate, calendar: show.timingCalendar())
         return [date, FootprintTextNormalizer.nonEmptyTrimmed(show.city)]
             .compactMap { $0 }
             .joined(separator: " · ")

@@ -295,13 +295,9 @@ private enum LiveActivityCopy {
         isStale || now >= startDate
     }
 
-    /// 短时间格式跟随系统，时区使用活动所在地。
+    /// 24 小时制，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        formatter.timeZone = calendar.timeZone
-        return formatter.string(from: date)
+        BSDateFormat.clock(date, timeZone: calendar.timeZone)
     }
 }
 

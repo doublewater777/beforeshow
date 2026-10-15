@@ -160,7 +160,7 @@ private struct MemoryTextFragmentViewer: View {
                             .font(BSFont.V3.title2.weight(.regular))
                             .foregroundColor(BSColor.Stage.foreground)
                             .lineSpacing(BSSpacing.sm)
-                        Text(fragment.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        Text(BSDateFormat.dateTime(fragment.createdAt, timeZone: .current))
                             .font(BSFont.V3.caption)
                             .foregroundColor(BSColor.Stage.dim)
                     }

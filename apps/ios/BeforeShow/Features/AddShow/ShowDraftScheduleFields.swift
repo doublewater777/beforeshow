@@ -68,16 +68,13 @@ private struct AddShowConstrainedDatePicker: View {
     var borderColor: Color? = nil
 
     private var displayText: String {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
         if displayedComponents == .hourAndMinute {
-            formatter.dateFormat = "HH:mm"
-        } else {
-            formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+            return BSDateFormat.clock(selection, timeZone: calendar.timeZone)
         }
-        return formatter.string(from: selection)
+        var style = Date.FormatStyle.dateTime.year().month(.abbreviated).day()
+        style.calendar = calendar
+        style.timeZone = calendar.timeZone
+        return selection.formatted(style)
     }
 
     var body: some View {
@@ -203,11 +200,7 @@ private struct AddShowStartTimeField: View {
 
     /// 确认按钮直接亮出所选时间，点之前就知道在确认什么。
     private var confirmTitle: String {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.dateFormat = "HH:mm"
-        formatter.timeZone = calendar.timeZone
-        return BSLocalization.format("确认 %@ 开场", formatter.string(from: startTime))
+        BSLocalization.format("确认 %@ 开场", BSDateFormat.clock(startTime, timeZone: calendar.timeZone))
     }
 
     var body: some View {

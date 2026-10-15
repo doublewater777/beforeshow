@@ -246,18 +246,11 @@ struct ShowDraftEditorView: View {
 
     private var summaryDateText: String {
         let calendar = draft.timingCalendar()
-        let locale = Locale.autoupdatingCurrent
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = locale
-        dateFormatter.dateFormat = DateFormatter.dateFormat(fromTemplate: "Md", options: 0, locale: locale)
-        dateFormatter.timeZone = calendar.timeZone
-        var text = (isPostponed ? BSLocalization.text("原定 ") : "") + dateFormatter.string(from: draft.date)
+        var dateStyle = Date.FormatStyle.dateTime.month(.defaultDigits).day()
+        dateStyle.timeZone = calendar.timeZone
+        var text = (isPostponed ? BSLocalization.text("原定 ") : "") + draft.date.formatted(dateStyle)
         if let startTime = draft.startTime {
-            let timeFormatter = DateFormatter()
-            timeFormatter.locale = locale
-            timeFormatter.dateFormat = "HH:mm"
-            timeFormatter.timeZone = calendar.timeZone
-            text += " " + timeFormatter.string(from: startTime)
+            text += " " + BSDateFormat.clock(startTime, timeZone: calendar.timeZone)
         }
         let venue = draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !venue.isEmpty {

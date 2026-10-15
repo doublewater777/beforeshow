@@ -114,16 +114,9 @@ struct OnboardingInvitedFeatureVisual: View {
     }
 
     private var showDateText: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        if let tzID = snapshot.timeZoneIdentifier, let tz = TimeZone(identifier: tzID) {
-            formatter.timeZone = tz
-        } else if let seconds = snapshot.timeZoneSecondsFromGMT, let tz = TimeZone(secondsFromGMT: seconds) {
-            formatter.timeZone = tz
-        } else {
-            formatter.timeZone = .current
-        }
-        return formatter.string(from: snapshot.showStartTime)
+        let timeZone = snapshot.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+            ?? snapshot.timeZoneSecondsFromGMT.flatMap(TimeZone.init(secondsFromGMT:))
+            ?? .current
+        return BSDateFormat.dateTime(snapshot.showStartTime, timeZone: timeZone)
     }
 }

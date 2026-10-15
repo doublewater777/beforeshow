@@ -93,10 +93,7 @@ struct LocalNotificationScheduler {
                         let fireDate = perf.startsAt.addingTimeInterval(-leadTime)
                         if fireDate > now {
                             let title = BSLocalization.format("%@ 快开始了", perf.artistName)
-                            let timeFormatter = DateFormatter()
-                            timeFormatter.dateFormat = "HH:mm"
-                            timeFormatter.timeZone = eventCalendar.timeZone
-                            let rangeText = "\(timeFormatter.string(from: perf.startsAt)) - \(timeFormatter.string(from: perf.endsAt))"
+                            let rangeText = "\(BSDateFormat.clock(perf.startsAt, timeZone: eventCalendar.timeZone)) - \(BSDateFormat.clock(perf.endsAt, timeZone: eventCalendar.timeZone))"
                             let body = BSLocalization.format(
                                 "还有 15 分钟开演，舞台：%@ (%@)",
                                 stage.name,

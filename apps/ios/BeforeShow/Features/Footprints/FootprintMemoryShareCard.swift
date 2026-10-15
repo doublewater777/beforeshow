@@ -164,12 +164,7 @@ struct FootprintMemoryShareCard: View {
 
     private var cardEyebrow: String {
         let calendar = show.timingCalendar()
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy.MM.dd"
-        let date = formatter.string(from: show.effectiveDate)
+        let date = BSDateFormat.dottedDate(show.effectiveDate, calendar: calendar)
         return [date, FootprintTextNormalizer.nonEmptyTrimmed(show.city)?.uppercased()]
             .compactMap { $0 }
             .joined(separator: " · ")

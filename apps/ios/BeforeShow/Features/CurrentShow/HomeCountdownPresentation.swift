@@ -61,28 +61,13 @@ enum HomeShowIdentityPresentation {
         guard timeState.hasKnownEffectiveDate else { return nil }
         let calendar = show.timingCalendar(fallback: calendar)
 
-        let dayFormatter = DateFormatter()
-        dayFormatter.locale = locale
-        dayFormatter.calendar = calendar
-        dayFormatter.timeZone = calendar.timeZone
-        dayFormatter.dateFormat = "yyyy.MM.dd E"
-
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = locale
-        timeFormatter.calendar = calendar
-        timeFormatter.timeZone = calendar.timeZone
-        timeFormatter.dateFormat = "HH:mm"
-        let endTimeFormatter = DateFormatter()
-        endTimeFormatter.locale = locale
-        endTimeFormatter.calendar = show.endTimingCalendar(fallback: calendar)
-        endTimeFormatter.timeZone = show.endTimingCalendar(fallback: calendar).timeZone
-        endTimeFormatter.dateFormat = "HH:mm"
+        let endTimeZone = show.endTimingCalendar(fallback: calendar).timeZone
 
         if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
            let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar) {
-            var daily = timeFormatter.string(from: show.startTime)
+            var daily = BSDateFormat.clock(show.startTime, timeZone: calendar.timeZone)
             if let endTime = show.endTime {
-                daily += "-\(endTimeFormatter.string(from: endTime))"
+                daily += "-\(BSDateFormat.clock(endTime, timeZone: endTimeZone))"
             }
             let startYear = calendar.component(.year, from: show.effectiveDate)
             let endYear = calendar.component(.year, from: endDay)
@@ -92,7 +77,10 @@ enum HomeShowIdentityPresentation {
             return BSLocalization.format("%@-%@ · 每日 %@", "\(startYear).\(monthDayText(show.effectiveDate, calendar: calendar))", endDateText, daily)
         }
 
-        let base = "\(dayFormatter.string(from: show.effectiveDate)) \(timeFormatter.string(from: show.startTime))"
+        let weekday = show.effectiveDate.formatted(
+            Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone).weekday(.abbreviated)
+        )
+        let base = "\(BSDateFormat.dottedDate(show.effectiveDate, calendar: calendar)) \(weekday) \(BSDateFormat.clock(show.startTime, timeZone: calendar.timeZone))"
 
         // 已确认散场的现场展示实际时长(开场→散场),不再说「预计」。
         if let endedAt = show.endedAt,

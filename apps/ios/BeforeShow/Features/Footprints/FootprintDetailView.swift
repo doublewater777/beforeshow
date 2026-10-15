@@ -364,12 +364,7 @@ struct FootprintDetailView: View {
 
     private var heroEyebrow: String {
         let calendar = show.timingCalendar()
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "zh_Hans_CN")
-        dateFormatter.calendar = calendar
-        dateFormatter.timeZone = calendar.timeZone
-        dateFormatter.dateFormat = "yyyy.MM.dd"
-        let date = dateFormatter.string(from: show.effectiveDate)
+        let date = BSDateFormat.dottedDate(show.effectiveDate, calendar: calendar)
         return [date, FootprintTextNormalizer.nonEmptyTrimmed(show.city)?.uppercased()]
             .compactMap { $0 }
             .joined(separator: " · ")

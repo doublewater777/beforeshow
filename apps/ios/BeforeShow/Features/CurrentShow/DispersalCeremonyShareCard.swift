@@ -324,12 +324,7 @@ struct DispersalCeremonyShareCard: View {
 
     private var dateLine: String {
         let calendar = show.timingCalendar()
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy.MM.dd"
-        let date = formatter.string(from: show.effectiveDate)
+        let date = BSDateFormat.dottedDate(show.effectiveDate, calendar: calendar)
         return [date, cityText].compactMap { $0 }.joined(separator: " · ")
     }
 }
