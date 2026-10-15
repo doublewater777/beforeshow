@@ -253,6 +253,28 @@ final class CurrentShowSelectionTests: XCTestCase {
         XCTAssertEqual(selected?.id, closer.id)
     }
 
+    func testOverlappingLiveShowsRetainCurrentAutomaticShow() throws {
+        let first = try Show(
+            name: "先开场",
+            date: makeDate(year: 2026, month: 6, day: 15),
+            startTime: makeDate(year: 2026, month: 6, day: 15, hour: 19)
+        )
+        let second = try Show(
+            name: "后开场",
+            date: makeDate(year: 2026, month: 6, day: 15),
+            startTime: makeDate(year: 2026, month: 6, day: 15, hour: 20)
+        )
+        let atOverlap = makeDate(year: 2026, month: 6, day: 15, hour: 20)
+            .addingTimeInterval(30 * 60)
+        let selection = CurrentShowSelection(
+            selectedShowID: first.id, isManual: false
+        )
+        let resolved = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [first, second], manualSelection: selection, now: atOverlap
+        )
+        XCTAssertEqual(resolved?.id, first.id)
+    }
+
     func testAutomaticSelectionRetainsPostShowThenAdvancesAfterThreeDays() throws {
         let finished = try makeShow(name: "刚散场", day: 14)
         finished.markEnded(at: makeDate(year: 2026, month: 6, day: 14, hour: 22))
@@ -327,6 +349,7 @@ final class CurrentShowSelectionTests: XCTestCase {
         )
         XCTAssertEqual(selection.selectedShowID, closer.id)
         XCTAssertEqual(selection.isManual, false)
+        XCTAssertEqual(selection.selectionPolicyVersion, 2)
         selection.select(showID: farther.id)
         _ = try store.bootstrapIfNeeded(
             shows: [farther, closer],
