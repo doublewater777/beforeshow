@@ -6,26 +6,39 @@ struct ShowCoverFullscreenPreview: View {
     let urlString: String?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var image: UIImage?
     @State private var isSaving = false
     @State private var toast: BSToastPayload?
+
+    init(urlString: String?) {
+        self.urlString = urlString
+        _image = State(initialValue: Self.coverURL(urlString).flatMap(ShowCoverImageCache.shared.memoryImage(for:)))
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            ShowCoverImageView(
-                urlString: urlString,
-                aspectRatio: 3.0 / 4.0,
-                contentMode: .fit,
-                enforcesAspectRatio: false
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.vertical, BSSpacing.roomy)
+            if let image {
+                BSZoomableImageView(image: image, onSingleTap: { dismiss() })
+                    .ignoresSafeArea()
+            } else {
+                ShowCoverImageView(
+                    urlString: urlString,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fit,
+                    enforcesAspectRatio: false
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, BSSpacing.roomy)
+                .contentShape(Rectangle())
+                .onTapGesture { dismiss() }
+            }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { dismiss() }
-        .toolbar(.hidden, for: .navigationBar)
-        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
+        .task {
+            guard image == nil, let url = Self.coverURL(urlString) else { return }
+            image = await ShowCoverImageCache.shared.image(from: url)
+        }
         .overlay(alignment: .bottom) {
             if urlString != nil {
                 Button {
@@ -45,6 +58,10 @@ struct ShowCoverFullscreenPreview: View {
         }
         .bsToastOverlay(toast, bottomPadding: 90)
         .preferredColorScheme(.dark)
+    }
+
+    private static func coverURL(_ urlString: String?) -> URL? {
+        urlString.flatMap(URL.init(string:))
     }
 
     @MainActor

@@ -21,6 +21,7 @@ struct ShowDetailView: View {
     @State private var confirmedEndDraft = Date()
     @State private var postponeDraft = Date()
     @State private var isShowingCoverPreview = false
+    @Namespace private var coverTransition
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
@@ -188,6 +189,7 @@ struct ShowDetailView: View {
         }
         .fullScreenCover(isPresented: $isShowingCoverPreview) {
             ShowCoverFullscreenPreview(urlString: show.coverImageURL)
+                .navigationTransition(.zoom(sourceID: "cover", in: coverTransition))
         }
         .alert(
             DangerConfirmation.deleteShow.title,
@@ -235,6 +237,7 @@ struct ShowDetailView: View {
                 )
                 .frame(width: 74, height: 98)
                 .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                .matchedTransitionSource(id: "cover", in: coverTransition)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(BSLocalization.text("查看封面大图"))

@@ -16,38 +16,12 @@ struct ShowAssetViewerView: View {
     @State private var isReplacing = false
     @State private var isConfirmingDelete = false
     @State private var toast: BSToastPayload?
-    @State private var scale: CGFloat = 1
-    @State private var lastScale: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-
             ZStack {
                 if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .scaleEffect(scale)
-                        .offset(offset)
-                        .gesture(dragGesture)
-                        .gesture(magnifyGesture)
-                        .onTapGesture(count: 2) {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                                if scale > 1.05 {
-                                    scale = 1
-                                    lastScale = 1
-                                    offset = .zero
-                                    lastOffset = .zero
-                                } else {
-                                    scale = 2
-                                    lastScale = 2
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    BSZoomableImageView(image: image)
                         .padding(.horizontal, 12)
                 } else {
                     ProgressView()
@@ -69,14 +43,11 @@ struct ShowAssetViewerView: View {
                 .foregroundColor(Color.white.opacity(0.55))
                 .padding(.bottom, 28)
         }
-        .navigationBarHidden(true)
-        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
+        .navigationTitle(kind.viewerTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { manageMenu }
         .bsToastOverlay(toast, bottomPadding: 36)
         .task(id: "\(asset.relativePath)|\(asset.updatedAt.timeIntervalSince1970)") {
-            scale = 1
-            lastScale = 1
-            offset = .zero
-            lastOffset = .zero
             image = nil
             await loadImage()
         }
@@ -101,29 +72,8 @@ struct ShowAssetViewerView: View {
         }
     }
 
-    private var header: some View {
-        HStack {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 41, height: 41)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-            }
-            .accessibilityLabel("返回")
-
-            Spacer()
-
-            Text(kind.viewerTitle)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.white)
-
-            Spacer()
-
+    private var manageMenu: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button(BSLocalization.text("替换图片")) {
                     isReplacing = true
@@ -133,50 +83,10 @@ struct ShowAssetViewerView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 41, height: 41)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
             }
+            .tint(BSColor.Stage.foreground)
             .accessibilityLabel(BSLocalization.format("管理%@", kind.title))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
-    }
-
-    private var magnifyGesture: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                scale = min(4, max(1, lastScale * value))
-            }
-            .onEnded { _ in
-                lastScale = scale
-                if scale <= 1.01 {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                        scale = 1
-                        lastScale = 1
-                        offset = .zero
-                        lastOffset = .zero
-                    }
-                }
-            }
-    }
-
-    private var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                guard scale > 1.01 else { return }
-                offset = CGSize(
-                    width: lastOffset.width + value.translation.width,
-                    height: lastOffset.height + value.translation.height
-                )
-            }
-            .onEnded { _ in
-                lastOffset = offset
-            }
     }
 
     private func loadImage() async {

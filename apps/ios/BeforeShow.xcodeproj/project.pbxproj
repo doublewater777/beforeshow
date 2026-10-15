@@ -255,6 +255,7 @@
 		7198DA2ECC22130E511EEDBA /* BSSwipeRevealActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */; };
 		71A42A3C94F7EA2095B7D4D3 /* ShowCoverFullscreenPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D369FFD78D510DBA30AE7AF /* ShowCoverFullscreenPreview.swift */; };
 		71B8211141BA72B93C9A7018 /* WidgetSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E8F1F9DA6B60E261D78057 /* WidgetSettingsView.swift */; };
+		71CC00F2332641F22806F53B /* BSZoomableImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF68C1D8DDE12A5D80AD873B /* BSZoomableImageView.swift */; };
 		71DD6839E9FF137C7DA41A8B /* ListeningArtistAutoMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250A110A5390FBFD9CACB5C1 /* ListeningArtistAutoMatcherTests.swift */; };
 		7270B09F5EABA588967ABA3B /* DispersalCeremony.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B51D1A6FD02E111BD1FFEE1 /* DispersalCeremony.swift */; };
 		7271D905B1F2AF6141262DE1 /* VenueAddressAutocompleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FF563A82B32DE497937094 /* VenueAddressAutocompleteTests.swift */; };
@@ -1037,6 +1038,7 @@
 		CEAB366E85A80812507B5453 /* AppLifecycleMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleMaintenance.swift; sourceTree = "<group>"; };
 		CED8DA0D0DA732B1B9DD0E41 /* BeforeShow.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeforeShow.Debug.entitlements; sourceTree = "<group>"; };
 		CEFC4B2586B395FD1EB79EE1 /* ListeningEvidenceFailureOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningEvidenceFailureOwner.swift; sourceTree = "<group>"; };
+		CF68C1D8DDE12A5D80AD873B /* BSZoomableImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSZoomableImageView.swift; sourceTree = "<group>"; };
 		CF6A5C6CC3D98DD7CE817AE2 /* CurrentShowManagementActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowManagementActions.swift; sourceTree = "<group>"; };
 		CF7668B37EC876E36719F32B /* TimetableOrientationHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableOrientationHost.swift; sourceTree = "<group>"; };
 		D0479ABDB615A44BA4C2EFF5 /* ShowNotificationScheduleRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowNotificationScheduleRecord.swift; sourceTree = "<group>"; };
@@ -1777,6 +1779,7 @@
 				5A9B3B197C2813907F8130A0 /* BSStagePresentation.swift */,
 				A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */,
 				298DD1DE5E28F44B30D2F12C /* BSTokens.swift */,
+				CF68C1D8DDE12A5D80AD873B /* BSZoomableImageView.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -2319,6 +2322,7 @@
 				97411B361E7DCA9E387C379C /* BSStagePresentation.swift in Sources */,
 				7198DA2ECC22130E511EEDBA /* BSSwipeRevealActionRow.swift in Sources */,
 				924B2AB9DDE84591041CD0DA /* BSTokens.swift in Sources */,
+				71CC00F2332641F22806F53B /* BSZoomableImageView.swift in Sources */,
 				4CC6961398BBD9C9A407B870 /* BeforeShowApp.swift in Sources */,
 				DB6FC4B6754C070AEABE963C /* BeforeShowCloudClient.swift in Sources */,
 				E3DBE16270CAEC6A77DFA6A6 /* BeforeShowOpenURL.swift in Sources */,
