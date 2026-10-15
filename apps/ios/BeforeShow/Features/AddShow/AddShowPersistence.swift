@@ -96,12 +96,12 @@ enum AddShowPersistenceCoordinator {
         let notificationState: NotificationSchedulingState?
         switch lifecycle {
         case .ended:
-            if show.endedAt == nil {
-                show.markAddedAsHistorical()
-                notificationState = nil
-            } else {
-                notificationState = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
-            }
+            // A show imported through the historical path cannot take over Current,
+            // even when the user supplied an actual end time.
+            show.markAddedAsHistorical()
+            notificationState = show.endedAt == nil
+                ? nil
+                : try NotificationSchedulingStateStore.canonicalize(in: modelContext)
         case .future, .live:
             notificationState = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
         }
