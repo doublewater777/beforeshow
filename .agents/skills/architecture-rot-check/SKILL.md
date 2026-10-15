@@ -39,13 +39,7 @@ Prefer recent change hotspots over whole-repo sightseeing:
 git log --since='14 days ago' --name-only --pretty=format: -- 'apps/ios/**/*.swift' | sed '/^$/d' | sort | uniq -c | sort -nr | head -40
 ```
 
-Also inspect known legacy hotspots named in `AGENTS.md` / `ARCHITECTURE.md`:
-
-- `RootView.swift`
-- `AddShowFlowViews.swift`
-- `FootprintsArchive.swift`
-- `FootprintArchiveViews.swift`
-- `MemoryFragmentsView.swift`
+Also inspect the oversize files pinned in `OVERSIZE_LINE_PINS` (`apps/ios/scripts/check_architecture.py`).
 
 ### 3. Architecture deepening scan
 
@@ -104,7 +98,7 @@ Interactive manual runs may still present candidates and ask which one to grill.
 
 ## BeforeShow constraints
 
-- Prefer shrinking legacy hotspots over inventing new abstraction layers.
+- Prefer shrinking oversize files over inventing new abstraction layers.
 - Do not propose large-font / VoiceOver / compatibility work.
 - Do not dump feature code into `Shared/`.
 - New Swift files belong under `BeforeShow/Features/<Feature>/` unless App/Domain/Infrastructure/UI is clearly correct.

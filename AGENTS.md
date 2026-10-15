@@ -32,7 +32,7 @@ xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
 - `RootView.swift` 只保留 app/root routing，不再新增 feature 级 UI、媒体 I/O 或业务 mutation。
 - SwiftData model 文件只放持久化字段、校验和 domain mutation；展示格式化、sheet/navigation 状态不要塞进 model。
 - `Shared/` 只放 App 与 Widget 真正共同需要的代码，不能作为“不知道放哪”的兜底目录。
-- `RootView.swift`、`AddShowFlowViews.swift`、`FootprintsArchive.swift`、`FootprintArchiveViews.swift`、`MemoryFragmentsView.swift` 等 legacy hotspot 原则上只缩不涨；先运行 `python3 apps/ios/scripts/check_architecture.py`。
+- Swift 文件有行数上限（源码 600、测试 1000），已超限的大文件只缩不涨；pre-commit hook 会运行 `python3 apps/ios/scripts/check_architecture.py`。
 - 新增/移动 Swift 源文件后，以 `apps/ios/project.yml` 为真源运行 `xcodegen generate`，并提交生成后的 `BeforeShow.xcodeproj`；不要只手改 pbxproj。
 
 ## Git commit 规范

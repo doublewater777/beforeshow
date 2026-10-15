@@ -10,176 +10,39 @@ from pathlib import Path
 IOS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = IOS_ROOT.parents[1]
 
-# Legacy files that are already too large, plus isolated feature files whose
-# responsibilities should remain bounded after extraction.
-HOTSPOT_BUDGETS = {
-    "BeforeShow/RootView.swift": 12_000,
-    "BeforeShow/UI/DesignSystem/BSTokens.swift": 11_000,
-    "BeforeShow/UI/DesignSystem/BSChrome.swift": 8_000,
-    "BeforeShow/UI/DesignSystem/BSStagePresentation.swift": 14_000,
-    "BeforeShow/UI/DesignSystem/BSInteractionComponents.swift": 10_000,
-    "BeforeShow/UI/DesignSystem/BSShowCoverComponents.swift": 12_000,
-    "BeforeShow/UI/DesignSystem/BSArtistComponents.swift": 5_000,
-    "BeforeShow/UI/DesignSystem/BSDrawerComponents.swift": 8_000,
-    "BeforeShow/Features/Settings/SettingsView.swift": 27_000,
-    "BeforeShow/Features/Settings/SettingsDebugViews.swift": 6_000,
-    "BeforeShow/Features/Settings/PrivacyLocalDataView.swift": 13_000,
-    "BeforeShow/Features/Settings/FeedbackView.swift": 8_000,
-    "BeforeShow/Features/Settings/LanguageSettingsView.swift": 4_000,
-    "BeforeShow/Features/Settings/AboutBeforeShowView.swift": 6_000,
-    "BeforeShow/Features/Shows/ShowDetailView.swift": 35_000,
-    "BeforeShow/Features/Shows/ShowDetailSheets.swift": 9_000,
-    "BeforeShow/Features/Shows/ShowDetailPresentationSupport.swift": 7_000,
-    "BeforeShow/Features/Shows/ShowCoverFullscreenPreview.swift": 8_000,
-    "BeforeShow/Infrastructure/Notifications/NotificationSchedulingModels.swift": 13_000,
-    "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduler.swift": 19_000,
-    "BeforeShow/Infrastructure/Notifications/NotificationDeepLink.swift": 6_000,
-    "BeforeShow/Infrastructure/Notifications/ScheduledNotificationRequest.swift": 5_000,
-    "BeforeShow/Infrastructure/Notifications/LocalNotificationCenter.swift": 14_000,
-    "BeforeShow/Infrastructure/Notifications/NotificationDeepLinkRouting.swift": 8_000,
-    "BeforeShow/Features/Shows/CurrentShowLibraryManagementView.swift": 27_000,
-    "BeforeShow/Features/Shows/CurrentShowLibraryPolicies.swift": 6_000,
-    "BeforeShow/Features/Shows/CurrentShowLibraryRows.swift": 11_000,
-    "BeforeShow/Features/Footprints/FootprintDetailView.swift": 33_000,
-    "BeforeShow/Features/Footprints/FootprintDetailPresentationSupport.swift": 7_000,
-    "BeforeShow/Features/Footprints/FootprintDetailMediaComponents.swift": 12_000,
-    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 22_400,
-    "BeforeShow/Features/Companion/CompanionAcceptedShareInbox.swift": 5_000,
-    "BeforeShow/Features/Companion/CompanionCloudSyncMarker.swift": 5_000,
-    "BeforeShow/Features/Companion/CompanionAcceptedSessionImporter.swift": 8_000,
-    "BeforeShow/Features/Companion/CompanionSharingPresentation.swift": 6_000,
-    "BeforeShow/Features/Subscription/ProPaywallView.swift": 21_000,
-    "BeforeShow/Features/Subscription/ProPaywallSupport.swift": 6_000,
-    "BeforeShow/Features/Subscription/ProPaywallPresentation.swift": 12_000,
-    "BeforeShow/Features/Subscription/ProPaywallPlanSelectionView.swift": 7_000,
-    "BeforeShow/Features/Subscription/ProPaywallWinbackView.swift": 9_000,
-    "BeforeShow/Features/Subscription/ProPaywallStoreFactory.swift": 3_000,
-    "BeforeShow/Features/CurrentShow/DispersalLightsOutView.swift": 8_000,
-    "BeforeShow/Features/CurrentShow/DispersalCeremonySheet.swift": 18_000,
-    "BeforeShow/Features/CurrentShow/DispersalCeremonyShareView.swift": 10_000,
-    "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 24_000,
-    "BeforeShow/Features/CurrentShow/HomeCountdownPresentation.swift": 14_000,
-    "BeforeShow/Features/CurrentShow/HomeLivePulse.swift": 3_000,
-    "BeforeShow/Features/CurrentShow/ShowAssetSheet.swift": 8_000,
-    "BeforeShow/Features/CurrentShow/ShowAssetUploadView.swift": 19_000,
-    "BeforeShow/Features/CurrentShow/ShowAssetViewerView.swift": 14_000,
-    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift": 4_000,
-    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaTypes.swift": 10_000,
-    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStaging.swift": 12_000,
-    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaCommit.swift": 9_000,
-    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaMaintenance.swift": 9_000,
-    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaFileSupport.swift": 4_000,
-    "BeforeShow/Features/DynamicCover/DynamicCoverPresentation.swift": 20_000,
-    "BeforeShow/Features/DynamicCover/DynamicCoverPlaybackView.swift": 14_000,
-    "BeforeShow/Features/CurrentShow/DynamicCoverManagementSection.swift": 16_000,
-    "BeforeShow/Features/CurrentShow/DynamicCoverImportCoordinator.swift": 11_000,
-    "BeforeShow/Features/Memory/MemoryViewerVideoPage.swift": 7_000,
-    "BeforeShow/Infrastructure/Media/AppAudioSession.swift": 5_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverAudioTrackProbe.swift": 4_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveRanking.swift": 20_000,
-    "BeforeShow/Features/Footprints/FootprintCityMapping.swift": 12_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveCovers.swift": 10_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveVisibility.swift": 5_000,
-    "BeforeShow/Features/Footprints/FootprintArtistArtworkWriteback.swift": 4_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift": 7_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverMediaTypes.swift": 9_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverMediaStaging.swift": 8_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverMediaCommit.swift": 7_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverMediaMaintenance.swift": 11_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverMediaFileSupport.swift": 5_000,
-    "BeforeShow/Features/CurrentShow/DynamicCoverPresentationSupport.swift": 4_000,
-    "BeforeShow/Features/Subscription/ProOfferDeepLinkRouter.swift": 3_000,
-    "BeforeShow/Features/Subscription/ProSubscriptionCatalog.swift": 9_000,
-    "BeforeShow/Features/Subscription/ProEntitlement.swift": 6_000,
-    "BeforeShow/Features/Subscription/ProSubscriptionStore.swift": 3_000,
-    "BeforeShow/Features/Subscription/MockProSubscriptionStore.swift": 6_000,
-    "BeforeShow/Features/Subscription/RevenueCatProSubscriptionStore.swift": 13_000,
-    "BeforeShow/Features/Subscription/ProLimitPresentation.swift": 4_000,
-    "BeforeShow/Features/Subscription/ProFeatureGate.swift": 6_000,
-    "BeforeShow/Features/Settings/SettingsCatalog.swift": 3_000,
-    "BeforeShow/Features/Settings/SettingsLanguageSupport.swift": 8_000,
-    "BeforeShow/Features/Settings/SettingsMembershipPresentation.swift": 3_000,
-    "BeforeShow/Features/Settings/SettingsNotificationPresentation.swift": 3_000,
-    "BeforeShow/Features/Settings/AppVersionInformation.swift": 3_000,
-    "BeforeShow/Features/Settings/SettingsFeedbackSupport.swift": 8_000,
-    "BeforeShow/Features/Settings/LocalDataInventory.swift": 6_000,
-    "BeforeShow/Infrastructure/Media/ShowAssetCleanupRetry.swift": 8_000,
-    "BeforeShow/Infrastructure/Widgets/WidgetDataSync.swift": 20_000,
-    "BeforeShow/Features/Footprints/FootprintDebugSeeder.swift": 18_000,
-    "BeforeShow/Features/Footprints/FootprintShareComposerView.swift": 18_000,
-    "BeforeShow/Infrastructure/Parsing/ShowLinkParsingService.swift": 18_000,
-    "BeforeShow/Infrastructure/Media/ShowAssetMediaStore.swift": 17_000,
-    "BeforeShow/Features/Onboarding/OnboardingFeatureVisuals.swift": 16_000,
-    "BeforeShow/Infrastructure/Places/VenueAddressAutocomplete.swift": 16_000,
-    "BeforeShow/Domain/Shows/ShowMutationCoordinator.swift": 15_000,
-    "BeforeShow/Features/CurrentShow/HomeHeroPresentation.swift": 12_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowHomeView.swift": 24_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 28_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 35_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowFollowUpView.swift": 8_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowQuickActionsView.swift": 9_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowRoutePresentation.swift": 5_000,
-    "BeforeShow/Features/AddShow/AddShowFlowView.swift": 48_000,
-    "BeforeShow/Features/AddShow/AddShowImportPresentation.swift": 15_000,
-    "BeforeShow/Features/AddShow/AddShowPresentationPrimitives.swift": 6_000,
-    "BeforeShow/Features/AddShow/ShowCoverLifecycle.swift": 4_000,
-    "BeforeShow/Features/AddShow/ShowDraftPresentationSupport.swift": 3_000,
-    "BeforeShow/Features/AddShow/AddShowCoordinatorView.swift": 9_000,
-    "BeforeShow/Features/AddShow/AddShowPersistence.swift": 9_000,
-    "BeforeShow/Features/AddShow/AddShowConfirmationView.swift": 12_000,
-    "BeforeShow/Features/AddShow/ShowDraftEditorView.swift": 26_000,
-    "BeforeShow/Features/AddShow/ShowDraftFormFields.swift": 20_000,
-    "BeforeShow/Features/AddShow/ShowDraftScheduleFields.swift": 13_000,
-    "BeforeShow/Features/AddShow/ShowDraftArtistFields.swift": 9_000,
-    "BeforeShow/Features/AddShow/ShowDraftCoverFields.swift": 7_000,
-    "BeforeShow/Features/AddShow/ShowDraftFieldComponents.swift": 4_000,
-    "BeforeShow/Features/Footprints/FootprintsView.swift": 17_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveDomain.swift": 7_000,
-    "BeforeShow/Features/Footprints/FootprintArchivePresentationSupport.swift": 12_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveShareCopy.swift": 7_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveShareView.swift": 14_000,
-    "BeforeShow/Features/Footprints/FootprintArtistViews.swift": 19_000,
-    "BeforeShow/Features/Footprints/FootprintCityArchiveViews.swift": 24_000,
-    "BeforeShow/Features/Footprints/FootprintCoverViews.swift": 8_000,
-    "BeforeShow/Features/Footprints/FootprintDashboardSections.swift": 30_000,
-    "BeforeShow/Features/Footprints/FootprintDashboardView.swift": 6_000,
-    "BeforeShow/Features/Footprints/FootprintDateFormatting.swift": 2_000,
-    "BeforeShow/Features/Footprints/FootprintMemoriesArchiveView.swift": 12_000,
-    "BeforeShow/Features/Footprints/FootprintOverviewShareSheet.swift": 3_000,
-    "BeforeShow/Features/Footprints/FootprintPageShareView.swift": 7_000,
-    "BeforeShow/Features/Footprints/FootprintPhotoLibrary.swift": 3_000,
-    "BeforeShow/Features/Footprints/FootprintPresentationSupport.swift": 2_000,
-    "BeforeShow/Features/Footprints/FootprintSearchSheet.swift": 8_000,
-    "BeforeShow/Features/Footprints/FootprintShareActionSheet.swift": 10_000,
-    "BeforeShow/Features/Footprints/FootprintShareExport.swift": 8_000,
-    "BeforeShow/Features/Footprints/FootprintVenueArchiveView.swift": 14_000,
-    "BeforeShow/Features/Footprints/FootprintYearArchiveView.swift": 19_000,
-    "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 32_000,
-    "BeforeShow/Features/Memory/MemoryUnifiedEditorView.swift": 32_000,
-    "BeforeShow/Features/Memory/MemoryPresentationModels.swift": 6_000,
-    "BeforeShow/Features/Memory/MemoryCreateSheets.swift": 6_000,
-    "BeforeShow/Features/Memory/MemoryFragmentEditCoordinator.swift": 6_000,
-    "BeforeShow/Features/Memory/MemoryTimelineViews.swift": 11_000,
-    "BeforeShow/Features/Memory/MemoryReviewViewer.swift": 13_000,
-    "BeforeShow/Features/Memory/MemoryCameraPicker.swift": 4_000,
-    "BeforeShow/App/BeforeShowApp.swift": 12_000,
-    "BeforeShow/App/AppLifecycleMaintenance.swift": 9_000,
-    "BeforeShow/App/AppPersistenceReconciliation.swift": 10_000,
-    "BeforeShow/Features/Companion/CloudKitCompanionSharingService.swift": 5_000,
-    "BeforeShow/Features/Companion/CloudKitCompanionInvitation.swift": 8_000,
-    "BeforeShow/Features/Companion/CloudKitCompanionSessionOperations.swift": 18_000,
-    "BeforeShow/Features/Companion/CloudKitCompanionSupport.swift": 12_000,
-    "BeforeShow/Features/Companion/CompanionSharingModels.swift": 9_000,
-    "BeforeShow/Features/Companion/CompanionSharingService.swift": 3_000,
-    "BeforeShow/Features/Companion/CompanionShowMapping.swift": 5_000,
-    "BeforeShow/Domain/Shows/Show.swift": 24_000,
-    "BeforeShow/Domain/Shows/ShowDraft.swift": 10_000,
-    "BeforeShow/Infrastructure/Parsing/ShowScreenshotRecognitionService.swift": 20_000,
-    "BeforeShow/Infrastructure/Vision/OnDeviceShowScreenshotRecognizer.swift": 5_000,
-    "BeforeShow/Infrastructure/Parsing/ShowLinkDraftParser.swift": 8_000,
-    "BeforeShow/App/CompanionAppDelegates.swift": 6_100,
-    "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 30_000,
-    "BeforeShow/Supporting/Debug/AppStoreWidgetPreviewView.swift": 7_000,
+# Every Swift source has a line cap so new files cannot quietly grow into
+# hotspots. Files already past the cap are pinned at their current size and may
+# only shrink; lower the pin when a file shrinks, delete it once under the cap.
+SOURCE_LINE_LIMIT = 600
+TEST_LINE_LIMIT = 1_000
+SOURCE_ROOTS = ("BeforeShow", "BeforeShowWidgets", "Shared")
+TEST_ROOTS = ("BeforeShowTests", "BeforeShowUITests")
+
+OVERSIZE_LINE_PINS = {
+    "BeforeShowTests/CompanionSharingTests.swift": 1_697,
+    "BeforeShow/Features/Listening/ListeningRoomCoordinator.swift": 1_593,
+    "BeforeShowTests/ProSubscriptionTests.swift": 1_169,
+    "BeforeShowTests/ShowDraftTests.swift": 1_051,
+    "BeforeShowTests/FootprintArchiveTests.swift": 1_038,
+    "BeforeShowTests/TimetableImportTests.swift": 1_033,
+    "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 935,
+    "BeforeShow/Features/AddShow/AddShowFlowView.swift": 880,
+    "BeforeShow/Features/Shows/ShowDetailView.swift": 875,
+    "BeforeShow/Features/Footprints/FootprintDetailView.swift": 829,
+    "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 819,
+    "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 799,
+    "BeforeShow/Features/Companion/CompanionJoinConfirmationView.swift": 783,
+    "BeforeShowWidgets/CountdownWidgetViews.swift": 728,
+    "BeforeShow/Supporting/Debug/LiveAndWidgetShowcaseView.swift": 725,
+    "BeforeShow/Features/Timetable/TimetableSheet.swift": 701,
+    "BeforeShow/Features/Listening/Views/ListeningPolishedBottomChrome.swift": 696,
+    "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 680,
+    "BeforeShow/Features/CurrentShow/HomeLiveModeView.swift": 678,
+    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 665,
+    "Shared/CurrentShowTimeState.swift": 636,
+    "BeforeShow/Features/Memory/MemoryUnifiedEditorView.swift": 636,
+    "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 636,
+    "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 613,
 }
 
 # Once a hotspot has been retired, do not allow a later change to recreate it
@@ -721,17 +584,32 @@ def added_swift_files(base_ref: str | None) -> list[str]:
     return added
 
 
-def check_hotspot_budgets(errors: list[str]) -> None:
-    for relative_path, max_bytes in HOTSPOT_BUDGETS.items():
+def line_limit(relative_path: str) -> int:
+    return TEST_LINE_LIMIT if relative_path.startswith(TEST_ROOTS) else SOURCE_LINE_LIMIT
+
+
+def check_file_sizes(errors: list[str]) -> None:
+    for root in SOURCE_ROOTS + TEST_ROOTS:
+        for path in sorted((IOS_ROOT / root).rglob("*.swift")):
+            relative_path = path.relative_to(IOS_ROOT).as_posix()
+            lines = len(path.read_text(encoding="utf-8").splitlines())
+            limit = OVERSIZE_LINE_PINS.get(relative_path, line_limit(relative_path))
+            if lines > limit:
+                errors.append(
+                    f"{relative_path} has {lines} lines (limit {limit}). "
+                    "Split responsibilities before adding more code."
+                )
+
+    for relative_path, pin in OVERSIZE_LINE_PINS.items():
         path = IOS_ROOT / relative_path
         if not path.exists():
+            errors.append(f"OVERSIZE_LINE_PINS lists missing file {relative_path}; remove the pin.")
             continue
-        size = path.stat().st_size
-        if size > max_bytes:
-            errors.append(
-                f"{relative_path} is {size:,} bytes (budget {max_bytes:,}). "
-                "Split responsibilities before adding more code, or move code out and update the budget intentionally."
-            )
+        lines = len(path.read_text(encoding="utf-8").splitlines())
+        if lines <= line_limit(relative_path):
+            errors.append(f"{relative_path} is back under the default limit; remove its pin.")
+        elif lines < pin:
+            errors.append(f"{relative_path} shrank to {lines} lines; lower its pin from {pin}.")
 
 
 def check_domain_imports(errors: list[str]) -> None:
@@ -1144,7 +1022,7 @@ def main() -> int:
 
     errors: list[str] = []
     base_ref = resolve_base_ref(args.base_ref)
-    check_hotspot_budgets(errors)
+    check_file_sizes(errors)
     check_retired_legacy_files(errors)
     check_root_swift_layout(errors)
     check_domain_imports(errors)

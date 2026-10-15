@@ -18,7 +18,7 @@ Review-time standards for BeforeShow. Implementation agents should not load this
 
 - Test behavior at seams; do not lock tests to private helpers.
 
-- Legacy hotspots only shrink: `RootView.swift`, `AddShowFlowViews.swift`, `FootprintsArchive.swift`, `FootprintArchiveViews.swift`, `MemoryFragmentsView.swift`.
+- Oversize files only shrink: see `OVERSIZE_LINE_PINS` in `apps/ios/scripts/check_architecture.py`.
 
 - New Swift sources go under `BeforeShow/Features/<Feature>/` by default; never use `Shared/` as a dumping ground.
 
