@@ -12,13 +12,15 @@ struct ListeningDiscTrack: Identifiable, Equatable, Codable {
         artworkURL = song.artworkURL.flatMap(URL.init(string:))
         duration = song.duration; previewURL = song.previewURL.flatMap(URL.init(string:))
     }
-    var playbackItem: ListeningPlaybackItem {
+    func playbackItem(on disc: ListeningDisc) -> ListeningPlaybackItem {
         ListeningPlaybackItem(
             songID: id,
             duration: duration,
             previewURL: previewURL,
             title: title,
-            artistName: artistName
+            artistName: artistName,
+            albumTitle: disc.title,
+            artworkURL: artworkURL ?? disc.artworkURL
         )
     }
 }

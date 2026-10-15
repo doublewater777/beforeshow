@@ -288,33 +288,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertTrue(projection.player.showsPauseControl)
     }
 
-    func testNaturalCompletionPresentsFinishedWithPlayAction() {
-        let disc = ListeningDisc(
-            id: "finished",
-            title: "Finished",
-            artworkURL: nil,
-            tracks: [track("finished-song", preview: false)]
-        )
-        let projection = ListeningDisplayProjector.make(
-            page: .ready,
-            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: true),
-            isAuthorizing: false,
-            allDiscs: [disc],
-            libraryDiscs: [disc],
-            loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
-            currentTrack: disc.tracks[0],
-            transport: ListeningPlayerTransport(phase: .finished, source: .fullCatalog, time: 180, duration: 180),
-            playbackError: nil
-        )
-
-        XCTAssertEqual(projection.player.phase, .finished)
-        XCTAssertEqual(projection.player.playPauseAction, .play)
-        XCTAssertFalse(projection.player.isPlaybackActive)
-        XCTAssertFalse(projection.player.shouldRotateDisc)
-    }
-
     func testPendingPauseIntentStopsPresentationBeforeTransportAcknowledges() {
         let disc = ListeningDisc(
             id: "pausing",
@@ -582,10 +555,10 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             discs: [disc],
             transport: ListeningPlayerTransport(phase: .playing, source: .preview, time: 12, duration: 30)
         )
-        let finished = makeProjection(
+        let paused = makeProjection(
             access: fullAccess,
             discs: [disc],
-            transport: ListeningPlayerTransport(phase: .finished, source: .preview, time: 30, duration: 30)
+            transport: ListeningPlayerTransport(phase: .paused, source: .preview, time: 12, duration: 30)
         )
         let stopped = makeProjection(
             access: fullAccess,
@@ -594,7 +567,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         )
 
         XCTAssertEqual(playing.roomMode, .preview)
-        XCTAssertEqual(finished.roomMode, .preview)
+        XCTAssertEqual(paused.roomMode, .preview)
         XCTAssertEqual(stopped.roomMode, .fullPlayback)
     }
 

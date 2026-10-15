@@ -59,9 +59,6 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .stopped)
         )
         XCTAssertFalse(
-            ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .finished)
-        )
-        XCTAssertFalse(
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .failed)
         )
     }

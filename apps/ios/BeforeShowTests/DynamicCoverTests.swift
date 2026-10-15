@@ -13,9 +13,9 @@ final class DynamicCoverTests: XCTestCase {
         let url = root.appendingPathComponent("cover.mov")
         try await Self.makeTestVideo(at: url)
 
-        AppAudioSession.configureMusicPlayback()
+        AppAudioSession.lease(.listening)
         await AppAudioSession.waitForPendingOperations()
-        defer { AppAudioSession.releaseMusicPlayback() }
+        defer { AppAudioSession.release(.listening) }
         let soundURL = try XCTUnwrap(Bundle.main.url(forResource: "cd-read", withExtension: "caf"))
         let audio = try AVAudioPlayer(contentsOf: soundURL)
         audio.numberOfLoops = -1
@@ -25,8 +25,8 @@ final class DynamicCoverTests: XCTestCase {
 
         CDSoundPlayer.shared.warmup()
         CDSoundPlayer.shared.play("seat")
-        AppAudioSession.configureSoundPlayback()
-        AppAudioSession.configureAmbient()
+        AppAudioSession.lease(.memoryVideo)
+        AppAudioSession.release(.memoryVideo)
         await AppAudioSession.waitForPendingOperations()
 
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)

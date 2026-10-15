@@ -1024,11 +1024,7 @@ final class TimetableImportTests: XCTestCase {
            let text = table["recognitionPrompt"] {
             return text
         }
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
-        let fileURL = root.appendingPathComponent("Resources/\(locale).lproj/TimetableImport.strings")
-        if let data = try? Data(contentsOf: fileURL),
-           let table = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: String],
-           let text = table["recognitionPrompt"] {
+        if let text = (try? StringCatalog("TimetableImport"))?.table(locale)["recognitionPrompt"] {
             return text
         }
         XCTFail("Could not load prompt for \(locale)")

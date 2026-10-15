@@ -45,7 +45,7 @@ struct FootprintDashboardSections {
                     Spacer()
                     if let activity, let peak = activity.peakMonth {
                         VStack(alignment: .trailing, spacing: 3) {
-                            Text(BSLocalization.format("%@ · %lld 场", BSLocalization.text(footprintMonthKey(peak.month)), peak.showCount))
+                            Text(BSLocalization.format("%@ · %lld 场", BSLocalization.text(key: footprintMonthKey(peak.month)), peak.showCount))
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(BSColor.Stage.accent)
                             Text(BSLocalization.text(activity.year == currentYear ? "今年目前最密集" : "这一年最密集"))

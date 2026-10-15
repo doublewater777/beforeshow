@@ -483,7 +483,7 @@ struct TimetablePerformanceInspectorSheet: View {
 
             if TimetablePreviewPlayer.shared.failedPerformanceID == performance.id,
                let message = TimetablePreviewPlayer.shared.failureMessage {
-                Text(BSLocalization.text(message))
+                Text(BSLocalization.text(key: message))
                     .font(.system(size: 12))
                     .foregroundStyle(TimetableStyle.muted)
             }

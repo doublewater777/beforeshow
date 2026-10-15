@@ -17,20 +17,19 @@ final class ListeningLocalizationTests: XCTestCase {
                 for match in regex.matches(in: source, range: NSRange(location: 0, length: ns.length)) { keys.insert(ns.substring(with: match.range(at: 1))) }
             }
         }
+        let catalog = try StringCatalog("Localizable")
         for locale in ["zh-Hans", "zh-Hant", "en"] {
-            let data = try Data(contentsOf: root.appendingPathComponent("Resources/\(locale).lproj/Localizable.strings"))
-            let values = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String])
+            let values = catalog.table(locale)
             for key in keys { XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)") }
         }
     }
 
     func testListeningCapabilityProjectionCopyExistsInThreeLanguages() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
         let keys: Set<String> = [
             "正在准备…", "完整播放", "试听模式", "仅歌曲信息", "暂不可播放",
             "立即授权", "打开设置", "重试", "试听", "部分曲目可试听", "30 秒试听",
             "载入中…", "试听中 · 剩余 %d 秒", "播放中", "试听暂停 · 剩余 %d 秒",
-            "暂停", "停止", "播放结束", "暂时无法播放", "选择一张唱片开始播放",
+            "暂停", "停止", "暂时无法播放", "选择一张唱片开始播放",
             "当前仅提供歌曲信息", "当前暂不可播放", "请先合上播放器上盖", "现场预习", "想看", "想看 · Day %d", "彩排", "Day %d · %@", "大合唱", "新歌", "深挖", "无法播放", "这首歌目前无法播放，请稍后再试。",
             "仅提供歌曲信息", "授权后载入唱片", "放置唱片中…",
             "允许访问 Apple Music 后，可尝试完整播放。",
@@ -49,9 +48,9 @@ final class ListeningLocalizationTests: XCTestCase {
             "选一场现场，", "听听即将相遇的音乐。", "添加一场想去的现场，", "唱片就从这里开始。", "选择对应的 Apple Music 艺人", "连接 %@", "正在搜索艺人…", "换个名字搜索", "清除搜索", "装入并试听", "%@ 等 %d 位艺人"
         ]
 
+        let catalog = try StringCatalog("Listening")
         for locale in ["zh-Hans", "zh-Hant", "en"] {
-            let data = try Data(contentsOf: root.appendingPathComponent("Resources/\(locale).lproj/Listening.strings"))
-            let values = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String])
+            let values = catalog.table(locale)
             XCTAssertEqual(Set(values.keys), keys)
             for key in keys {
                 XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)")

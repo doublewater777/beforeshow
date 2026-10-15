@@ -1,0 +1,28 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "recognitionPrompt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read the music festival timetable in the images I attached. Reply with a single JSON object only: no explanation, no heading, no Markdown code block.\n\nFormat (keep the field names as they are):\n{\"version\":1,\"timeZone\":null,\"days\":[{\"date\":\"2026-10-17\",\"stages\":[{\"name\":\"STAGE\",\"performances\":[{\"artist\":\"ARTIST\",\"start\":\"18:00\",\"end\":\"19:00\"}]}]}]}\n\nRules:\n1. Extract every performance shown: date, stage, artist, start time and end time.\n2. Copy artist and stage names exactly as printed. Do not translate, romanize or correct them.\n3. Group by date, then by stage, keeping the order shown in the images.\n4. Use 24-hour HH:mm. Sets after midnight that belong to the previous day's schedule stay under that day, with the time as printed (e.g. \"00:30\").\n5. Write dates as YYYY-MM-DD; if the year is not shown, write MM-DD.\n6. Use null for any value you cannot read with certainty. Never guess.\n7. Do not add performances that are not in the images.\n8. Fill timeZone with an IANA identifier (e.g. \"Europe/London\") only if the images state it; otherwise null.\n9. If there are several images, merge them into one JSON object."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请识别我上传的音乐节时刻表图片，只输出一个 JSON 对象，不要任何解释、标题或 Markdown 代码块。\n\n格式（字段名保持英文）：\n{\"version\":1,\"timeZone\":null,\"days\":[{\"date\":\"2026-10-17\",\"stages\":[{\"name\":\"STAGE\",\"performances\":[{\"artist\":\"ARTIST\",\"start\":\"18:00\",\"end\":\"19:00\"}]}]}]}\n\n规则：\n1. 提取图片中的每一场演出：日期、舞台、艺人、开始时间、结束时间。\n2. 艺人名和舞台名按图片原文照抄，不要翻译、改写或纠正。\n3. 先按日期、再按舞台归组，演出按图片中的顺序排列。\n4. 时间使用 24 小时制 HH:mm。属于前一天排期的午夜后演出，仍放在前一天，时间照图片写（例如 \"00:30\"）。\n5. 日期写成 YYYY-MM-DD；图片没有年份时写成 MM-DD。\n6. 任何无法确定的值写 null，不要猜测。\n7. 不要添加图片中不存在的演出。\n8. timeZone 只在图片明确标注时填写 IANA 时区（例如 \"Asia/Shanghai\"），否则写 null。\n9. 有多张图片时，合并成一个 JSON 输出。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請辨識我上傳的音樂節時刻表圖片，只輸出一個 JSON 物件，不要任何解釋、標題或 Markdown 程式碼區塊。\n\n格式（欄位名稱保持英文）：\n{\"version\":1,\"timeZone\":null,\"days\":[{\"date\":\"2026-10-17\",\"stages\":[{\"name\":\"STAGE\",\"performances\":[{\"artist\":\"ARTIST\",\"start\":\"18:00\",\"end\":\"19:00\"}]}]}]}\n\n規則：\n1. 擷取圖片中的每一場演出：日期、舞台、藝人、開始時間、結束時間。\n2. 藝人名與舞台名依圖片原文照抄，不要翻譯、改寫或更正。\n3. 先依日期、再依舞台分組，演出依圖片中的順序排列。\n4. 時間使用 24 小時制 HH:mm。屬於前一天排程的午夜後演出，仍放在前一天，時間照圖片寫（例如 \"00:30\"）。\n5. 日期寫成 YYYY-MM-DD；圖片沒有年份時寫成 MM-DD。\n6. 任何無法確定的值寫 null，不要猜測。\n7. 不要加入圖片中不存在的演出。\n8. timeZone 只在圖片明確標示時填寫 IANA 時區（例如 \"Asia/Taipei\"），否則寫 null。\n9. 有多張圖片時，合併成一個 JSON 輸出。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

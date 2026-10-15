@@ -77,8 +77,8 @@ struct ListeningArtistMatchSheet: View {
         } else if searching {
             ListeningStateMessage(icon: "magnifyingglass", title: ListeningCopy.text("正在搜索艺人…"), isLoading: true)
         } else if let failure {
-            ListeningStateMessage(icon: failure.icon, title: BSLocalization.text(failure.title),
-                                  subtitle: BSLocalization.text(failure.detail),
+            ListeningStateMessage(icon: failure.icon, title: BSLocalization.text(key: failure.title),
+                                  subtitle: BSLocalization.text(key: failure.detail),
                                   actionTitle: failure.actionTitle, action: recoverSearch)
         } else if candidates.isEmpty {
             ListeningStateMessage(icon: "person.crop.circle.badge.questionmark", title: BSLocalization.text("未找到匹配的艺人"),

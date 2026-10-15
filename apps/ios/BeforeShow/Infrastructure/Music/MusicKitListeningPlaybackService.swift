@@ -11,9 +11,17 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     private var songsByID: [String: Song] = [:]
     private var durationBySongID: [String: TimeInterval] = [:]
     private(set) var queuedSongIDs: [String] = []
+    private var focusObserver: NSObjectProtocol?
 
     init(player: ApplicationMusicPlayer = .shared) {
         self.player = player
+        focusObserver = AppAudioSession.observeFocusLoss(of: .listening) { [weak self] in
+            self?.pause()
+        }
+    }
+
+    isolated deinit {
+        if let focusObserver { NotificationCenter.default.removeObserver(focusObserver) }
     }
 
     var phase: ListeningPlaybackTransportPhase {
@@ -38,6 +46,8 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         let status = player.state.playbackStatus
         guard status == .stopped || status == .paused else { return false }
         guard let songID = currentEntrySongID else { return true }
+        // Only the last song can end the queue; a pause near the end of another is a pause.
+        guard songID == queuedSongIDs.last else { return false }
         return ListeningPlaybackCompletionPolicy.hasEnded(
             currentTime: currentTime,
             duration: duration(of: songID),
@@ -77,7 +87,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         player.state.repeatMode = MusicPlayer.RepeatMode.none
         player.state.shuffleMode = .off
         player.queue = ApplicationMusicPlayer.Queue(for: songs, startingAt: songsByID[startID])
-        AppAudioSession.configureMusicPlayback()
+        AppAudioSession.lease(.listening)
         await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
         try await player.prepareToPlay()
@@ -87,9 +97,10 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func play() async throws {
-        AppAudioSession.configureMusicPlayback()
+        AppAudioSession.lease(.listening)
         await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
+        AppAudioSession.claimFocus(.listening)
         try await player.play()
     }
 
@@ -105,16 +116,18 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         try await player.skipToPreviousEntry()
     }
 
+    /// Moves within the loaded queue instead of replacing it.
     func skip(to songID: String) async throws {
-        guard queuedSongIDs.contains(songID), let song = songsByID[songID] else {
+        let entry = player.queue.entries.first { entry in
+            guard case let .song(song) = entry.item else { return false }
+            return song.id.rawValue == songID
+        }
+        guard queuedSongIDs.contains(songID), let entry else {
             throw ListeningPlaybackError.songUnavailable(songID)
         }
         let continuesPlaying = phase.isActive
-        player.queue = ApplicationMusicPlayer.Queue(
-            for: queuedSongIDs.compactMap { songsByID[$0] },
-            startingAt: song
-        )
-        if continuesPlaying {
+        player.queue.currentEntry = entry
+        if continuesPlaying, !phase.isActive {
             try await play()
         }
     }
@@ -122,7 +135,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     func stop() {
         player.stop()
         queuedSongIDs = []
-        AppAudioSession.releaseMusicPlayback()
+        AppAudioSession.release(.listening)
     }
 
     private var currentEntrySongID: String? {

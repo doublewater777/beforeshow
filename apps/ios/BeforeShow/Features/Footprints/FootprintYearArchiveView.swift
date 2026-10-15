@@ -71,7 +71,7 @@ struct FootprintTrendChart: View {
                        .position(point)
                }
                ForEach(Array(months.enumerated()), id: \.element.id) { index, month in
-                   Text(BSLocalization.text(footprintMonthKey(month.month)))
+                   Text(BSLocalization.text(key: footprintMonthKey(month.month)))
                        .font(.system(size: 8.5, weight: month.month == currentMonth ? .bold : .medium))
                        .foregroundColor(
                            month.month == currentMonth

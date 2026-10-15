@@ -217,7 +217,7 @@ struct TimetableAIImportView: View {
         case .noSchedule: "识别结果中没有可导入的演出，请检查内容"
         case .conflictingDays: "识别结果中相邻两天的演出时间重叠，请检查内容"
         }
-        return BSLocalization.text(key)
+        return BSLocalization.text(key: key)
     }
 }
 

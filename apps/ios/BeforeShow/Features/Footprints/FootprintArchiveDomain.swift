@@ -12,7 +12,7 @@ enum FootprintCategory: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// 展示用本地化标题(rawValue 是稳定标识,不直接上屏)。
-    var title: String { BSLocalization.text(rawValue) }
+    var title: String { BSLocalization.text(key: rawValue) }
 }
 
 struct FootprintRankItem: Identifiable, Equatable, Hashable {

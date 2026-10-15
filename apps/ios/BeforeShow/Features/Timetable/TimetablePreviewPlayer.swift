@@ -17,7 +17,7 @@ final class TimetablePreviewPlayer {
     private(set) var toastPerformanceID: UUID?
     private(set) var toastTrackTitle: String?
 
-    @ObservationIgnored private let playback = PreviewListeningPlaybackService()
+    @ObservationIgnored private let playback = PreviewListeningPlaybackService(owner: .timetablePreview)
     @ObservationIgnored private var cache: [String: ListeningPlaybackItem] = [:]
     @ObservationIgnored private var activeTask: Task<Void, Never>?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -116,7 +116,6 @@ final class TimetablePreviewPlayer {
     }
 
     private func playAndMonitor(performanceID: UUID) async {
-        ListeningRoomSessionStore.shared.room?.pauseForOtherAudio()
         do {
             try await playback.play()
             let changes = Observations { [playback] in

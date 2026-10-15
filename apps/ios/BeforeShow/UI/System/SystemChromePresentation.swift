@@ -30,7 +30,7 @@ enum MemoryCreateSourceOption: String, CaseIterable {
     case library = "图库"
     case text = "文字"
 
-    var title: String { BSLocalization.text(rawValue) }
+    var title: String { BSLocalization.text(key: rawValue) }
 
     var iconName: String {
         switch self {

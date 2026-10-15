@@ -48,8 +48,8 @@ enum HomeShowIdentityPresentation {
 
     private static func citySiteText(_ formatKey: String, city: String?, bare: String) -> String {
         let city = city?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let city, !city.isEmpty else { return BSLocalization.text(bare) }
-        return BSLocalization.format(formatKey, city)
+        guard let city, !city.isEmpty else { return BSLocalization.text(key: bare) }
+        return BSLocalization.format(key: formatKey, city)
     }
 
     static func dateText(

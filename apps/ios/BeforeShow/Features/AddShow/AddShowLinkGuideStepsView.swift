@@ -52,10 +52,10 @@ struct AddShowLinkGuideStepsView: View {
             TabView(selection: $page) {
                 ForEach(steps.indices, id: \.self) { index in
                     VStack(alignment: .leading, spacing: BSSpacing.compact) {
-                        Text(BSLocalization.text(steps[index].title))
+                        Text(BSLocalization.text(key: steps[index].title))
                             .font(BSFont.headline)
                             .foregroundStyle(BSColor.textPrimary)
-                        Text(BSLocalization.text(steps[index].detail))
+                        Text(BSLocalization.text(key: steps[index].detail))
                             .font(BSFont.caption)
                             .foregroundStyle(BSColor.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,7 +90,7 @@ struct AddShowLinkGuideStepsView: View {
                     withAnimation { page += 1 }
                 }
             } label: {
-                Text(BSLocalization.text(page == steps.count - 1 ? completionTitle : "下一步"))
+                Text(BSLocalization.text(key: page == steps.count - 1 ? completionTitle : "下一步"))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())

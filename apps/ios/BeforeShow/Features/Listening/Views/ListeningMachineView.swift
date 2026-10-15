@@ -368,7 +368,7 @@ private struct CDPlayerLCDView: View {
                             Text(room.playerDisplayTimeText)
                         case .playing, .seeking:
                             Text("▶ \(room.playerDisplayTimeText)")
-                        case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
+                        case .noDisc, .paused, .interrupted, .stopped, .failed:
                             Text("⏸ \(room.playerDisplayTimeText)")
                         }
                     }
@@ -403,7 +403,7 @@ private struct CDPlayerControlsView: View {
                 .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
                 .accessibilityLabel(BSLocalization.text(
-                    control == .playPause
+                    key: control == .playPause
                         ? (playerPresentation.showsPauseControl ? "暂停" : "播放")
                         : control.label
                 ))

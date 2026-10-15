@@ -31,6 +31,9 @@ struct MemoryViewerVideoPage: View {
         // When the whole viewer disappears, let SwiftUI/AVKit dismantle its
         // controller before ARC releases the player state. Pausing is enough.
         .onDisappear { player?.pause() }
+        .onReceive(NotificationCenter.default.publisher(for: AppAudioSession.focusDidChange)) { notification in
+            if AppAudioSession.takesFocus(notification, from: .memoryVideo) { player?.pause() }
+        }
     }
 
     private func updatePlayer() {
@@ -38,6 +41,7 @@ struct MemoryViewerVideoPage: View {
             if player == nil {
                 player = AVPlayer(url: url)
             }
+            AppAudioSession.claimFocus(.memoryVideo)
             player?.play()
         } else {
             releasePlayer()

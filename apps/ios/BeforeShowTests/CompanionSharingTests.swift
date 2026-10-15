@@ -57,10 +57,7 @@ final class CompanionSharingTests: XCTestCase {
     }
 
     func testQuickActionLocalizationKeysExistInThreeLanguages() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("BeforeShow")
+        let catalog = try StringCatalog("Localizable")
         let keys = [
             "添加同行",
             "邀请朋友一起去这场现场。",
@@ -73,12 +70,7 @@ final class CompanionSharingTests: XCTestCase {
         ]
 
         for locale in ["zh-Hans", "zh-Hant", "en"] {
-            let data = try Data(
-                contentsOf: root.appendingPathComponent("Resources/\(locale).lproj/Localizable.strings")
-            )
-            let values = try XCTUnwrap(
-                PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String]
-            )
+            let values = catalog.table(locale)
             for key in keys {
                 XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)")
             }

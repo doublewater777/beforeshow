@@ -72,10 +72,10 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertEqual(factory.last.loadCount, 1, "selecting a song must not rebuild the queue")
     }
 
-    func testNextWhilePlayingUsesTheQueueAndWhileStoppedMovesTheCursor() async throws {
+    func testNextUsesTheLoadedQueueAndKeepsPlayOrPause() async throws {
         let factory = PlayerFactory()
         let deck = ListeningDeck(makeEngine: factory.make)
-        deck.load([album("a", songs: ["a1", "a2", "a3"])], cursor: "a1")
+        deck.load([album("a", songs: ["a1", "a2", "a3", "a4"])], cursor: "a1")
         deck.play(source: .fullCatalog)
         try await waitUntil { deck.isPlaying }
 
@@ -83,19 +83,26 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertEqual(deck.cursorSongID, "a2")
         try await waitUntil { factory.last.nativeSkips == [1] }
         XCTAssertTrue(deck.isPlaying)
-        XCTAssertEqual(factory.last.loadCount, 1)
 
         deck.pause()
         try await waitUntil { !deck.wantsPlayback }
         deck.skip(by: 1, source: .fullCatalog)
         XCTAssertEqual(deck.cursorSongID, "a3")
         XCTAssertFalse(deck.wantsPlayback)
-        XCTAssertEqual(factory.last.loadCount, 1)
+        try await waitUntil { factory.last.nativeSkips == [1, 1] && factory.last.currentSongID == "a3" }
+        XCTAssertEqual(deck.phase, .paused)
+        XCTAssertEqual(factory.last.stopCount, 0, "a paused skip must keep the queue and Now Playing")
 
         deck.play(source: .fullCatalog)
         try await waitUntil { deck.isPlaying }
-        XCTAssertEqual(factory.last.loadCount, 2)
-        XCTAssertEqual(factory.last.loadedStartSongID, "a3")
+        XCTAssertEqual(factory.last.loadCount, 1)
+        XCTAssertEqual(factory.last.currentSongID, "a3")
+
+        deck.stop()
+        deck.skip(by: 1, source: .fullCatalog)
+        XCTAssertEqual(deck.cursorSongID, "a2")
+        XCTAssertEqual(deck.phase, .stopped)
+        XCTAssertEqual(factory.last.loadCount, 1, "without a queue Next only moves the cursor")
     }
 
     func testQuickRepeatedNextTapsAllLand() async throws {
@@ -209,21 +216,34 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertEqual(factory.last.playCount, 1)
     }
 
-    func testFinishedQueueReloadsFromItsLastSongOnPlay() async throws {
+    func testPlayingThroughTheLastTrackStopsAtTheFirstTrack() async throws {
         let factory = PlayerFactory()
         let deck = ListeningDeck(makeEngine: factory.make)
-        deck.load([album("a", songs: ["a1", "a2"])], cursor: "a1")
+        deck.load([album("a", songs: ["a1", "a2"])], cursor: "a2")
         deck.play(source: .fullCatalog)
         try await waitUntil { deck.isPlaying }
 
         factory.last.finishQueue()
-        try await waitUntil { deck.phase == .finished && deck.cursorSongID == "a2" }
+        try await waitUntil { deck.phase == .stopped && deck.cursorSongID == "a1" }
         XCTAssertFalse(deck.wantsPlayback)
+        XCTAssertEqual(deck.time, 0)
+        XCTAssertEqual(factory.last.stopCount, 1)
 
         deck.play(source: .fullCatalog)
         try await waitUntil { deck.isPlaying }
         XCTAssertEqual(factory.last.loadCount, 2)
-        XCTAssertEqual(factory.last.loadedStartSongID, "a2")
+        XCTAssertEqual(factory.last.loadedStartSongID, "a1")
+    }
+
+    func testEndingASessionKeepsTheSongAndResetsProgress() async throws {
+        let factory = PlayerFactory()
+        let deck = ListeningDeck(makeEngine: factory.make)
+        deck.load([album("a", songs: ["a1", "a2"])], cursor: "a2", resumeAt: 42)
+
+        deck.endSession()
+
+        XCTAssertEqual(deck.cursorSongID, "a2")
+        XCTAssertEqual(deck.time, 0)
     }
 
     func testFailedStartIsReportedAndRetryReloads() async throws {
@@ -392,7 +412,7 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertEqual(service.currentSongID, "p1")
     }
 
-    func testPreviewPlayerRestartsItsLastPreviewAfterTheQueueEnded() async throws {
+    func testPreviewPlayerDoesNotReviveAFinishedQueue() async throws {
         let player = AVQueuePlayer()
         let service = PreviewListeningPlaybackService(player: player)
         defer { service.stop() }
@@ -402,10 +422,11 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertTrue(service.hasEnded)
         XCTAssertEqual(service.currentSongID, "p2")
 
-        try await service.play()
-        XCTAssertNotNil(player.currentItem)
-        XCTAssertEqual(service.currentSongID, "p2")
-        XCTAssertFalse(service.hasEnded)
+        do {
+            try await service.play()
+            XCTFail("a finished queue is reloaded by the deck")
+        } catch ListeningPlaybackError.emptyQueue {}
+        XCTAssertNil(player.currentItem)
     }
 
     func testPreviewResumeKeepsProgressAdvancing() async throws {

@@ -1043,10 +1043,6 @@ final class LocalizableCompletenessTests: XCTestCase {
     }
 
     private func strings(_ localization: String) -> [String: String]? {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("BeforeShow/Resources/\(localization).lproj/Localizable.strings")
-        return NSDictionary(contentsOf: url) as? [String: String]
+        (try? StringCatalog("Localizable"))?.table(localization)
     }
 }
