@@ -375,25 +375,22 @@ import XCTest
         try await wait { room.trackIndex == 1 && room.isPlaying && !room.busy }
         XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
         service.finishQueue()
-        try await wait { !room.isPlaying }
-        XCTAssertEqual(room.trackIndex, 1)
-        XCTAssertEqual(room.display.player.phase, .finished)
+        try await wait { !room.isPlaying && room.trackIndex == 0 }
+        XCTAssertEqual(room.display.player.phase, .stopped, "playing through the disc stops it at its first track")
         XCTAssertEqual(room.mechanism.disc?.id, disc.id)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
         XCTAssertEqual(service.loadCount, 1)
         room.playPause()
         try await wait { room.isPlaying && !room.busy }
         XCTAssertEqual(service.loadCount, 2)
-        XCTAssertEqual(service.loadedStartSongID, "b")
+        XCTAssertEqual(service.loadedStartSongID, "a")
         XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
-        room.skip(1)
-        XCTAssertEqual(room.trackIndex, 1)
         show.artists[0].appleMusicArtistID = "replacement-artist"
         await room.load(show: show)
         // Artist identity changes keep the loaded disc and the playback transport;
         // only the catalog around them reloads.
         XCTAssertEqual(room.mechanism.disc?.id, disc.id)
-        XCTAssertEqual(room.track?.id, "b")
+        XCTAssertEqual(room.track?.id, "a")
         XCTAssertTrue(room.isPlaying)
     }
     func testSelectingAnotherTrackOnTheSeatedDiscDoesNotReloadMechanically() async throws {

@@ -37,19 +37,25 @@ struct ListeningPlaybackItem: Equatable, Sendable {
     let previewURL: URL?
     let title: String?
     let artistName: String?
+    let albumTitle: String?
+    let artworkURL: URL?
 
     init(
         songID: String,
         duration: TimeInterval?,
         previewURL: URL?,
         title: String? = nil,
-        artistName: String? = nil
+        artistName: String? = nil,
+        albumTitle: String? = nil,
+        artworkURL: URL? = nil
     ) {
         self.songID = songID
         self.duration = duration
         self.previewURL = previewURL
         self.title = title
         self.artistName = artistName
+        self.albumTitle = albumTitle
+        self.artworkURL = artworkURL
     }
 }
 

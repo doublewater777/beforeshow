@@ -1,5 +1,6 @@
 import AVFoundation
 import MediaPlayer
+import UIKit
 
 /// 30-second previews are DRM-free, so they play on AVFoundation directly.
 /// `MPNowPlayingSession` publishes Now Playing for this player and owns its
@@ -8,6 +9,7 @@ import MediaPlayer
 @Observable
 final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     let source = ListeningPlaybackSource.preview
+    private let owner: AppAudioSession.Owner
     private let player: AVQueuePlayer
     private let nowPlaying: MPNowPlayingSession
     private var queue: [ListeningPlaybackItem] = []
@@ -18,17 +20,27 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     @ObservationIgnored private var ownsAudioSession = false
     @ObservationIgnored private var audioObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var resumeTask: Task<Void, Never>?
+    @ObservationIgnored private var commandAvailabilityTask: Task<Void, Never>?
+    @ObservationIgnored private var artworkTask: Task<Void, Never>?
+    @ObservationIgnored private var artworks: [URL: MPMediaItemArtwork] = [:]
 
-    init(player: AVQueuePlayer = AVQueuePlayer()) {
+    init(player: AVQueuePlayer = AVQueuePlayer(), owner: AppAudioSession.Owner = .listening) {
         self.player = player
+        self.owner = owner
         nowPlaying = MPNowPlayingSession(players: [player])
         nowPlaying.automaticallyPublishesNowPlayingInfo = true
         registerRemoteCommands()
+        observeCommandAvailability()
         observeAudioSession()
+        audioObservers.append(AppAudioSession.observeFocusLoss(of: owner) { [weak self] in
+            self?.pause()
+        })
     }
 
     isolated deinit {
         resumeTask?.cancel()
+        commandAvailabilityTask?.cancel()
+        artworkTask?.cancel()
         for observer in audioObservers { NotificationCenter.default.removeObserver(observer) }
     }
 
@@ -83,24 +95,26 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         queue = playable
         let start = songID.flatMap { id in playable.firstIndex { $0.songID == id } } ?? 0
         rebuild(startingAt: start)
-        if time > 0 {
+        // A position kept from full playback can lie beyond the 30-second preview.
+        if time > 0, let asset = player.currentItem?.asset,
+           let length = try? await asset.load(.duration).seconds, time < length {
             _ = await player.seek(to: CMTime(seconds: time, preferredTimescale: 600))
         }
     }
 
     func play() async throws {
         try Task.checkCancellation()
-        if player.currentItem == nil || player.currentItem?.status == .failed {
-            // Remote Play after the last preview ended restarts that preview.
-            rebuild(startingAt: currentIndex ?? max(0, queue.count - 1))
+        // A finished or failed queue is reloaded by its owner, never revived here.
+        guard let item = player.currentItem, item.status != .failed else {
+            throw ListeningPlaybackError.emptyQueue
         }
-        guard player.currentItem != nil else { throw ListeningPlaybackError.emptyQueue }
         playbackRequested = true
         ownsAudioSession = true
-        AppAudioSession.configureMusicPlayback()
+        AppAudioSession.lease(owner)
         await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
         guard playbackRequested else { return }
+        AppAudioSession.claimFocus(owner)
         player.play()
         Task { [weak self] in
             guard let self, self.playbackRequested else { return }
@@ -140,9 +154,10 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         player.removeAllItems()
         queue = []
         itemIndexes = [:]
+        artworkTask?.cancel()
         if ownsAudioSession {
             ownsAudioSession = false
-            AppAudioSession.releaseMusicPlayback()
+            AppAudioSession.release(owner)
         }
     }
 
@@ -168,13 +183,58 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         for queueIndex in index..<queue.count {
             guard let url = queue[queueIndex].previewURL else { continue }
             let item = AVPlayerItem(url: url)
-            var info: [String: Any] = [:]
-            if let title = queue[queueIndex].title { info[MPMediaItemPropertyTitle] = title }
-            if let artist = queue[queueIndex].artistName { info[MPMediaItemPropertyArtist] = artist }
-            item.nowPlayingInfo = info
+            item.nowPlayingInfo = nowPlayingInfo(for: queue[queueIndex])
             itemIndexes[ObjectIdentifier(item)] = queueIndex
             player.insert(item, after: previous)
             previous = item
+        }
+        loadArtwork()
+    }
+
+    private func nowPlayingInfo(for entry: ListeningPlaybackItem) -> [String: Any] {
+        var info: [String: Any] = [:]
+        if let title = entry.title { info[MPMediaItemPropertyTitle] = title }
+        if let artist = entry.artistName { info[MPMediaItemPropertyArtist] = artist }
+        if let album = entry.albumTitle { info[MPMediaItemPropertyAlbumTitle] = album }
+        if let artwork = entry.artworkURL.flatMap({ artworks[$0] }) { info[MPMediaItemPropertyArtwork] = artwork }
+        return info
+    }
+
+    /// Fetches cover art for queued items, current item first, then refreshes their Now Playing info.
+    private func loadArtwork() {
+        artworkTask?.cancel()
+        let start = currentIndex ?? 0
+        var seen = Set(artworks.keys)
+        let missing = (queue[start...] + queue[..<start]).compactMap(\.artworkURL).filter { seen.insert($0).inserted }
+        guard !missing.isEmpty else { return }
+        artworkTask = Task { [weak self] in
+            for url in missing {
+                guard let (data, _) = try? await URLSession.shared.data(from: url),
+                      let image = UIImage(data: data) else { continue }
+                guard let self, !Task.isCancelled else { return }
+                self.artworks[url] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                for item in self.player.items() {
+                    guard let index = self.itemIndexes[ObjectIdentifier(item)],
+                          self.queue[index].artworkURL == url else { continue }
+                    item.nowPlayingInfo = self.nowPlayingInfo(for: self.queue[index])
+                }
+            }
+        }
+    }
+
+    /// Greys out Previous/Next on the Lock Screen at either end of the queue.
+    private func observeCommandAvailability() {
+        commandAvailabilityTask = Task { [weak self] in
+            let positions = Observations { [weak self] () -> (index: Int?, count: Int)? in
+                guard let self else { return nil }
+                return (self.currentIndex, self.queue.count)
+            }
+            for await position in positions {
+                guard let self, let position else { return }
+                let commands = self.nowPlaying.remoteCommandCenter
+                commands.previousTrackCommand.isEnabled = (position.index ?? 0) > 0
+                commands.nextTrackCommand.isEnabled = position.index.map { $0 + 1 < position.count } ?? false
+            }
         }
     }
 
@@ -189,8 +249,10 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
             let options = AVAudioSession.InterruptionOptions(
                 rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             )
-            let routeDisconnected = notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
-                == AVAudioSession.InterruptionReason.routeDisconnected.rawValue
+            let reason = notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
+            // Delivered on return from suspension; no ended notification follows.
+            guard reason != AVAudioSession.InterruptionReason.appWasSuspended.rawValue else { return }
+            let routeDisconnected = reason == AVAudioSession.InterruptionReason.routeDisconnected.rawValue
             MainActor.assumeIsolated {
                 self?.handleInterruption(type, options: options, routeDisconnected: routeDisconnected)
             }

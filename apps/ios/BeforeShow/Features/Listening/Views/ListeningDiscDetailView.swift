@@ -361,7 +361,7 @@ struct ListeningDiscDetailView: View {
             return .playing
         case .paused, .interrupted:
             return .paused
-        case .noDisc, .stopped, .finished, .failed:
+        case .noDisc, .stopped, .failed:
             return .paused
         }
     }

@@ -351,7 +351,7 @@ final class ListeningPresentationTests: XCTestCase {
         XCTAssertEqual(room.display.player.source, .preview)
     }
 
-    func testForegroundAccountLimitEndsPausedFullPlaybackWithoutResettingTrack() async throws {
+    func testForegroundAccountLimitEndsPausedFullPlaybackKeepingTrackAndResettingProgress() async throws {
         let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
         let context = fixture.container.mainContext
         let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
@@ -390,7 +390,7 @@ final class ListeningPresentationTests: XCTestCase {
         XCTAssertEqual(room.display.player.phase, .stopped)
         XCTAssertEqual(room.track?.id, selectedTrackID)
         XCTAssertEqual(room.trackIndex, selectedIndex)
-        XCTAssertEqual(room.elapsed, 42, "capability loss must retain the paused playback position")
+        XCTAssertEqual(room.elapsed, 0, "a session that ends keeps its song and resets progress (ADR 0036)")
     }
 
     func testForegroundAccessCheckFailureKeepsEstablishedFullPlaybackAndWarnsForFuturePlayback() async throws {

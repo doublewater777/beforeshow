@@ -6,15 +6,23 @@ import AVFoundation
 /// `AVPlayer` with an audio track starts — `isMuted` only zeroes the output, it
 /// does not stop the session from activating. Dynamic covers are decorative and
 /// always muted, so the app stays on `ambient` + `mixWithOthers` by default.
-/// Views that intentionally play sound switch to `playback` while they are on screen.
+/// An owner that intentionally plays sound leases `playback` while it may sound.
+///
+/// Inside the app, owners behave like separate apps do under iOS: one sounds at
+/// a time. An owner claims focus right before it sounds, every other owner
+/// pauses, and nothing resumes on its own.
 @MainActor
 enum AppAudioSession {
-    enum Owner: Equatable {
+    enum Owner: Hashable {
         case listening
-        case sound
+        case timetablePreview
+        case memoryVideo
     }
 
-    private static var owners: Set<Owner> = []
+    /// Posted synchronously on the main thread; `object` is the claiming `Owner`.
+    static let focusDidChange = Notification.Name("AppAudioSession.focusDidChange")
+
+    private static var leases: Set<Owner> = []
 
     // Session changes and short sound effects share one queue so configuration
     // always precedes playback without waiting for audio hardware on the UI thread.
@@ -24,24 +32,45 @@ enum AppAudioSession {
         AVAudioSession.sharedInstance().category
     }
 
-    static func configureAmbient() {
-        release(.sound)
+    /// Applies the policy for the current leases, e.g. the ambient default at launch.
+    static func applyPolicy() {
+        apply()
     }
 
-    static func configureSoundPlayback() {
-        acquire(.sound)
+    static func lease(_ owner: Owner) {
+        leases.insert(owner)
+        apply()
     }
 
-    static func configureMusicPlayback() {
-        acquire(.listening)
+    static func release(_ owner: Owner) {
+        leases.remove(owner)
+        apply()
     }
 
-    static func releaseMusicPlayback() {
-        release(.listening)
+    /// `owner` is about to sound; every other owner pauses before this returns.
+    static func claimFocus(_ owner: Owner) {
+        NotificationCenter.default.post(name: focusDidChange, object: owner)
+    }
+
+    /// Whether a `focusDidChange` notification takes focus away from `owner`.
+    nonisolated static func takesFocus(_ notification: Notification, from owner: Owner) -> Bool {
+        guard let claimant = notification.object as? Owner else { return false }
+        return claimant != owner
+    }
+
+    /// Runs `pause` whenever another owner claims focus. Keep the token for removal.
+    static func observeFocusLoss(
+        of owner: Owner,
+        pause: @escaping @MainActor () -> Void
+    ) -> NSObjectProtocol {
+        NotificationCenter.default.addObserver(forName: focusDidChange, object: nil, queue: nil) { notification in
+            guard takesFocus(notification, from: owner) else { return }
+            MainActor.assumeIsolated { pause() }
+        }
     }
 
     static func resetForTests() {
-        owners = []
+        leases = []
         apply()
     }
 
@@ -51,25 +80,15 @@ enum AppAudioSession {
         }
     }
 
-    private static func acquire(_ owner: Owner) {
-        owners.insert(owner)
-        apply()
-    }
-
-    private static func release(_ owner: Owner) {
-        owners.remove(owner)
-        apply()
-    }
-
     private static func apply() {
         let category: AVAudioSession.Category
         let mode: AVAudioSession.Mode
         let options: AVAudioSession.CategoryOptions
-        if owners.contains(.listening) {
+        if !leases.isDisjoint(with: [.listening, .timetablePreview]) {
             category = .playback
             mode = .default
             options = []
-        } else if owners.contains(.sound) {
+        } else if leases.contains(.memoryVideo) {
             category = .playback
             mode = .moviePlayback
             options = []

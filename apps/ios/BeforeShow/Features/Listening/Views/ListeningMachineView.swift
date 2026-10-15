@@ -368,7 +368,7 @@ private struct CDPlayerLCDView: View {
                             Text(room.playerDisplayTimeText)
                         case .playing, .seeking:
                             Text("▶ \(room.playerDisplayTimeText)")
-                        case .noDisc, .paused, .interrupted, .stopped, .finished, .failed:
+                        case .noDisc, .paused, .interrupted, .stopped, .failed:
                             Text("⏸ \(room.playerDisplayTimeText)")
                         }
                     }

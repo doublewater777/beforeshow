@@ -128,13 +128,66 @@ final class PreviewListeningPlaybackServiceTests: XCTestCase {
     }
 
     func testStoppingAnUnusedPreviewDoesNotReleaseAnotherMusicSession() async {
-        AppAudioSession.configureMusicPlayback()
+        AppAudioSession.lease(.listening)
         await AppAudioSession.waitForPendingOperations()
 
         service.stop()
         await AppAudioSession.waitForPendingOperations()
 
         XCTAssertEqual(AVAudioSession.sharedInstance().category, .playback)
+    }
+
+    func testAnotherOwnerSoundingPausesThePreviewForGood() async throws {
+        try await start()
+        let timetable = PreviewListeningPlaybackService(player: AVQueuePlayer(), owner: .timetablePreview)
+        defer { timetable.stop() }
+        try await timetable.load([item("other")], startingAt: "other", at: 0)
+
+        try await timetable.play()
+        XCTAssertEqual(player.rate, 0)
+        XCTAssertEqual(service.phase, .paused)
+
+        // Like iOS between apps, losing focus is not an interruption that resumes.
+        beginInterruption()
+        endInterruption(shouldResume: true)
+        await drainPlaybackRequests()
+        XCTAssertEqual(player.rate, 0)
+    }
+
+    func testPreviewOwnsOnlyItsOwnLease() async throws {
+        AppAudioSession.lease(.listening)
+        let timetable = PreviewListeningPlaybackService(player: AVQueuePlayer(), owner: .timetablePreview)
+        try await timetable.load([item("other")], startingAt: "other", at: 0)
+        try await timetable.play()
+
+        timetable.stop()
+        await AppAudioSession.waitForPendingOperations()
+
+        XCTAssertEqual(AVAudioSession.sharedInstance().category, .playback)
+    }
+
+    func testReturningFromSuspensionIsNotAnInterruption() async throws {
+        try await start()
+        NotificationCenter.default.post(
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            userInfo: [
+                AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue,
+                AVAudioSessionInterruptionReasonKey: AVAudioSession.InterruptionReason.appWasSuspended.rawValue
+            ]
+        )
+        XCTAssertEqual(service.phase, .playing)
+
+        player.pause()
+        XCTAssertEqual(service.phase, .paused)
+    }
+
+    func testResumePositionBeyondThePreviewStartsAtItsBeginning() async throws {
+        try await service.load([item("first")], startingAt: "first", at: 42)
+        XCTAssertEqual(service.currentTime, 0, accuracy: 0.01)
+
+        try await service.load([item("first")], startingAt: "first", at: 5)
+        XCTAssertEqual(service.currentTime, 5, accuracy: 0.1)
     }
 
     private func start() async throws {

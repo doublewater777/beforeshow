@@ -320,7 +320,7 @@ final class ListeningLoadingTests: XCTestCase {
         try await wait { !room.isPlaying }
         try await settleLayout(view)
         XCTAssertEqual(room.mechanism.disc?.id, selected.id)
-        XCTAssertEqual(room.track?.id, lastSongID)
+        XCTAssertEqual(room.track?.id, firstSongID, "playing through the theme stops at its first track")
         XCTAssertEqual(player.loadCount, 1)
     }
 

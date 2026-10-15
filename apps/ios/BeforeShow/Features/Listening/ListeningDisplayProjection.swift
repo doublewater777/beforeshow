@@ -105,13 +105,12 @@ enum ListeningPlayerPhase: Equatable {
     case paused
     case interrupted
     case stopped
-    case finished
     case failed
 
     var isPlaybackActive: Bool {
         switch self {
         case .preparing, .waiting, .playing, .seeking: true
-        case .noDisc, .paused, .interrupted, .stopped, .finished, .failed: false
+        case .noDisc, .paused, .interrupted, .stopped, .failed: false
         }
     }
 }
@@ -161,8 +160,6 @@ struct ListeningPlayerPresentation: Equatable {
             return ListeningCopy.text("暂停")
         case .stopped:
             return ListeningCopy.text("停止")
-        case .finished:
-            return ListeningCopy.text("播放结束")
         case .failed:
             return ListeningCopy.text("暂时无法播放")
         }
@@ -574,7 +571,7 @@ enum ListeningDisplayProjector {
         let keepsEstablishedFullCatalogSession = ListeningPlaybackSourceResolver.resolve(
             capability: trackPresentation.capability,
             access: access,
-            establishedSource: transport.phase == .finished ? nil : transport.source
+            establishedSource: transport.source
         ) == .fullCatalog
         if !trackPresentation.isPlayable && !keepsEstablishedFullCatalogSession {
             return ListeningPlayerPresentation(
@@ -636,7 +633,7 @@ enum ListeningDisplayProjector {
         switch transport.phase {
         case .waiting, .playing, .seeking, .paused, .interrupted, .stopped:
             return max(0, duration - transport.time)
-        case .noDisc, .preparing, .finished, .failed:
+        case .noDisc, .preparing, .failed:
             return nil
         }
     }

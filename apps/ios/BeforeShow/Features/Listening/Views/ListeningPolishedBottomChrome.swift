@@ -13,7 +13,7 @@ enum ListeningMiniPlayerPlaybackAppearance {
             return BSLocalization.text("播放中")
         case .paused, .interrupted:
             return BSLocalization.text("暂停")
-        case .noDisc, .stopped, .finished, .failed:
+        case .noDisc, .stopped, .failed:
             return player.statusText
         }
     }

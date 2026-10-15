@@ -273,14 +273,14 @@ struct MemoryMediaViewer: View {
         // ambient policy on exit so covers stay non-interrupting.
         .task {
             guard !Task.isCancelled else { return }
-            AppAudioSession.configureSoundPlayback()
+            AppAudioSession.lease(.memoryVideo)
             await AppAudioSession.waitForPendingOperations()
             guard !Task.isCancelled else { return }
             isAudioConfigured = true
         }
         .onDisappear {
             isAudioConfigured = false
-            AppAudioSession.configureAmbient()
+            AppAudioSession.release(.memoryVideo)
         }
     }
 

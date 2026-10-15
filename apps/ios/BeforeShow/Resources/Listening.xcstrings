@@ -481,22 +481,6 @@
         }
       }
     },
-    "播放结束" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback finished"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "播放結束"
-          }
-        }
-      }
-    },
     "放置唱片中…" : {
       "localizations" : {
         "en" : {

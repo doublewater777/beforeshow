@@ -344,9 +344,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         isPlayerDisplayPreparing ? "00:00" : timeText
     }
 
-    var elapsed: TimeInterval {
-        deck.phase == .finished ? deck.duration ?? deck.time : deck.time
-    }
+    var elapsed: TimeInterval { deck.time }
 
     var timeText: String {
         let time = elapsed.isFinite ? Int(max(0, min(elapsed, 86400))) : 0
@@ -1333,11 +1331,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         playbackError = nil
         deck.select(songID, autoplay: autoplay, source: playbackSource(for: target))
     }
-    /// Another player in the app is about to sound; never overlap with it.
-    func pauseForOtherAudio() {
-        if playPauseAction == .pause { deck.pause() }
-    }
-
     func playPause() {
         guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
         switch playPauseAction {
@@ -1368,7 +1361,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     }
 
     private func startPlaybackIfPossible() {
-        if TimetablePreviewPlayer.shared.activePerformanceID != nil { TimetablePreviewPlayer.shared.stop() }
         if let disc = mechanism.disc {
             deck.replaceIdleDiscs([disc])
         }

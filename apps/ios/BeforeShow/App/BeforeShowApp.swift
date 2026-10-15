@@ -84,7 +84,7 @@ struct BeforeShowApp: App {
 
 
         if !isRunningHostedUnitTests {
-            AppAudioSession.configureAmbient()
+            AppAudioSession.applyPolicy()
 
             let revenueCatAPIKey = Bundle.main.object(forInfoDictionaryKey: "RevenueCatAPIKey") as? String ?? ""
             if !revenueCatAPIKey.isEmpty, revenueCatAPIKey != "appl_REPLACE_ME" {

@@ -51,6 +51,10 @@ final class ListeningDeck {
 
     var tracks: [ListeningDiscTrack] { discs.flatMap(\.tracks) }
 
+    private var playbackItems: [ListeningPlaybackItem] {
+        discs.flatMap { disc in disc.tracks.map { $0.playbackItem(on: disc) } }
+    }
+
     var currentTrack: ListeningDiscTrack? {
         guard let cursorSongID else { return nil }
         return tracks.first { $0.id == cursorSongID }
@@ -101,8 +105,8 @@ final class ListeningDeck {
         case nil:
             break
         }
-        guard isQueueLoaded, let engine else { return .stopped }
-        if engine.hasEnded { return .finished }
+        // A queue that played through is stopped as soon as its observation lands.
+        guard isQueueLoaded, let engine, !engine.hasEnded else { return .stopped }
         switch engine.phase {
         case .playing: return .playing
         case .waiting: return .waiting
@@ -158,7 +162,7 @@ final class ListeningDeck {
     func prefetch(source: ListeningPlaybackSource) {
         guard !isQueueLoaded, command == nil, !tracks.isEmpty else { return }
         let engine = engine(for: source)
-        let items = tracks.map(\.playbackItem)
+        let items = playbackItems
         prefetchTask?.cancel()
         prefetchTask = Task { await engine.prefetch(items) }
     }
@@ -171,7 +175,7 @@ final class ListeningDeck {
         let engine = engine(for: source)
         let needsLoad = !isQueueLoaded || engine.hasEnded || engine.failure != nil
         let resume = isQueueLoaded ? 0 : resumeTime
-        let items = tracks.map(\.playbackItem)
+        let items = playbackItems
         failed = false
         command = .play
         if needsLoad {
@@ -251,19 +255,21 @@ final class ListeningDeck {
         }
     }
 
-    /// Next/previous track: native queue navigation while the loaded queue
-    /// plays, a cursor move otherwise. A target the source cannot play ends playback.
+    /// Next/previous track: native queue navigation whenever the queue is
+    /// loaded, keeping play or pause as it was, the way Apple's players skip.
+    /// Without a loaded queue it only moves the cursor. A target the source
+    /// cannot play ends playback.
     func skip(by delta: Int, source: ListeningPlaybackSource?) {
         syncWithPlayer()
         guard let target = adjacentSongID(delta) else { return }
-        guard isQueueLoaded, let engine, wantsPlayback, let source, engine.source == source,
-              engine.queuedSongIDs.contains(target) else {
+        guard isQueueLoaded, !isFinished, let engine, let source, engine.source == source,
+              engine.failure == nil, engine.queuedSongIDs.contains(target) else {
             select(target, autoplay: false, source: source)
             return
         }
         recordSample(immediate: false)
         moveCursor(to: target)
-        command = .play
+        if wantsPlayback { command = .play }
         perform { engine in
             // Decided against the player's position when the command runs, so
             // quick repeated taps stay correct while earlier ones are in flight.
@@ -283,8 +289,22 @@ final class ListeningDeck {
     }
 
     /// The Stop button: the record stays and returns to its first track.
+    /// Playing through the last track stops the same way.
     func stop() {
         syncWithPlayer()
+        returnToFirstTrack()
+    }
+
+    /// Ends a session its source can no longer serve; the song stays and its progress resets.
+    func endSession() {
+        syncWithPlayer()
+        unloadQueue()
+        command = nil
+        resumeTime = 0
+        onTransportChange()
+    }
+
+    private func returnToFirstTrack() {
         let first = currentDisc?.tracks.first?.id
         unloadQueue()
         command = nil
@@ -293,16 +313,6 @@ final class ListeningDeck {
         if let first, first != cursorSongID {
             moveCursor(to: first)
         }
-        onTransportChange()
-    }
-
-    /// Ends a session its source can no longer serve; the song and position stay.
-    func endSession() {
-        syncWithPlayer()
-        let position = time
-        unloadQueue()
-        command = nil
-        resumeTime = position
         onTransportChange()
     }
 
@@ -357,6 +367,10 @@ final class ListeningDeck {
             fail()
             return
         }
+        if change.ended {
+            returnToFirstTrack()
+            return
+        }
         // The player owns which song is current, except while our own
         // navigation is still on its way to it.
         if commandTask == nil, let songID = change.songID, songID != cursorSongID,
@@ -375,9 +389,6 @@ final class ListeningDeck {
             command = nil
         default:
             break
-        }
-        if change.ended {
-            command = nil
         }
         guard change != lastTransport else {
             if command != commandBefore { onTransportChange() }
