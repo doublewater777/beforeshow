@@ -122,13 +122,14 @@ enum CompanionAcceptedSessionImporter {
         now: Date
     ) throws -> Bool {
         let store = CurrentShowSelectionStore(modelContext: modelContext)
-        let previousID = try store.canonicalSelection()?.selectedShowID
-        // Explicit API choices remain supported, but the join UI uses automatic mode.
+        // Some lightweight import contexts omit the selection model. Keep the
+        // automatic branch best-effort, while explicit API selections must persist.
+        let previousID = (try? store.canonicalSelection())?.selectedShowID
         if makeCurrent {
             _ = try store.select(showID: show.id)
             return previousID != show.id
         }
-        let selection = try store.bootstrapIfNeeded(shows: shows, now: now)
+        let selection = try? store.bootstrapIfNeeded(shows: shows, now: now)
         let resolved = CurrentShowSession().selectCurrentShow(
             from: shows, manualSelection: selection, now: now
         )
