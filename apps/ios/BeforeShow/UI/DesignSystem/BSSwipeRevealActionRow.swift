@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct BSSwipeRevealActionRow<Content: View>: View {
     let isRevealed: Bool
@@ -10,7 +11,6 @@ struct BSSwipeRevealActionRow<Content: View>: View {
     private let content: Content
 
     @State private var dragTranslation: CGFloat = 0
-    @State private var horizontalDrag: Bool?
     @State private var suppressContentTap = false
     @State private var tapReleaseTask: Task<Void, Never>?
 
@@ -90,7 +90,7 @@ struct BSSwipeRevealActionRow<Content: View>: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .offset(x: rowOffset)
-            .simultaneousGesture(dragGesture)
+            .gesture(dragGesture)
         }
         .background(BSColor.Stage.surface.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -106,35 +106,19 @@ struct BSSwipeRevealActionRow<Content: View>: View {
         }
     }
 
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 4)
-            .onChanged { value in
-                if horizontalDrag == nil {
-                    let horizontal = abs(value.translation.width)
-                    let vertical = abs(value.translation.height)
-                    guard max(horizontal, vertical) >= 4 else { return }
-                    horizontalDrag = horizontal >= vertical
-                    if horizontalDrag == true {
-                        tapReleaseTask?.cancel()
-                        suppressContentTap = true
-                    }
-                }
-
-                guard horizontalDrag == true else { return }
-                dragTranslation = value.translation.width
-            }
-            .onEnded { value in
-                let wasHorizontal = horizontalDrag == true
-                horizontalDrag = nil
-
-                guard wasHorizontal else {
-                    dragTranslation = 0
-                    return
-                }
-
-                let projected = restingOffset + value.predictedEndTranslation.width
+    private var dragGesture: some UIGestureRecognizerRepresentable {
+        BSHorizontalSwipeGesture(
+            onChanged: { translation in
+                tapReleaseTask?.cancel()
+                suppressContentTap = true
+                dragTranslation = translation
+            },
+            onEnded: { translation, velocity, cancelled in
+                let projected = restingOffset + translation + velocity * 0.2
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.90)) {
-                    onReveal(projected < -(actionWidth * 0.45))
+                    if !cancelled {
+                        onReveal(projected < -(actionWidth * 0.45))
+                    }
                     dragTranslation = 0
                 }
 
@@ -145,5 +129,45 @@ struct BSSwipeRevealActionRow<Content: View>: View {
                     suppressContentTap = false
                 }
             }
+        )
+    }
+}
+
+/// Reject vertical pans before recognition so the parent scroll view keeps them.
+private struct BSHorizontalSwipeGesture: UIGestureRecognizerRepresentable {
+    let onChanged: (CGFloat) -> Void
+    let onEnded: (CGFloat, CGFloat, Bool) -> Void
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.x) > abs(velocity.y)
+        }
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let recognizer = UIPanGestureRecognizer()
+        recognizer.maximumNumberOfTouches = 1
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let translation = recognizer.translation(in: recognizer.view).x
+        switch recognizer.state {
+        case .began, .changed:
+            onChanged(translation)
+        case .ended:
+            onEnded(translation, recognizer.velocity(in: recognizer.view).x, false)
+        case .cancelled, .failed:
+            onEnded(translation, 0, true)
+        default:
+            break
+        }
     }
 }
