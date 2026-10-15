@@ -87,9 +87,6 @@ final class TimetablePersistenceTests: XCTestCase {
                         XCTAssertTrue(stage.performances.allSatisfy { $0.stage?.id == stage.id })
                     }
                 }
-                let midnight = TimetableTimePolicy.facts(for: timetable.timing, at: date(24))
-                XCTAssertEqual(midnight.current.map(\.id), [timetable.orderedDays[0].orderedStages[0].orderedPerformances[1].id])
-                XCTAssertFalse(midnight.hasEnded)
                 XCTAssertEqual(show.assets.map(\.relativePath), ["original.jpg"])
                 XCTAssertEqual(show.assets.first?.kind, .timetable)
                 XCTAssertNil(show.endedAt)

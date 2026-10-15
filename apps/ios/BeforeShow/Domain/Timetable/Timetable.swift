@@ -202,19 +202,6 @@ final class Timetable {
             }
         }
     }
-
-    /// Value-only input to the time policy; no persistence or UI dependencies escape.
-    var timing: [TimetableDayTiming] {
-        orderedDays.map { day in
-            TimetableDayTiming(id: day.id, performances: day.stages.flatMap { stage in
-                stage.performances.map {
-                    TimetablePerformanceTiming(
-                        id: $0.id, stageID: stage.id, startsAt: $0.startsAt, endsAt: $0.endsAt
-                    )
-                }
-            })
-        }
-    }
 }
 
 @Model

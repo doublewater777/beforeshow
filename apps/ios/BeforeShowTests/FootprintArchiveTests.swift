@@ -522,31 +522,6 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selection.selectedShowID, existing.id)
     }
 
-    func testArchiveShareCopyIsSpecificToEveryCategory() throws {
-        let first = try makeShow("第一场", year: 2024, artist: "落日飞车、陈绮贞", city: "上海", venue: "MAO")
-        let second = try makeShow("第二场", year: 2025, artist: "落日飞车", city: "杭州", venue: "奥体")
-        let archive = FootprintArchiveBuilder.make(
-            shows: [second, first],
-            now: date(2026, 8, 1, 12),
-            calendar: calendar
-        )
-
-        let overview = FootprintArchiveShareCopy.text(for: .overview, archive: archive)
-        let artist = FootprintArchiveShareCopy.text(for: .artist, archive: archive)
-        let city = FootprintArchiveShareCopy.text(for: .city, archive: archive)
-        let venue = FootprintArchiveShareCopy.text(for: .venue, archive: archive)
-
-        XCTAssertEqual(Set([overview, artist, city, venue]).count, 4)
-        XCTAssertTrue(overview.contains("2 场现场"))
-        XCTAssertTrue(artist.contains("艺人排行：落日飞车 2 场"))
-        XCTAssertTrue(city.contains("城市排行："))
-        XCTAssertTrue(city.contains("上海 1 场"))
-        XCTAssertTrue(city.contains("杭州 1 场"))
-        XCTAssertTrue(venue.contains("场馆排行："))
-        XCTAssertTrue(venue.contains("MAO 1 场"))
-        XCTAssertTrue(venue.contains("奥体 1 场"))
-    }
-
     func testDetailIdentityDynamicallyRanksShowCityAndConfirmedCompanion() throws {
         let backfilled = try makeShow("更早补录", year: 2023, artist: "A", city: "杭州", venue: "A")
         let firstTogether = try makeShow("第一次同行", year: 2024, artist: "B", city: "上海", venue: "B")
@@ -807,35 +782,8 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(shareLabel, "照片，第 3 项，20:18，未选择")
     }
 
-    func testArchiveCategoryShareCardIsShorterThanOverviewWhenRankingIsSparse() throws {
-        let show = try makeShow("一场", year: 2025, artist: "陈绮贞", city: "杭州", venue: "MAO")
-        let archive = FootprintArchiveBuilder.make(
-            shows: [show],
-            now: date(2026, 8, 1, 12),
-            calendar: calendar
-        )
-
-        guard let overview = FootprintShareImageExport.renderLong(
-            FootprintArchiveShareCard(archive: archive, category: .overview),
-            width: FootprintArchiveShareExportLayout.width,
-            scale: 3
-        )?.cgImage,
-              let artist = FootprintShareImageExport.renderLong(
-                FootprintArchiveShareCard(archive: archive, category: .artist),
-                width: FootprintArchiveShareExportLayout.width,
-                scale: 3
-              )?.cgImage else {
-            XCTFail("archive share card export produced no image")
-            return
-        }
-
-        XCTAssertEqual(overview.width, 1080)
-        XCTAssertEqual(artist.width, 1080)
-        XCTAssertLessThan(artist.height, overview.height)
-    }
-
     func testArchiveCardExportFillsGeometryReaderAtExportSize() {
-        let size = FootprintArchiveShareExportLayout.size
+        let size = CGSize(width: 360, height: 1100.0 / 3)
         let probe = GeometryReader { geometry in
             Color.white.frame(width: geometry.size.width, height: geometry.size.height)
         }

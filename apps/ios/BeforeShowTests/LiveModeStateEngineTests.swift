@@ -84,6 +84,37 @@ final class LiveModeStateEngineTests: XCTestCase {
         XCTAssertTrue(state.upcomingPerformances.first?.isStartingSoon ?? false, "Starting soon must be elevated within 30 minutes")
     }
 
+    // MARK: - 2b. Half-open Intervals: an Adjacent Set Takes Over Exactly at the Handoff
+
+    func testAdjacentAndParallelSetsHandOffAtExactBoundary() {
+        let stageID = UUID()
+        let first = LivePerformanceInput(
+            id: UUID(), artistName: "First", stageID: stageID, stageName: "Main",
+            startsAt: date(14, 0), endsAt: date(15, 0), isInterested: false
+        )
+        let adjacent = LivePerformanceInput(
+            id: UUID(), artistName: "Adjacent", stageID: stageID, stageName: "Main",
+            startsAt: date(15, 0), endsAt: date(16, 0), isInterested: false
+        )
+        let parallel = LivePerformanceInput(
+            id: UUID(), artistName: "Parallel", stageID: UUID(), stageName: "Side",
+            startsAt: date(15, 0), endsAt: date(16, 0), isInterested: false
+        )
+        let day = LiveDayInput(id: UUID(), date: date(0, 0), performances: [parallel, adjacent, first])
+
+        let cases: [(Date, Set<String>, Set<String>)] = [
+            (date(14, 0), ["First"], ["Adjacent", "Parallel"]),
+            (date(14, 59), ["First"], ["Adjacent", "Parallel"]),
+            (date(15, 0), ["Adjacent", "Parallel"], []),
+            (date(16, 0), [], [])
+        ]
+        for (now, current, upcoming) in cases {
+            let state = LiveModeStateEngine.calculate(days: [day], now: now)
+            XCTAssertEqual(Set(state.currentPerformances.map(\.artistName)), current, "current at \(now)")
+            XCTAssertEqual(Set(state.upcomingPerformances.map(\.artistName)), upcoming, "upcoming at \(now)")
+        }
+    }
+
     // MARK: - 3. Multi-stage Parallel Sets: Interested Takes Precedence; Objective Otherwise
 
     func testMultiStageParallelSetsPrioritizeInterestedWithoutGuessingLocation() {

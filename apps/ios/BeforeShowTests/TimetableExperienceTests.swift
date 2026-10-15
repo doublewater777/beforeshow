@@ -188,32 +188,6 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertFalse(perf1.isInterested)
     }
 
-    // MARK: - 3. Period Policy & Answering Now / Up Next / Evening
-
-    func testPeriodPolicyAnswersNowUpNextAndEvening() {
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
-        let refTime = date(2026, 8, 15, 14, 15) // 14:15 Tokyo
-
-        // Performance happening NOW: 14:00 - 15:00
-        let perfNow = (start: date(2026, 8, 15, 14, 0), end: date(2026, 8, 15, 15, 0))
-        XCTAssertTrue(TimetablePeriodPolicy.isNow(startsAt: perfNow.start, endsAt: perfNow.end, at: refTime))
-        XCTAssertFalse(TimetablePeriodPolicy.isUpNext(startsAt: perfNow.start, at: refTime))
-        XCTAssertFalse(TimetablePeriodPolicy.isEvening(startsAt: perfNow.start, timeZone: tokyo))
-
-        // Performance UP NEXT: 15:30 - 16:30 (starts in 75 minutes, <= 2h window)
-        let perfNext = (start: date(2026, 8, 15, 15, 30), end: date(2026, 8, 15, 16, 30))
-        XCTAssertFalse(TimetablePeriodPolicy.isNow(startsAt: perfNext.start, endsAt: perfNext.end, at: refTime))
-        XCTAssertTrue(TimetablePeriodPolicy.isUpNext(startsAt: perfNext.start, at: refTime))
-        XCTAssertFalse(TimetablePeriodPolicy.isEvening(startsAt: perfNext.start, timeZone: tokyo))
-
-        // Performance EVENING: 19:30 - 21:00 (starts at 19:30 >= 18:00)
-        let perfEvening = (start: date(2026, 8, 15, 19, 30), end: date(2026, 8, 15, 21, 0))
-        XCTAssertFalse(TimetablePeriodPolicy.isNow(startsAt: perfEvening.start, endsAt: perfEvening.end, at: refTime))
-        XCTAssertFalse(TimetablePeriodPolicy.isUpNext(startsAt: perfEvening.start, at: refTime))
-        XCTAssertTrue(TimetablePeriodPolicy.isEvening(startsAt: perfEvening.start, timeZone: tokyo))
-        XCTAssertEqual(TimetablePeriodPolicy.dayPart(for: perfEvening.start, timeZone: tokyo), .evening)
-    }
-
     // MARK: - 5. Multi-day, Multi-stage, Long Artist Names Robustness
 
     func testMultiDayMultiStageTimetableWithLongArtistNames() throws {
@@ -257,14 +231,6 @@ final class TimetableExperienceTests: XCTestCase {
         // All timetable schedules are accessible
         XCTAssertEqual(timetable.orderedDays.first?.performances.count, 2)
         XCTAssertEqual(timetable.orderedDays.first?.orderedStages.first?.orderedPerformances.count, 2)
-
-        // Period filter still functions perfectly
-        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
-        let eveningSets = day.performances.filter {
-            TimetablePeriodPolicy.matches(startsAt: $0.startsAt, endsAt: $0.endsAt, isInterested: $0.isInterested, filter: .evening, timeZone: tokyo)
-        }
-        XCTAssertEqual(eveningSets.count, 1)
-        XCTAssertEqual(eveningSets.first?.artistName, "Pulp")
     }
 
     // MARK: - 8. In-Situ Matrix Editing & Stage Migration
