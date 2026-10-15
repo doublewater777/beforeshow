@@ -3,23 +3,6 @@ import XCTest
 import SwiftData
 @testable import BeforeShow
 
-@MainActor final class ListeningWantsLivePresentationTests: XCTestCase {
-    func testFrozenAndCanceledAreReadOnlyAndShowScoped() throws {
-        let (container, show) = try ListenTestData.make()
-        let repo = ListeningRepository(modelContext: container.mainContext)
-        try repo.setWantsLive(showID: show.id, songID: "a1", isWanted: true)
-        XCTAssertTrue(WantsLivePolicy.isMutable(show: show))
-        XCTAssertFalse(WantsLivePolicy.isMutable(show: show, now: Date().addingTimeInterval(20000)))
-        XCTAssertThrowsError(try repo.setWantsLive(showID: show.id, songID: "a1", isWanted: false, at: Date().addingTimeInterval(20000)))
-        show.changeStatus = .canceled
-        XCTAssertFalse(WantsLivePolicy.isMutable(show: show))
-        XCTAssertThrowsError(try repo.setWantsLive(showID: show.id, songID: "a2", isWanted: true))
-        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 1)
-        let frozen = ListeningWantsLivePresentation(selected: true, mutable: false)
-        XCTAssertEqual(frozen.label, "开场前想现场听")
-        XCTAssertEqual(frozen.symbol, "heart.fill")
-    }
-}
 @MainActor final class ListeningArtistMatchingTests: XCTestCase {
     func testCandidateDoesNotWriteUntilConfirmation() async throws {
         let (container, show) = try ListenTestData.make()

@@ -167,7 +167,6 @@ final class TimetableDayManagementTests: XCTestCase {
     }
 
     private func diskContainer(_ url: URL) throws -> ModelContainer {
-        let schema = try ModelContainerFactory.make(isStoredInMemoryOnly: true).schema
-        return try ModelContainer(for: schema, configurations: ModelConfiguration(url: url, cloudKitDatabase: .none))
+        try ModelContainerFactory.make(configuration: ModelConfiguration(url: url, cloudKitDatabase: .none))
     }
 }

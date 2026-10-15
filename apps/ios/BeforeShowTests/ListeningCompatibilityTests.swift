@@ -43,7 +43,6 @@ final class ListeningCompatibilityTests: XCTestCase {
         let context = container.mainContext
         let missingShowID = UUID()
         let now = Date()
-        context.insert(ShowWantsLiveSong(showID: missingShowID, songID: "song"))
         context.insert(ShowArtistListeningPreference(showID: missingShowID, artistID: "artist", isExcluded: true))
         context.insert(ShowOpeningFamiliarityBaseline(
             showID: missingShowID,
@@ -66,7 +65,6 @@ final class ListeningCompatibilityTests: XCTestCase {
         try ListeningShowDataCleaner.deleteOrphans(in: context)
         try context.save()
 
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowArtistListeningPreference>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningFamiliarityBaseline>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningArtistTier>()), 0)

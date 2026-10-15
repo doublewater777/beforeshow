@@ -12,7 +12,6 @@ final class ListeningPersistenceTests: XCTestCase {
         context.insert(CatalogSong(appleMusicSongID: "10", title: "Song", artistName: "A"))
         context.insert(CatalogAlbum(appleMusicAlbumID: "20", title: "Album"))
         context.insert(SongFamiliarityRecord(songID: "10", manualConfirmedAt: Date()))
-        context.insert(ShowWantsLiveSong(showID: showID, songID: "10"))
         context.insert(ShowArtistListeningPreference(showID: showID, artistID: "1", isExcluded: true))
         context.insert(ShowOpeningFamiliarityBaseline(
             showID: showID,
@@ -34,7 +33,6 @@ final class ListeningPersistenceTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CatalogSong>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CatalogAlbum>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 1)
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowArtistListeningPreference>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningFamiliarityBaseline>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningArtistTier>()), 1)
@@ -68,8 +66,6 @@ final class ListeningPersistenceTests: XCTestCase {
         _ = try repository.upsertCatalogAlbum(
             albumID: "20", title: "New", artistIDs: ["1"], orderedTrackIDs: ["11", "10"], updatedAt: secondDate
         )
-        try repository.setWantsLive(showID: showID, songID: "10", isWanted: true)
-        try repository.setWantsLive(showID: showID, songID: "10", isWanted: true)
         try repository.setArtistExcluded(showID: showID, artistID: "1", isExcluded: true)
         try repository.setArtistExcluded(showID: showID, artistID: "1", isExcluded: true, at: secondDate)
         _ = try repository.insertOpeningBaselineIfAbsent(
@@ -95,7 +91,6 @@ final class ListeningPersistenceTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CatalogSong>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CatalogAlbum>()), 1)
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowArtistListeningPreference>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningFamiliarityBaseline>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningArtistTier>()), 1)

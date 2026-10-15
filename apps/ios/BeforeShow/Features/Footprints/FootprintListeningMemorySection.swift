@@ -8,10 +8,6 @@ struct FootprintListeningMemorySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             if let coordinator {
-                if !WantsLivePolicy.isMutable(show: show) && coordinator.wantedCount > 0 {
-                    Label(BSLocalization.text("开场前想现场听") + " · " + String(coordinator.wantedCount), systemImage: "heart.fill")
-                        .font(.subheadline)
-                }
                 if !coordinator.memories.isEmpty {
                     Text(BSLocalization.text("现场听到了")).font(.headline)
                     ForEach(coordinator.memories) { memory in

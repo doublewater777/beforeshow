@@ -17,13 +17,6 @@ enum ListeningPresentation: Equatable {
     }
 }
 
-struct ListeningWantsLivePresentation: Equatable {
-    let selected: Bool
-    let mutable: Bool
-    var label: String { mutable ? "想现场听" : "开场前想现场听" }
-    var symbol: String { selected ? "heart.fill" : "heart" }
-}
-
 enum ListeningDiscDetailTrackAction: Equatable {
     case selectTrack
     case togglePlayback

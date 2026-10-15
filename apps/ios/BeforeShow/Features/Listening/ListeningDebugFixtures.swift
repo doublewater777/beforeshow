@@ -141,9 +141,6 @@ enum ListeningFixtureScenario: String, CaseIterable {
                 snapshot.albumIDs = albumIDs
             }
         }
-        if scenario == .endedCurrent {
-            context.insert(ShowWantsLiveSong(showID: show.id, songID: "fixture-song-0-0", createdAt: start.addingTimeInterval(-100)))
-        }
         try context.save()
         try applyMosaicCovers(to: context)
         try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)

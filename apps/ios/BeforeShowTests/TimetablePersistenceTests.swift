@@ -194,8 +194,7 @@ final class TimetablePersistenceTests: XCTestCase {
     }
 
     private func diskContainer(at url: URL) throws -> ModelContainer {
-        let appContainer = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
-        return try ModelContainer(for: appContainer.schema, configurations: ModelConfiguration(url: url, cloudKitDatabase: .none))
+        try ModelContainerFactory.make(configuration: ModelConfiguration(url: url, cloudKitDatabase: .none))
     }
 
     private func makeShow() throws -> Show {

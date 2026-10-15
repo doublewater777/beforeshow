@@ -43,7 +43,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     var isPlaying: Bool { deck.isPlaying }
     var wantsPlayback: Bool { deck.wantsPlayback }
     var playPauseAction: ListeningPlayPauseAction { display.player.playPauseAction }
-    private(set) var wantedSongIDs: Set<String> = []
     private(set) var familiarSongIDs: Set<String> = []
     private(set) var actualSongIDs: Set<String> = []
     private(set) var recentListening: ShowRecentListening?
@@ -73,9 +72,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                  connected: show?.artists.contains { $0.appleMusicArtistID != nil } == true,
                  hasSongs: !discs.isEmpty, loading: catalogState == .loading,
                  failed: catalogState == .cacheFailed, accessResolved: accessResolved)
-    }
-    func wantedPresentation(_ id: String) -> ListeningWantsLivePresentation {
-        .init(selected: wantedSongIDs.contains(id), mutable: show.map { WantsLivePolicy.isMutable(show: $0) } ?? false)
     }
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let catalogService: any ListeningMusicCatalogServicing
@@ -456,7 +452,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         catalogProjection.clear()
         catalogSongs = []; catalogAlbums = []; catalogSnapshots = []; artistPresentations = [:]
         compilationDiscs = []; browseArtists = []; openingTiers = []
-        wantedSongIDs = []; familiarSongIDs = []; actualSongIDs = []; excludedArtistIDs = []
+        familiarSongIDs = []; actualSongIDs = []; excludedArtistIDs = []
         pendingCabinetSwap = nil
         pendingCabinetSwapDrop = .zero
         projectedShowInputs = nil
@@ -1037,7 +1033,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     private func refreshEvidence() throws {
         guard let show else { return }
         let showID = show.id
-        wantedSongIDs = Set(try context.fetch(FetchDescriptor<ShowWantsLiveSong>(predicate: #Predicate { $0.showID == showID })).map(\.songID))
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
         familiarSongIDs = FamiliarityEvidenceResolver.familiarSongIDs(
             records: records,
@@ -1067,13 +1062,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             recentListening = record
             recordedPlayingSongID = track.id
         } catch { errorText = BSLocalization.text("保存失败，请重试") }
-    }
-    func toggleWanted(_ songID: String) {
-        guard let show else { return }
-        do {
-            try ListeningRepository(modelContext: context).setWantsLive(showID: show.id, songID: songID, isWanted: !wantedSongIDs.contains(songID))
-            try context.save(); try refreshEvidence()
-        } catch { context.rollback(); errorText = BSLocalization.text("保存失败，请重试") }
     }
     func filterArtist(_ artistID: String?) {
         selectScope(artistID.map(ListeningBrowseState.Scope.artist) ?? .all)

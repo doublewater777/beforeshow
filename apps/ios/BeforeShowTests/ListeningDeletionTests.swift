@@ -12,7 +12,6 @@ final class ListeningDeletionTests: XCTestCase {
         let selection = CurrentShowSelection(selectedShowID: show.id)
         context.insert(show)
         context.insert(selection)
-        context.insert(ShowWantsLiveSong(showID: show.id, songID: "song"))
         context.insert(ShowArtistListeningPreference(showID: show.id, artistID: "artist", isExcluded: true))
         context.insert(ShowOpeningFamiliarityBaseline(
             showID: show.id,
@@ -47,7 +46,6 @@ final class ListeningDeletionTests: XCTestCase {
             effects: effects
         )
 
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowArtistListeningPreference>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningFamiliarityBaseline>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningArtistTier>()), 0)
@@ -68,7 +66,6 @@ final class ListeningDeletionTests: XCTestCase {
         context.insert(CatalogAlbum(appleMusicAlbumID: "album", title: "Album"))
         context.insert(SongFamiliarityRecord(songID: "song", actualListeningAt: now))
         context.insert(ListeningLoadedDiscState(discData: Data([0x01]), songID: "song"))
-        context.insert(ShowWantsLiveSong(showID: showID, songID: "song"))
         context.insert(ShowArtistListeningPreference(showID: showID, artistID: "artist", isExcluded: true))
         context.insert(ShowOpeningFamiliarityBaseline(
             showID: showID,
@@ -94,7 +91,6 @@ final class ListeningDeletionTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CatalogAlbum>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowArtistListeningPreference>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningFamiliarityBaseline>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningArtistTier>()), 0)

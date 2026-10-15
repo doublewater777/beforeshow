@@ -8,7 +8,6 @@ struct LocalDataInventory: Equatable {
     var assetCount = 0
     var dynamicCoverCount = 0
     var familiarSongCount = 0
-    var wantsLiveCount = 0
     var setlistMemoryCount = 0
     var listeningCatalogItemCount = 0
     var listeningRecordCount = 0
@@ -36,13 +35,11 @@ enum LocalDataInventoryService {
         inventory.assetCount = count(ShowAsset.self, in: modelContext)
         inventory.dynamicCoverCount = count(DynamicCover.self, in: modelContext)
         inventory.familiarSongCount = count(SongFamiliarityRecord.self, in: modelContext)
-        inventory.wantsLiveCount = count(ShowWantsLiveSong.self, in: modelContext)
         inventory.setlistMemoryCount = count(ShowSetlistMemory.self, in: modelContext)
         inventory.listeningCatalogItemCount = count(ArtistCatalogSnapshot.self, in: modelContext)
             + count(CatalogSong.self, in: modelContext)
             + count(CatalogAlbum.self, in: modelContext)
         inventory.listeningRecordCount = inventory.familiarSongCount
-            + inventory.wantsLiveCount
             + inventory.setlistMemoryCount
             + inventory.listeningCatalogItemCount
             + count(ShowArtistListeningPreference.self, in: modelContext)

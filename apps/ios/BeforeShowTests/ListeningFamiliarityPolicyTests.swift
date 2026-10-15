@@ -79,48 +79,12 @@ final class ListeningFamiliarityPolicyTests: XCTestCase {
         ))
     }
 
-    func testWantsLiveFreezesAtWholeShowStart() throws {
-        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
-        let context = container.mainContext
-        let start = Date(timeIntervalSince1970: 2_000_000_000)
-        let show = try Show(name: "Show", date: start, startTime: start)
-        context.insert(show)
-        let repository = ListeningRepository(modelContext: context)
-
-        try repository.setWantsLive(
-            showID: show.id,
-            songID: "song",
-            isWanted: true,
-            at: start.addingTimeInterval(-1)
-        )
-        XCTAssertThrowsError(try repository.setWantsLive(
-            showID: show.id,
-            songID: "song",
-            isWanted: false,
-            at: start
-        )) { error in
-            XCTAssertEqual(error as? ListeningMutationError, .wantsLiveFrozen(show.id))
-        }
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 1)
-    }
-
-    func testUndatedPostponementKeepsWantsLiveMutable() throws {
-        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
-        let context = container.mainContext
+    func testUndatedPostponementHasNoOpeningStart() throws {
         let originalStart = Date(timeIntervalSince1970: 100)
         let show = try Show(name: "Postponed", date: originalStart, startTime: originalStart)
         show.changeStatus = .postponed
         show.postponedDate = nil
-        context.insert(show)
-        let repository = ListeningRepository(modelContext: context)
 
-        try repository.setWantsLive(
-            showID: show.id,
-            songID: "song",
-            isWanted: true,
-            at: originalStart.addingTimeInterval(100_000)
-        )
-
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 1)
+        XCTAssertNil(ListeningShowStartPolicy.effectiveOpeningStart(show: show))
     }
 }

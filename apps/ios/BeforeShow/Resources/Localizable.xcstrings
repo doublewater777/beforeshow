@@ -9018,22 +9018,6 @@
         }
       }
     },
-    "开场前想现场听" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wanted to hear live"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開場前想現場聽"
-          }
-        }
-      }
-    },
     "开场前的期待、现场当天的重要内容和散场后的记忆，都收在同一场现场里。" : {
       "localizations" : {
         "en" : {
@@ -9580,23 +9564,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "恢復購買暫時沒有完成。"
-          }
-        }
-      }
-    },
-    "想现场听" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Want to hear live"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "想現場聽"
           }
         }
       }

@@ -203,24 +203,6 @@ struct ListeningRepository {
         }
     }
 
-    func setWantsLive(showID: UUID, songID: String, isWanted: Bool, at date: Date = Date()) throws {
-        if let show = try modelContext.fetch(FetchDescriptor<Show>()).first(where: { $0.id == showID }),
-           !WantsLivePolicy.isMutable(show: show, now: date) {
-            throw ListeningMutationError.wantsLiveFrozen(showID)
-        }
-
-        let key = ShowWantsLiveSong.makeUniqueKey(showID: showID, songID: songID)
-        let rows = try modelContext.fetch(FetchDescriptor<ShowWantsLiveSong>())
-        let existing = rows.first(where: { $0.uniqueKey == key })
-        if isWanted {
-            if existing == nil {
-                modelContext.insert(ShowWantsLiveSong(showID: showID, songID: songID, createdAt: date))
-            }
-        } else if let existing {
-            modelContext.delete(existing)
-        }
-    }
-
     func setArtistExcluded(showID: UUID, artistID: String, isExcluded: Bool, at date: Date = Date()) throws {
         let key = ShowArtistListeningPreference.makeUniqueKey(showID: showID, artistID: artistID)
         let rows = try modelContext.fetch(FetchDescriptor<ShowArtistListeningPreference>())

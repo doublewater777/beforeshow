@@ -6,7 +6,7 @@ import XCTest
 final class ListeningLocalizationTests: XCTestCase {
     func testAllListeningLiteralKeysExistInThreeLanguages() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
-        var keys = Set(["想现场听", "开场前想现场听", "接下来", "全部", "暂时无法载入音乐"])
+        var keys = Set(["接下来", "全部", "暂时无法载入音乐"])
         let regex = try NSRegularExpression(pattern: #"BSLocalization\.text\("([^"\\]+)"\)"#)
         for subdir in ["Features/Listening", "Features/Footprints"] {
             let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root.appendingPathComponent(subdir), includingPropertiesForKeys: nil))
