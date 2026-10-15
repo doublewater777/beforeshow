@@ -212,7 +212,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
                 guard let (data, _) = try? await URLSession.shared.data(from: url),
                       let image = UIImage(data: data) else { continue }
                 guard let self, !Task.isCancelled else { return }
-                self.artworks[url] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                self.artworks[url] = Self.makeArtwork(image)
                 for item in self.player.items() {
                     guard let index = self.itemIndexes[ObjectIdentifier(item)],
                           self.queue[index].artworkURL == url else { continue }
@@ -220,6 +220,11 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
                 }
             }
         }
+    }
+
+    /// MPNowPlayingInfoCenter calls the request handler on its own queue, so it must not inherit main-actor isolation.
+    nonisolated static func makeArtwork(_ image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
     }
 
     /// Greys out Previous/Next on the Lock Screen at either end of the queue.
@@ -293,26 +298,26 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
 
     private func registerRemoteCommands() {
         let commands = nowPlaying.remoteCommandCenter
-        commands.playCommand.addTarget { [weak self] _ in
+        commands.playCommand.addTarget { @Sendable [weak self] _ in
             Task { @MainActor in try? await self?.play() }
             return .success
         }
-        commands.pauseCommand.addTarget { [weak self] _ in
+        commands.pauseCommand.addTarget { @Sendable [weak self] _ in
             Task { @MainActor in self?.pause() }
             return .success
         }
-        commands.togglePlayPauseCommand.addTarget { [weak self] _ in
+        commands.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 if self.phase.isActive || self.phase == .interrupted { self.pause() } else { try? await self.play() }
             }
             return .success
         }
-        commands.nextTrackCommand.addTarget { [weak self] _ in
+        commands.nextTrackCommand.addTarget { @Sendable [weak self] _ in
             Task { @MainActor in try? await self?.skipToNext() }
             return .success
         }
-        commands.previousTrackCommand.addTarget { [weak self] _ in
+        commands.previousTrackCommand.addTarget { @Sendable [weak self] _ in
             Task { @MainActor in try? await self?.skipToPrevious() }
             return .success
         }
