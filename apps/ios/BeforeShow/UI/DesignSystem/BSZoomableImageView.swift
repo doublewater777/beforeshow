@@ -6,6 +6,7 @@ import UIKit
 struct BSZoomableImageView: UIViewRepresentable {
     let image: UIImage
     var onSingleTap: (() -> Void)? = nil
+    var onLongPress: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> UIScrollView {
         let scrollView = FittingScrollView()
@@ -32,11 +33,16 @@ struct BSZoomableImageView: UIViewRepresentable {
         singleTap.require(toFail: doubleTap)
         scrollView.addGestureRecognizer(singleTap)
 
+        let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
+        longPress.minimumPressDuration = 0.4
+        scrollView.addGestureRecognizer(longPress)
+
         return scrollView
     }
 
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
         context.coordinator.onSingleTap = onSingleTap
+        context.coordinator.onLongPress = onLongPress
         guard let imageView = scrollView.viewWithTag(999) as? UIImageView else { return }
         imageView.image = image
         scrollView.setNeedsLayout()
@@ -54,14 +60,16 @@ struct BSZoomableImageView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onSingleTap: onSingleTap)
+        Coordinator(onSingleTap: onSingleTap, onLongPress: onLongPress)
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
         var onSingleTap: (() -> Void)?
+        var onLongPress: (() -> Void)?
 
-        init(onSingleTap: (() -> Void)?) {
+        init(onSingleTap: (() -> Void)?, onLongPress: (() -> Void)?) {
             self.onSingleTap = onSingleTap
+            self.onLongPress = onLongPress
         }
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -80,6 +88,12 @@ struct BSZoomableImageView: UIViewRepresentable {
 
         @objc func handleSingleTap(_ gesture: UITapGestureRecognizer) {
             onSingleTap?()
+        }
+
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began, let onLongPress else { return }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            onLongPress()
         }
 
         @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {

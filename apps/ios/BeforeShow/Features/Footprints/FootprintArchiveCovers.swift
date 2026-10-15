@@ -66,6 +66,15 @@ enum FootprintCoverResolver {
         })
     }
 
+    /// The earliest photo or video across a show's memories, used as its cover
+    /// when the show has no cover image of its own.
+    static func coverMemoryItem(in fragments: [MemoryFragment]) -> MemoryMediaItem? {
+        fragments
+            .flatMap(\.orderedMediaItems)
+            .sorted { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }
+            .first { $0.kind == .photo || $0.kind == .video }
+    }
+
     private static func resolve(
         show: Show,
         fragments: [MemoryFragment],
@@ -84,10 +93,7 @@ enum FootprintCoverResolver {
             )
         }
 
-        let memoryItems = fragments
-            .flatMap(\.orderedMediaItems)
-            .sorted { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }
-        if let memory = memoryItems.first(where: { $0.kind == .photo || $0.kind == .video }) {
+        if let memory = coverMemoryItem(in: fragments) {
             let path = memory.thumbnailRelativePath ?? memory.relativePath
             return FootprintCover(
                 showID: show.id,

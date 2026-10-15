@@ -40,6 +40,25 @@ enum FootprintPhotoLibrary {
         }
     }
 
+    static func saveFile(_ url: URL, as type: PHAssetResourceType) async throws {
+        let status = await authorizationStatus()
+        guard status == .authorized || status == .limited else {
+            throw FootprintPhotoSaveError.authorizationDenied
+        }
+
+        try await withCheckedThrowingContinuation { continuation in
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetCreationRequest.forAsset().addResource(with: type, fileURL: url, options: nil)
+            }) { success, _ in
+                if success {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: FootprintPhotoSaveError.saveFailed)
+                }
+            }
+        }
+    }
+
     private static func authorizationStatus() async -> PHAuthorizationStatus {
         let current = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         guard current == .notDetermined else { return current }

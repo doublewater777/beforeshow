@@ -139,7 +139,6 @@ struct TimetableSavedImagesView: View {
 }
 
 /// Fullscreen zoomable image viewer for original timetable posters.
-/// 100% aspect-fit, zero cropping, smooth pinch-to-zoom and pan.
 /// Single tap anywhere on the screen exits fullscreen; double tap zooms.
 struct TimetableOriginalImageViewer: View {
     let images: [UIImage]
@@ -147,38 +146,16 @@ struct TimetableOriginalImageViewer: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            if !images.isEmpty {
-                TimetableOriginalImagePages(
-                    images: images,
-                    currentIndex: $currentIndex,
-                    onSingleTap: onDismiss
-                )
-            }
-
-            if images.count > 1 {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Text("\(currentIndex + 1) / \(images.count)")
-                            .font(TimetableStyle.mono(13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.85))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                        Spacer()
-                    }
-                    .padding(.top, 18)
-
-                    Spacer()
-                }
-                .allowsHitTesting(false)
+        BSFullscreenImageViewer(pageCount: images.count, currentIndex: $currentIndex) { index in
+            BSZoomableImagePage(source: .image(images[index]), onSingleTap: onDismiss)
+        }
+        // Images can vanish underneath (timetable deleted); keep a way out.
+        .overlay {
+            if images.isEmpty {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onDismiss)
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { onDismiss() }
-        .preferredColorScheme(.dark)
     }
 }

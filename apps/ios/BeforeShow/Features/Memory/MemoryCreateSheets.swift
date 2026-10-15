@@ -62,6 +62,7 @@ struct MemoryAddMediaSheet: View {
 struct MemoryMediaActionsSheet: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
+    var onSave: (() -> Void)? = nil
 
     var body: some View {
         BSDrawerSheet(detent: .height(278), fitsContent: true) {
@@ -70,6 +71,10 @@ struct MemoryMediaActionsSheet: View {
                     .font(.system(size: 18, weight: .semibold))
 
                 VStack(spacing: 10) {
+                    if let onSave {
+                        Button(BSLocalization.text("保存"), action: onSave)
+                            .buttonStyle(BSSecondaryButtonStyle())
+                    }
                     Button(BSLocalization.text("编辑记忆"), action: onEdit)
                         .buttonStyle(BSSecondaryButtonStyle())
                     Button(BSLocalization.text("删除这条记忆"), role: .destructive, action: onDelete)

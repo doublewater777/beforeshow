@@ -180,48 +180,6 @@ private struct MemoryTextFragmentViewer: View {
 
 // MARK: - Viewer
 
-private struct MemoryMediaInteractionSurface: View {
-    let kind: MemoryMediaKind
-    let onDismiss: () -> Void
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-
-    @State private var isShowingActions = false
-
-    var body: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onDismiss)
-            .onLongPressGesture(minimumDuration: 0.4) {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                isShowingActions = true
-            }
-            .sheet(isPresented: $isShowingActions) {
-                MemoryMediaActionsSheet(
-                    onEdit: {
-                        isShowingActions = false
-                        Task { @MainActor in
-                            await Task.yield()
-                            onEdit()
-                        }
-                    },
-                    onDelete: {
-                        isShowingActions = false
-                        Task { @MainActor in
-                            await Task.yield()
-                            onDelete()
-                        }
-                    }
-                )
-            }
-            .accessibilityLabel(kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片"))
-            .accessibilityHint(BSLocalization.text("轻点关闭，长按管理"))
-            .accessibilityAction(named: BSLocalization.text("关闭"), onDismiss)
-            .accessibilityAction(named: BSLocalization.text("编辑记忆"), onEdit)
-            .accessibilityAction(named: BSLocalization.text("删除这条记忆"), onDelete)
-    }
-}
-
 struct MemoryMediaViewer: View {
     let fragment: MemoryFragment
     let initialIndex: Int
@@ -248,27 +206,10 @@ struct MemoryMediaViewer: View {
     private var items: [MemoryMediaItem] { fragment.orderedMediaItems }
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            TabView(selection: $index) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
-                    ZStack {
-                        mediaPage(item: item, isActive: itemIndex == index && isAudioConfigured)
-                        MemoryMediaInteractionSurface(
-                            kind: item.kind,
-                            onDismiss: { dismiss() },
-                            onEdit: onEdit,
-                            onDelete: onDelete
-                        )
-                    }
-                    .tag(itemIndex)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .ignoresSafeArea()
+        BSFullscreenImageViewer(pageCount: items.count, currentIndex: $index) { itemIndex in
+            mediaPage(item: items[itemIndex], isActive: itemIndex == index && isAudioConfigured)
         }
         .interactiveDismissDisabled()
-        .preferredColorScheme(.dark)
         // The viewer plays video with sound, so it needs `playback`; restore the
         // ambient policy on exit so covers stay non-interrupting.
         .task {
@@ -286,14 +227,25 @@ struct MemoryMediaViewer: View {
 
     @ViewBuilder
     private func mediaPage(item: MemoryMediaItem, isActive: Bool) -> some View {
+        let url = MemoryMediaLocation.applicationSupport().url(for: item.relativePath)
         if item.kind == .video {
-            MemoryViewerVideoPage(
-                url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath),
-                isActive: isActive
-            )
+            ZStack {
+                MemoryViewerVideoPage(url: url, isActive: isActive)
+                MemoryMediaInteractionSurface(
+                    kind: item.kind,
+                    fileURL: url,
+                    onDismiss: { dismiss() },
+                    onEdit: onEdit,
+                    onDelete: onDelete
+                )
+            }
         } else {
-            MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
-                .scaledToFit()
+            MemoryPhotoPage(
+                url: url,
+                onDismiss: { dismiss() },
+                onEdit: onEdit,
+                onDelete: onDelete
+            )
         }
     }
 }

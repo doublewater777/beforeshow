@@ -3,6 +3,20 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+/// What the hero cover opens: the cover image itself, or the memory video it came from.
+private enum FootprintCoverViewer: Identifiable {
+    case showCover(String)
+    case image(BSFullscreenImageSource)
+
+    var id: String {
+        switch self {
+        case .showCover(let url): "cover:\(url)"
+        case .image(.cover(let url)), .image(.file(let url)): "image:\(url.absoluteString)"
+        case .image(.image): "image"
+        }
+    }
+}
+
 private struct FootprintMemoryTarget: Identifiable {
     let fragment: MemoryFragment
     let initialIndex: Int
@@ -32,6 +46,8 @@ struct FootprintDetailView: View {
     @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
+    @State private var coverViewer: FootprintCoverViewer?
+    @Namespace private var coverTransition
 
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
@@ -189,6 +205,17 @@ struct FootprintDetailView: View {
                 }
             }
         }
+        .fullScreenCover(item: $coverViewer) { viewer in
+            Group {
+                switch viewer {
+                case .showCover(let urlString):
+                    ShowCoverFullscreenPreview(urlString: urlString)
+                case .image(let source):
+                    FootprintCoverImageViewer(source: source)
+                }
+            }
+            .navigationTransition(.zoom(sourceID: "cover", in: coverTransition))
+        }
         .fullScreenCover(item: $mediaMemoryTarget) { target in
             MemoryFragmentReviewView(
                 showID: show.id,
@@ -301,12 +328,7 @@ struct FootprintDetailView: View {
 
     private var hero: some View {
         HStack(alignment: .top, spacing: BSSpacing.md) {
-            FootprintCoverView(show: show, cover: detailCover, showsMetadata: false)
-                .frame(
-                    width: FootprintDetailTokens.heroCoverWidth,
-                    height: FootprintDetailTokens.heroCoverHeight
-                )
-                .accessibilityHidden(true)
+            heroCover
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(heroEyebrow)
@@ -360,6 +382,58 @@ struct FootprintDetailView: View {
             RoundedRectangle(cornerRadius: FootprintDetailTokens.heroCornerRadius)
                 .stroke(FootprintDetailTokens.heroBorder)
         )
+    }
+
+    @ViewBuilder
+    private var heroCover: some View {
+        let cover = FootprintCoverView(show: show, cover: detailCover, showsMetadata: false)
+            .frame(
+                width: FootprintDetailTokens.heroCoverWidth,
+                height: FootprintDetailTokens.heroCoverHeight
+            )
+        if hasViewableCover {
+            Button(action: openCover) {
+                cover
+                    .contentShape(Rectangle())
+                    .matchedTransitionSource(id: "cover", in: coverTransition)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(BSLocalization.text("查看封面大图"))
+        } else {
+            cover
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var hasViewableCover: Bool {
+        guard let detailCover else { return false }
+        return detailCover.source != .archive
+    }
+
+    /// Show covers and tickets open fullscreen; a memory cover opens its original photo,
+    /// or plays the video it was taken from.
+    private func openCover() {
+        guard let detailCover else { return }
+        switch (detailCover.badge, detailCover.source) {
+        case (_, .archive):
+            return
+        case (.memory, _):
+            guard let item = FootprintCoverResolver.coverMemoryItem(in: fragments),
+                  let fragment = fragments.first(where: { $0.orderedMediaItems.contains { $0.id == item.id } }),
+                  let index = fragment.orderedMediaItems.firstIndex(where: { $0.id == item.id }) else { return }
+            if item.kind == .video {
+                mediaMemoryTarget = FootprintMemoryTarget(fragment: fragment, initialIndex: index)
+            } else {
+                let url = MemoryMediaLocation.applicationSupport().url(for: item.relativePath)
+                coverViewer = .image(.file(url))
+            }
+        case (.archive, .remote(let url)), (.archive, .local(let url)):
+            coverViewer = .showCover(url.absoluteString)
+        case (.keepsake, .remote(let url)):
+            coverViewer = .image(.cover(url))
+        case (.keepsake, .local(let url)):
+            coverViewer = .image(.file(url))
+        }
     }
 
     private var heroEyebrow: String {
@@ -676,6 +750,7 @@ struct FootprintDetailView: View {
         guard !isDeleting else { return }
         mediaMemoryTarget = nil
         textMemoryTarget = nil
+        coverViewer = nil
         showingAssetKind = nil
         isShowingShareComposer = false
         isShowingDispersalShare = false
@@ -737,4 +812,18 @@ struct FootprintDetailView: View {
         assets.first { $0.kind == kind }
     }
 
+}
+
+/// A single cover image (ticket or memory photo), fullscreen and zoomable.
+private struct FootprintCoverImageViewer: View {
+    let source: BSFullscreenImageSource
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var page = 0
+
+    var body: some View {
+        BSFullscreenImageViewer(pageCount: 1, currentIndex: $page) { _ in
+            BSZoomableImagePage(source: source, onSingleTap: { dismiss() })
+        }
+    }
 }
