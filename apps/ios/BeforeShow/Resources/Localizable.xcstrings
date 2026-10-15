@@ -173,22 +173,6 @@
       },
       "shouldTranslate" : false
     },
-    "%@ %lld 场" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · %lld shows"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ %lld 場"
-          }
-        }
-      }
-    },
     "%@ CD" : {
       "shouldTranslate" : false
     },
@@ -727,54 +711,6 @@
         }
       }
     },
-    "%@：%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@：%@"
-          }
-        }
-      }
-    },
-    "%@：%@ · %lld 场" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: %@ · %lld shows"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@：%@ · %lld 場"
-          }
-        }
-      }
-    },
-    "%@：还没有记录" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: no records yet"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@：還沒有記錄"
-          }
-        }
-      }
-    },
     "%d 分钟" : {
       "localizations" : {
         "en" : {
@@ -1089,22 +1025,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 場現場"
-          }
-        }
-      }
-    },
-    "%lld 场现场 · %lld 位艺人 · %lld 座城市 · %lld 个场馆" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld shows · %lld artists · %lld cities · %lld venues"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 場現場 · %lld 位藝人 · %lld 座城市 · %lld 個場館"
           }
         }
       }
@@ -2616,38 +2536,6 @@
     "「夜航」预习歌单" : {
       "shouldTranslate" : false
     },
-    "一共到过 %lld 个场馆" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Visited %lld venues in total"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一共到過 %lld 個場館"
-          }
-        }
-      }
-    },
-    "一共看过 %lld 位艺人" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seen %lld artists in total"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一共看過 %lld 位藝人"
-          }
-        }
-      }
-    },
     "一场现场，一份私人的回看" : {
       "localizations" : {
         "en" : {
@@ -3044,22 +2932,6 @@
         }
       }
     },
-    "专辑详情" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Album details"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "專輯詳情"
-          }
-        }
-      }
-    },
     "世博公园" : {
       "shouldTranslate" : false
     },
@@ -3107,38 +2979,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主畫面和鎖定畫面都替你數著那一天，再在幾個值得記一下的節點輕輕提醒。"
-          }
-        }
-      }
-    },
-    "主屏幕和锁屏，都替你数着那一天。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your Home Screen and Lock Screen keep the count for you."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主畫面和鎖定畫面，都替你數著那一天。"
-          }
-        }
-      }
-    },
-    "主屏幕小组件预览" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Home Screen Widget Preview"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主螢幕小工具預覽"
           }
         }
       }
@@ -3753,22 +3593,6 @@
         }
       }
     },
-    "你去过最多的城市" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Most-visited City"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你去過最多的城市"
-          }
-        }
-      }
-    },
     "你已经是这场的同行" : {
       "localizations" : {
         "en" : {
@@ -3829,38 +3653,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你最常回去的場館 · %lld 次"
-          }
-        }
-      }
-    },
-    "你最常看的艺人" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Top Artist"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你最常看的藝人"
-          }
-        }
-      }
-    },
-    "你最熟悉的场馆" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Most Visited Venue"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你最熟悉的場館"
           }
         }
       }
@@ -4686,22 +4478,6 @@
         }
       }
     },
-    "共记录 %lld %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Total records %lld %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "共記錄 %lld %@"
-          }
-        }
-      }
-    },
     "关于开场前" : {
       "localizations" : {
         "en" : {
@@ -5103,54 +4879,6 @@
         }
       }
     },
-    "分享场馆档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share Venue Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享場館檔案"
-          }
-        }
-      }
-    },
-    "分享城市档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share City Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享城市檔案"
-          }
-        }
-      }
-    },
-    "分享完整档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share Full Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享完整檔案"
-          }
-        }
-      }
-    },
     "分享完整足迹" : {
       "localizations" : {
         "en" : {
@@ -5211,22 +4939,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享編輯器"
-          }
-        }
-      }
-    },
-    "分享艺人档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share Artist Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享藝人檔案"
           }
         }
       }
@@ -7155,22 +6867,6 @@
         }
       }
     },
-    "在现场待过 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Time at shows: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在現場待過 %@"
-          }
-        }
-      }
-    },
     "地点" : {
       "localizations" : {
         "en" : {
@@ -7183,22 +6879,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "地點"
-          }
-        }
-      }
-    },
-    "场" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "shows"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "場"
           }
         }
       }
@@ -7315,22 +6995,6 @@
         }
       }
     },
-    "场馆排行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Venue ranking"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "場館排行"
-          }
-        }
-      }
-    },
     "场馆足迹" : {
       "localizations" : {
         "en" : {
@@ -7359,22 +7023,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "城市"
-          }
-        }
-      }
-    },
-    "城市排行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "City ranking"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "城市排行"
           }
         }
       }
@@ -9821,22 +9469,6 @@
         }
       }
     },
-    "总场次、艺人、城市和场馆偏好会汇总在同一张卡片。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Total shows, artists, cities, and venue preferences are summarized on one card."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "總場次、藝人、城市和場館偏好會彙總在同一張卡片。"
-          }
-        }
-      }
-    },
     "总时长" : {
       "localizations" : {
         "en" : {
@@ -9867,7 +9499,8 @@
             "value" : "總覽"
           }
         }
-      }
+      },
+      "extractionState" : "manual"
     },
     "恢复正常" : {
       "extractionState" : "manual",
@@ -10194,118 +9827,6 @@
         }
       }
     },
-    "我的 BeforeShow 场馆足迹" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My BeforeShow Venue Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的 BeforeShow 場館足跡"
-          }
-        }
-      }
-    },
-    "我的 BeforeShow 城市足迹" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My BeforeShow City Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的 BeforeShow 城市足跡"
-          }
-        }
-      }
-    },
-    "我的 BeforeShow 现场总览" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My BeforeShow Show Overview"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的 BeforeShow 現場總覽"
-          }
-        }
-      }
-    },
-    "我的 BeforeShow 艺人档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My BeforeShow Artist Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的 BeforeShow 藝人檔案"
-          }
-        }
-      }
-    },
-    "我的场馆现场档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My Venue Show Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的場館現場檔案"
-          }
-        }
-      }
-    },
-    "我的城市现场档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My City Show Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的城市現場檔案"
-          }
-        }
-      }
-    },
-    "我的完整现场档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My Full Show Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的完整現場檔案"
-          }
-        }
-      }
-    },
     "我的想看" : {
       "localizations" : {
         "en" : {
@@ -10398,22 +9919,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我的第 %lld 場現場"
-          }
-        }
-      }
-    },
-    "我的艺人现场档案" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "My Artist Show Archive"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我的藝人現場檔案"
           }
         }
       }
@@ -13504,22 +13009,6 @@
         }
       }
     },
-    "最多去" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Most visited"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最多去"
-          }
-        }
-      }
-    },
     "最多选择 3 个画面" : {
       "localizations" : {
         "en" : {
@@ -13532,22 +13021,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最多選擇 3 個畫面"
-          }
-        }
-      }
-    },
-    "最常去" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Most visited"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最常去"
           }
         }
       }
@@ -13584,22 +13057,6 @@
         }
       }
     },
-    "最常看：%@ · %lld 场" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Most seen: %@ · %lld shows"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最常看：%@ · %lld 場"
-          }
-        }
-      }
-    },
     "最惊喜" : {
       "localizations" : {
         "en" : {
@@ -13612,22 +13069,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最驚喜"
-          }
-        }
-      }
-    },
-    "最熟悉" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Most familiar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最熟悉"
           }
         }
       }
@@ -16379,22 +15820,6 @@
         }
       }
     },
-    "现场足迹走过 %lld 座城市" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your live footprint spans %lld cities"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現場足跡走過 %lld 座城市"
-          }
-        }
-      }
-    },
     "现场轨迹" : {
       "localizations" : {
         "en" : {
@@ -17214,54 +16639,6 @@
         }
       }
     },
-    "突出你去过最多的城市，并展示城市排行前三名。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Highlights your most-visited city and shows the top 3 city ranking."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "突出你去過最多的城市，並展示城市排行前三名。"
-          }
-        }
-      }
-    },
-    "突出最常看的艺人，并展示艺人排行前三名。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Highlights your most-watched artist and shows the top 3 artist ranking."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "突出最常看的藝人，並展示藝人排行前三名。"
-          }
-        }
-      }
-    },
-    "突出最熟悉的场馆，并展示场馆排行前三名。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Highlights your most-familiar venue and shows the top 3 venue ranking."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "突出最熟悉的場館，並展示場館排行前三名。"
-          }
-        }
-      }
-    },
     "突破免费版 20 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。" : {
       "localizations" : {
         "en" : {
@@ -17371,22 +16748,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第%d天"
-          }
-        }
-      }
-    },
-    "第一场：%@ · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "First: %@ · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "第一場：%@ · %@"
           }
         }
       }
@@ -18397,22 +17758,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "藝人名稱"
-          }
-        }
-      }
-    },
-    "艺人排行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Artist ranking"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "藝人排行"
           }
         }
       }
@@ -19755,22 +19100,6 @@
         }
       }
     },
-    "走过 %lld 座城市，留下 %lld 位艺人的现场记忆" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Traveled through %lld cities and left behind live memories of %lld artists"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "走過 %lld 座城市，留下 %lld 位藝人的現場記憶"
-          }
-        }
-      }
-    },
     "走过的现场，慢慢长成你的档案" : {
       "localizations" : {
         "en" : {
@@ -20421,22 +19750,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有目的地"
-          }
-        }
-      }
-    },
-    "还没有记录" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No records yet"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有記錄"
           }
         }
       }
@@ -21863,22 +21176,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鎖定畫面"
-          }
-        }
-      }
-    },
-    "锁屏小组件预览" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lock Screen Widget Preview"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鎖屏小工具預覽"
           }
         }
       }
