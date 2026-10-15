@@ -2,6 +2,7 @@
   "sourceLanguage" : "zh-Hans",
   "strings" : {
     "%@ 等 %d 位艺人" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18,6 +19,7 @@
       }
     },
     "30 秒试听" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -34,6 +36,7 @@
       }
     },
     "Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -50,6 +53,7 @@
       }
     },
     "Apple Music 访问受到系统限制，当前使用歌曲试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -66,6 +70,7 @@
       }
     },
     "Apple Music 访问受到系统限制，无法在此更改。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82,6 +87,7 @@
       }
     },
     "Day %d · %@" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -98,6 +104,7 @@
       }
     },
     "仅提供歌曲信息" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -114,6 +121,7 @@
       }
     },
     "仅歌曲信息" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -130,6 +138,7 @@
       }
     },
     "停止" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -146,6 +155,7 @@
       }
     },
     "允许访问 Apple Music 后，可尝试完整播放。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -162,6 +172,7 @@
       }
     },
     "允许访问 Apple Music 后，可尝试完整播放；当前没有可用试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -178,6 +189,7 @@
       }
     },
     "听听即将相遇的音乐。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -194,6 +206,7 @@
       }
     },
     "唱片就从这里开始。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -210,6 +223,7 @@
       }
     },
     "大合唱" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -226,6 +240,7 @@
       }
     },
     "完整播放" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -242,6 +257,7 @@
       }
     },
     "当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -258,6 +274,7 @@
       }
     },
     "当前 Apple Music 账户不支持完整播放，这些歌曲也没有可用试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -274,6 +291,7 @@
       }
     },
     "当前仅提供歌曲信息" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -290,6 +308,7 @@
       }
     },
     "当前使用歌曲试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -306,6 +325,7 @@
       }
     },
     "当前暂不可播放" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -322,6 +342,7 @@
       }
     },
     "当前未允许访问 Apple Music。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -338,6 +359,7 @@
       }
     },
     "当前未允许访问 Apple Music，且这些歌曲没有可用试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -354,6 +376,7 @@
       }
     },
     "当前没有可播放的歌曲。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -370,6 +393,7 @@
       }
     },
     "彩排" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -386,6 +410,7 @@
       }
     },
     "想看" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -402,6 +427,7 @@
       }
     },
     "想看 · Day %d" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -418,6 +444,7 @@
       }
     },
     "打开设置" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -434,6 +461,7 @@
       }
     },
     "换个名字搜索" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -450,6 +478,7 @@
       }
     },
     "授权后载入唱片" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -466,6 +495,7 @@
       }
     },
     "播放中" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -482,6 +512,7 @@
       }
     },
     "放置唱片中…" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -498,6 +529,7 @@
       }
     },
     "新歌" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -514,6 +546,7 @@
       }
     },
     "无法播放" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -530,6 +563,7 @@
       }
     },
     "暂不可播放" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -546,6 +580,7 @@
       }
     },
     "暂停" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -562,6 +597,7 @@
       }
     },
     "暂时无法播放" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -578,6 +614,7 @@
       }
     },
     "暂时无法确认之后的完整播放权限。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -594,6 +631,7 @@
       }
     },
     "暂时无法确认完整播放权限，当前使用试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -610,6 +648,7 @@
       }
     },
     "暂时无法确认完整播放权限，这些歌曲也没有可用试听片段。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -626,6 +665,7 @@
       }
     },
     "正在准备…" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -642,6 +682,7 @@
       }
     },
     "正在搜索艺人…" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -658,6 +699,7 @@
       }
     },
     "深挖" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -674,6 +716,7 @@
       }
     },
     "添加一场想去的现场，" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -690,6 +733,7 @@
       }
     },
     "清除搜索" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -706,6 +750,7 @@
       }
     },
     "现场预习" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -722,6 +767,7 @@
       }
     },
     "立即授权" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -738,6 +784,7 @@
       }
     },
     "装入并试听" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -754,6 +801,7 @@
       }
     },
     "试听" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -770,6 +818,7 @@
       }
     },
     "试听中 · 剩余 %d 秒" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -786,6 +835,7 @@
       }
     },
     "试听暂停 · 剩余 %d 秒" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -802,6 +852,7 @@
       }
     },
     "试听模式" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -818,6 +869,7 @@
       }
     },
     "请先合上播放器上盖" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -834,6 +886,7 @@
       }
     },
     "载入中…" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -850,6 +903,7 @@
       }
     },
     "这首歌目前无法播放，请稍后再试。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -866,6 +920,7 @@
       }
     },
     "连接 %@" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -882,6 +937,7 @@
       }
     },
     "选一场现场，" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -898,6 +954,7 @@
       }
     },
     "选择一张唱片开始播放" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -914,6 +971,7 @@
       }
     },
     "选择对应的 Apple Music 艺人" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -930,6 +988,7 @@
       }
     },
     "部分曲目可试听" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -946,6 +1005,7 @@
       }
     },
     "重试" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {

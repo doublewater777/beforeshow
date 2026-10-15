@@ -2,15 +2,12 @@
   "sourceLanguage" : "zh-Hans",
   "strings" : {
     "" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "  %@" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     " · " : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     " · %@ %@" : {
@@ -25,11 +22,9 @@
       "shouldTranslate" : false
     },
     " ／ " : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "#1" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "$2.99/年" : {
@@ -131,16 +126,16 @@
     },
     "%@ %@ 再开" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ %2$@ 再开"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Starts again %1$@ at %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@ 再开"
           }
         },
         "zh-Hant" : {
@@ -195,11 +190,9 @@
       }
     },
     "%@ CD" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "%@ · #1" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "%@ · %@" : {
@@ -413,16 +406,16 @@
     },
     "%@ 邀请你一起去 %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 邀请你一起去 %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ invited you to %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 邀请你一起去 %2$@"
           }
         },
         "zh-Hant" : {
@@ -482,17 +475,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@%2$@%3$@"
-          }
-        }
-      },
-      "shouldTranslate" : false
-    },
-    "%@, %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, %2$@"
           }
         }
       },
@@ -677,16 +659,16 @@
     },
     "%@，%lld 场现场" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@，%2$lld 场现场"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@, %2$lld shows"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@，%2$lld 场现场"
           }
         },
         "zh-Hant" : {
@@ -857,22 +839,6 @@
         }
       }
     },
-    "%d 处待确认" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d to check"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 處待確認"
-          }
-        }
-      }
-    },
     "%d 天辛苦了，下次现场见" : {
       "localizations" : {
         "en" : {
@@ -885,38 +851,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%d 天辛苦了，下次現場見"
-          }
-        }
-      }
-    },
-    "%d 张唱片" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d records"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 張唱片"
-          }
-        }
-      }
-    },
-    "%d 舞台 · %d 场" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d stages · %d sets"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 舞台 · %d 場"
           }
         }
       }
@@ -970,7 +904,6 @@
       }
     },
     "%lld" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lld / %lld" : {
@@ -1546,7 +1479,6 @@
       }
     },
     "+%lld" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "--" : {
@@ -1582,15 +1514,12 @@
       }
     },
     "01:23:45" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "02:15:30" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "1/%lld" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "10月" : {
@@ -1661,7 +1590,6 @@
       }
     },
     "19:30 开场 · 预计 22:00 散场" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "1月" : {
@@ -1749,7 +1677,6 @@
       }
     },
     "56" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "5月" : {
@@ -1821,7 +1748,6 @@
       }
     },
     "9:41" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "9月" : {
@@ -1842,7 +1768,6 @@
       }
     },
     "ARCHIVE" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "ARTIST ARCHIVE" : {
@@ -2147,22 +2072,6 @@
         }
       }
     },
-    "BeforeShow 热门合辑" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "BeforeShow Top Tracks"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "BeforeShow 熱門合輯"
-          }
-        }
-      }
-    },
     "CITY ARCHIVE" : {
       "localizations" : {
         "en" : {
@@ -2250,11 +2159,9 @@
       }
     },
     "LIVE" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "LIVE VIP PASS" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "LIVE · 开场中" : {
@@ -2328,7 +2235,6 @@
       }
     },
     "OCT 04 · LEGACY TERA" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "Pro 不限次" : {
@@ -2499,7 +2405,6 @@
       }
     },
     "TOGETHER" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "TOGETHER · %@" : {
@@ -2519,7 +2424,6 @@
       }
     },
     "TR --" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "TRACKLIST" : {
@@ -2584,11 +2488,9 @@
       }
     },
     "·" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "· %@" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "· 同行成员可见，可选" : {
@@ -2608,19 +2510,12 @@
       }
     },
     "· 快开始了" : {
-      "localizations" : {},
-      "shouldTranslate" : false
-    },
-    "–" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "“" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "“%@”" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "“%@”删除后无法恢复，也会从足迹统计中移除。" : {
@@ -2640,11 +2535,9 @@
       }
     },
     "⏸ %@" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "▶ %@" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "。别错过开场。" : {
@@ -2680,11 +2573,9 @@
       }
     },
     "「夜航」巡演" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "「夜航」巡演 · 10月14日 19:30" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "「夜航」巡演 · 上海站" : {
@@ -2720,11 +2611,9 @@
       }
     },
     "「夜航」巡演 · 上海站 · 回声剧场" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "「夜航」预习歌单" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "一共到过 %lld 个场馆" : {
@@ -2920,7 +2809,6 @@
       }
     },
     "万能青年旅店" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "上一曲" : {
@@ -2973,7 +2861,6 @@
       }
     },
     "上海站" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "下一场" : {
@@ -2993,7 +2880,6 @@
       }
     },
     "下一场: ❤️ 万能青年旅店 (11:44 · 草莓舞台)" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "下一场是 %1$@，还有 %2$lld 天。" : {
@@ -3175,7 +3061,6 @@
       }
     },
     "世博公园" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "个场馆" : {
@@ -3980,22 +3865,6 @@
         }
       }
     },
-    "你本地有多场相似记录。选择正确的一场合并同行关系，或保留为另一场现场。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You have several similar shows on this device. Choose the right one to merge the companion link, or keep it as a separate show."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你本機有多場相似記錄。選擇正確的一場合併同行關係，或保留為另一場現場。"
-          }
-        }
-      }
-    },
     "你的称呼" : {
       "localizations" : {
         "en" : {
@@ -4334,7 +4203,6 @@
       }
     },
     "倒计时与现场模式自适应收束" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "倒计时暂停" : {
@@ -6227,22 +6095,6 @@
         }
       }
     },
-    "原图对照" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compare with Original"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原圖對照"
-          }
-        }
-      }
-    },
     "原定 " : {
       "localizations" : {
         "en" : {
@@ -6383,22 +6235,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取出"
-          }
-        }
-      }
-    },
-    "取出并放入播放机" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove and place in player"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取出並放入播放機"
           }
         }
       }
@@ -6592,22 +6428,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "合上"
-          }
-        }
-      }
-    },
-    "合并" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Merge"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "合併"
           }
         }
       }
@@ -7974,7 +7794,6 @@
       }
     },
     "实时活动 & 灵动岛" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "实际几点结束？" : {
@@ -8314,7 +8133,6 @@
       }
     },
     "山雀 (Live)" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "已与%@确认同行" : {
@@ -9276,22 +9094,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已達到免費 20 場上限"
-          }
-        }
-      }
-    },
-    "已连接：%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connected: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已連接：%@"
           }
         }
       }
@@ -10264,16 +10066,16 @@
     },
     "我们 %lld 人一起看过 %lld 场现场" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我们 %1$lld 人一起看过 %2$lld 场现场"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The %1$lld of us have seen %2$lld shows together"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们 %1$lld 人一起看过 %2$lld 场现场"
           }
         },
         "zh-Hant" : {
@@ -10318,16 +10120,16 @@
     },
     "我和%@一起看过\n%lld 场现场" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我和%1$@一起看过\n%2$lld 场现场"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ and I have seen\n%2$lld shows together"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我和%1$@一起看过\n%2$lld 场现场"
           }
         },
         "zh-Hant" : {
@@ -10340,16 +10142,16 @@
     },
     "我和%@一起看过 %lld 场现场" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我和%1$@一起看过 %2$lld 场现场"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ and I have seen %2$lld shows together"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我和%1$@一起看过 %2$lld 场现场"
           }
         },
         "zh-Hant" : {
@@ -13862,22 +13664,6 @@
         }
       }
     },
-    "最近播放" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recently played"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近播放"
-          }
-        }
-      }
-    },
     "最近观看 · %@" : {
       "localizations" : {
         "en" : {
@@ -14841,22 +14627,6 @@
         }
       }
     },
-    "正在播放" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Now Playing"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在播放"
-          }
-        }
-      }
-    },
     "正在播放中" : {
       "localizations" : {
         "en" : {
@@ -14906,11 +14676,9 @@
       }
     },
     "正在演: King Gizzard & The Lizard Wizard · 爱舞台" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "正在演: King Gizzard · 爱舞台" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "正在演出" : {
@@ -15993,7 +15761,6 @@
       }
     },
     "点击播放" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "点击查看 · 拖动调整顺序" : {
@@ -16143,7 +15910,6 @@
       }
     },
     "爱舞台" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "版本 %@（构建 %@）" : {
@@ -16323,7 +16089,6 @@
       }
     },
     "现场多舞台驱动 · 锁屏与灵动岛实时协同" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "现场封面" : {
@@ -18669,11 +18434,9 @@
       }
     },
     "草莓音乐节" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "草莓音乐节 2026 · 上海站" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "补充场馆或地址后，就能跳到地图 App。" : {
@@ -19864,6 +19627,7 @@
       }
     },
     "请输入舞台名称" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20088,7 +19852,6 @@
       }
     },
     "距开场" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "距离开场" : {
@@ -20628,7 +20391,6 @@
       }
     },
     "还有 56 天" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "还没加封面" : {
@@ -20969,16 +20731,16 @@
     },
     "这场不能设为当前现场" : {
       "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這場不能設為目前現場"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "This show can't be set as current"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這場不能設為目前現場"
           }
         }
       }
@@ -21027,22 +20789,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這場取消了"
-          }
-        }
-      }
-    },
-    "这场可能已经存在" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This show may already exist"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這場可能已經存在"
           }
         }
       }
@@ -22412,7 +22158,6 @@
       }
     },
     "🎭" : {
-      "localizations" : {},
       "shouldTranslate" : false
     }
   },

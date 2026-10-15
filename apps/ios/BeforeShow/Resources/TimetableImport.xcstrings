@@ -2,6 +2,7 @@
   "sourceLanguage" : "zh-Hans",
   "strings" : {
     "recognitionPrompt" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
