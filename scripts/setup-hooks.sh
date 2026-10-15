@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 chmod +x \
   "$REPO_ROOT/.githooks/commit-msg" \
+  "$REPO_ROOT/.githooks/pre-commit" \
   "$REPO_ROOT/scripts/validate-commit-msg.sh" \
   "$REPO_ROOT/scripts/setup-hooks.sh"
 
