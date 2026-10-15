@@ -16,13 +16,18 @@ struct ShowAssetViewerView: View {
     @State private var isReplacing = false
     @State private var isConfirmingDelete = false
     @State private var toast: BSToastPayload?
+    @State private var isChromeVisible = true
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
                 if let image {
-                    BSZoomableImageView(image: image)
-                        .padding(.horizontal, 12)
+                    BSZoomableImageView(image: image) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isChromeVisible.toggle()
+                        }
+                    }
+                    .padding(.horizontal, 12)
                 } else {
                     ProgressView()
                         .tint(.white)
@@ -30,19 +35,23 @@ struct ShowAssetViewerView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if let disclaimer = kind.viewerDisclaimer {
-                Text(disclaimer)
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(Color.white.opacity(0.45))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 8)
+            VStack(spacing: 0) {
+                if let disclaimer = kind.viewerDisclaimer {
+                    Text(disclaimer)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(Color.white.opacity(0.45))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 8)
+                }
+                Text("双指缩放，拖动查看细节")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.55))
+                    .padding(.bottom, 28)
             }
-            Text("双指缩放，拖动查看细节")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.55))
-                .padding(.bottom, 28)
+            .opacity(isChromeVisible ? 1 : 0)
         }
+        .toolbarVisibility(isChromeVisible ? .visible : .hidden, for: .navigationBar)
         .navigationTitle(kind.viewerTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { manageMenu }
