@@ -323,18 +323,11 @@ actor ShowLiveActivityController {
 
         let action: LiveActivityAction
         if activitiesEnabled {
-            let canSchedule: Bool
-            if #available(iOS 26.0, *) {
-                canSchedule = true
-            } else {
-                canSchedule = false
-            }
             action = LiveActivityPlanner.action(
                 snapshot: snapshot,
                 now: now,
                 existing: existing,
-                coverFilename: coverFilename,
-                canSchedule: canSchedule
+                coverFilename: coverFilename
             )
         } else {
             action = .endAll
@@ -403,26 +396,24 @@ actor ShowLiveActivityController {
             await endAll(generation: generation)
             guard isCurrent() else { return }
             let content = ActivityContent(state: state, staleDate: staleDate(for: state))
-            if #available(iOS 26.0, *) {
-                do {
-                    let alert = AlertConfiguration(
-                        title: "开场前",
-                        body: LocalizedStringResource("\(state.showName) 倒计时已开始"),
-                        sound: .default
-                    )
-                    _ = try Activity<ShowLiveActivityAttributes>.request(
-                        attributes: ShowLiveActivityAttributes(showID: showID ?? ""),
-                        content: content,
-                        pushType: nil,
-                        style: .standard,
-                        alertConfiguration: alert,
-                        start: start
-                    )
-                } catch {
-                    #if DEBUG
-                    print("[ShowLiveActivity] schedule failed: \(error)")
-                    #endif
-                }
+            do {
+                let alert = AlertConfiguration(
+                    title: "开场前",
+                    body: LocalizedStringResource("\(state.showName) 倒计时已开始"),
+                    sound: .default
+                )
+                _ = try Activity<ShowLiveActivityAttributes>.request(
+                    attributes: ShowLiveActivityAttributes(showID: showID ?? ""),
+                    content: content,
+                    pushType: nil,
+                    style: .standard,
+                    alertConfiguration: alert,
+                    start: start
+                )
+            } catch {
+                #if DEBUG
+                print("[ShowLiveActivity] schedule failed: \(error)")
+                #endif
             }
 
         case .endAll:
@@ -452,10 +443,7 @@ actor ShowLiveActivityController {
     }
 
     private static func isPending(_ activity: Activity<ShowLiveActivityAttributes>) -> Bool {
-        if #available(iOS 26.0, *) {
-            return activity.activityState == .pending
-        }
-        return false
+        activity.activityState == .pending
     }
 
     private static func runtimeRecords(

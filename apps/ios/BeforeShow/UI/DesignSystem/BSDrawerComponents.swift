@@ -2,14 +2,6 @@ import SafariServices
 import UIKit
 import SwiftUI
 
-private struct BSDrawerContentHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 struct BSDrawerSheet<Content: View>: View {
     let detents: [PresentationDetent]
     let contentInsets: EdgeInsets
@@ -67,15 +59,7 @@ struct BSDrawerSheet<Content: View>: View {
                 } else {
                     drawerContent
                         .fixedSize(horizontal: false, vertical: true)
-                        .background {
-                            GeometryReader { geometry in
-                                Color.clear.preference(
-                                    key: BSDrawerContentHeightKey.self,
-                                    value: geometry.size.height
-                                )
-                            }
-                        }
-                        .onPreferenceChange(BSDrawerContentHeightKey.self) { height in
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                             measuredContentHeight = height
                             updateFittedContentHeight()
                         }

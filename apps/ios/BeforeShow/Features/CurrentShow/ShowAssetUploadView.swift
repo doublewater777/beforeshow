@@ -307,7 +307,7 @@ struct ShowAssetUploadView: View {
                     : BSLocalization.format("%@已保存", kind.title)
             )
             if replacingAsset != nil {
-                try? await Task.sleep(nanoseconds: 350_000_000)
+                try? await Task.sleep(for: .milliseconds(350))
                 dismiss()
             }
         } catch {
@@ -388,7 +388,7 @@ struct ShowAssetUploadView: View {
         let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            try? await Task.sleep(for: .milliseconds(2200))
             if toast == payload {
                 toast = nil
             }

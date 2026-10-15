@@ -1,19 +1,20 @@
-import Combine
 import Foundation
+import Observation
 import UserNotifications
 
 // MARK: - Deep Link Routing
 
 @MainActor
-final class NotificationDeepLinkRouter: ObservableObject {
+@Observable
+final class NotificationDeepLinkRouter {
     static let shared = NotificationDeepLinkRouter()
 
-    @Published private(set) var featureRootDeepLink: NotificationDeepLink?
+    private(set) var featureRootDeepLink: NotificationDeepLink?
     /// The feature root forwards destinations that belong to the visible Current Show
     /// home (companion, timetable, route…) so its owner presents them in place.
-    @Published private(set) var currentShowAction: NotificationDeepLink?
+    private(set) var currentShowAction: NotificationDeepLink?
     /// A tapped recommendation counts as handled; the feature root records it.
-    @Published private(set) var handledRecommendation: NotificationDeepLink?
+    private(set) var handledRecommendation: NotificationDeepLink?
 
     private init() {}
 

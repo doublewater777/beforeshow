@@ -4,14 +4,15 @@ import SwiftUI
 import UIKit
 
 @MainActor
-final class TimetableManagementCoordinator: ObservableObject {
-    @Published var isRecognizing = false
-    @Published var recognitionError: String?
-    @Published var draft: TimetableDraft?
-    @Published var isSaving = false
-    @Published var toast: BSToastPayload?
-    @Published var dayManagementError: String?
-    @Published private(set) var importSession: TimetableImportSession?
+@Observable
+final class TimetableManagementCoordinator {
+    var isRecognizing = false
+    var recognitionError: String?
+    var draft: TimetableDraft?
+    var isSaving = false
+    var toast: BSToastPayload?
+    var dayManagementError: String?
+    private(set) var importSession: TimetableImportSession?
 
     private let fallbackTimeZoneIdentifier: String
 
@@ -382,7 +383,7 @@ final class TimetableManagementCoordinator: ObservableObject {
         let payload = BSToastPayload(tone: tone, message: message)
         self.toast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            try? await Task.sleep(for: .milliseconds(2200))
             if self.toast == payload {
                 self.toast = nil
             }

@@ -13,8 +13,8 @@ struct RootView: View {
     @State private var isShowingOnboarding = false
     @State private var invitedSnapshot: CompanionInviteSnapshot?
     @State private var selectedTab: BeforeShowTab = .current
-    @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
-    @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
+    @State private var proOfferRouter = ProOfferDeepLinkRouter.shared
+    @State private var notificationRouter = NotificationDeepLinkRouter.shared
 
     init() {
         let isReturning = OnboardingCompletionStore.hasCompleted()

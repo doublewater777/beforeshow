@@ -104,7 +104,7 @@ final class FeedbackShakeResponderView: UIView {
 
     private func rearmIfNeeded() {
         guard isArmed, window != nil, !isFirstResponder else { return }
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self, self.isArmed, self.window != nil, !self.isFirstResponder else { return }
             self.becomeFirstResponder()
         }
@@ -137,7 +137,7 @@ struct FeedbackShakeShortcutModifier: ViewModifier {
         let payload = BSToastPayload(tone: .success, message: message)
         toast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(for: .seconds(2))
             if toast == payload { toast = nil }
         }
     }

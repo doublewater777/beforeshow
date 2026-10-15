@@ -1,7 +1,5 @@
 import Foundation
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// App-instance credentials for CloudBase functions (accountless).
 struct BeforeShowAppCredentials: Equatable, Sendable {
@@ -34,11 +32,7 @@ struct BeforeShowCloudClient: Sendable {
 
     @MainActor
     static func productionAppInstanceId() -> String {
-        #if canImport(UIKit)
         UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-        #else
-        UUID().uuidString
-        #endif
     }
 
     @MainActor

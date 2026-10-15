@@ -1,5 +1,4 @@
 import Foundation
-#if canImport(UIKit) && canImport(Vision)
 import UIKit
 import Vision
 import ImageIO
@@ -134,4 +133,3 @@ struct TimetableImageRecognizer: Sendable {
 private final class VisionRequestBox: @unchecked Sendable {
     var request: VNRecognizeTextRequest?
 }
-#endif

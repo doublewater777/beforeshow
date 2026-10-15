@@ -610,7 +610,7 @@ struct AddShowFlowView: View {
         // 最多停在「整理现场信息」，识别结束后随面板一起消失。
         let stepTask = Task { @MainActor in
             while !Task.isCancelled && ocrActiveStep < 3 {
-                try? await Task.sleep(nanoseconds: 700_000_000)
+                try? await Task.sleep(for: .milliseconds(700))
                 if !Task.isCancelled {
                     ocrActiveStep += 1
                 }
@@ -645,7 +645,7 @@ struct AddShowFlowView: View {
             stepTask.cancel()
             // 第四步「生成可编辑草稿」短暂停留，完成状态可见后再切到确认表单
             ocrActiveStep = 4
-            try? await Task.sleep(nanoseconds: 450_000_000)
+            try? await Task.sleep(for: .milliseconds(450))
             guard isActiveImportRequest(requestRevision) else { return }
 
             // 用 merge 而非整段替换:用户已手改的字段（userEditedFields）保留原值,
@@ -871,7 +871,7 @@ struct AddShowFlowView: View {
         let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            try? await Task.sleep(for: .milliseconds(2200))
             if toast == payload {
                 toast = nil
             }

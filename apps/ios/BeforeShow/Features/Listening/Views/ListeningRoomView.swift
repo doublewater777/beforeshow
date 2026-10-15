@@ -1,8 +1,6 @@
 import SwiftUI
 import SwiftData
-#if canImport(UIKit)
 import UIKit
-#endif
 
 struct ListenRootView: View {
     let isActive: Bool

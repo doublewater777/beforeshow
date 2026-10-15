@@ -279,7 +279,7 @@ struct BSVenueField: View {
         isSearching = true
         searchTask = Task { @MainActor in
             do {
-                try await Task.sleep(nanoseconds: 320_000_000)
+                try await Task.sleep(for: .milliseconds(320))
             } catch {
                 if revision == searchRevision {
                     isSearching = false

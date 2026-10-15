@@ -60,7 +60,7 @@ struct LiveAndWidgetShowcaseView: View {
                         .padding(.bottom, 40)
                         .task {
                             if ProcessInfo.processInfo.arguments.contains("--scroll-to-bottom") {
-                                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                                try? await Task.sleep(for: .milliseconds(1200))
                                 withAnimation(.easeInOut(duration: 0.3)) {
                                     scrollProxy.scrollTo("bottom-anchor", anchor: .bottom)
                                 }

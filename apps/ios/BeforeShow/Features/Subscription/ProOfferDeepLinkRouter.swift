@@ -1,11 +1,12 @@
-import Combine
+import Observation
 
 @MainActor
-final class ProOfferDeepLinkRouter: ObservableObject {
+@Observable
+final class ProOfferDeepLinkRouter {
     static let shared = ProOfferDeepLinkRouter()
 
-    @Published var shouldPresentProSheet = false
-    @Published var shouldShowWinbackOffer = false
+    var shouldPresentProSheet = false
+    var shouldShowWinbackOffer = false
 
     private init() {}
 

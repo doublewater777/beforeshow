@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ListeningCabinetView<Placeholder: View>: View {
     @Bindable var room: ListeningRoomCoordinator
@@ -86,9 +87,6 @@ struct ListeningCabinetView<Placeholder: View>: View {
         "\(hintDisc?.id ?? "none")-\(room.display.hardware.position)"
     }
 }
-
-#if canImport(UIKit)
-import UIKit
 
 private struct CabinetDiscGestureBridge: UIViewRepresentable {
     let canDrag: Bool
@@ -193,7 +191,6 @@ private struct CabinetDiscGestureBridge: UIViewRepresentable {
         }
     }
 }
-#endif
 
 private struct ListeningCabinetDiscButton: View {
     @Bindable var room: ListeningRoomCoordinator
@@ -245,7 +242,6 @@ private struct ListeningCabinetDiscButton: View {
                     }
                     .listeningFrame("slot:\(disc.id)")
 
-                    #if canImport(UIKit)
                     // Keep the active touch receiver mounted until the finger lifts.
                     if !isLoaded || room.display.hardware.isCabinetDragging {
                         CabinetDiscGestureBridge(
@@ -266,7 +262,6 @@ private struct ListeningCabinetDiscButton: View {
                         .frame(width: BSLayout.minTouchTarget, height: BSListeningTokens.shelfArtwork)
                         .accessibilityHidden(true)
                     }
-                    #endif
                 }
 
                 Text(disc.title)

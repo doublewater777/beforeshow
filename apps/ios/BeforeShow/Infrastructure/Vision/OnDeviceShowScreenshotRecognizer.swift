@@ -1,5 +1,4 @@
 import Foundation
-#if canImport(UIKit) && canImport(Vision)
 import UIKit
 import Vision
 
@@ -68,4 +67,3 @@ struct OnDeviceShowScreenshotRecognizer {
 private final class VisionTextRequestBox: @unchecked Sendable {
     var request: VNRecognizeTextRequest?
 }
-#endif

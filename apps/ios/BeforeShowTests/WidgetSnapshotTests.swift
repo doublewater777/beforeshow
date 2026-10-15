@@ -572,7 +572,7 @@ final class WidgetSnapshotTests: XCTestCase {
         let showID = snapshot.showID.uuidString
 
         let request = LiveActivityPlanner.action(
-            snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: true
+            snapshot: snapshot, now: now, existing: [], coverFilename: nil
         )
         guard case .request = request else {
             return XCTFail("expected request, got \(request)")
@@ -581,7 +581,7 @@ final class WidgetSnapshotTests: XCTestCase {
         let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
         let existing = [LiveActivityExisting(showID: showID, isPending: false, state: desired.state)]
         let update = LiveActivityPlanner.action(
-            snapshot: snapshot, now: now, existing: existing, coverFilename: nil, canSchedule: true
+            snapshot: snapshot, now: now, existing: existing, coverFilename: nil
         )
         guard case .update = update else {
             return XCTFail("expected update, got \(update)")
@@ -600,8 +600,7 @@ final class WidgetSnapshotTests: XCTestCase {
             snapshot: snapshot,
             now: now,
             existing: [LiveActivityExisting(showID: showID, isPending: true, state: desired.state)],
-            coverFilename: nil,
-            canSchedule: true
+            coverFilename: nil
         )
         XCTAssertEqual(unchanged, .keep(desired.state))
 
@@ -611,18 +610,11 @@ final class WidgetSnapshotTests: XCTestCase {
             snapshot: snapshot,
             now: now,
             existing: [LiveActivityExisting(showID: showID, isPending: true, state: changedState)],
-            coverFilename: nil,
-            canSchedule: true
+            coverFilename: nil
         )
         guard case .schedule = changed else {
             return XCTFail("expected schedule on changed pending, got \(changed)")
         }
-
-        // 无 schedule 能力的系统:窗口外只能结束,等窗口内打开 app
-        let noSchedule = LiveActivityPlanner.action(
-            snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: false
-        )
-        XCTAssertEqual(noSchedule, .endAll)
     }
 
     /// 已过谢幕 / 已取消 → endAll。
@@ -632,7 +624,7 @@ final class WidgetSnapshotTests: XCTestCase {
         let past = makePlannerSnapshot(start: now.addingTimeInterval(-5 * 3_600))
         XCTAssertEqual(
             LiveActivityPlanner.action(
-                snapshot: past, now: now, existing: [], coverFilename: nil, canSchedule: true
+                snapshot: past, now: now, existing: [], coverFilename: nil
             ),
             .endAll
         )
@@ -640,14 +632,14 @@ final class WidgetSnapshotTests: XCTestCase {
         let canceled = makePlannerSnapshot(start: now.addingTimeInterval(2 * 3_600), canceled: true)
         XCTAssertEqual(
             LiveActivityPlanner.action(
-                snapshot: canceled, now: now, existing: [], coverFilename: nil, canSchedule: true
+                snapshot: canceled, now: now, existing: [], coverFilename: nil
             ),
             .endAll
         )
 
         XCTAssertEqual(
             LiveActivityPlanner.action(
-                snapshot: nil, now: now, existing: [], coverFilename: nil, canSchedule: true
+                snapshot: nil, now: now, existing: [], coverFilename: nil
             ),
             .endAll
         )
@@ -677,14 +669,14 @@ final class WidgetSnapshotTests: XCTestCase {
         // 30 天后开场:窗口起点(开场前 4h)也远超 7 天视野
         let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(30 * 86_400))
         let action = LiveActivityPlanner.action(
-            snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: true
+            snapshot: snapshot, now: now, existing: [], coverFilename: nil
         )
         XCTAssertEqual(action, .none)
 
         // 3 天后开场:窗口起点 = 开场前 4h,在 7 天视野内 → schedule
         let near = makePlannerSnapshot(start: now.addingTimeInterval(3 * 86_400))
         let nearAction = LiveActivityPlanner.action(
-            snapshot: near, now: now, existing: [], coverFilename: nil, canSchedule: true
+            snapshot: near, now: now, existing: [], coverFilename: nil
         )
         guard case .schedule = nearAction else {
             return XCTFail("expected schedule within horizon, got \(nearAction)")
@@ -711,8 +703,7 @@ final class WidgetSnapshotTests: XCTestCase {
             snapshot: snapshot,
             now: now,
             existing: [LiveActivityExisting(showID: showID, isPending: true, state: stale)],
-            coverFilename: nil,
-            canSchedule: true
+            coverFilename: nil
         )
         guard case .request = action else {
             return XCTFail("stale pending inside window must request, got \(action)")
@@ -736,15 +727,14 @@ final class WidgetSnapshotTests: XCTestCase {
             snapshot: snapshot,
             now: now,
             existing: [LiveActivityExisting(showID: showID, isPending: true, state: stale)],
-            coverFilename: nil,
-            canSchedule: true
+            coverFilename: nil
         )
         XCTAssertEqual(action, .endAll, "stale pending beyond horizon must end, not keep")
 
         // 无残留时仍 .none(不占动作)
         XCTAssertEqual(
             LiveActivityPlanner.action(
-                snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: true
+                snapshot: snapshot, now: now, existing: [], coverFilename: nil
             ),
             .none
         )
@@ -798,8 +788,7 @@ final class WidgetSnapshotTests: XCTestCase {
                 LiveActivityExisting(showID: showID, isPending: true, state: stale),
                 LiveActivityExisting(showID: showID, isPending: true, state: desired.state),
             ],
-            coverFilename: nil,
-            canSchedule: true
+            coverFilename: nil
         )
         XCTAssertEqual(action, .keep(desired.state))
     }

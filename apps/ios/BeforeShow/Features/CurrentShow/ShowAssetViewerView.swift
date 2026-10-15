@@ -172,7 +172,7 @@ struct ShowAssetViewerView: View {
                             ? BSLocalization.format("%@记录已删除，图片将在下次启动继续清理", kind.title)
                             : BSLocalization.format("%@已删除", kind.title)
                     )
-                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    try? await Task.sleep(for: .milliseconds(350))
                     dismiss()
                     return
                 } catch {
@@ -189,7 +189,7 @@ struct ShowAssetViewerView: View {
         let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            try? await Task.sleep(for: .milliseconds(2200))
             if toast == payload {
                 toast = nil
             }

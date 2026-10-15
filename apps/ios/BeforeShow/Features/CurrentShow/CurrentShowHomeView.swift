@@ -252,15 +252,15 @@ struct CurrentShowHomeView: View {
                     isShowingSettings = true
                 }
                 if ProcessInfo.processInfo.arguments.contains("--open-show-library") {
-                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    try? await Task.sleep(for: .milliseconds(900))
                     isShowingShowLibrary = true
                 }
                 if ProcessInfo.processInfo.arguments.contains("--open-add-show-review") {
-                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    try? await Task.sleep(for: .milliseconds(900))
                     isShowingAddShowReview = true
                 }
                 if ProcessInfo.processInfo.arguments.contains("--open-widget-preview") {
-                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    try? await Task.sleep(for: .milliseconds(900))
                     isShowingWidgetPreview = true
                 }
                 // 截图 / 验证用:跳过熄灯动画，直接打开散场评分分档页（默认选中「夯爆了」）。
@@ -268,7 +268,7 @@ struct CurrentShowHomeView: View {
                    let target = shows.first(where: { $0.name == "「夜航」巡演 · 上海站" })
                     ?? shows.first(where: { $0.endedAt == nil })
                     ?? shows.first {
-                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    try? await Task.sleep(for: .milliseconds(900))
                     target.markEnded(at: Date())
                     try? target.setClosingRitual(
                         rating: 5,
@@ -280,7 +280,7 @@ struct CurrentShowHomeView: View {
                 // 截图 / 验证用:对当前 live 现场直接拉起散场仪式,跳过手动点「结束现场」。
                 if ProcessInfo.processInfo.arguments.contains("--auto-fire-dispersal"),
                    let live = shows.first(where: { $0.endedAt == nil }) {
-                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    try? await Task.sleep(for: .milliseconds(600))
                     live.markEnded(at: Date())
                     try? modelContext.save()
                     ceremonyLightsOutShowID = live.id
@@ -467,7 +467,7 @@ struct CurrentShowHomeView: View {
         let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            try? await Task.sleep(for: .milliseconds(2200))
             if toast == payload {
                 toast = nil
             }

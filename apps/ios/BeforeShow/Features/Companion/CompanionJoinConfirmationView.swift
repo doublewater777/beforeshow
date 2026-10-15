@@ -125,7 +125,7 @@ struct CompanionPendingJoinHost: View {
                 allowsLoadingDismiss = false
                 guard coordinator.isLoadingInvitation,
                       coordinator.pendingJoinSession == nil else { return }
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                try? await Task.sleep(for: .milliseconds(2500))
                 guard !Task.isCancelled,
                       coordinator.isLoadingInvitation,
                       coordinator.pendingJoinSession == nil else { return }
@@ -214,7 +214,7 @@ struct CompanionPendingJoinHost: View {
 
     private func dismissAfterInlineSuccess(_ message: String) {
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            try? await Task.sleep(for: .milliseconds(700))
             guard completionMessage == message else { return }
             completionMessage = nil
             presentationState.beginSuccessfulDismissal()

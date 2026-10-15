@@ -156,7 +156,7 @@ struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
         let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            try? await Task.sleep(for: .milliseconds(2200))
             if toast == payload { toast = nil }
         }
     }

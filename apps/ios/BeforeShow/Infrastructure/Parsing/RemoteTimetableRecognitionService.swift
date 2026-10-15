@@ -1,7 +1,5 @@
 import Foundation
-#if canImport(UIKit)
 import UIKit
-#endif
 
 enum RemoteTimetableRecognitionError: LocalizedError, Equatable {
     case noImages
@@ -33,9 +31,7 @@ enum RemoteTimetableRecognitionError: LocalizedError, Equatable {
 }
 
 protocol TimetableRecognitionService: Sendable {
-    #if canImport(UIKit)
     func recognize(images: [UIImage]) async throws -> TimetableExchangeDocument
-    #endif
 }
 
 struct RemoteTimetableRecognitionService: TimetableRecognitionService {
@@ -84,7 +80,6 @@ struct RemoteTimetableRecognitionService: TimetableRecognitionService {
         }
     }
 
-    #if canImport(UIKit)
     func recognize(images: [UIImage]) async throws -> TimetableExchangeDocument {
         guard !images.isEmpty else {
             throw RemoteTimetableRecognitionError.noImages
@@ -164,5 +159,4 @@ struct RemoteTimetableRecognitionService: TimetableRecognitionService {
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
     }
-    #endif
 }

@@ -188,12 +188,12 @@ struct FootprintGeoMap: View {
     }
 
     private var pinchZoomGesture: some Gesture {
-        MagnificationGesture()
+        MagnifyGesture()
             .updating($pinchScale) { value, state, _ in
-                state = value
+                state = value.magnification
             }
             .onEnded { value in
-                mapScale = FootprintMapZoom.settledScale(current: mapScale, gesture: value)
+                mapScale = FootprintMapZoom.settledScale(current: mapScale, gesture: value.magnification)
             }
     }
 

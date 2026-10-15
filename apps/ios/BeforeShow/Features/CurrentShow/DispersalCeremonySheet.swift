@@ -468,7 +468,7 @@ struct DispersalCombinedStep: View {
             emojiBump = true
         }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 180_000_000)
+            try? await Task.sleep(for: .milliseconds(180))
             withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) {
                 emojiBump = false
             }

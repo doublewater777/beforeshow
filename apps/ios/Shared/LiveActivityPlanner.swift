@@ -190,8 +190,7 @@ enum LiveActivityPlanner {
         snapshot: WidgetShowSnapshot?,
         now: Date,
         existing: [LiveActivityExisting],
-        coverFilename: String?,
-        canSchedule: Bool
+        coverFilename: String?
     ) -> LiveActivityAction {
         guard let desired = desiredState(snapshot: snapshot, now: now, coverFilename: coverFilename),
               let snapshot else {
@@ -213,18 +212,14 @@ enum LiveActivityPlanner {
             return .update(desired.state)
         }
 
-        if canSchedule {
-            if hasUnchangedPending {
-                return .keep(desired.state)
-            }
-
-            if earliest.timeIntervalSince(now) > scheduleHorizon {
-                return matching.isEmpty ? .none : .endAll
-            }
-
-            return .schedule(desired.state, start: earliest)
+        if hasUnchangedPending {
+            return .keep(desired.state)
         }
 
-        return .endAll
+        if earliest.timeIntervalSince(now) > scheduleHorizon {
+            return matching.isEmpty ? .none : .endAll
+        }
+
+        return .schedule(desired.state, start: earliest)
     }
 }

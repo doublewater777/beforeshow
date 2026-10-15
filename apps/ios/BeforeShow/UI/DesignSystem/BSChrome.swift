@@ -31,40 +31,22 @@ extension View {
     /// Keep navigation scroll edges aligned with the iOS 26 system appearance.
     /// Automatic is the platform default and avoids imposing a hard cutoff on
     /// lightweight settings and detail screens.
-    @ViewBuilder
     func bsNavigationScrollEdge() -> some View {
-        if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.automatic, for: .top)
-        } else {
-            self
-        }
+        scrollEdgeEffectStyle(.automatic, for: .top)
     }
 
-    @ViewBuilder
     func bsClearNavigationContainer() -> some View {
-        if #available(iOS 18.0, *) {
-            self.containerBackground(.clear, for: .navigation)
-        } else {
-            self
-        }
+        containerBackground(.clear, for: .navigation)
     }
 
     /// Let the system sheet material show through a NavigationStack.
     /// Partial-height detents keep iOS 26 Liquid Glass; `.large` goes opaque.
-    @ViewBuilder
     func bsSystemGlassSheet(
         detents: Set<PresentationDetent> = [.medium, .large]
     ) -> some View {
-        if #available(iOS 18.0, *) {
-            self
-                .containerBackground(.clear, for: .navigation)
-                .presentationDetents(detents)
-                .presentationDragIndicator(.visible)
-        } else {
-            self
-                .presentationDetents(detents)
-                .presentationDragIndicator(.visible)
-        }
+        containerBackground(.clear, for: .navigation)
+            .presentationDetents(detents)
+            .presentationDragIndicator(.visible)
     }
 }
 

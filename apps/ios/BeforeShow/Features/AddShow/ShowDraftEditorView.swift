@@ -492,7 +492,7 @@ struct ShowDraftEditorView: View {
         let payload = BSToastPayload(tone: tone, message: message)
         statusToast = payload
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            try? await Task.sleep(for: .milliseconds(2200))
             if statusToast == payload {
                 statusToast = nil
             }

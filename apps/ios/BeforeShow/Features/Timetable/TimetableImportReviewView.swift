@@ -5,7 +5,7 @@ import SwiftUI
 /// lands in the session's own store; nothing is saved before the checkmark.
 struct TimetableImportReviewView: View {
     let session: TimetableImportSession
-    @ObservedObject var coordinator: TimetableManagementCoordinator
+    var coordinator: TimetableManagementCoordinator
     let linker: TimetableArtistLinker
     let avatarURL: (TimetablePerformance) -> URL?
     var onOpenOriginal: (() -> Void)? = nil

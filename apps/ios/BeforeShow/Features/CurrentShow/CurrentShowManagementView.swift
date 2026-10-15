@@ -46,7 +46,7 @@ struct CurrentShowManagementSection: View {
     /// Keep this raised until the corresponding onDismiss fires so a pending
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
-    @ObservedObject var notificationRouter = NotificationDeepLinkRouter.shared
+    let notificationRouter = NotificationDeepLinkRouter.shared
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -93,11 +93,11 @@ struct CurrentShowManagementSection: View {
         #if DEBUG
         .task {
             if ProcessInfo.processInfo.arguments.contains("--open-memory-fragments") {
-                try? await Task.sleep(nanoseconds: 900_000_000)
+                try? await Task.sleep(for: .milliseconds(900))
                 presentedSheet = .memory
             }
             if ProcessInfo.processInfo.arguments.contains("--open-timetable") {
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                try? await Task.sleep(for: .milliseconds(1500))
                 presentedSheet = .asset(.timetable)
             }
         }
@@ -440,7 +440,7 @@ struct CurrentShowManagementSection: View {
                 #if DEBUG
                 .task {
                     if ProcessInfo.processInfo.arguments.contains("--scroll-to-live-section") {
-                        try? await Task.sleep(nanoseconds: 1_200_000_000)
+                        try? await Task.sleep(for: .milliseconds(1200))
                         withAnimation(.easeInOut(duration: 0.4)) {
                             scrollProxy.scrollTo("live-section", anchor: .top)
                         }
@@ -652,17 +652,13 @@ private struct HomeHeaderScrollObserver: ViewModifier {
     @Binding var isOverContent: Bool
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y
-            } action: { _, y in
-                let next = y > 10
-                if isOverContent != next {
-                    isOverContent = next
-                }
+        content.onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y
+        } action: { _, y in
+            let next = y > 10
+            if isOverContent != next {
+                isOverContent = next
             }
-        } else {
-            content
         }
     }
 }

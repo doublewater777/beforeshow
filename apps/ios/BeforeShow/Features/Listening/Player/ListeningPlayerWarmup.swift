@@ -1,6 +1,4 @@
-#if canImport(UIKit)
 import UIKit
-#endif
 
 @MainActor enum ListeningPlayerWarmup {
     private static var didPrepare = false
@@ -10,7 +8,6 @@ import UIKit
         didPrepare = true
         Task(priority: .utility) { @MainActor in
             CDSoundPlayer.shared.warmup()
-            #if canImport(UIKit)
             for name in [
                 CDPlayerConfiguration.standard.assets.body,
                 CDPlayerConfiguration.standard.assets.lidOuter,
@@ -19,7 +16,6 @@ import UIKit
             ] {
                 _ = UIImage(named: name)
             }
-            #endif
         }
     }
 }

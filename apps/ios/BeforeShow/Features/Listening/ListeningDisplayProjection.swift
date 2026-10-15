@@ -1,7 +1,5 @@
 import Foundation
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// The single user-facing projection for Listen playback capability and actions.
 /// Views render this state and send intents back to the coordinator instead of
@@ -936,11 +934,9 @@ extension ListeningRoomCoordinator {
         case .authorize:
             Task { await authorize() }
         case .openSettings:
-            #if canImport(UIKit)
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }
-            #endif
         case .retryAccess:
             Task { await refreshMusicAccess() }
         case .retryCatalog:

@@ -82,7 +82,7 @@ struct CurrentShowFeatureRootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
-    @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
+    private let notificationRouter = NotificationDeepLinkRouter.shared
     @State private var notificationPresentation: CurrentShowNotificationPresentation?
     @State private var pendingMemoryCreate: PendingNotificationMemoryCreate?
     /// `notificationPresentation` may become nil before the sheet dismissal

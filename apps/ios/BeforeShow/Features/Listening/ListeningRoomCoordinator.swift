@@ -1,9 +1,7 @@
 import SwiftUI
 import SwiftData
 import os
-#if canImport(UIKit)
 import UIKit
-#endif
 
 private let listeningCatalogFetchConcurrency = 4
 private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.beforeshow", category: .pointsOfInterest)

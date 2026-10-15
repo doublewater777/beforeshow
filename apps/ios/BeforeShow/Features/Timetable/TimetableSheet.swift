@@ -23,7 +23,7 @@ struct TimetableSheet: View {
     }
 
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    @StateObject private var coordinator = TimetableManagementCoordinator()
+    @State private var coordinator = TimetableManagementCoordinator()
     @State private var quota = TimetableRecognitionQuota()
     @State private var isProPaywallPresented = false
     @State private var isChromeVisible = true

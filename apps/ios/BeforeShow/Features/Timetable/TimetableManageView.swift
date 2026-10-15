@@ -6,7 +6,7 @@ import SwiftUI
 struct TimetableManageView: View {
     let timetable: Timetable
     @Binding var selectedDayID: UUID
-    @ObservedObject var coordinator: TimetableManagementCoordinator
+    var coordinator: TimetableManagementCoordinator
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
