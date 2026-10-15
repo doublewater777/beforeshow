@@ -28,6 +28,14 @@ final class CurrentShowSelection {
         updatedAt = Date()
     }
 
+    /// Automatic ownership follows lifecycle changes. Explicit user choices use select(showID:).
+    func selectAutomatically(showID: UUID?) {
+        guard selectedShowID != showID || isManual != false else { return }
+        selectedShowID = showID
+        isManual = false
+        updatedAt = Date()
+    }
+
     func clearSelection() {
         selectedShowID = nil
         isManual = true
@@ -35,8 +43,9 @@ final class CurrentShowSelection {
     }
 }
 
-/// Chooses an initial current show only when no durable selection exists.
-/// Runtime time progression never calls this policy to replace an existing choice.
+/// Automatic Current Show: never supersedes a manual choice. Retains an ongoing
+/// or just-finished selected show, otherwise prioritizes a live show and then the
+/// nearest upcoming one. Historical imports do not participate.
 struct InitialCurrentShowPolicy {
     let calendar: Calendar
 
@@ -44,69 +53,69 @@ struct InitialCurrentShowPolicy {
         self.calendar = calendar
     }
 
-    func candidate(from shows: [Show], now: Date = Date()) -> Show? {
-        let eligible = shows.filter { show in
+    func candidate(
+        from shows: [Show],
+        retaining selectedShowID: UUID? = nil,
+        now: Date = Date()
+    ) -> Show? {
+        let projected = shows.compactMap { show -> (show: Show, state: CurrentShowTimeState)? in
             guard show.wasAddedAsHistorical != true,
-                  show.changeStatus != .canceled else {
-                return false
+                  show.changeStatus != .canceled,
+                  !(show.changeStatus == .postponed && show.postponedDate == nil) else {
+                return nil
             }
-            if show.changeStatus == .postponed, show.postponedDate == nil {
-                return false
-            }
-            return true
-        }
-
-        let projected = eligible.map { show in
-            (
+            return (
                 show: show,
                 state: CurrentShowTimeState(show: show, calendar: calendar, now: now)
             )
         }
 
-        let live = projected
-            .filter { entry in
-                guard entry.state.kind == .today,
-                      let start = entry.state.effectiveStartTime,
-                      let end = entry.state.endBoundary else {
-                    return false
-                }
-                return now >= start && now < end
-            }
-            .sorted { lhs, rhs in
-                let lhsStart = lhs.state.effectiveStartTime ?? .distantPast
-                let rhsStart = rhs.state.effectiveStartTime ?? .distantPast
-                if lhsStart != rhsStart { return lhsStart > rhsStart }
-                return lhs.show.id.uuidString < rhs.show.id.uuidString
-            }
-        if let show = live.first?.show {
-            return show
+        let retained = projected.first { $0.show.id == selectedShowID }
+        func isLive(_ entry: (show: Show, state: CurrentShowTimeState)) -> Bool {
+            guard entry.show.endedAt == nil,
+                  entry.state.kind == .today,
+                  let start = entry.state.effectiveStartTime,
+                  let end = entry.state.endBoundary else { return false }
+            return start <= now && now < end
         }
 
-        let future = projected
-            .filter { entry in
-                guard let start = entry.state.effectiveStartTime else { return false }
-                return start > now
-            }
-            .sorted { lhs, rhs in
-                let lhsStart = lhs.state.effectiveStartTime ?? .distantFuture
-                let rhsStart = rhs.state.effectiveStartTime ?? .distantFuture
-                if lhsStart != rhsStart { return lhsStart < rhsStart }
-                return lhs.show.id.uuidString < rhs.show.id.uuidString
-            }
-        if let show = future.first?.show {
-            return show
+        // When two shows overlap, keep the one already on screen.
+        if let retained, isLive(retained) { return retained.show }
+        let live = projected.filter(isLive).sorted {
+            let left = $0.state.effectiveStartTime ?? .distantPast
+            let right = $1.state.effectiveStartTime ?? .distantPast
+            if left != right { return left > right }
+            return $0.show.id.uuidString < $1.show.id.uuidString
+        }
+        if let active = live.first { return active.show }
+
+        // The festival stays current between days, and the post-show experience
+        // stays for up to three days unless another show is actually live.
+        if let retained,
+           retained.state.kind == .dayEnded || retained.state.kind == .postShow {
+            return retained.show
         }
 
-        return projected
-            .filter { $0.show.endedAt == nil }
-            .sorted { lhs, rhs in
-                let lhsStart = lhs.state.effectiveStartTime ?? lhs.state.effectiveDate
-                let rhsStart = rhs.state.effectiveStartTime ?? rhs.state.effectiveDate
-                if lhsStart != rhsStart { return lhsStart > rhsStart }
-                return lhs.show.id.uuidString < rhs.show.id.uuidString
-            }
-            .first?
-            .show
+        let future = projected.filter {
+            guard let start = $0.state.effectiveStartTime else { return false }
+            return start > now && $0.state.kind != .ended
+        }.sorted {
+            let left = $0.state.effectiveStartTime ?? .distantFuture
+            let right = $1.state.effectiveStartTime ?? .distantFuture
+            if left != right { return left < right }
+            return $0.show.id.uuidString < $1.show.id.uuidString
+        }
+        if let upcoming = future.first { return upcoming.show }
+
+        // No future show: preserve an eligible after-show or festival break.
+        return projected.filter {
+            $0.state.kind == .postShow || $0.state.kind == .dayEnded
+        }.sorted {
+            let left = $0.state.effectiveEndTime ?? $0.state.effectiveDate
+            let right = $1.state.effectiveEndTime ?? $1.state.effectiveDate
+            if left != right { return left > right }
+            return $0.show.id.uuidString < $1.show.id.uuidString
+        }.first?.show
     }
 }
 
@@ -160,8 +169,7 @@ struct CurrentShowSelectionStore {
         return selection
     }
 
-    /// Establishes a Current Show only when the canonical selection has no valid
-    /// target. Existing valid choices are never replaced because time has passed.
+    /// Reconcile automatic ownership while preserving any valid manual selection.
     @discardableResult
     func bootstrapIfNeeded(
         shows: [Show],
@@ -169,16 +177,29 @@ struct CurrentShowSelectionStore {
         policy: InitialCurrentShowPolicy = InitialCurrentShowPolicy()
     ) throws -> CurrentShowSelection? {
         let selection = try normalizeDuplicates()
-        if let selectedShowID = selection?.selectedShowID,
+        // Old records without an explicit mode are treated as manual for migration safety.
+        if selection?.isManual != false,
+           let selectedShowID = selection?.selectedShowID,
            shows.contains(where: { $0.id == selectedShowID }) {
             return selection
         }
 
-        guard let candidate = policy.candidate(from: shows, now: now) else {
-            selection?.clearSelection()
-            return selection
+        let retainedID = selection?.isManual == false ? selection?.selectedShowID : nil
+        let candidate = policy.candidate(
+            from: shows,
+            retaining: retainedID,
+            now: now
+        )
+        if selection == nil && candidate == nil { return nil }
+        let record: CurrentShowSelection
+        if let selection {
+            record = selection
+        } else {
+            record = CurrentShowSelection()
+            modelContext.insert(record)
         }
-        return try select(showID: candidate.id)
+        record.selectAutomatically(showID: candidate?.id)
+        return record
     }
 
     private static func canonicalOrder(
