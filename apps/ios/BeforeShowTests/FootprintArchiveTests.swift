@@ -211,7 +211,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
-    func testUnifiedClearlyHistoricalAddBootstrapsCurrentWhenEmpty() async throws {
+    func testUnifiedHistoricalAddLeavesCurrentEmpty() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
@@ -237,17 +237,17 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(result.outcome, .footprint)
         XCTAssertEqual(historical.wasAddedAsHistorical, true)
         let shows = try context.fetch(FetchDescriptor<Show>())
-        let selection = try XCTUnwrap(context.fetch(FetchDescriptor<CurrentShowSelection>()).first)
+        let selection = try context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
             from: shows,
             manualSelection: selection,
             now: date(2026, 8, 29, 12)
         )
-        XCTAssertEqual(selection.selectedShowID, historical.id)
-        XCTAssertEqual(selected?.id, historical.id)
+        XCTAssertNil(selection)
+        XCTAssertNil(selected)
     }
 
-    func testAddEndedShowWithSetAsCurrentOverridesExistingSelection() async throws {
+    func testHistoricalAddDoesNotOverrideManualSelection() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
@@ -265,7 +265,6 @@ final class FootprintArchiveTests: XCTestCase {
         let result = try await AddShowPersistenceCoordinator.persist(
             ended,
             lifecycle: .ended,
-            setAsCurrent: true,
             selections: [selection],
             notificationStates: [],
             in: context,
@@ -276,7 +275,7 @@ final class FootprintArchiveTests: XCTestCase {
         let updatedSelection = try XCTUnwrap(
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
-        XCTAssertEqual(updatedSelection.selectedShowID, ended.id)
+        XCTAssertEqual(updatedSelection.selectedShowID, current.id)
         XCTAssertEqual(result.outcome, .footprint)
     }
 
