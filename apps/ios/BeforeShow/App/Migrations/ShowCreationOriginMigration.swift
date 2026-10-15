@@ -101,7 +101,10 @@ enum CurrentShowOwnershipMigration {
             }
         } else if let candidate = InitialCurrentShowPolicy(calendar: calendar)
             .candidate(from: shows, now: now) {
-            modelContext.insert(CurrentShowSelection(selectedShowID: candidate.id))
+            // No prior user choice: bootstrap into the new automatic mode.
+            let selection = CurrentShowSelection()
+            selection.selectAutomatically(showID: candidate.id)
+            modelContext.insert(selection)
         }
 
         try? modelContext.save()
