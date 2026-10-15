@@ -8,17 +8,22 @@ final class CurrentShowSelection {
     /// Kept optional for lightweight repair of existing development stores.
     /// nil is treated as a legacy manual choice; new automatic writes store false.
     var isManual: Bool?
+    /// v2 distinguishes newly automatic selections from legacy automatic rows.
+    /// Optional for safe SwiftData / CloudKit lightweight migration.
+    var selectionPolicyVersion: Int?
     var updatedAt: Date
 
     init(
         id: UUID = UUID(),
         selectedShowID: UUID? = nil,
         isManual: Bool = true,
+        selectionPolicyVersion: Int? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.selectedShowID = selectedShowID
         self.isManual = isManual
+        self.selectionPolicyVersion = selectionPolicyVersion
         self.updatedAt = updatedAt
     }
 
@@ -30,9 +35,11 @@ final class CurrentShowSelection {
 
     /// Automatic ownership follows lifecycle changes. Explicit user choices use select(showID:).
     func selectAutomatically(showID: UUID?) {
-        guard selectedShowID != showID || isManual != false else { return }
+        guard selectedShowID != showID || isManual != false
+                || selectionPolicyVersion != 2 else { return }
         selectedShowID = showID
         isManual = false
+        selectionPolicyVersion = 2
         updatedAt = Date()
     }
 
