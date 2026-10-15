@@ -21,9 +21,17 @@ struct CurrentShowSession {
     func selectCurrentShow(
         from shows: [Show],
         manualSelection: CurrentShowSelection? = nil,
-        now _: Date = Date()
+        now: Date = Date()
     ) -> Show? {
-        guard let selectedShowID = manualSelection?.selectedShowID else { return nil }
+        guard let manualSelection else { return nil }
+        if manualSelection.isManual == false {
+            return InitialCurrentShowPolicy(calendar: calendar).candidate(
+                from: shows,
+                retaining: manualSelection.selectedShowID,
+                now: now
+            )
+        }
+        guard let selectedShowID = manualSelection.selectedShowID else { return nil }
         return shows.first(where: { $0.id == selectedShowID })
     }
 
