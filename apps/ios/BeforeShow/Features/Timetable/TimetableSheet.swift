@@ -283,7 +283,10 @@ struct TimetableSheet: View {
                 .disabled(isProcessingPhotos)
             }
         }
-        .interactiveDismissDisabled(isProcessingPhotos || coordinator.isSaving)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .presentationContentInteraction(.scrolls)
+        .interactiveDismissDisabled(isProcessingPhotos || coordinator.isSaving || showsTimetable)
         .fullScreenCover(isPresented: $isFullScreenImagePresented) {
             TimetableOriginalImageViewer(
                 images: originalImages,
