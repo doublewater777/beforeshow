@@ -53,7 +53,7 @@ struct CurrentShowHomeView: View {
     }
 
     private var currentShow: Show? {
-        session.selectCurrentShow(from: liveShows, manualSelection: selections.first)
+        session.selectCurrentShow(from: liveShows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
     }
 
     private var homeArrival: CurrentShowHomeArrival? {
@@ -92,7 +92,7 @@ struct CurrentShowHomeView: View {
         let showsPart = liveShows
             .map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSince1970)" }
             .joined(separator: "|")
-        let selectionPart = selections.first?.selectedShowID?.uuidString ?? "-"
+        let selectionPart = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID?.uuidString ?? "-"
         return "\(selectionPart)#\(showsPart)"
     }
 
@@ -206,7 +206,7 @@ struct CurrentShowHomeView: View {
             }
             #endif
             .task(id: widgetSyncFingerprint) {
-                WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                WidgetDataSync.sync(shows: shows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
             }
             .onChange(of: currentShow?.id, initial: true) { _, newShowID in
                 homeArrivalLifecycle.observeCurrentShow(newShowID)
@@ -221,7 +221,7 @@ struct CurrentShowHomeView: View {
             }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
-                    WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                    WidgetDataSync.sync(shows: shows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
                     Task {
                         await refreshAutomaticCurrentShowIfNeeded()
                         await reconcileNotificationPortfolio()
