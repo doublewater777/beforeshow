@@ -15,8 +15,10 @@ struct ListeningStageBackground: View {
     @State private var discAmbientColor: Color?
 
     private var show: Show? {
-        let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
-        return shows.first { $0.id == id }
+        CurrentShowSession().selectCurrentShow(
+            from: shows,
+            manualSelection: CurrentShowSelectionStore.canonical(in: selections)
+        )
     }
 
     private var lightColor: Color {
