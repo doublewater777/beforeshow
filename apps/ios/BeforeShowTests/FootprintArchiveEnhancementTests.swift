@@ -559,6 +559,7 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
             date: date(year, month, 10),
             startTime: date(year, month, 10, 20),
             endTime: date(year, month, 10, 20 + durationHours),
+            timeZoneIdentifier: calendar.timeZone.identifier,
             city: "上海",
             venueName: venue,
             artists: [ArtistSlot(name: artist, avatarURL: nil)]

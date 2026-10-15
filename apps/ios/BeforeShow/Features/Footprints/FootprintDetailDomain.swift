@@ -93,9 +93,10 @@ enum FootprintAccessibilityPolicy {
         ordinal: Int,
         kind: String,
         recordedAt: Date,
-        text: String? = nil
+        text: String? = nil,
+        timeZone: TimeZone = .current
     ) -> String {
-        let kindAndTime = BSLocalization.format("第 %lld 条，%@，%@", ordinal, kind, timeText(recordedAt))
+        let kindAndTime = BSLocalization.format("第 %lld 条，%@，%@", ordinal, kind, BSDateFormat.clock(recordedAt, timeZone: timeZone))
         if let summary = summary(from: text) {
             return BSLocalization.format("打开记忆碎片，%@，内容：%@", kindAndTime, summary)
         }
@@ -106,15 +107,11 @@ enum FootprintAccessibilityPolicy {
         title: String,
         ordinal: Int,
         recordedAt: Date,
-        isSelected: Bool
+        isSelected: Bool,
+        timeZone: TimeZone = .current
     ) -> String {
         let selection = isSelected ? BSLocalization.text("已选择") : BSLocalization.text("未选择")
-        return BSLocalization.format("%@，第 %lld 项，%@，%@", title, ordinal, timeText(recordedAt), selection)
-    }
-
-    private static func timeText(_ date: Date) -> String {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+        return BSLocalization.format("%@，第 %lld 项，%@，%@", title, ordinal, BSDateFormat.clock(recordedAt, timeZone: timeZone), selection)
     }
 
     private static func summary(from text: String?) -> String? {

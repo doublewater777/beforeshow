@@ -148,7 +148,8 @@ final class TimetableOCRRecognitionTests: XCTestCase {
     }
 
     func testManualCorrectionsOnDraft() throws {
-        let cal = Calendar(identifier: .gregorian)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
         var comp = DateComponents()
         comp.year = 2026; comp.month = 10; comp.day = 2; comp.hour = 0; comp.minute = 0
         let dayDate = cal.startOfDay(for: cal.date(from: comp)!)

@@ -792,13 +792,15 @@ final class FootprintArchiveTests: XCTestCase {
             ordinal: 2,
             kind: "照片",
             recordedAt: date(2026, 8, 1, 20).addingTimeInterval(18 * 60),
-            text: "舞台灯光亮起来了"
+            text: "舞台灯光亮起来了",
+            timeZone: calendar.timeZone
         )
         let shareLabel = FootprintAccessibilityPolicy.shareMaterialLabel(
             title: "照片",
             ordinal: 3,
             recordedAt: date(2026, 8, 1, 20).addingTimeInterval(18 * 60),
-            isSelected: false
+            isSelected: false,
+            timeZone: calendar.timeZone
         )
 
         XCTAssertEqual(memoryLabel, "打开记忆碎片，第 2 条，照片，20:18，内容：舞台灯光亮起来了")
