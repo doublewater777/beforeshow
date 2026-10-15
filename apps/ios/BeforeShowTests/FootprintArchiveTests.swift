@@ -318,6 +318,7 @@ final class FootprintArchiveTests: XCTestCase {
 
         XCTAssertEqual(result.outcome, .footprint)
         XCTAssertNotNil(result.notificationState)
+        XCTAssertEqual(ended.wasAddedAsHistorical, true)
         XCTAssertEqual(selection.selectedShowID, current.id)
 
         // 通知只给当前现场排（ADR 0037）：补录的已结束现场不是当前现场，不再收到散场后的通知。
