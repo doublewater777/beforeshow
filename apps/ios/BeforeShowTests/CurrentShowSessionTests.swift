@@ -162,6 +162,38 @@ final class CurrentShowSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testOwnershipMigrationDoesNotFreezeVersionedAutomaticSelection() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let selected = try makeShow(name: "自动选择", day: 20)
+        let nearer = try makeShow(name: "更近", day: 16)
+        let selection = CurrentShowSelection(selectedShowID: selected.id)
+        selection.selectAutomatically(showID: selected.id)
+        context.insert(selected)
+        context.insert(nearer)
+        context.insert(selection)
+        try context.save()
+
+        CurrentShowOwnershipMigration.migrateIfNeeded(in: context, now: now, calendar: calendar)
+        let stored = try XCTUnwrap(context.fetch(FetchDescriptor<CurrentShowSelection>()).first)
+        XCTAssertEqual(stored.selectedShowID, selected.id)
+        XCTAssertEqual(stored.isManual, false)
+        XCTAssertEqual(stored.selectionPolicyVersion, 2)
+
+        // A normal automatic reconcile is still permitted after startup.
+        _ = try CurrentShowSelectionStore(modelContext: context).bootstrapIfNeeded(
+            shows: [selected, nearer],
+            now: now,
+            policy: InitialCurrentShowPolicy(calendar: calendar)
+        )
+        XCTAssertEqual(stored.selectedShowID, nearer.id)
+        XCTAssertEqual(stored.isManual, false)
+    }
+
+    @MainActor
     func testMigrationRunnerCanonicalizesSingletonsAndPreservesPermissionHistory() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
