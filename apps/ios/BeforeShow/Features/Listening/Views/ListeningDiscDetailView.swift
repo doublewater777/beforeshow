@@ -13,6 +13,7 @@ struct ListeningDiscDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var tone: Color?
+    @State private var isEditorialExpanded = false
 
     private let isMultiArtist: Bool
     private let metadataSummary: String
@@ -90,11 +91,11 @@ struct ListeningDiscDetailView: View {
                         badgeSection
                     }
 
-                    trackListSection
-
-                    if let editorial = disc.editorialText, !editorial.isEmpty {
+                    if let editorial = cleanEditorial {
                         editorialSection(editorial)
                     }
+
+                    trackListSection
 
                     footerSection
                 }
@@ -209,7 +210,7 @@ struct ListeningDiscDetailView: View {
 
     private func appleMusicPrimaryAction(_ url: URL) -> some View {
         Link(destination: url) {
-            Label(BSLocalization.text("在 Apple Music 中打开"), systemImage: "arrow.up.right")
+            Label(BSLocalization.text("在 Apple Music 上收听"), systemImage: "arrow.up.right")
         }
         .buttonStyle(BSListeningActionStyle())
         .accessibilityIdentifier("listening.openAppleMusic")
@@ -404,50 +405,116 @@ struct ListeningDiscDetailView: View {
         }
     }
 
-    private func editorialSection(_ editorial: String) -> some View {
-        VStack(alignment: .leading, spacing: BSSpacing.xs) {
-            Text(BSLocalization.text("专辑简介"))
-                .font(BSListeningTokens.caption.weight(.semibold))
-                .foregroundStyle(BSColor.Stage.dim)
-            Text(editorial)
-                .font(BSListeningTokens.body)
-                .lineSpacing(5)
-                .foregroundStyle(BSColor.Stage.muted)
-                .frame(maxWidth: .infinity, alignment: .leading)
+    private var cleanEditorial: String? {
+        guard let raw = disc.editorialText?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
         }
-        .padding(BSSpacing.md)
-        .background(BSColor.Stage.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
+        let cleaned = Self.cleanHTML(raw)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    private static func cleanHTML(_ html: String) -> String {
+        var text = html
+        text = text.replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
+        text = text.replacingOccurrences(of: "</p>", with: "\n\n", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: "&amp;", with: "&")
+        text = text.replacingOccurrences(of: "&quot;", with: "\"")
+        text = text.replacingOccurrences(of: "&#39;", with: "'")
+        text = text.replacingOccurrences(of: "&apos;", with: "'")
+        text = text.replacingOccurrences(of: "&lt;", with: "<")
+        text = text.replacingOccurrences(of: "&gt;", with: ">")
+        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
+        text = text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func editorialSection(_ editorial: String) -> some View {
+        let isLong = editorial.count > 140 || editorial.contains("\n")
+        return VStack(alignment: .leading, spacing: BSSpacing.xs) {
+            HStack {
+                Text(BSLocalization.text("编辑评语"))
+                    .font(BSListeningTokens.sectionTitle)
+                    .foregroundStyle(BSColor.Stage.muted)
+                Spacer()
+            }
+            .padding(.horizontal, BSSpacing.xs)
+            .padding(.bottom, BSSpacing.xs)
+
+            VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                Text(editorial)
+                    .font(BSListeningTokens.body)
+                    .lineSpacing(5)
+                    .foregroundStyle(BSColor.Stage.foreground.opacity(0.92))
+                    .lineLimit(isEditorialExpanded || !isLong ? nil : 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if isLong {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            isEditorialExpanded.toggle()
+                        }
+                    } label: {
+                        Text(BSLocalization.text(isEditorialExpanded ? "收起" : "更多"))
+                            .font(BSListeningTokens.caption.weight(.semibold))
+                            .foregroundStyle(BSColor.Stage.accent)
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .padding(BSSpacing.md)
+            .background(
+                BSColor.Stage.surface.opacity(0.62),
+                in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                    .stroke(BSColor.Stage.border, lineWidth: BSListeningTokens.hairline)
+            )
+        }
     }
 
     private var footerSection: some View {
-        VStack(spacing: BSSpacing.sm) {
+        let total = disc.tracks.compactMap(\.duration).reduce(0, +)
+        return VStack(spacing: BSSpacing.xs) {
             if let releaseDate = disc.releaseDate {
-                Text("\(BSLocalization.text("发行日期")): \(releaseDate.formatted(date: .long, time: .omitted))")
+                Text(releaseDate.formatted(date: .long, time: .omitted))
                     .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.dim)
             }
-            if let label = disc.recordLabelName, !label.isEmpty {
-                Text("\(BSLocalization.text("唱片公司")): \(label)")
+
+            if !disc.tracks.isEmpty {
+                let durationText = total > 0 ? "\(Int(total) / 60) \(BSLocalization.text("分钟"))" : nil
+                let songsText = BSLocalization.format("%d 首歌曲", disc.tracks.count)
+                let summary = [songsText, durationText].compactMap { $0 }.joined(separator: " · ")
+                Text(summary)
                     .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.dim)
             }
+
             if let copyright = disc.copyright, !copyright.isEmpty {
                 Text(copyright)
                     .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.dim)
                     .multilineTextAlignment(.center)
+            } else if let label = disc.recordLabelName, !label.isEmpty {
+                Text(label)
+                    .font(BSListeningTokens.caption)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
+
             if let url = disc.appleMusicURL {
                 Link(destination: url) {
                     HStack(spacing: BSSpacing.xs) {
-                        Text(BSLocalization.text("在 Apple Music 中打开"))
-                        Image(systemName: "arrow.up.right.square")
+                        Image(systemName: "applelogo")
                             .font(.system(size: 11, weight: .semibold))
+                        Text(BSLocalization.text("在 Apple Music 上收听"))
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 10, weight: .semibold))
                     }
                     .font(BSListeningTokens.caption.weight(.semibold))
                     .foregroundStyle(BSColor.Stage.accent)
-                    .padding(.top, 4)
+                    .padding(.top, BSSpacing.xs)
                 }
             }
         }

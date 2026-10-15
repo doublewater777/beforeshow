@@ -119,18 +119,21 @@ final class TimetablePreviewPlayer {
         ListeningRoomSessionStore.shared.room?.pauseForOtherAudio()
         do {
             try await playback.play()
-            while !Task.isCancelled {
-                if playback.failure != nil {
+            let changes = Observations { [playback] in
+                (phase: playback.phase, failed: playback.failure != nil, ended: playback.hasEnded)
+            }
+            for await state in changes {
+                guard !Task.isCancelled else { return }
+                if state.failed {
                     fail(performanceID: performanceID, message: "暂时无法播放")
                     return
                 }
-                if playback.hasEnded {
+                if state.ended {
                     stop()
                     return
                 }
-                isPlaying = playback.phase == .playing
-                isLoading = playback.phase == .waiting
-                try await Task.sleep(for: .milliseconds(100))
+                isPlaying = state.phase == .playing
+                isLoading = state.phase == .waiting
             }
         } catch {
             guard !Task.isCancelled else { return }

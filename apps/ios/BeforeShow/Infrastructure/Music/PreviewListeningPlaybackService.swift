@@ -5,18 +5,31 @@ import MediaPlayer
 /// `MPNowPlayingSession` publishes Now Playing for this player and owns its
 /// remote commands; transport state comes from AVFoundation Observation.
 @MainActor
+@Observable
 final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     let source = ListeningPlaybackSource.preview
     private let player: AVQueuePlayer
     private let nowPlaying: MPNowPlayingSession
     private var queue: [ListeningPlaybackItem] = []
     private var itemIndexes: [ObjectIdentifier: Int] = [:]
+    private var isInterrupted = false
+    // User intent is needed while AVPlayer is paused by an interruption.
+    private var playbackRequested = false
+    @ObservationIgnored private var ownsAudioSession = false
+    @ObservationIgnored private var audioObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var resumeTask: Task<Void, Never>?
 
     init(player: AVQueuePlayer = AVQueuePlayer()) {
         self.player = player
         nowPlaying = MPNowPlayingSession(players: [player])
         nowPlaying.automaticallyPublishesNowPlayingInfo = true
         registerRemoteCommands()
+        observeAudioSession()
+    }
+
+    isolated deinit {
+        resumeTask?.cancel()
+        for observer in audioObservers { NotificationCenter.default.removeObserver(observer) }
     }
 
     var phase: ListeningPlaybackTransportPhase {
@@ -24,7 +37,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         switch player.timeControlStatus {
         case .playing: return .playing
         case .waitingToPlayAtSpecifiedRate: return .waiting
-        case .paused: return .paused
+        case .paused: return isInterrupted && playbackRequested ? .interrupted : .paused
         @unknown default: return .paused
         }
     }
@@ -64,6 +77,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws {
+        pause()
         let playable = items.filter { $0.previewURL != nil }
         guard !playable.isEmpty else { throw ListeningPlaybackError.emptyQueue }
         queue = playable
@@ -75,20 +89,28 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func play() async throws {
+        try Task.checkCancellation()
         if player.currentItem == nil || player.currentItem?.status == .failed {
             // Remote Play after the last preview ended restarts that preview.
             rebuild(startingAt: currentIndex ?? max(0, queue.count - 1))
         }
         guard player.currentItem != nil else { throw ListeningPlaybackError.emptyQueue }
+        playbackRequested = true
+        ownsAudioSession = true
         AppAudioSession.configureMusicPlayback()
         await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
+        guard playbackRequested else { return }
         player.play()
-        let nowPlaying = nowPlaying
-        Task { _ = await nowPlaying.becomeActiveIfPossible() }
+        Task { [weak self] in
+            guard let self, self.playbackRequested else { return }
+            _ = await self.nowPlaying.becomeActiveIfPossible()
+        }
     }
 
     func pause() {
+        playbackRequested = false
+        resumeTask?.cancel()
         player.pause()
     }
 
@@ -114,11 +136,14 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func stop() {
-        player.pause()
+        pause()
         player.removeAllItems()
         queue = []
         itemIndexes = [:]
-        AppAudioSession.releaseMusicPlayback()
+        if ownsAudioSession {
+            ownsAudioSession = false
+            AppAudioSession.releaseMusicPlayback()
+        }
     }
 
     private var currentIndex: Int? {
@@ -128,7 +153,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     private func move(to index: Int) {
-        let continuesPlaying = player.rate != 0
+        let continuesPlaying = phase.isActive
         rebuild(startingAt: index)
         if continuesPlaying {
             player.play()
@@ -153,6 +178,59 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         }
     }
 
+    private func observeAudioSession() {
+        let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
+        audioObservers.append(center.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: session, queue: .main
+        ) { [weak self] notification in
+            guard let value = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: value) else { return }
+            let options = AVAudioSession.InterruptionOptions(
+                rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            )
+            let routeDisconnected = notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
+                == AVAudioSession.InterruptionReason.routeDisconnected.rawValue
+            MainActor.assumeIsolated {
+                self?.handleInterruption(type, options: options, routeDisconnected: routeDisconnected)
+            }
+        })
+        audioObservers.append(center.addObserver(
+            forName: AVAudioSession.routeChangeNotification, object: session, queue: .main
+        ) { [weak self] notification in
+            guard let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else { return }
+            MainActor.assumeIsolated { self?.pause() }
+        })
+    }
+
+    private func handleInterruption(
+        _ type: AVAudioSession.InterruptionType,
+        options: AVAudioSession.InterruptionOptions,
+        routeDisconnected: Bool
+    ) {
+        switch type {
+        case .began:
+            resumeTask?.cancel()
+            isInterrupted = true
+            player.pause()
+            if routeDisconnected { pause() }
+        case .ended:
+            guard isInterrupted else { return }
+            isInterrupted = false
+            guard playbackRequested, player.currentItem != nil, options.contains(.shouldResume) else {
+                pause()
+                return
+            }
+            resumeTask = Task { [weak self] in
+                guard let self else { return }
+                try? await self.play()
+            }
+        @unknown default:
+            break
+        }
+    }
+
     private func registerRemoteCommands() {
         let commands = nowPlaying.remoteCommandCenter
         commands.playCommand.addTarget { [weak self] _ in
@@ -166,7 +244,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         commands.togglePlayPauseCommand.addTarget { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                if self.phase.isActive { self.pause() } else { try? await self.play() }
+                if self.phase.isActive || self.phase == .interrupted { self.pause() } else { try? await self.play() }
             }
             return .success
         }
