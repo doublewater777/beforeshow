@@ -485,43 +485,6 @@ final class ListeningLoadingTests: XCTestCase {
         assertFrames(probe.frames, stage: coldStage, cabinet: coldCabinet)
     }
 
-    func testEmptyShelfStatusHeightsMatchInAllSupportedLanguages() {
-        for locale in ["zh-Hans", "zh-Hant", "en"] {
-            let bundle = Bundle(path: Bundle.main.path(forResource: locale, ofType: "lproj")!)!
-            func text(_ key: String, table: String? = nil) -> String { bundle.localizedString(forKey: key, value: key, table: table) }
-            let variants = [
-                ListeningCatalogStatusView(title: "Connecting…", isLoading: true),
-                ListeningCatalogStatusView(title: text("连接 Apple Music"), subtitle: text("授权后载入唱片", table: "Listening"), actionTitle: "Authorize now"),
-                ListeningCatalogStatusView(title: text("连接 Apple Music"), subtitle: text("请在系统设置中允许访问 Apple Music"), actionTitle: "Open Settings"),
-                ListeningCatalogStatusView(title: text("正在检索与整理专场唱片…"), isLoading: true),
-                ListeningCatalogStatusView(title: text("暂时无法载入音乐"), actionTitle: "Retry")
-            ]
-            let heights = variants.map { status in
-                let host = UIHostingController(rootView: ListeningShelfView(title: "Popular Mix", count: "0") {
-                    status
-                })
-                return host.sizeThatFits(in: CGSize(width: 362, height: 1000)).height
-            }
-            XCTAssertLessThanOrEqual((heights.max() ?? 0) - (heights.min() ?? 0), 1, "\(locale): \(heights)")
-        }
-    }
-
-    func testShelfHeightDoesNotChangeWhenShowAllActionAppears() {
-        func height(showsAllDiscs: Bool) -> CGFloat {
-            let host = UIHostingController(rootView: ListeningShelfView(
-                title: nil,
-                count: "1 张唱片",
-                showsAllDiscs: showsAllDiscs,
-                showAll: {}
-            ) {
-                Color.clear
-            })
-            return host.sizeThatFits(in: CGSize(width: 362, height: 1000)).height
-        }
-
-        XCTAssertEqual(height(showsAllDiscs: false), height(showsAllDiscs: true), accuracy: 1)
-    }
-
     func testSelectingAndPlayingDiscsKeepsThePlayerAndShelfInPlace() async throws {
         for scenario in [ListeningFixtureScenario.singleFull, .manyDiscs] {
             let fixture = try ListeningDebugFixtures(scenario: scenario)

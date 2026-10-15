@@ -12,19 +12,19 @@ struct AppStoreWidgetPreviewView: View {
                 Text(BSLocalization.text("小组件"))
                     .font(BSFont.tag)
                     .tracking(3)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(BSLocalization.text("不用打开，也在靠近"))
                     .font(.system(size: 30, weight: .bold))
                     .tracking(-0.5)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 10)
 
                 Text(BSLocalization.text("主屏幕和锁屏，都替你数着那一天。"))
                     .font(BSFont.body)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 9)
 
@@ -50,7 +50,7 @@ struct AppStoreWidgetPreviewView: View {
                 Text(BSLocalization.text("距离开场"))
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(1.2)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
 
                 Spacer(minLength: 4)
 
@@ -58,11 +58,11 @@ struct AppStoreWidgetPreviewView: View {
                     Text("56")
                         .font(.system(size: 44, weight: .semibold))
                         .tracking(-0.5)
-                        .foregroundColor(BSColor.Stage.heroIvory)
+                        .foregroundStyle(BSColor.Stage.heroIvory)
                         .monospacedDigit()
                     Text(BSLocalization.text("天"))
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
 
                 Spacer(minLength: 8)
@@ -70,11 +70,11 @@ struct AppStoreWidgetPreviewView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(BSLocalization.text("「夜航」巡演 · 上海站"))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(1)
                     Text(BSLocalization.text("10月14日 19:30 · 回声剧场"))
                         .font(.system(size: 10))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .lineLimit(1)
                 }
             }
@@ -118,10 +118,10 @@ struct AppStoreWidgetPreviewView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(BSLocalization.format("还有 %lld 天", 56))
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(BSLocalization.text("「夜航」巡演 · 上海站 · 10月14日 19:30"))
                 .font(.system(size: 10))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

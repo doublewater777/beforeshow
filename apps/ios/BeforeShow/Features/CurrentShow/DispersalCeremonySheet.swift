@@ -208,7 +208,7 @@ struct DispersalCombinedStep: View {
                     Text(BSLocalization.text("这一场怎么样？"))
                         .font(.system(size: 26, weight: .semibold))
                         .tracking(-0.5)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
 
                     ratingHero
                         .padding(.top, 18)
@@ -219,7 +219,7 @@ struct DispersalCombinedStep: View {
                     if let commitError {
                         Text(commitError)
                             .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.danger)
+                            .foregroundStyle(BSColor.Stage.danger)
                             .padding(.top, BSSpacing.sm)
                     }
                 }
@@ -266,7 +266,7 @@ struct DispersalCombinedStep: View {
                     Text(current.label)
                         .font(.system(size: 30, weight: .bold))
                         .tracking(0.3)
-                        .foregroundColor(current.tint)
+                        .foregroundStyle(current.tint)
                         .minimumScaleFactor(0.78)
                         .lineLimit(1)
                 }
@@ -384,7 +384,7 @@ struct DispersalCombinedStep: View {
 
                             Text(node.label)
                                 .font(.system(size: 10, weight: selected ? .bold : .medium))
-                                .foregroundColor(
+                                .foregroundStyle(
                                     selected
                                         ? BSColor.Stage.foreground
                                         : BSColor.Stage.dim
@@ -433,7 +433,7 @@ struct DispersalCombinedStep: View {
             )
             .lineLimit(10...16)
             .font(BSFont.body)
-            .foregroundColor(BSColor.Stage.foreground)
+            .foregroundStyle(BSColor.Stage.foreground)
             .tint(BSColor.Stage.accent)
             .focused($isNoteFocused)
             .onChange(of: note) { _, newValue in

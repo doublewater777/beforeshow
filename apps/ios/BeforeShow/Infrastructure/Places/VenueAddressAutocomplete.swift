@@ -164,7 +164,7 @@ struct BSVenueField: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(BSLocalization.text("场馆"))
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
 
             TextField(BSLocalization.text("上海体育场"), text: $venueName, axis: .vertical)
                 .lineLimit(1...3)
@@ -206,7 +206,7 @@ struct BSVenueField: View {
                         .lineLimit(2)
                 }
                 .font(.system(size: 12))
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -216,12 +216,12 @@ struct BSVenueField: View {
                         .controlSize(.small)
                     Text(BSLocalization.text("正在用地图查找地址…"))
                         .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                 }
             } else if let searchMessage {
                 Text(searchMessage)
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
+                    .foregroundStyle(BSColor.textTertiary)
             }
 
             if !suggestions.isEmpty {
@@ -233,12 +233,12 @@ struct BSVenueField: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(suggestion.name)
                                     .font(BSFont.body)
-                                    .foregroundColor(BSColor.textPrimary)
+                                    .foregroundStyle(BSColor.textPrimary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 if !suggestion.subtitle.isEmpty {
                                     Text(suggestion.subtitle)
                                         .font(BSFont.caption)
-                                        .foregroundColor(BSColor.textTertiary)
+                                        .foregroundStyle(BSColor.textTertiary)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }

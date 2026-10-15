@@ -17,7 +17,7 @@ struct FootprintDispersalRitualSection: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(BSLocalization.text("散场评价"))
                     .font(FootprintDetailTokens.sectionFont)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 if hasContent {
                     Menu {
@@ -39,7 +39,7 @@ struct FootprintDispersalRitualSection: View {
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                             .padding(.vertical, 2)
                             .padding(.horizontal, 4)
                             .contentShape(Rectangle())
@@ -67,10 +67,10 @@ struct FootprintDispersalRitualSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(node.label)
                             .font(BSFont.headline.weight(.bold))
-                            .foregroundColor(node.tint)
+                            .foregroundStyle(node.tint)
                         Text(node.sub)
                             .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
 
                     Spacer(minLength: 0)
@@ -78,7 +78,7 @@ struct FootprintDispersalRitualSection: View {
             } else {
                 Label(BSLocalization.text("散场感想"), systemImage: "quote.bubble.fill")
                     .font(BSFont.V3.caption.weight(.semibold))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
 
             if let note {
@@ -91,12 +91,12 @@ struct FootprintDispersalRitualSection: View {
                 HStack(alignment: .top, spacing: 8) {
                     Text("“")
                         .font(.system(size: 24, weight: .bold, design: .serif))
-                        .foregroundColor((node?.tint ?? BSColor.Stage.accent).opacity(0.5))
+                        .foregroundStyle((node?.tint ?? BSColor.Stage.accent).opacity(0.5))
                         .offset(y: -4)
 
                     Text(note)
                         .font(.custom("Songti SC", size: 14, relativeTo: .body))
-                        .foregroundColor(Color.white.opacity(0.85))
+                        .foregroundStyle(Color.white.opacity(0.85))
                         .lineSpacing(5)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -151,23 +151,23 @@ struct FootprintDispersalRitualSection: View {
                         .frame(width: 44, height: 44)
                     Image(systemName: "plus.bubble")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(BSLocalization.text("添加散场评价"))
                         .font(BSFont.body.weight(.medium))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Text(BSLocalization.text("记录这一场的评分与散场感受"))
                         .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
                     .font(BSFont.V3.caption.weight(.semibold))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
             .padding(BSSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)

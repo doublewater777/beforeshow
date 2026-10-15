@@ -45,7 +45,7 @@ struct CurrentShowLibraryCoverCard: View {
                 .overlay(alignment: .bottomLeading) {
                     Text(show.name)
                         .font(BSFont.V3.caption)
-                        .foregroundColor(.white.opacity(0.92))
+                        .foregroundStyle(.white.opacity(0.92))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, BSSpacing.sm)
@@ -87,7 +87,7 @@ struct CurrentShowLibraryCoverCard: View {
     private func tag(_ text: String, color: Color) -> some View {
         Text(text)
             .font(BSFont.V3.caption)
-            .foregroundColor(color)
+            .foregroundStyle(color)
             .padding(.horizontal, BSSpacing.sm)
             .padding(.vertical, BSSpacing.xs)
             .background(BSColor.Stage.background.opacity(0.82), in: Capsule())
@@ -117,11 +117,11 @@ struct CurrentShowLibraryRow: View {
                         }
                         Text(show.name)
                             .font(.system(size: 13.5, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                             .lineLimit(1)
                         Text([formatter.dateText(for: show), show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
                             .font(.system(size: 11.4))
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
@@ -143,7 +143,7 @@ struct CurrentShowLibraryRow: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .frame(width: 38, height: 38)
                     .background(Color.white.opacity(0.055), in: Circle())
             }
@@ -160,7 +160,7 @@ struct CurrentShowLibraryRow: View {
     private func tag(_ text: String, color: Color) -> some View {
         Text(text)
             .font(.system(size: 9.5, weight: .medium))
-            .foregroundColor(color)
+            .foregroundStyle(color)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .overlay(Capsule().stroke(color.opacity(0.35), lineWidth: 1))

@@ -111,11 +111,6 @@ enum CompanionAcceptedSessionImporter {
 
         let becameCurrent = try selectAsCurrentIfNeeded(candidate, among: shows, in: modelContext, makeCurrent: strategy.makeCurrent, now: now)
         try modelContext.save()
-        if strategy.resolution == .keepSeparate, !duplicateCandidates.isEmpty {
-            CompanionDuplicateResolutionStore.ignore(
-                sessionRecordName: session.sessionLocator.recordName
-            )
-        }
         return result(for: candidate, inserted: true, becameCurrent: becameCurrent, now: now)
     }
 

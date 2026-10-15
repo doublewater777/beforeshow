@@ -16,16 +16,16 @@ struct PassportCardHeroView: View {
                         Text("\(archive.shows.count)")
                             .font(.system(size: 54, weight: .semibold, design: .rounded))
                             .monospacedDigit()
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                         Text(BSLocalization.text("场现场"))
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                     }
 
                     if archive.totalDurationMinutes > 0 {
                         Text(BSLocalization.format("在现场度过 %@", ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes)))
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground.opacity(0.85))
+                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.85))
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                     }
@@ -34,10 +34,10 @@ struct PassportCardHeroView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "star.fill")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.accent)
+                                .foregroundStyle(BSColor.Stage.accent)
                             Text(BSLocalization.format("最常看 · %@", topArtist.name))
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(BSColor.Stage.accent)
+                                .foregroundStyle(BSColor.Stage.accent)
                                 .lineLimit(1)
                         }
                     }
@@ -150,7 +150,7 @@ struct PassportCardHeroView: View {
             }
             .font(.system(size: 8, weight: .bold))
             .tracking(1.5)
-            .foregroundColor(BSColor.Stage.accent)
+            .foregroundStyle(BSColor.Stage.accent)
 
             Rectangle()
                 .fill(BSColor.Stage.accent.opacity(0.25))
@@ -158,11 +158,11 @@ struct PassportCardHeroView: View {
 
             Text(String(format: "%03d", archive.shows.count))
                 .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
 
             Text(String(Calendar.current.component(.year, from: Date())))
                 .font(.system(size: 8, weight: .medium))
-                .foregroundColor(BSColor.Stage.accent.opacity(0.6))
+                .foregroundStyle(BSColor.Stage.accent.opacity(0.6))
 
             Spacer(minLength: 0)
 
@@ -201,15 +201,15 @@ struct PassportCardHeroView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: systemName)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
             VStack(alignment: .leading, spacing: 3) {
                 Text(value)
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                 Text(label)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

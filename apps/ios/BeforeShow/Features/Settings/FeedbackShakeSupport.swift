@@ -195,11 +195,11 @@ private struct FeedbackShakeSheet: View {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
                         Text(BSLocalization.text("晃动 iPhone 打开反馈"))
                             .font(BSFont.V3.body.weight(.semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
 
                         Text(BSLocalization.text("关闭以禁用"))
                             .font(BSFont.V3.small)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                 }
                 .tint(BSColor.Stage.accent)

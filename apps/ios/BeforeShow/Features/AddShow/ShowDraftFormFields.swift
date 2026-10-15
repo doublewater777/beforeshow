@@ -247,7 +247,7 @@ struct ShowDraftFormFields: View {
                 if draft.startTime != nil && !draft.hasValidEndTime() {
                     Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.circle.fill")
                         .font(BSFont.caption)
-                        .foregroundColor(BSColor.Accent.danger)
+                        .foregroundStyle(BSColor.Accent.danger)
                         .accessibilityLabel("时间范围无效，结束时间需要晚于开始时间")
                 }
             }
@@ -285,10 +285,10 @@ struct ShowDraftFormFields: View {
                     HStack(spacing: 10) {
                         Image(systemName: "photo")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(BSColor.Accent.violet)
+                            .foregroundStyle(BSColor.Accent.violet)
                         Text("还没加封面")
                             .font(.system(size: 12.5))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 88)

@@ -33,17 +33,6 @@ enum BSColor {
         endPoint: .trailing
     )
 
-    /// Soft gradient used for hero text and countdown numbers.
-    static let brandGradientSoft = LinearGradient(
-        colors: [
-            Color(red: 0.49, green: 0.81, blue: 1.0).opacity(0.9),
-            Color(red: 0.70, green: 0.53, blue: 1.0).opacity(0.9),
-            Color(red: 1.0, green: 0.70, blue: 0.28).opacity(0.9)
-        ],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
-
     /// Functional accent tints for feature icons.
     enum Accent {
         static let warm = Color(red: 1.0, green: 0.70, blue: 0.28)       // amber
@@ -173,20 +162,6 @@ enum BSLayout {
     /// Visible circle for sheet/page chrome (close, back). Hit target stays `minTouchTarget`.
     static let chromeButtonSize: CGFloat = 32
     static let chromeIconSize: CGFloat = 13
-}
-
-enum BSSettingsStyle {
-    static let rowMinimumHeight: CGFloat = 68
-    static let rowVerticalPadding: CGFloat = 14
-    static let rowDividerInset: CGFloat = 62
-    static let iconContainerSize: CGFloat = 34
-    static let iconSize: CGFloat = 15
-    static let iconCornerRadius: CGFloat = 10
-    static let iconSurfaceOpacity: Double = 0.12
-    static let pressedOpacity: Double = 0.72
-    static let membershipGlowRadius: CGFloat = 180
-    static let membershipGlowOpacity: Double = 0.13
-    static let membershipBorderOpacity: Double = 0.20
 }
 
 // MARK: - Reusable View Modifiers

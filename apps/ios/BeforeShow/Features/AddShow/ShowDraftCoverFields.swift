@@ -44,7 +44,7 @@ struct AddShowCoverActions: View {
             if let message, !message.isEmpty {
                 Text(message)
                     .font(BSFont.caption)
-                    .foregroundColor(messageIsError ? BSColor.Accent.danger : BSColor.Accent.prepare)
+                    .foregroundStyle(messageIsError ? BSColor.Accent.danger : BSColor.Accent.prepare)
             }
         }
     }
@@ -65,11 +65,11 @@ private struct AddShowCoverActionChip: View {
             } else if let icon {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isActive ? BSColor.Stage.accent : BSColor.Accent.violet)
+                    .foregroundStyle(isActive ? BSColor.Stage.accent : BSColor.Accent.violet)
             }
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(isActive ? BSColor.Stage.accent : BSColor.textSecondary)
+                .foregroundStyle(isActive ? BSColor.Stage.accent : BSColor.textSecondary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
@@ -126,7 +126,7 @@ struct ShowDraftCoverPreview: View {
         .overlay(alignment: .topLeading) {
             Text("当前封面")
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(BSColor.textSecondary)
+                .foregroundStyle(BSColor.textSecondary)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 4)
                 .background(Color.black.opacity(0.45))

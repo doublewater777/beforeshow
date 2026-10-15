@@ -45,7 +45,7 @@ struct HomeLiveModeView: View {
                 Button(action: onEndShow) {
                     Text(BSLocalization.text("结束现场"))
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
                         .background(
@@ -62,7 +62,7 @@ struct HomeLiveModeView: View {
                         Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold))
                     }
                     .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
                 }
                 .buttonStyle(.plain)
@@ -74,7 +74,7 @@ struct HomeLiveModeView: View {
                         Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
                     }
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)
                     .background(
@@ -123,30 +123,30 @@ struct HomeLiveModeView: View {
                         Text(BSLocalization.text("正在演出"))
                             .font(.system(size: 13, weight: .bold))
                             .tracking(1)
-                            .foregroundColor(BSColor.Stage.liveTitle)
+                            .foregroundStyle(BSColor.Stage.liveTitle)
                     }
                     HStack(spacing: 8) {
                         stageChip(lead)
                         Text("\(clock(lead.startsAt))–\(clock(lead.endsAt))")
                             .font(.system(size: 12, design: .monospaced))
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                 }
             }
             Text(lead.artistName)
                 .font(.system(size: 32, weight: .heavy))
                 .tracking(-0.8)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 16)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(Int((lead.secondsUntilEnd / 60).rounded(.up)))")
                     .font(.system(size: 44, weight: .light, design: .monospaced))
                     .tracking(-1.5)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(BSLocalization.text("分钟后结束"))
                     .font(.system(size: 15))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
             .padding(.top, 18)
             GeometryReader { geo in
@@ -189,7 +189,7 @@ struct HomeLiveModeView: View {
             }
             Text(perf.artistName)
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
@@ -215,20 +215,20 @@ struct HomeLiveModeView: View {
                 Text(BSLocalization.text("下一场"))
                     .font(.system(size: 11, weight: .bold))
                     .tracking(2)
-                    .foregroundColor(BSColor.Stage.heroWarmGold)
+                    .foregroundStyle(BSColor.Stage.heroWarmGold)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("\(Int((first.secondsUntilStart / 60).rounded(.up)))")
                         .font(.system(size: 96, weight: .ultraLight, design: .monospaced))
                         .tracking(-5)
-                        .foregroundColor(BSColor.Stage.heroWarmGold)
+                        .foregroundStyle(BSColor.Stage.heroWarmGold)
                         .shadow(color: BSColor.Stage.heroWarmGold.opacity(0.35), radius: 20)
                     Text(BSLocalization.text("分钟"))
                         .font(.system(size: 18))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                     Spacer()
                     Text(clock(first.startsAt))
                         .font(.system(size: 12, design: .monospaced))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
                 .padding(.top, 4)
                 HStack(alignment: .top, spacing: 14) {
@@ -240,7 +240,7 @@ struct HomeLiveModeView: View {
                             TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 48)
                             Text(perf.artistName)
                                 .font(.system(size: 19, weight: .heavy))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                                 .fixedSize(horizontal: false, vertical: true)
                             stageChip(perf, small: true)
                         }
@@ -260,12 +260,12 @@ struct HomeLiveModeView: View {
             Text(label)
                 .font(.system(size: 11, weight: .bold))
                 .tracking(2)
-                .foregroundColor(tint)
+                .foregroundStyle(tint)
             if let date {
                 Text(clock(date))
                     .font(.system(size: 84, weight: .ultraLight, design: .monospaced))
                     .tracking(-5)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .shadow(color: tint.opacity(0.35), radius: 20)
                     .padding(.top, 6)
             }
@@ -275,7 +275,7 @@ struct HomeLiveModeView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(opener.artistName)
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         stageChip(opener, small: true)
                     }
                 }
@@ -304,15 +304,15 @@ struct HomeLiveModeView: View {
                 Text(monthDay(ended.date))
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.6)
-                    .foregroundColor(HomeLiveStyle.night)
+                    .foregroundStyle(HomeLiveStyle.night)
                 Text(BSLocalization.format("DAY %d 已结束", dayNumber(ended)))
                     .font(.system(size: 28, weight: .heavy))
                     .tracking(-0.6)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .padding(.top, 8)
                 Text(BSLocalization.format(since == 0 ? "今天辛苦了，%@继续" : since == 1 ? "昨天辛苦了，%@继续" : "辛苦了，%@继续", resumes))
                     .font(.system(size: 14))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .padding(.top, 6)
             }
             .padding(20)
@@ -332,11 +332,11 @@ struct HomeLiveModeView: View {
                     Text(BSLocalization.format("%@ %@ 继续", resumes, clock(next)))
                         .font(.system(size: 24, weight: .heavy))
                         .tracking(-0.5)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Spacer(minLength: 8)
                     Text(remaining(until: next, from: now, days: ahead))
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
                 .padding(.top, 8)
                 VStack(spacing: 0) {
@@ -365,12 +365,12 @@ struct HomeLiveModeView: View {
                 .shadow(color: perf.isInterested ? BSColor.Stage.accent.opacity(0.7) : .clear, radius: 4)
             Text(clock(perf.startsAt))
                 .font(.system(size: 13, design: .monospaced))
-                .foregroundColor(BSColor.Stage.foreground.opacity(0.8))
+                .foregroundStyle(BSColor.Stage.foreground.opacity(0.8))
                 .frame(width: 46, alignment: .leading)
             TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 32)
             Text(perf.artistName)
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 6)
             if let stage = perf.stage {
@@ -384,7 +384,7 @@ struct HomeLiveModeView: View {
         Text("\(BSLocalization.format("DAY %d", dayNumber(day))) · \(monthDay(day.date))")
             .font(.system(size: 11, weight: .bold))
             .tracking(1.6)
-            .foregroundColor(HomeLiveStyle.night)
+            .foregroundStyle(HomeLiveStyle.night)
     }
 
     private func dayNumber(_ day: TimetableDay) -> Int {
@@ -417,21 +417,21 @@ struct HomeLiveModeView: View {
                 Text(days.count > 1 ? "\(monthDay(first.date)) – \(monthDay(last.date))" : monthDay(first.date))
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.6)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                 Text(BSLocalization.text("全部结束"))
                     .font(.system(size: 34, weight: .heavy))
                     .tracking(-1)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .padding(.top, 10)
                 Text(days.count > 1 ? BSLocalization.format("%d 天辛苦了，下次现场见", days.count) : BSLocalization.text("辛苦了，下次现场见"))
                     .font(.system(size: 14))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .padding(.top, 8)
                 finaleRule.padding(.top, 18)
                 if !pickedDays.isEmpty {
                     Text(days.count > 1 ? BSLocalization.format("这 %d 天我想看的", days.count) : BSLocalization.text("我想看的"))
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .padding(.top, 16)
                         .padding(.bottom, 4)
                     ForEach(Array(pickedDays.enumerated()), id: \.element.id) { index, day in
@@ -472,10 +472,10 @@ struct HomeLiveModeView: View {
                 Text(BSLocalization.format("DAY %d", dayNumber(day)))
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.6)
-                    .foregroundColor(HomeLiveStyle.night)
+                    .foregroundStyle(HomeLiveStyle.night)
                 Text(monthDay(day.date))
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
             .frame(width: 64, alignment: .leading)
             Spacer(minLength: 0)
@@ -486,7 +486,7 @@ struct HomeLiveModeView: View {
                 if picks.count > shown {
                     Text("+\(picks.count - shown)")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                         .frame(width: 34, height: 34)
                         .background(Color.white.opacity(0.06), in: Circle())
                         .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
@@ -500,14 +500,14 @@ struct HomeLiveModeView: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .medium))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(detail)
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
         }
         .padding(.leading, leading)
@@ -530,18 +530,18 @@ struct HomeLiveModeView: View {
                             .shadow(color: perf.isStartingSoon ? BSColor.Stage.live.opacity(0.7) : (perf.isInterested ? BSColor.Stage.accent.opacity(0.7) : .clear), radius: 4)
                         Text(clock(perf.startsAt))
                             .font(.system(size: 13, design: .monospaced))
-                            .foregroundColor(BSColor.Stage.foreground.opacity(0.8))
+                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.8))
                             .frame(width: 46, alignment: .leading)
                         TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 32)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(perf.artistName)
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                                 .fixedSize(horizontal: false, vertical: true)
                             if perf.isStartingSoon {
                                 Text(BSLocalization.format("%d 分钟后", Int((perf.secondsUntilStart / 60).rounded(.up))))
                                     .font(.system(size: 11.5, weight: .semibold))
-                                    .foregroundColor(BSColor.Stage.liveTitle)
+                                    .foregroundStyle(BSColor.Stage.liveTitle)
                             }
                         }
                         Spacer(minLength: 6)
@@ -567,7 +567,7 @@ struct HomeLiveModeView: View {
             Text(text)
                 .font(.system(size: 11, weight: .bold))
                 .tracking(2)
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
             LinearGradient(colors: [Color.white.opacity(0.1), .clear], startPoint: .leading, endPoint: .trailing)
                 .frame(height: 1)
         }
@@ -607,7 +607,7 @@ struct HomeLiveStageChip: View {
             Text(name).lineLimit(1)
         }
         .font(.system(size: small ? 10.5 : 11.5, weight: .bold))
-        .foregroundColor(color)
+        .foregroundStyle(color)
         .padding(.horizontal, small ? 7 : 9)
         .padding(.vertical, small ? 2 : 3)
         .background(color.opacity(0.14), in: Capsule())

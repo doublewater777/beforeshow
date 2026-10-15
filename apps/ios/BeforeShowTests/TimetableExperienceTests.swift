@@ -188,76 +188,6 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertFalse(perf1.isInterested)
     }
 
-    // MARK: - 2. Clash Detection
-
-    func testOverlappingInterestedPerformancesProduceClashWarningWithoutBlocking() throws {
-        let p1ID = UUID()
-        let p2ID = UUID()
-        let p3ID = UUID()
-        let stage1ID = UUID()
-        let stage2ID = UUID()
-
-        let timings = [
-            // Stage 1: 18:00 - 19:30
-            TimetablePerformanceTiming(id: p1ID, stageID: stage1ID, startsAt: date(2026, 8, 15, 18, 0), endsAt: date(2026, 8, 15, 19, 30)),
-            // Stage 2: 19:00 - 20:00 (Overlaps with Stage 1 during 19:00-19:30)
-            TimetablePerformanceTiming(id: p2ID, stageID: stage2ID, startsAt: date(2026, 8, 15, 19, 0), endsAt: date(2026, 8, 15, 20, 0)),
-            // Stage 1: 20:00 - 21:00 (Adjacent to Stage 2, not overlapping)
-            TimetablePerformanceTiming(id: p3ID, stageID: stage1ID, startsAt: date(2026, 8, 15, 20, 0), endsAt: date(2026, 8, 15, 21, 0))
-        ]
-
-        let artistNames = [p1ID: "Radiohead", p2ID: "Massive Attack", p3ID: "Portishead"]
-        let stageNames = [stage1ID: "Green Stage", stage2ID: "White Stage"]
-
-        // Case A: Neither is interested -> No clash
-        var clashes = TimetableClashPolicy.detectClashes(
-            performances: timings,
-            interestedIDs: [],
-            artistNames: artistNames,
-            stageNames: stageNames
-        )
-        XCTAssertTrue(clashes.isEmpty)
-
-        // Case B: Only one is interested -> No clash
-        clashes = TimetableClashPolicy.detectClashes(
-            performances: timings,
-            interestedIDs: [p1ID],
-            artistNames: artistNames,
-            stageNames: stageNames
-        )
-        XCTAssertTrue(clashes.isEmpty)
-
-        // Case C: Both overlapping performances are interested -> Clash detected
-        clashes = TimetableClashPolicy.detectClashes(
-            performances: timings,
-            interestedIDs: [p1ID, p2ID],
-            artistNames: artistNames,
-            stageNames: stageNames
-        )
-        XCTAssertEqual(clashes.count, 1)
-        let clash = clashes[0]
-        XCTAssertEqual(clash.artistName, "Radiohead")
-        XCTAssertEqual(clash.conflictingArtistName, "Massive Attack")
-        XCTAssertEqual(clash.overlapInterval?.start, date(2026, 8, 15, 19, 0))
-        XCTAssertEqual(clash.overlapInterval?.end, date(2026, 8, 15, 19, 30))
-
-        // Bidirectional clash map check
-        let map = TimetableClashPolicy.clashMap(from: clashes)
-        XCTAssertEqual(map[p1ID]?.count, 1)
-        XCTAssertEqual(map[p2ID]?.count, 1)
-        XCTAssertEqual(map[p1ID]?.first?.conflictingArtistName, "Massive Attack")
-        XCTAssertEqual(map[p2ID]?.first?.conflictingArtistName, "Radiohead")
-
-        // Case D: p2 and p3 (adjacent, 20:00 boundary) -> No clash
-        clashes = TimetableClashPolicy.detectClashes(
-            performances: timings,
-            interestedIDs: [p2ID, p3ID],
-            artistNames: artistNames,
-            stageNames: stageNames
-        )
-        XCTAssertTrue(clashes.isEmpty, "Adjacent performances must not be considered a clash")
-    }
-
     // MARK: - 3. Period Policy & Answering Now / Up Next / Evening
 
     func testPeriodPolicyAnswersNowUpNextAndEvening() {
@@ -282,40 +212,6 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertFalse(TimetablePeriodPolicy.isUpNext(startsAt: perfEvening.start, at: refTime))
         XCTAssertTrue(TimetablePeriodPolicy.isEvening(startsAt: perfEvening.start, timeZone: tokyo))
         XCTAssertEqual(TimetablePeriodPolicy.dayPart(for: perfEvening.start, timeZone: tokyo), .evening)
-    }
-
-    // MARK: - 4. Listening Signals MUST NOT Modify isInterested
-
-    func testListeningSignalsNeverModifyIsInterested() throws {
-        let perf = try TimetablePerformance(
-            artistName: "King Gizzard & The Lizard Wizard",
-            startsAt: date(2026, 8, 15, 16, 0),
-            endsAt: date(2026, 8, 15, 17, 30)
-        )
-        perf.isInterested = false
-
-        let listenedSet: Set<String> = [
-            "King Gizzard & The Lizard Wizard",
-            "Radiohead"
-        ]
-
-        // 1. Check policy detection
-        let hasEvidence = TimetableListeningPolicy.hasListeningEvidence(
-            artistName: perf.artistName,
-            listenedArtistNames: listenedSet
-        )
-        XCTAssertTrue(hasEvidence)
-
-        // 2. VERIFY STRICT INVARIANT: perf.isInterested has NOT been mutated
-        XCTAssertFalse(perf.isInterested, "Listening evidence must NEVER auto-set isInterested")
-
-        // 3. Normalized matching check with punctuation/casing variations
-        let messyName = "  king gizzard & the lizard wizard  "
-        XCTAssertTrue(TimetableListeningPolicy.hasListeningEvidence(
-            artistName: messyName,
-            listenedArtistNames: listenedSet
-        ))
-        XCTAssertFalse(perf.isInterested)
     }
 
     // MARK: - 5. Multi-day, Multi-stage, Long Artist Names Robustness
@@ -344,24 +240,6 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertEqual(timetable.orderedDays.count, 2)
         XCTAssertEqual(day1.orderedStages.count, 2)
         XCTAssertEqual(day1.performances.count, 3)
-
-        // Mark longArtist2 and Toe as interested on Day 1 -> They overlap
-        d1p2.isInterested = true
-        d1p3.isInterested = true
-
-        let timings = day1.stages.flatMap { s in
-            s.performances.map {
-                TimetablePerformanceTiming(id: $0.id, stageID: s.id, startsAt: $0.startsAt, endsAt: $0.endsAt)
-            }
-        }
-        let clashes = TimetableClashPolicy.detectClashes(
-            performances: timings,
-            interestedIDs: [d1p2.id, d1p3.id],
-            artistNames: [d1p2.id: d1p2.artistName, d1p3.id: d1p3.artistName]
-        )
-        XCTAssertEqual(clashes.count, 1)
-        XCTAssertEqual(clashes.first?.artistName, longArtist2)
-        XCTAssertEqual(clashes.first?.conflictingArtistName, "Toe")
     }
 
     // MARK: - 6. Usability without any Interested
@@ -388,32 +266,6 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertEqual(eveningSets.count, 1)
         XCTAssertEqual(eveningSets.first?.artistName, "Pulp")
     }
-
-    // MARK: - 7. Non-blocking and non-recommending Clashes
-
-    func testClashWarningNeverBlocksOrRecommendsDropping() throws {
-        let p1 = try TimetablePerformance(artistName: "The Chemical Brothers", startsAt: date(2026, 8, 15, 20, 0), endsAt: date(2026, 8, 15, 21, 30))
-        let p2 = try TimetablePerformance(artistName: "Underworld", startsAt: date(2026, 8, 15, 20, 30), endsAt: date(2026, 8, 15, 22, 0))
-        p1.isInterested = true
-        p2.isInterested = true
-
-        let timings = [
-            TimetablePerformanceTiming(id: p1.id, stageID: UUID(), startsAt: p1.startsAt, endsAt: p1.endsAt),
-            TimetablePerformanceTiming(id: p2.id, stageID: UUID(), startsAt: p2.startsAt, endsAt: p2.endsAt)
-        ]
-
-        let clashes = TimetableClashPolicy.detectClashes(
-            performances: timings,
-            interestedIDs: [p1.id, p2.id],
-            artistNames: [p1.id: p1.artistName, p2.id: p2.artistName]
-        )
-        XCTAssertEqual(clashes.count, 1)
-
-        // Crucial invariant: both performances remain interested simultaneously; neither was dropped!
-        XCTAssertTrue(p1.isInterested)
-        XCTAssertTrue(p2.isInterested)
-    }
-
 
     // MARK: - 8. In-Situ Matrix Editing & Stage Migration
 

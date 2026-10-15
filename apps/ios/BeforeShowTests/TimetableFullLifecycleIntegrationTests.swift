@@ -268,17 +268,6 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         context.insert(photoAsset)
         try context.save()
 
-        // 1. Clash verification
-        let timings = day.stages.flatMap { s in
-            s.performances.map { TimetablePerformanceTiming(id: $0.id, stageID: s.id, startsAt: $0.startsAt, endsAt: $0.endsAt) }
-        }
-        let clashes = TimetableClashPolicy.detectClashes(
-            performances: timings,
-            interestedIDs: [p1.id, p2.id],
-            artistNames: [p1.id: p1.artistName, p2.id: p2.artistName]
-        )
-        XCTAssertEqual(clashes.count, 1)
-
         // 2. Live Mode State Engine
         let inputs = LiveModeStateEngine.buildInputs(from: timetable)
         let liveState = LiveModeStateEngine.calculate(days: inputs, now: date(15, 10))

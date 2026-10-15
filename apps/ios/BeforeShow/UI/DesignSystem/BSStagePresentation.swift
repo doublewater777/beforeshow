@@ -12,7 +12,7 @@ struct BSStageSheetHeader: View {
         VStack(spacing: BSSpacing.sm) {
             Image(systemName: icon)
                 .font(.system(size: 25, weight: .medium))
-                .foregroundColor(tint)
+                .foregroundStyle(tint)
                 .frame(width: 54, height: 54)
                 .background(tint.opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: 17))
@@ -20,11 +20,11 @@ struct BSStageSheetHeader: View {
 
             Text(title)
                 .font(.system(size: 21, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             Text(subtitle)
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
         }
     }
@@ -121,7 +121,7 @@ struct BSStageScaffold<Content: View>: View {
 
                         Text(title)
                             .font(.system(size: 30, weight: .bold))
-                            .foregroundColor(BSColor.textPrimary)
+                            .foregroundStyle(BSColor.textPrimary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.82)
 
@@ -139,7 +139,7 @@ struct BSStageScaffold<Content: View>: View {
                                     if !title.isEmpty {
                                         Text(title)
                                             .font(.system(size: 30, weight: .bold))
-                                            .foregroundColor(BSColor.textPrimary)
+                                            .foregroundStyle(BSColor.textPrimary)
                                             .lineLimit(2)
                                             .minimumScaleFactor(0.82)
                                     }
@@ -169,7 +169,7 @@ struct BSStageScaffold<Content: View>: View {
     private func subtitleText(_ subtitle: String) -> some View {
         Text(subtitle)
             .font(BSFont.caption)
-            .foregroundColor(BSColor.textTertiary)
+            .foregroundStyle(BSColor.textTertiary)
             .lineLimit(2)
     }
 }

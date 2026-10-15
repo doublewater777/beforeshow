@@ -49,16 +49,16 @@ struct ConfirmedEndTimeEditorSheet: View {
             VStack(spacing: BSSpacing.sm) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 26, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .frame(width: 56, height: 56)
                     .background(BSColor.Stage.accent.opacity(0.10))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                 Text(hasConfirmedEnd ? BSLocalization.text("修改散场时间") : BSLocalization.text("补记散场时间"))
                     .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(showName)
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
             }
 
@@ -88,7 +88,7 @@ struct ConfirmedEndTimeEditorSheet: View {
                 if hasConfirmedEnd {
                     Button(BSLocalization.text("撤销结束"), action: onUndo)
                         .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.liveTitle)
+                        .foregroundStyle(BSColor.Stage.liveTitle)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
                         .background(BSColor.Stage.live.opacity(0.10))

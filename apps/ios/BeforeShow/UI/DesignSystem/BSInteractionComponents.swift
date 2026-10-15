@@ -21,7 +21,7 @@ struct BSInputFieldStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(BSFont.body)
-            .foregroundColor(BSColor.textPrimary)
+            .foregroundStyle(BSColor.textPrimary)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(Color.white.opacity(0.045))
@@ -43,7 +43,7 @@ struct BSPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(BSFont.caption)
-            .foregroundColor(.black)
+            .foregroundStyle(.black)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
             .background(Color.white.opacity(configuration.isPressed ? 0.78 : 1))
@@ -61,7 +61,7 @@ struct BSSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(BSFont.caption)
-            .foregroundColor(BSColor.textSecondary)
+            .foregroundStyle(BSColor.textSecondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
             .background(Color.white.opacity(configuration.isPressed ? 0.10 : 0.055))
@@ -80,7 +80,7 @@ struct BSDangerButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(BSFont.caption)
-            .foregroundColor(BSColor.Stage.danger)
+            .foregroundStyle(BSColor.Stage.danger)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
             .background(BSColor.Stage.danger.opacity(configuration.isPressed ? 0.18 : 0.12))
@@ -132,14 +132,14 @@ struct BSToast: View {
         HStack(spacing: BSSpacing.sm) {
             Image(systemName: payload.tone.iconName)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(payload.tone.tint)
+                .foregroundStyle(payload.tone.tint)
                 .frame(width: 22, height: 22)
                 .background(payload.tone.tint.opacity(0.14))
                 .clipShape(Circle())
 
             Text(payload.message)
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundStyle(BSColor.textPrimary)
                 .lineLimit(2)
         }
         .padding(.horizontal, 14)

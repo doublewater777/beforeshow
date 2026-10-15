@@ -15,7 +15,7 @@ struct ProPaywallWinbackView: View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             Text(BSLocalization.text("限时优惠 · 最高 40% OFF"))
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
                 .background(BSColor.Stage.accent.opacity(0.10))
@@ -27,10 +27,10 @@ struct ProPaywallWinbackView: View {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
                 Text(BSLocalization.text("再想一下？"))
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(BSLocalization.text("以特惠价升级，错过恢复原价；免费版仍会每个自然月增加 1 场容量。"))
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -55,7 +55,7 @@ struct ProPaywallWinbackView: View {
 
             Button(BSLocalization.text("暂时不要"), action: onDecline)
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, BSSpacing.sm)
         }
@@ -71,7 +71,7 @@ struct ProPaywallWinbackView: View {
                     Spacer(minLength: 0)
                     Text(ProPaywallCopy.winbackSaveLabel(plan))
                         .font(.system(size: 9.5, weight: .bold))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(BSColor.Stage.accent.opacity(0.13))
@@ -81,19 +81,19 @@ struct ProPaywallWinbackView: View {
 
                 Text(ProPaywallCopy.planName(plan))
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .padding(.bottom, 7)
 
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(priceAmount(plan))
                         .font(.system(size: 21, weight: .semibold))
                         .kerning(-0.4)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Text(ProPaywallCopy.periodLabel(plan))
                         .font(.system(size: 11))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .lineLimit(1)
                 }
 
@@ -101,7 +101,7 @@ struct ProPaywallWinbackView: View {
                 if !originalPrice.isEmpty {
                     Text(originalPrice)
                         .font(.system(size: 10.5))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .strikethrough()
                         .lineLimit(1)
                         .padding(.top, 5)

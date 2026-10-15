@@ -66,35 +66,6 @@ final class TimetableArtistLinker {
         knownArtists.append(artist)
     }
 
-    /// Automatically search and match artist IDs for all unlinked performers in a draft.
-    func autoMatchArtists(in draft: inout TimetableDraft) async {
-        reuseKnownArtists(in: &draft)
-        var slots: [ArtistSlot] = []
-        var paths: [(dayIndex: Int, stageIndex: Int, perfIndex: Int)] = []
-
-        for d in draft.days.indices {
-            for s in draft.days[d].stages.indices {
-                for p in draft.days[d].stages[s].performances.indices {
-                    let perf = draft.days[d].stages[s].performances[p]
-                    if perf.appleMusicArtistID == nil && !perf.artistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        slots.append(ArtistSlot(name: perf.artistName, avatarURL: nil))
-                        paths.append((d, s, p))
-                    }
-                }
-            }
-        }
-
-        guard !slots.isEmpty else { return }
-        let matcher = ArtistIdentityMatcher(search: search)
-        if let matches = try? await matcher.matches(for: slots) {
-            for (index, artist) in matches {
-                let (d, s, p) = paths[index]
-                draft.days[d].stages[s].performances[p].connectArtist(artist)
-                rememberConnectedArtist(artist)
-            }
-        }
-    }
-
     /// Automatically match unlinked performances in a persisted Timetable.
     func autoMatchPersistedPerformances(in timetable: Timetable, context: ModelContext) async {
         var slots: [ArtistSlot] = []

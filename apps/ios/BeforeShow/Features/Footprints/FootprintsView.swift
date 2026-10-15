@@ -148,7 +148,7 @@ private struct FootprintEmptyView: View {
             Text(BSLocalization.text("足迹"))
                 .font(BSFont.pageTitle)
                 .tracking(-0.5)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, BSLayout.pageHeaderTopPadding)

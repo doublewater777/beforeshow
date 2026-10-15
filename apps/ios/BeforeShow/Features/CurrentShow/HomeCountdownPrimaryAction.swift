@@ -73,23 +73,6 @@ extension HomeCountdownLockup {
         }
     }
 
-    nonisolated static func endActionTitle(
-        phase: HomeShowPhase,
-        timeState: CurrentShowTimeState,
-        now: Date,
-        showStart: Date,
-        hasConfirmedEnd: Bool,
-        hasEndHandler: Bool
-    ) -> String? {
-        guard let action = primaryAction(
-            phase: phase,
-            timeState: timeState,
-            hasConfirmedEnd: hasConfirmedEnd,
-            hasEndHandler: hasEndHandler
-        ) else { return nil }
-        guard case let .end(live) = action else { return nil }
-        return live ? BSLocalization.text("结束现场") : BSLocalization.text("确认已结束")
-    }
 }
 
 extension RecommendedFeature {

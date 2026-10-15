@@ -17,7 +17,7 @@ struct BSRootEmptyState: View {
 
             Image(systemName: iconSystemName)
                 .font(.system(size: 34, weight: .light))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .frame(width: 80, height: 80)
                 .background(Color.white.opacity(0.045), in: Circle())
                 .overlay(Circle().stroke(BSColor.Stage.border))
@@ -25,20 +25,20 @@ struct BSRootEmptyState: View {
             Text(title)
                 .font(BSFont.heroTitle)
                 .tracking(BSFont.titleTracking)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .multilineTextAlignment(.center)
                 .lineLimit(2, reservesSpace: true)
 
             Text(message)
                 .font(BSFont.body)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
                 .lineLimit(2, reservesSpace: true)
 
             Button(action: action) {
                 Text(actionTitle)
                     .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.background)
+                    .foregroundStyle(BSColor.Stage.background)
                     .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
                     .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
                     .contentShape(RoundedRectangle(cornerRadius: 16))

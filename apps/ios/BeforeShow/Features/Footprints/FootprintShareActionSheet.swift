@@ -34,10 +34,10 @@ struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(title).font(.system(size: 21, weight: .semibold)).foregroundStyle(BSColor.Stage.foreground)
             if !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
+                    .font(.system(size: 12.5)).foregroundStyle(BSColor.Stage.muted).padding(.top, 6)
             }
 
             preview()
@@ -86,7 +86,7 @@ struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
                             .tint(.white)
                         Text(BSLocalization.text("生成中…"))
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                     }
                 }
                 .ignoresSafeArea()
@@ -166,7 +166,7 @@ private extension View {
     func footprintShareAction(primary: Bool) -> some View {
         self
             .font(BSFont.caption)
-            .foregroundColor(primary ? BSColor.Stage.background : BSColor.Stage.foreground)
+            .foregroundStyle(primary ? BSColor.Stage.background : BSColor.Stage.foreground)
             .frame(maxWidth: .infinity).frame(height: 44)
             .background(primary ? BSColor.Stage.foreground : Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(primary ? Color.clear : BSColor.Stage.border))

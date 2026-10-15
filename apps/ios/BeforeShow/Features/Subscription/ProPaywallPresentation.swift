@@ -46,7 +46,7 @@ struct ProPaywallHero: View {
                         .blur(radius: 4)
                     Image(systemName: "sparkle")
                         .font(.system(size: 34, weight: .medium))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                 }
                 .frame(width: 67, height: 67)
             }
@@ -56,7 +56,7 @@ struct ProPaywallHero: View {
             Text("BEFORESHOW PRO")
                 .font(.system(size: 10.5, weight: .bold))
                 .tracking(1.7)
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .padding(.bottom, 9)
 
             Text(BSLocalization.text("把下一场，\n也留下来"))
@@ -64,13 +64,13 @@ struct ProPaywallHero: View {
                 .kerning(-0.7)
                 .lineSpacing(5)
                 .multilineTextAlignment(.center)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             Text(ProPaywallCopy.summary)
                 .font(.system(size: 13))
                 .lineSpacing(4)
                 .multilineTextAlignment(.center)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .frame(maxWidth: 310)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 11)
@@ -153,7 +153,7 @@ struct ProPaywallBenefitCard: View {
         HStack(alignment: .top, spacing: 11) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .frame(width: 24, height: 24)
                 .background(BSColor.Stage.accent.opacity(0.12))
                 .clipShape(Circle())
@@ -161,11 +161,11 @@ struct ProPaywallBenefitCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(subtitle)
                     .font(.system(size: 11.8))
                     .lineSpacing(2)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -180,7 +180,7 @@ struct ProPaywallActiveCard: View {
                 .foregroundStyle(BSColor.brandGradient)
             Text(BSLocalization.text("Pro 已启用，已解锁无限添加现场与时刻表智能识别。"))
                 .font(BSFont.body)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
         }
         .padding(BSSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -200,7 +200,7 @@ struct ProPaywallNote: View {
         Text(text)
             .font(.system(size: 10.5))
             .multilineTextAlignment(.center)
-            .foregroundColor(BSColor.Stage.dim)
+            .foregroundStyle(BSColor.Stage.dim)
             .frame(maxWidth: .infinity)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -228,7 +228,7 @@ struct ProPaywallLinksRow: View {
     private func linkButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
             .font(.system(size: 11))
-            .foregroundColor(BSColor.Stage.muted)
+            .foregroundStyle(BSColor.Stage.muted)
     }
 }
 

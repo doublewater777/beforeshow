@@ -46,7 +46,7 @@ struct ShowCoverFullscreenPreview: View {
                 } label: {
                     Label(BSLocalization.text("保存图片"), systemImage: "square.and.arrow.down")
                         .font(BSFont.V3.small.weight(.medium))
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundStyle(.white.opacity(0.9))
                         .padding(.horizontal, BSSpacing.md)
                         .frame(minHeight: BSLayout.minTouchTarget)
                         .background(.black.opacity(0.45), in: Capsule())

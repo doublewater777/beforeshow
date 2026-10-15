@@ -34,7 +34,7 @@ struct FeedbackView: View {
                         if message.isEmpty {
                             Text(BSLocalization.text("写下你的问题或建议"))
                                 .font(BSFont.V3.body)
-                                .foregroundColor(BSColor.Stage.dim)
+                                .foregroundStyle(BSColor.Stage.dim)
                                 .padding(.horizontal, BSSpacing.lg)
                                 .padding(.vertical, BSSpacing.lg)
                                 .allowsHitTesting(false)
@@ -56,14 +56,14 @@ struct FeedbackView: View {
                         if isMessageOverLimit {
                             Text(BSLocalization.text("反馈最多 2000 字"))
                                 .font(BSFont.V3.caption)
-                                .foregroundColor(BSColor.Stage.danger)
+                                .foregroundStyle(BSColor.Stage.danger)
                         }
 
                         Spacer()
 
                         Text("\(messageLength) / \(FeedbackPayloadBuilder.maximumMessageLength)")
                             .font(BSFont.V3.caption)
-                            .foregroundColor(
+                            .foregroundStyle(
                                 isMessageOverLimit
                                     ? BSColor.Stage.danger
                                     : BSColor.Stage.muted
@@ -100,12 +100,12 @@ struct FeedbackView: View {
             case .sent:
                 Label(BSLocalization.text("已收到，谢谢你的反馈"), systemImage: "checkmark.circle.fill")
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.success)
+                    .foregroundStyle(BSColor.Stage.success)
                     .frame(maxWidth: .infinity, alignment: .leading)
             case .failed(let error):
                 Label(failureCopy(for: error), systemImage: "exclamationmark.circle.fill")
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.danger)
+                    .foregroundStyle(BSColor.Stage.danger)
                     .frame(maxWidth: .infinity, alignment: .leading)
             case .idle, .sending:
                 EmptyView()

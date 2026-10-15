@@ -157,16 +157,6 @@ import SwiftUI
         return true
     }
 
-    func takeFromCabinet(_ disc: ListeningDisc) {
-        guard beginCabinetDrag(disc) else { return }
-        let origin = CGPoint(x: motion.discX.value, y: motion.discY.value)
-        motion.discX.value = configuration.geometry.discCenter.x
-        motion.discY.value = configuration.geometry.discCenter.y
-        endDiscDrag()
-        // Keep the same visible shelf → tray path for the non-drag action.
-        motion.discX.value = origin.x; motion.discY.value = origin.y
-    }
-
     /// Silently place a disc into the tray ready to play, skipping opening/closing animations.
     func restoreSeated(_ disc: ListeningDisc) {
         guard !isAutomatic else { return }

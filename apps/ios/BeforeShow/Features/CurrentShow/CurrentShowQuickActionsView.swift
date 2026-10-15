@@ -120,11 +120,11 @@ struct CurrentShowQuickActionTile: View {
             } else {
                 Image(systemName: action.iconName)
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
             }
             Text(companion?.displayTitle ?? action.title)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
@@ -186,7 +186,7 @@ private struct CompanionAvatarStack: View {
     private func avatar(_ text: String, colors: [Color]) -> some View {
         Text(text)
             .font(.system(size: 9, weight: .bold))
-            .foregroundColor(BSColor.Stage.background)
+            .foregroundStyle(BSColor.Stage.background)
             .frame(width: 25, height: 25)
             .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
             .clipShape(Circle())

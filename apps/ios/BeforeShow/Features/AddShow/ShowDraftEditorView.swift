@@ -220,12 +220,12 @@ struct ShowDraftEditorView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "未命名现场" : draft.name)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
                     .lineLimit(2)
 
                 Text(summaryDateText)
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.textTertiary)
+                    .foregroundStyle(BSColor.textTertiary)
                     .lineLimit(1)
             }
 
@@ -270,7 +270,7 @@ struct ShowDraftEditorView: View {
             Text(text)
         }
         .font(.system(size: 11, weight: .semibold))
-        .foregroundColor(tint)
+        .foregroundStyle(tint)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(tint.opacity(0.10))
@@ -287,11 +287,11 @@ struct ShowDraftEditorView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "calendar.badge.clock")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(BSColor.Accent.violet)
+                .foregroundStyle(BSColor.Accent.violet)
 
             Text("这场已延期。这里编辑的是原定信息；延期日期在下方「现场状态」中更新。")
                 .font(.system(size: 12.5))
-                .foregroundColor(Color(red: 0.80, green: 0.74, blue: 0.92))
+                .foregroundStyle(Color(red: 0.80, green: 0.74, blue: 0.92))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -340,19 +340,19 @@ struct ShowDraftEditorView: View {
                         .fill(tint.opacity(0.13))
                     Image(systemName: statusIconName(for: context.changeStatus))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(tint)
+                        .foregroundStyle(tint)
                 }
                 .frame(width: 26, height: 26)
 
                 Text("现场状态")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
 
                 Spacer(minLength: 0)
 
                 Text(context.title)
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundColor(tint)
+                    .foregroundStyle(tint)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .background(tint.opacity(0.12))
@@ -365,7 +365,7 @@ struct ShowDraftEditorView: View {
 
             Text(context.description)
                 .font(.system(size: 12.5))
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -379,10 +379,10 @@ struct ShowDraftEditorView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "arrow.uturn.backward")
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(BSColor.textTertiary)
+                                .foregroundStyle(BSColor.textTertiary)
                             Text(context.restoreTitle)
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(BSColor.textSecondary)
+                                .foregroundStyle(BSColor.textSecondary)
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 14)
@@ -444,7 +444,7 @@ struct ShowDraftEditorView: View {
                 Text(title)
                     .font(.system(size: 13.5, weight: .semibold))
             }
-            .foregroundColor(tint)
+            .foregroundStyle(tint)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
             .background(tint.opacity(0.08))
@@ -465,7 +465,7 @@ struct ShowDraftEditorView: View {
         } label: {
             Text("删除现场")
                 .font(.system(size: 12.5, weight: .medium))
-                .foregroundColor(BSColor.Accent.danger.opacity(0.75))
+                .foregroundStyle(BSColor.Accent.danger.opacity(0.75))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: BSLayout.minTouchTarget)
                 .contentShape(Rectangle())
@@ -535,10 +535,10 @@ struct ShowDraftEditorView: View {
     private var saveBarStatus: some View {
         if let message {
             Text(message)
-                .foregroundColor(BSColor.Accent.danger)
+                .foregroundStyle(BSColor.Accent.danger)
         } else if !isEndTimeRangeValid {
             Text("结束时间需晚于开始时间，请修正后保存")
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
         } else if hasUnsavedChanges {
             HStack(spacing: 7) {
                 Circle()
@@ -546,11 +546,11 @@ struct ShowDraftEditorView: View {
                     .frame(width: 6, height: 6)
                     .shadow(color: BSColor.Stage.accent.opacity(0.7), radius: 4)
                 Text("有未保存的修改")
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
         } else {
             Text("所有修改已保存")
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
         }
     }
 

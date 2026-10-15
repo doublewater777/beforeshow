@@ -35,7 +35,7 @@ struct AddShowLabeledTextField: View {
             if let helperText {
                 Text(helperText)
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
+                    .foregroundStyle(BSColor.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -58,11 +58,11 @@ struct AddShowFieldLabel: View {
         HStack(spacing: 3) {
             Text(title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
             if isRequired {
                 Text("*")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.42))
+                    .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
             }
 
             Spacer(minLength: 0)
@@ -71,11 +71,11 @@ struct AddShowFieldLabel: View {
             case .recognized:
                 Label("已识别", systemImage: "checkmark")
                     .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(BSColor.Accent.prepare)
+                    .foregroundStyle(BSColor.Accent.prepare)
             case .needed:
                 Label("待确认", systemImage: "exclamationmark")
                     .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
             case nil:
                 EmptyView()
             }

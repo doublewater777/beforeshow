@@ -22,10 +22,10 @@ struct FootprintFilteredShowsView: View {
                             .frame(width: 76, height: 86)
                             .clipped()
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(show.name).font(BSFont.headline).foregroundColor(BSColor.Stage.foreground).lineLimit(2)
+                            Text(show.name).font(BSFont.headline).foregroundStyle(BSColor.Stage.foreground).lineLimit(2)
                             Text([show.city, show.venueName].compactMap { FootprintTextNormalizer.nonEmptyTrimmed($0) }.joined(separator: " · "))
-                                .font(BSFont.V3.caption).foregroundColor(BSColor.Stage.muted).lineLimit(2)
-                            Text(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar())).font(BSFont.V3.caption).foregroundColor(BSColor.Stage.dim)
+                                .font(BSFont.V3.caption).foregroundStyle(BSColor.Stage.muted).lineLimit(2)
+                            Text(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar())).font(BSFont.V3.caption).foregroundStyle(BSColor.Stage.dim)
                         }
                         Spacer(minLength: 0)
                         footprintRowChevron(isForExport: isForExport)
@@ -54,7 +54,7 @@ func footprintRowChevron(
     if !isForExport {
         Image(systemName: "chevron.right")
             .font(.system(size: size, weight: weight))
-            .foregroundColor(BSColor.Stage.dim)
+            .foregroundStyle(BSColor.Stage.dim)
     }
 }
 
@@ -66,7 +66,7 @@ func footprintExportRemainingCaption(
     if let text = FootprintExportContentPolicy.remainingText(total: total, limit: limit) {
         Text(text)
             .font(.system(size: 11, weight: .medium))
-            .foregroundColor(BSColor.Stage.dim)
+            .foregroundStyle(BSColor.Stage.dim)
             .frame(maxWidth: .infinity)
             .padding(.top, 8)
     }
@@ -108,7 +108,7 @@ struct FootprintNavigationTitle: View {
     var body: some View {
         Text(title)
             .font(.system(size: 17, weight: .semibold))
-            .foregroundColor(BSColor.Stage.foreground)
+            .foregroundStyle(BSColor.Stage.foreground)
             .lineLimit(1)
         .accessibilityElement(children: .combine)
     }
@@ -129,7 +129,7 @@ struct FootprintArchivePage<Content: View>: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     if !kicker.isEmpty {
-                        Text(kicker).font(.system(size: 10, weight: .semibold)).tracking(2).foregroundColor(BSColor.Stage.accent)
+                        Text(kicker).font(.system(size: 10, weight: .semibold)).tracking(2).foregroundStyle(BSColor.Stage.accent)
                     }
                     content(false)
                 }
@@ -184,9 +184,9 @@ struct FootprintArchivePage<Content: View>: View {
 
 func archiveSectionTitle(_ title: String, _ subtitle: String = "") -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 7) {
-        Text(title.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(1.2).foregroundColor(BSColor.Stage.muted)
+        Text(title.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(1.2).foregroundStyle(BSColor.Stage.muted)
         if !subtitle.isEmpty {
-            Text(subtitle).font(.system(size: 11)).foregroundColor(BSColor.Stage.dim)
+            Text(subtitle).font(.system(size: 11)).foregroundStyle(BSColor.Stage.dim)
         }
     }
     .padding(.top, 4)
@@ -194,13 +194,13 @@ func archiveSectionTitle(_ title: String, _ subtitle: String = "") -> some View 
 
 func archiveRow(rank: Int, title: String, subtitle: String, count: Int, color: Color) -> some View {
     HStack(spacing: 11) {
-        Text("\(rank)").font(rank == 1 ? .system(size: 12, weight: .bold) : BSFont.tag).foregroundColor(rank == 1 ? color : BSColor.Stage.dim).frame(width: 28)
+        Text("\(rank)").font(rank == 1 ? .system(size: 12, weight: .bold) : BSFont.tag).foregroundStyle(rank == 1 ? color : BSColor.Stage.dim).frame(width: 28)
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(rank == 1 ? BSFont.headline : BSFont.caption).foregroundColor(BSColor.Stage.foreground).lineLimit(2)
-            Text(subtitle).font(BSFont.V3.caption).foregroundColor(BSColor.Stage.muted)
+            Text(title).font(rank == 1 ? BSFont.headline : BSFont.caption).foregroundStyle(BSColor.Stage.foreground).lineLimit(2)
+            Text(subtitle).font(BSFont.V3.caption).foregroundStyle(BSColor.Stage.muted)
         }
         Spacer()
-        Text(BSLocalization.format("%lld 场", count)).font(BSFont.tag).foregroundColor(rank == 1 ? color : BSColor.Stage.foreground)
+        Text(BSLocalization.format("%lld 场", count)).font(BSFont.tag).foregroundStyle(rank == 1 ? color : BSColor.Stage.foreground)
     }
     .padding(13)
     .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16))

@@ -19,13 +19,13 @@ struct EditShowFormCard<Content: View>: View {
                         .fill(tint.opacity(0.13))
                     Image(systemName: icon)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(tint)
+                        .foregroundStyle(tint)
                 }
                 .frame(width: 26, height: 26)
 
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
 
                 Spacer(minLength: 0)
 
@@ -33,7 +33,7 @@ struct EditShowFormCard<Content: View>: View {
                     let tint = pillTint ?? BSColor.Stage.accent
                     Text(pillText)
                         .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundColor(tint)
+                        .foregroundStyle(tint)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(tint.opacity(0.12))
@@ -45,7 +45,7 @@ struct EditShowFormCard<Content: View>: View {
                 } else if let hint {
                     Text(hint)
                         .font(.system(size: 11))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                 }
             }
 
@@ -67,7 +67,7 @@ private struct AddShowInputChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(BSFont.body)
-            .foregroundColor(BSColor.textPrimary)
+            .foregroundStyle(BSColor.textPrimary)
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
             .frame(minHeight: 48)
@@ -92,7 +92,7 @@ struct EditShowSaveButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundColor(
+            .foregroundStyle(
                 isEnabled
                     ? Color(red: 0.15, green: 0.11, blue: 0.04)
                     : BSColor.Stage.dim

@@ -26,12 +26,6 @@ enum CompanionSharedHistory {
     }
 }
 
-enum CompanionHomeMessagePolicy {
-    static func message(accepted: String?, backgroundError _: String?) -> String? {
-        accepted
-    }
-}
-
 struct CompanionQuickActionPresentation: Equatable {
     /// Legacy semantic title retained for existing presentation tests/callers.
     let title: String
@@ -368,7 +362,7 @@ struct CurrentShowCompanionSheet: View {
         HStack(spacing: 8) {
             Text(BSLocalization.text("我的称呼"))
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
             Spacer()
             TextField(
                 BSLocalization.text("输入你的昵称"),
@@ -387,7 +381,7 @@ struct CurrentShowCompanionSheet: View {
                 )
             )
             .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(BSColor.Stage.foreground)
+            .foregroundStyle(BSColor.Stage.foreground)
             .multilineTextAlignment(.trailing)
         }
         .padding(.horizontal, 14)
@@ -559,7 +553,7 @@ struct CurrentShowCompanionSheet: View {
             ZStack(alignment: .bottomTrailing) {
                 Text(initial)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(BSColor.Stage.background)
+                    .foregroundStyle(BSColor.Stage.background)
                     .frame(width: 48, height: 48)
                     .background(
                         LinearGradient(
@@ -573,7 +567,7 @@ struct CurrentShowCompanionSheet: View {
                 if isMe {
                     Image(systemName: "pencil")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(BSColor.Stage.background)
+                        .foregroundStyle(BSColor.Stage.background)
                         .frame(width: 16, height: 16)
                         .background(BSColor.Stage.accent)
                         .clipShape(Circle())
@@ -583,7 +577,7 @@ struct CurrentShowCompanionSheet: View {
             }
             Text(name)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
         }
     }
 
@@ -592,7 +586,7 @@ struct CurrentShowCompanionSheet: View {
             Text(BSLocalization.format("TOGETHER · %@", String(format: "%02d", sharedHistory.count)))
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
             Text(
                 BSLocalization.format(
                     "我们 %lld 人一起看过 %lld 场现场",
@@ -601,10 +595,10 @@ struct CurrentShowCompanionSheet: View {
                 )
             )
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(show.name)
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(BSSpacing.lg)
@@ -624,7 +618,7 @@ struct CurrentShowCompanionSheet: View {
         if sharedHistory.isEmpty {
             Text(BSLocalization.text("共同足迹会从这里开始。"))
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, BSSpacing.md)
         } else {
@@ -632,10 +626,10 @@ struct CurrentShowCompanionSheet: View {
                 ForEach(sharedHistory.prefix(3)) { item in
                     HStack(spacing: 10) {
                         Image(systemName: "music.note")
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                         Text(item.name)
                             .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                             .lineLimit(1)
                         Spacer()
                     }

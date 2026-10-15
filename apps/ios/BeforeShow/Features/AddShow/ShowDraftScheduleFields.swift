@@ -89,7 +89,7 @@ private struct AddShowConstrainedDatePicker: View {
 
             Text(displayText)
                 .font(BSFont.body)
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundStyle(BSColor.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,7 +128,7 @@ private struct AddShowConfirmButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: 40)
             .background(BSColor.Accent.violet.opacity(configuration.isPressed ? 0.75 : 1))
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
@@ -243,7 +243,7 @@ private struct AddShowEndTimeField: View {
             HStack(alignment: .center, spacing: BSSpacing.sm) {
                 Text("结束时间")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(BSColor.textTertiary)
+                    .foregroundStyle(BSColor.textTertiary)
                 Spacer(minLength: 0)
                 Toggle("结束时间", isOn: $hasEndTime)
                     .labelsHidden()

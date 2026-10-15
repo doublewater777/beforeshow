@@ -43,7 +43,7 @@ struct ArtistAvatarThumb: View {
             .overlay(
                 Image(systemName: "person.fill")
                     .font(.system(size: size * 0.42, weight: .regular))
-                    .foregroundColor(.white.opacity(0.46))
+                    .foregroundStyle(.white.opacity(0.46))
             )
     }
 }
@@ -75,7 +75,7 @@ struct ArtistLineupStrip: View {
 
                 Text(artist.name)
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
             }
             .frame(width: 64)
@@ -93,7 +93,7 @@ struct ArtistLineupStrip: View {
         return AnyView(
             Text(initial.isEmpty ? "?" : initial)
                 .font(BSFont.caption.weight(.semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .frame(width: 48, height: 48)
                 .background(Color.white.opacity(0.08), in: Circle())
                 .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))

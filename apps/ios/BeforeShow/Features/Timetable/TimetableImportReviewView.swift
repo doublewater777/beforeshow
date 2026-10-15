@@ -47,7 +47,7 @@ struct TimetableImportReviewView: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: onCancel) {
                     Image(systemName: "xmark")
-                        .foregroundColor(BSColor.textSecondary)
+                        .foregroundStyle(BSColor.textSecondary)
                 }
                 .disabled(coordinator.isSaving)
                 .accessibilityLabel(BSLocalization.text("取消"))
@@ -67,13 +67,13 @@ struct TimetableImportReviewView: View {
                     if let onOpenOriginal {
                         Button(action: onOpenOriginal) {
                             Image(systemName: "photo")
-                                .foregroundColor(BSColor.textSecondary)
+                                .foregroundStyle(BSColor.textSecondary)
                         }
                         .accessibilityLabel(BSLocalization.text("查看原图"))
                     }
                     Button(action: handleSaveTap) {
                         Image(systemName: "checkmark")
-                            .foregroundColor(BSColor.textPrimary)
+                            .foregroundStyle(BSColor.textPrimary)
                     }
                     .accessibilityLabel(BSLocalization.text("确认保存"))
                 }

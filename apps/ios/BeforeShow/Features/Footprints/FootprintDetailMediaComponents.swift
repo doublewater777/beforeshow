@@ -19,14 +19,14 @@ struct FootprintMemoryTile: View {
                         if media.kind == .video {
                             Image(systemName: "play.circle.fill")
                                 .font(FootprintDetailTokens.memoryPlayFont)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.white)
                         }
                     }
                     .overlay(alignment: .topTrailing) {
                         if media.kind == .video {
                             Text(durationText(media.videoDuration))
                                 .font(FootprintDetailTokens.memoryBadgeFont)
-                                .foregroundColor(FootprintDetailTokens.memoryDurationColor)
+                                .foregroundStyle(FootprintDetailTokens.memoryDurationColor)
                                 .padding(.horizontal, BSSpacing.sm)
                                 .padding(.vertical, BSSpacing.xs)
                                 .background(Color.black.opacity(0.34), in: Capsule())
@@ -43,10 +43,10 @@ struct FootprintMemoryTile: View {
                 VStack(alignment: .leading, spacing: BSSpacing.sm) {
                     Image(systemName: "quote.opening")
                         .font(BSFont.headline.weight(.light))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                     Text(fragment.text ?? "")
                         .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(5)
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
@@ -90,7 +90,7 @@ struct FootprintTileCaption: View {
             if let trailing { Text(trailing) }
         }
         .font(FootprintDetailTokens.memoryBadgeFont)
-        .foregroundColor(FootprintDetailTokens.captionColor)
+        .foregroundStyle(FootprintDetailTokens.captionColor)
         .shadow(color: .black.opacity(showsScrim ? 0.45 : 0), radius: 3, y: 1)
         .padding(.horizontal, BSSpacing.compact)
         .padding(.top, BSSpacing.lg)
@@ -133,7 +133,7 @@ struct FootprintKeepsakeTile: View {
                         )
                         Image(systemName: kind.iconName)
                             .font(BSFont.title.weight(.light))
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                     .frame(maxWidth: .infinity)
@@ -142,10 +142,10 @@ struct FootprintKeepsakeTile: View {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
                         Text(kind.title)
                             .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Text(hasSavedAsset ? kind.savedSubtitle : BSLocalization.text("点击添加"))
                             .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, BSSpacing.compact)
@@ -177,7 +177,7 @@ private struct FootprintLocalImage: View {
                     .aspectRatio(contentMode: contentMode)
             } else {
                 BSColor.Stage.surface
-                    .overlay(Image(systemName: "photo").foregroundColor(BSColor.Stage.dim))
+                    .overlay(Image(systemName: "photo").foregroundStyle(BSColor.Stage.dim))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

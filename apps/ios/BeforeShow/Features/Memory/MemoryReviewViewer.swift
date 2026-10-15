@@ -130,7 +130,7 @@ private struct MemoryTextFragmentViewer: View {
                     Spacer()
                     Text(BSLocalization.text("记忆碎片"))
                         .font(BSFont.headline)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Spacer()
                     Menu {
                         Button(BSLocalization.text("编辑记忆"), action: onEdit)
@@ -138,7 +138,7 @@ private struct MemoryTextFragmentViewer: View {
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: BSLayout.chromeIconSize, weight: .semibold))
-                            .foregroundColor(BSColor.textPrimary)
+                            .foregroundStyle(BSColor.textPrimary)
                             .frame(width: BSLayout.chromeButtonSize, height: BSLayout.chromeButtonSize)
                             .background(Color.white.opacity(0.07), in: Circle())
                             .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
@@ -155,14 +155,14 @@ private struct MemoryTextFragmentViewer: View {
                     VStack(alignment: .leading, spacing: BSSpacing.roomy) {
                         Image(systemName: "quote.opening")
                             .font(BSFont.V3.title2.weight(.light))
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                         Text(fragment.text ?? "")
                             .font(BSFont.V3.title2.weight(.regular))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                             .lineSpacing(BSSpacing.sm)
                         Text(BSDateFormat.dateTime(fragment.createdAt, timeZone: .current))
                             .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(BSSpacing.roomy)

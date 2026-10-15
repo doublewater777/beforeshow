@@ -196,17 +196,6 @@ import XCTest
         XCTAssertEqual(mechanism.motion.discX.value, slot.x, accuracy: 0.001)
         XCTAssertEqual(mechanism.motion.discY.value, slot.y, accuracy: 0.001)
     }
-    func testCabinetTapUsesSameVisiblePathIntoOpenTray() {
-        let mechanism = CDMechanism()
-        let disc = ListeningDisc(id: "tap", title: "Tap", artworkURL: nil, tracks: [])
-        mechanism.motion.lid.value = 1
-        mechanism.cabinetSlots[disc.id] = CGPoint(x: 90, y: 940)
-        mechanism.takeFromCabinet(disc)
-        settle(mechanism)
-        XCTAssertEqual(mechanism.position, .seated)
-        XCTAssertEqual(mechanism.motion.discX.value, mechanism.configuration.geometry.discCenter.x, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, mechanism.configuration.geometry.discCenter.y, accuracy: 0.001)
-    }
     func testReturnAfterChangingArtistStaysInsideTheVisibleCabinet() {
         let mechanism = CDMechanism()
         defer { mechanism.motion.stop() }
@@ -221,24 +210,6 @@ import XCTest
 
         XCTAssertEqual(mechanism.position, .stored)
         XCTAssertEqual(mechanism.motion.discX.value, mechanism.cabinetDropZone.midX, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, mechanism.cabinetDropZone.midY, accuracy: 0.001)
-    }
-    func testAlbumOutsideVisibleShelfLoadsAndReturnsThroughTheCabinet() {
-        let mechanism = CDMechanism()
-        defer { mechanism.motion.stop() }
-        let disc = ListeningDisc(id: "fourth-album", title: "Fourth Album", artworkURL: nil, tracks: [])
-        mechanism.cabinetDropZone = CGRect(x: 0, y: 0, width: 460, height: 220)
-        mechanism.motion.lid.value = 1
-
-        mechanism.takeFromCabinet(disc)
-
-        XCTAssertEqual(mechanism.motion.discX.value, mechanism.cabinetDropZone.midX, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, mechanism.cabinetDropZone.midY, accuracy: 0.001)
-        settle(mechanism)
-        XCTAssertEqual(mechanism.position, .seated)
-        mechanism.returnCurrentDiscToCabinet()
-        settle(mechanism)
-        XCTAssertEqual(mechanism.position, .stored)
         XCTAssertEqual(mechanism.motion.discY.value, mechanism.cabinetDropZone.midY, accuracy: 0.001)
     }
     func testCabinetMissReturnsDiscAndOpenSeatedDiscCanBeDragged() {

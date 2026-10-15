@@ -27,7 +27,7 @@ struct AddShowLinkGuideStepsView: View {
                         Text(BSLocalization.text("平台列表"))
                             .font(.system(size: 13, weight: .medium))
                     }
-                    .foregroundColor(BSColor.Accent.violet)
+                    .foregroundStyle(BSColor.Accent.violet)
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
                 }

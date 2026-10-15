@@ -106,24 +106,24 @@ struct FootprintMemoryShareCard: View {
                         Text(cardEyebrow)
                             .font(FootprintShareCardTokens.eyebrowFont(scale: scale))
                             .tracking(BSFont.titleTracking * scale)
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                         Spacer()
                         Text("BEFORESHOW")
                             .font(FootprintShareCardTokens.brandFont(scale: scale))
                             .tracking(BSFont.titleTracking * scale)
-                            .foregroundColor(FootprintShareCardTokens.brand)
+                            .foregroundStyle(FootprintShareCardTokens.brand)
                     }
 
                     Text(show.name)
                         .font(FootprintShareCardTokens.titleFont(scale: scale))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .lineLimit(2)
                         .minimumScaleFactor(0.72)
                         .padding(.top, FootprintShareCardTokens.titleTopPadding * scale)
                     if let venue = FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) {
                         Text(venue)
                             .font(FootprintShareCardTokens.venueFont(scale: scale))
-                            .foregroundColor(FootprintShareCardTokens.venue)
+                            .foregroundStyle(FootprintShareCardTokens.venue)
                             .lineLimit(1)
                             .padding(.top, FootprintShareCardTokens.venueTopPadding * scale)
                     }
@@ -154,7 +154,7 @@ struct FootprintMemoryShareCard: View {
                         Text(BSLocalization.text("开场前"))
                     }
                     .font(FootprintShareCardTokens.footerFont(scale: scale))
-                    .foregroundColor(FootprintShareCardTokens.footer)
+                    .foregroundStyle(FootprintShareCardTokens.footer)
                     .padding(.top, FootprintShareCardTokens.footerTopPadding * scale)
                 }
                 .padding(FootprintShareCardTokens.cardPadding * scale)
@@ -179,7 +179,7 @@ struct FootprintMemoryShareCard: View {
             ForEach(Array(values.enumerated()), id: \.offset) { _, value in
                 Text(value)
                     .font(FootprintShareCardTokens.identityFont(scale: scale))
-                    .foregroundColor(FootprintShareCardTokens.identityText)
+                    .foregroundStyle(FootprintShareCardTokens.identityText)
                     .padding(
                         .horizontal,
                         FootprintShareCardTokens.identityHorizontalPadding * scale
@@ -198,7 +198,7 @@ struct FootprintMemoryShareCard: View {
         switch materials.count {
         case 0:
             BSColor.Stage.surface
-                .overlay(Image(systemName: "photo").foregroundColor(BSColor.Stage.dim))
+                .overlay(Image(systemName: "photo").foregroundStyle(BSColor.Stage.dim))
         case 1:
             cardImage(materials[0])
         case 2:
@@ -227,7 +227,7 @@ struct FootprintMemoryShareCard: View {
                     .scaledToFill()
             } else {
                 BSColor.Stage.surface
-                    .overlay(Image(systemName: "photo").foregroundColor(BSColor.Stage.dim))
+                    .overlay(Image(systemName: "photo").foregroundStyle(BSColor.Stage.dim))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

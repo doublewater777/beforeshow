@@ -19,10 +19,10 @@ struct PrivacyLocalDataView: View {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
                         Text(BSLocalization.text("帮助改进产品"))
                             .font(BSFont.V3.body.weight(.semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Text(BSLocalization.text("匿名分析与操作回放，用于发现卡点和修复问题。可随时关闭。"))
                             .font(BSFont.V3.small)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                 }
                 .tint(BSColor.Stage.accent)
@@ -35,7 +35,7 @@ struct PrivacyLocalDataView: View {
                     if inventory.isEmpty {
                         Text(BSLocalization.text("暂无本地数据"))
                             .font(BSFont.V3.body)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                             .listRowBackground(BSColor.Stage.surface)
                     } else {
                         inventoryRow(BSLocalization.text("现场"), value: BSLocalization.format("%lld 场", inventory.showCount))
@@ -66,7 +66,7 @@ struct PrivacyLocalDataView: View {
                                 .tint(BSColor.Stage.danger)
                         }
                         Text(BSLocalization.text("清除 BeforeShow 本地数据"))
-                            .foregroundColor(BSColor.Stage.danger)
+                            .foregroundStyle(BSColor.Stage.danger)
                     }
                 }
                 .disabled(isClearing || inventory?.isEmpty != false)
@@ -79,7 +79,7 @@ struct PrivacyLocalDataView: View {
                         systemImage: clearFeedback.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
                     )
                     .font(BSFont.V3.body)
-                    .foregroundColor(clearFeedback.isError ? BSColor.Stage.danger : BSColor.Stage.success)
+                    .foregroundStyle(clearFeedback.isError ? BSColor.Stage.danger : BSColor.Stage.success)
                     .listRowBackground(BSColor.Stage.surface)
                 }
             }
@@ -119,11 +119,11 @@ struct PrivacyLocalDataView: View {
         HStack {
             Text(label)
                 .font(BSFont.V3.body)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Spacer()
             Text(value)
                 .font(BSFont.V3.body.weight(.medium))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .lineLimit(1)
         }
     }

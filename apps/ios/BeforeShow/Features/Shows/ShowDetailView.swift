@@ -245,7 +245,7 @@ struct ShowDetailView: View {
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 Text(session.phase(for: show, now: Date()).statusText)
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(statusTint)
+                    .foregroundStyle(statusTint)
                     .padding(.horizontal, BSSpacing.sm)
                     .padding(.vertical, BSSpacing.xs)
                     .background(statusTint.opacity(0.08), in: Capsule())
@@ -253,17 +253,17 @@ struct ShowDetailView: View {
 
                 Text(show.name)
                     .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(2)
 
                 Text(formatter.dateText(for: show))
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
 
                 Text(venueSummary)
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
             }
 
@@ -286,17 +286,17 @@ struct ShowDetailView: View {
 
             Text(countdownSummary.title)
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             Spacer(minLength: BSSpacing.sm)
 
             VStack(alignment: .trailing, spacing: BSSpacing.xs) {
                 Text(countdownSummary.trailingValue)
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(countdownSummary.trailingLabel)
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
         }
         .padding(BSSpacing.compact)
@@ -310,7 +310,7 @@ struct ShowDetailView: View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             Text(BSLocalization.text("演出信息"))
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             VStack(spacing: 0) {
                 detailInfoRow(
@@ -343,7 +343,7 @@ struct ShowDetailView: View {
         HStack(spacing: BSSpacing.compact) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .frame(width: 32, height: 32)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 11))
                 .accessibilityHidden(true)
@@ -351,12 +351,12 @@ struct ShowDetailView: View {
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 Text(title)
                     .font(BSFont.V3.small.weight(.medium))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
                 if let subtitle {
                     Text(subtitle)
                         .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                         .lineLimit(1)
                 }
             }
@@ -379,7 +379,7 @@ struct ShowDetailView: View {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
                 Text(BSLocalization.text("阵容"))
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
 
                 ArtistLineupStrip(artists: show.artists)
             }
@@ -390,7 +390,7 @@ struct ShowDetailView: View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             Text(BSLocalization.text("现场资料"))
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             HStack(spacing: BSSpacing.sm) {
                 ForEach(ShowAssetManagementPolicy.entries(for: show, assets: showAssets)) { entry in
@@ -400,13 +400,13 @@ struct ShowDetailView: View {
                         VStack(alignment: .leading, spacing: BSSpacing.xs) {
                             Image(systemName: entry.kind.iconName)
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.accent)
+                                .foregroundStyle(BSColor.Stage.accent)
                             Text(entry.kind.title)
                                 .font(BSFont.V3.small.weight(.medium))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                             Text(entry.subtitle)
                                 .font(BSFont.V3.caption)
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(BSSpacing.compact)
@@ -427,7 +427,7 @@ struct ShowDetailView: View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             Text(BSLocalization.text("现场体验"))
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             HStack(spacing: BSSpacing.sm) {
                 Button {
@@ -546,19 +546,19 @@ format: BSLocalization.text("M月d日 HH:mm"),
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             Text(BSLocalization.text("散场时间"))
                 .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Button(action: action) {
                 HStack(spacing: BSSpacing.compact) {
                     Image(systemName: icon)
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                     Text(title)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Spacer()
                     Text(value)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                         .lineLimit(1)
                     Image(systemName: "chevron.right")
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                 }
                 .font(BSFont.V3.small.weight(.medium))
                 .padding(.horizontal, BSSpacing.compact)

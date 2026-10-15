@@ -21,16 +21,16 @@ struct OnboardingWidgetFeatureVisual: View {
                 Text(BSLocalization.text("距离开场"))
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(1.1)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
 
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text("56")
                         .font(.system(size: 43, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.heroIvory)
+                        .foregroundStyle(BSColor.Stage.heroIvory)
                         .monospacedDigit()
                     Text(BSLocalization.text("天"))
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
                 .padding(.top, 10)
 
@@ -38,11 +38,11 @@ struct OnboardingWidgetFeatureVisual: View {
 
                 Text(BSLocalization.text("「夜航」巡演 · 上海站"))
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
                 Text(BSLocalization.text("10月14日 19:30 · 回声剧场"))
                     .font(.system(size: 8.5))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .lineLimit(1)
             }
             .padding(.leading, 16)
@@ -74,10 +74,10 @@ struct OnboardingWidgetFeatureVisual: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(BSLocalization.format("还有 %lld 天", Int64(56)))
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(BSLocalization.text("「夜航」巡演 · 上海站 · 10月14日 19:30"))
                 .font(.system(size: 9))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,10 +92,10 @@ struct OnboardingWidgetFeatureVisual: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(BSLocalization.text("开场之前，我来提醒你"))
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(BSLocalization.text("在几个值得记一下的节点轻轻提醒，不推销任何东西。"))
                 .font(.system(size: 9))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -121,11 +121,11 @@ struct OnboardingTimetableFeatureVisual: View {
             HStack {
                 Text(BSLocalization.text("时刻表"))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 Text(BSLocalization.text("已保存"))
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(BSColor.glowBlueFallback)
+                    .foregroundStyle(BSColor.glowBlueFallback)
             }
             .padding(.bottom, 15)
 
@@ -133,7 +133,7 @@ struct OnboardingTimetableFeatureVisual: View {
                 timetableImage
                 Text(BSLocalization.text("保存的图片"))
                     .font(.system(size: 8, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.76))
+                    .foregroundStyle(Color.white.opacity(0.76))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
                     .background(Color.black.opacity(0.56), in: Capsule())
@@ -144,7 +144,7 @@ struct OnboardingTimetableFeatureVisual: View {
 
             Text(BSLocalization.text("查看原图"))
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .frame(maxWidth: .infinity)
                 .frame(height: 42)
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
@@ -164,23 +164,23 @@ struct OnboardingTimetableFeatureVisual: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(BSLocalization.text("演出时刻表"))
                 .font(.custom("Songti SC", size: 19, relativeTo: .headline))
-                .foregroundColor(Color(red: 0.09, green: 0.075, blue: 0.06))
+                .foregroundStyle(Color(red: 0.09, green: 0.075, blue: 0.06))
             Text("OCT 04 · LEGACY TERA")
                 .font(.system(size: 8))
-                .foregroundColor(Color.black.opacity(0.48))
+                .foregroundStyle(Color.black.opacity(0.48))
                 .padding(.top, 3)
                 .padding(.bottom, 10)
 
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 9) {
                     Text(row.0)
-                        .foregroundColor(Color.black.opacity(0.48))
+                        .foregroundStyle(Color.black.opacity(0.48))
                         .frame(width: 38, alignment: .leading)
                     Text(BSLocalization.text(key: row.1))
                         .fontWeight(.semibold)
                 }
                 .font(.system(size: 9))
-                .foregroundColor(Color.black.opacity(0.82))
+                .foregroundStyle(Color.black.opacity(0.82))
                 .padding(.vertical, 7)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(alignment: .top) {
@@ -205,7 +205,7 @@ struct OnboardingMemoryFeatureVisual: View {
             Text(BSLocalization.format("%@ · %@", BSLocalization.text("记忆碎片"), BSLocalization.text("散场以后")))
                 .font(.system(size: 9, weight: .bold))
                 .tracking(1)
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
 
             HStack(spacing: 10) {
                 photoTile
@@ -240,10 +240,10 @@ struct OnboardingMemoryFeatureVisual: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("“")
                 .font(.custom("Songti SC", size: 24, relativeTo: .headline))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
             Text(BSLocalization.text("最后一首歌结束的时候，灯亮得特别慢。"))
                 .font(.system(size: 11))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineSpacing(4)
                 .padding(.top, 7)
             Spacer(minLength: 0)
@@ -266,7 +266,7 @@ struct OnboardingMemoryFeatureVisual: View {
             Text(time)
         }
         .font(.system(size: 8.5, weight: .medium))
-        .foregroundColor(BSColor.Stage.dim)
+        .foregroundStyle(BSColor.Stage.dim)
         .padding(.horizontal, 10)
         .frame(height: 34)
         .background(Color.black.opacity(0.18))
@@ -280,10 +280,10 @@ struct OnboardingMemoryFeatureVisual: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(selectedRating.label)
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(selectedRating.tint)
+                        .foregroundStyle(selectedRating.tint)
                     Text(selectedRating.sub)
                         .font(.system(size: 8.5))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                 }
             }
 
@@ -301,7 +301,7 @@ struct OnboardingMemoryFeatureVisual: View {
                             .opacity(selected ? 1 : 0.55)
                         Text(rating.label)
                             .font(.system(size: 7.5, weight: selected ? .bold : .medium))
-                            .foregroundColor(selected ? BSColor.Stage.foreground : BSColor.Stage.dim)
+                            .foregroundStyle(selected ? BSColor.Stage.foreground : BSColor.Stage.dim)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity)

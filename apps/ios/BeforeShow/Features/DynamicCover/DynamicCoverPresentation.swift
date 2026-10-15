@@ -263,7 +263,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                 BSColor.Stage.surfaceRaised
                 Image(systemName: "play.rectangle")
                     .font(BSFont.heroTitle.weight(.light))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
         }
     }
@@ -291,7 +291,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                 Button(action: onChooseVideo) {
                     Image(systemName: "video.badge.plus")
                         .font(.system(size: 34, weight: .light))
-                        .foregroundColor(.white.opacity(0.78))
+                        .foregroundStyle(.white.opacity(0.78))
                         .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                         .contentShape(Rectangle())
                 }
@@ -300,7 +300,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                 .padding(.bottom, BSSpacing.xs)
                 Text("添加动态封面")
                     .font(BSFont.caption.weight(.medium))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
             }
         }
     }

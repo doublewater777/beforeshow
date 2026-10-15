@@ -502,7 +502,7 @@ private struct CurrentShowEmptyStateView: View {
                 Text(BSLocalization.text("当前"))
                     .font(BSFont.pageTitle)
                     .tracking(-0.5)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 HStack(spacing: 8) {
                     if hasShows {
@@ -525,7 +525,7 @@ private struct CurrentShowEmptyStateView: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                 .background(Color.white.opacity(0.07), in: Circle())
                 .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))

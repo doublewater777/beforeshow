@@ -41,7 +41,7 @@ struct FootprintDashboardView: View {
             Text(BSLocalization.text("足迹"))
                 .font(BSFont.pageTitle)
                 .tracking(-0.5)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             Spacer(minLength: 0)
 
@@ -60,7 +60,7 @@ struct FootprintDashboardView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                 .background(Color.white.opacity(0.07), in: Circle())
                 .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
@@ -79,8 +79,8 @@ struct FootprintDashboardView: View {
 
     private func dashboardMetric(_ value: String, _ label: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(value).font(.system(size: 16, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-            Text(label).font(.system(size: 11)).foregroundColor(BSColor.Stage.muted)
+            Text(value).font(.system(size: 16, weight: .semibold)).foregroundStyle(BSColor.Stage.foreground)
+            Text(label).font(.system(size: 11)).foregroundStyle(BSColor.Stage.muted)
         }
     }
 
@@ -96,8 +96,8 @@ struct FootprintDashboardView: View {
 
     private func footprintStat(value: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("\(value)").font(.system(size: 20, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-            Text(label).font(.system(size: 10)).foregroundColor(BSColor.Stage.muted)
+            Text("\(value)").font(.system(size: 20, weight: .semibold)).foregroundStyle(BSColor.Stage.foreground)
+            Text(label).font(.system(size: 10)).foregroundStyle(BSColor.Stage.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)

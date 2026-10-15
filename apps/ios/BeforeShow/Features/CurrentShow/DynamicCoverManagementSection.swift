@@ -21,18 +21,18 @@ struct DynamicCoverManagementSection: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("动态封面")
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 if show.dynamicCover != nil {
                     Text("已添加")
                         .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                 }
             }
 
             Text("轻点封面进入现场详情。长按主封面可切换静态面与动态面。")
                 .font(BSFont.V3.caption)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: BSSpacing.compact) {
@@ -44,7 +44,7 @@ struct DynamicCoverManagementSection: View {
                         .overlay(alignment: .bottomLeading) {
                             Text("封面背面 · 默认静音")
                                 .font(BSFont.V3.caption)
-                                .foregroundColor(.white.opacity(0.86))
+                                .foregroundStyle(.white.opacity(0.86))
                                 .padding(.horizontal, BSSpacing.sm)
                                 .padding(.vertical, BSSpacing.xs)
                                 .background(.black.opacity(0.42), in: Capsule())
@@ -66,16 +66,16 @@ struct DynamicCoverManagementSection: View {
                     HStack(spacing: BSSpacing.compact) {
                         Image(systemName: "rectangle.on.rectangle.angled")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                             .frame(width: 36, height: 36)
                             .background(BSColor.Stage.accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: BSSpacing.xs) {
                             Text("给这场现场加一面动态封面")
                                 .font(BSFont.V3.small.weight(.medium))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                             Text("导入一段不超过 15 秒的视频")
                                 .font(BSFont.V3.caption)
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                         }
                         Spacer(minLength: 0)
                     }
@@ -89,7 +89,7 @@ struct DynamicCoverManagementSection: View {
                         ProgressView().tint(BSColor.Stage.accent)
                         Text("正在准备视频…")
                             .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                 }
             }
@@ -147,7 +147,7 @@ struct DynamicCoverManagementSection: View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .font(BSFont.V3.caption.weight(.medium))
-                .foregroundColor(tint)
+                .foregroundStyle(tint)
                 .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
                 .background(tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.22), lineWidth: 1))

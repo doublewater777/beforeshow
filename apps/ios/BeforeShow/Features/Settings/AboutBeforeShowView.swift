@@ -22,15 +22,15 @@ struct AboutBeforeShowView: View {
                     Text("BeforeShow")
                         .font(BSFont.caption)
                         .tracking(4)
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
 
                     Text(BSLocalization.text("开场之前，先进入状态"))
                         .font(BSFont.V3.body)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
 
                     Text(AppVersionInformation.current.fullCopy)
                         .font(BSFont.V3.small)
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, BSSpacing.md)
@@ -43,11 +43,11 @@ struct AboutBeforeShowView: View {
                 } label: {
                     HStack {
                         Text(BSLocalization.text("隐私政策"))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                 }
                 .buttonStyle(.plain)
@@ -58,11 +58,11 @@ struct AboutBeforeShowView: View {
                 } label: {
                     HStack {
                         Text(BSLocalization.text("用户协议"))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                 }
                 .buttonStyle(.plain)
@@ -74,15 +74,15 @@ struct AboutBeforeShowView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(BSLocalization.text("ICP备案号"))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                             Text(Self.icpFilingNumber)
                                 .font(BSFont.V3.small)
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                         }
                         Spacer()
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                 }
                 .buttonStyle(.plain)

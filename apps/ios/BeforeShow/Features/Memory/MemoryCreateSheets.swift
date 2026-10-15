@@ -10,7 +10,7 @@ struct MemoryCreateSourceSheet: View {
                     .font(.system(size: 18, weight: .semibold))
                 Text(MemoryCreateSourcePresentation.message)
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .padding(.top, 6)
 
                 HStack(spacing: 10) {
@@ -39,7 +39,7 @@ struct MemoryAddMediaSheet: View {
                    .font(.system(size: 18, weight: .semibold))
                 Text(BSLocalization.text("给当前这条记忆增加媒体"))
                    .font(.system(size: 12))
-                   .foregroundColor(BSColor.Stage.muted)
+                   .foregroundStyle(BSColor.Stage.muted)
                     .padding(.top, 6)
                 HStack(spacing: 10) {
                     MemorySourceOptionCard(
@@ -92,7 +92,7 @@ private struct MemorySourceOptionCard: View {
             VStack(spacing: 7) {
                 Image(systemName: icon)
                     .font(.system(size: 18))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .frame(width: 42, height: 42)
                     .background(BSColor.Stage.accent.opacity(0.10), in: Circle())
                 Text(title).font(.system(size: 12, weight: .semibold))

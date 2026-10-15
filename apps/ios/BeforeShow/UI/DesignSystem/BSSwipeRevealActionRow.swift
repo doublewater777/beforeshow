@@ -56,7 +56,7 @@ struct BSSwipeRevealActionRow<Content: View>: View {
                     Text(actionTitle)
                         .font(.system(size: 11, weight: .semibold))
                 }
-                .foregroundColor(tint)
+                .foregroundStyle(tint)
                 .frame(width: 72, height: 54)
                 .background(Color.white.opacity(0.055))
                 .clipShape(RoundedRectangle(cornerRadius: 12))

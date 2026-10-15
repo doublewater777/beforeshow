@@ -240,11 +240,11 @@ struct DispersalCeremonyShareCard: View {
             Text(DispersalCeremonyCardCopy.brand)
                 .font(DispersalCeremonyCardTokens.brandFont(scale: scale))
                 .tracking(DispersalCeremonyCardTokens.brandTopTracking * scale)
-                .foregroundColor(DispersalCeremonyCardTokens.brand)
+                .foregroundStyle(DispersalCeremonyCardTokens.brand)
 
             Text(dateLine)
                 .font(DispersalCeremonyCardTokens.dateFont(scale: scale))
-                .foregroundColor(DispersalCeremonyCardTokens.date)
+                .foregroundStyle(DispersalCeremonyCardTokens.date)
                 .padding(.top, DispersalCeremonyCardTokens.dateTopPadding * scale)
 
             eventBlock(scale: scale, lineLimit: eventLineLimit)
@@ -264,7 +264,7 @@ struct DispersalCeremonyShareCard: View {
             ForEach(Array(eventLines.enumerated()), id: \.offset) { _, line in
                 Text(line)
                     .font(DispersalCeremonyCardTokens.eventFont(scale: scale))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .lineLimit(lineLimit)
                     .minimumScaleFactor(0.72)
                     .fixedSize(horizontal: false, vertical: true)
@@ -278,7 +278,7 @@ struct DispersalCeremonyShareCard: View {
             if let currentRating {
                 Text(DispersalCeremonyCardCopy.ratingTitle(currentRating))
                     .font(DispersalCeremonyCardTokens.ratingFont(scale: scale))
-                    .foregroundColor(currentRating.tint)
+                    .foregroundStyle(currentRating.tint)
                     .minimumScaleFactor(0.72)
                     .lineLimit(1)
                     .dispersalMatchedGeometry(
@@ -288,7 +288,7 @@ struct DispersalCeremonyShareCard: View {
             } else {
                 Text(BSLocalization.text("已落幕"))
                     .font(DispersalCeremonyCardTokens.ratingFont(scale: scale))
-                    .foregroundColor(DispersalCeremonyCardTokens.neutralHeader)
+                    .foregroundStyle(DispersalCeremonyCardTokens.neutralHeader)
             }
         }
         .padding(.top, DispersalCeremonyCardTokens.ratingTopPadding * scale)
@@ -297,7 +297,7 @@ struct DispersalCeremonyShareCard: View {
     private func quoteBlock(text: String, scale: CGFloat, lineLimit: Int) -> some View {
         Text("\u{201C}\(text)\u{201D}")
             .font(DispersalCeremonyCardTokens.quoteFont(scale: scale))
-            .foregroundColor(DispersalCeremonyCardTokens.quote)
+            .foregroundStyle(DispersalCeremonyCardTokens.quote)
             .lineSpacing(DispersalCeremonyCardTokens.quoteLineSpacing * scale)
             .multilineTextAlignment(.leading)
             .lineLimit(lineLimit)
@@ -317,7 +317,7 @@ struct DispersalCeremonyShareCard: View {
             Text(DispersalCeremonyCardCopy.footerTrailing)
         }
         .font(DispersalCeremonyCardTokens.footerFont(scale: scale))
-        .foregroundColor(DispersalCeremonyCardTokens.footer)
+        .foregroundStyle(DispersalCeremonyCardTokens.footer)
     }
 
     // MARK: 派生文本

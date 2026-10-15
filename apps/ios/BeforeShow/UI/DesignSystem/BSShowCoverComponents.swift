@@ -2,46 +2,6 @@ import SafariServices
 import UIKit
 import SwiftUI
 
-struct BSEmptyPanel: View {
-    let iconName: String
-    let title: String
-    let message: String
-    var buttonTitle: String?
-    var buttonIconName: String?
-    var action: (() -> Void)?
-
-    var body: some View {
-        BSSurfacePanel {
-            VStack(spacing: BSSpacing.md) {
-                Image(systemName: iconName)
-                    .font(.system(size: 30, weight: .light))
-                    .foregroundStyle(BSColor.brandGradientSoft)
-                    .accessibilityHidden(true)
-
-                VStack(spacing: BSSpacing.xs) {
-                    Text(title)
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
-                        .multilineTextAlignment(.center)
-                    Text(message)
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if let buttonTitle, let action {
-                    Button(action: action) {
-                        Label(buttonTitle, systemImage: buttonIconName ?? "plus")
-                    }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                }
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-}
-
 enum ShowCoverPlaceholderReason: Equatable {
     case noCover
     case loading

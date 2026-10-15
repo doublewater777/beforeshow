@@ -114,7 +114,7 @@ struct MemoryUnifiedEditorView: View {
                             Text(BSLocalization.format("最多 %lld 项", MemoryFragment.maximumMediaCount))
                         }
                         .font(.system(size: 9.5))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .padding(.horizontal, 2)
                         .padding(.top, 13)
                         mediaThumbs
@@ -143,7 +143,7 @@ struct MemoryUnifiedEditorView: View {
                         Text("\(caption.count) / \(captionLimit)")
                     }
                     .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .padding(.top, 10)
                 }
                 .frame(width: contentWidth, alignment: .top)
@@ -313,7 +313,7 @@ struct MemoryUnifiedEditorView: View {
                 HStack {
                     Spacer()
                     Button("移除") { removeCurrent() }
-                        .foregroundColor(Color(red: 1, green: 0.77, blue: 0.79))
+                        .foregroundStyle(Color(red: 1, green: 0.77, blue: 0.79))
                 }
                 .font(.system(size: 10, weight: .medium))
                 .padding(10)
@@ -362,7 +362,7 @@ struct MemoryUnifiedEditorView: View {
                     Button { isShowingAddSource = true } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 22, weight: .light))
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                             .frame(width: 62, height: 76)
                             .background(BSColor.Stage.accent.opacity(0.04), in: RoundedRectangle(cornerRadius: 13))
                             .overlay(RoundedRectangle(cornerRadius: 13).stroke(BSColor.Stage.border, style: StrokeStyle(lineWidth: 1, dash: [4])))

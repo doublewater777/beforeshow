@@ -55,33 +55,6 @@ final class TimetableManagementCoordinator {
         }
     }
 
-    func recognizeFromExistingAssets(assets: [ShowAsset], show: Show) async {
-        draft = nil
-        let timetableAssets = assets.filter { $0.kind == .timetable }
-        guard !timetableAssets.isEmpty else { return }
-        isRecognizing = true
-        recognitionError = nil
-
-        var loadedImages: [UIImage] = []
-        for asset in timetableAssets {
-            if let url = try? await ShowAssetMediaStore.shared.absoluteURL(
-                for: asset.relativePath,
-                showID: show.id,
-                kind: .timetable
-            ), let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
-                loadedImages.append(img)
-            }
-        }
-
-        guard !loadedImages.isEmpty else {
-            isRecognizing = false
-            recognitionError = BSLocalization.text("未能读取已保存的原图")
-            return
-        }
-
-        await recognize(images: loadedImages, show: show)
-    }
-
     func commit(
         draft: TimetableDraft,
         newImagesData: [Data],

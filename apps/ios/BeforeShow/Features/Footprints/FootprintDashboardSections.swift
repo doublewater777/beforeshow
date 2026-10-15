@@ -37,20 +37,20 @@ struct FootprintDashboardSections {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
                         Text("\(activity?.totalShows ?? archive.currentYearCount)")
                             .font(.system(size: 30, weight: .light))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Text(BSLocalization.text("场现场"))
                             .font(.system(size: 10))
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                     Spacer()
                     if let activity, let peak = activity.peakMonth {
                         VStack(alignment: .trailing, spacing: 3) {
                             Text(BSLocalization.format("%@ · %lld 场", BSLocalization.text(key: footprintMonthKey(peak.month)), peak.showCount))
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.accent)
+                                .foregroundStyle(BSColor.Stage.accent)
                             Text(BSLocalization.text(activity.year == currentYear ? "今年目前最密集" : "这一年最密集"))
                                 .font(.system(size: 8))
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                         }
                         .multilineTextAlignment(.trailing)
                     }
@@ -139,11 +139,11 @@ struct FootprintDashboardSections {
                     HStack(spacing: 5) {
                         Image(systemName: "mappin.and.ellipse")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                         Text("\(BSLocalization.text("MOST FAMILIAR")) · #1")
                             .font(.system(size: 8, weight: .semibold))
                             .tracking(1.4)
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                     }
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
@@ -152,7 +152,7 @@ struct FootprintDashboardSections {
 
                     Text(first.name)
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(2)
 
                     HStack(spacing: 6) {
@@ -160,14 +160,14 @@ struct FootprintDashboardSections {
                             Text(city.uppercased())
                                 .font(.system(size: 9, weight: .semibold))
                                 .tracking(1)
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color.white.opacity(0.06), in: Capsule())
                         }
                         Text(BSLocalization.format("你最常回去的场馆 · %lld 次", first.count))
                             .font(.system(size: 9))
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                 }
 
@@ -186,7 +186,7 @@ struct FootprintDashboardSections {
                             Text("\(offset + 2)")
                                 .font(.system(size: 10, weight: .bold))
                                 .tracking(0.6)
-                                .foregroundColor(BSColor.Stage.accent.opacity(0.85))
+                                .foregroundStyle(BSColor.Stage.accent.opacity(0.85))
                                 .frame(width: 16, alignment: .leading)
 
                             if let firstShow = itemShows.first {
@@ -203,14 +203,14 @@ struct FootprintDashboardSections {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.name)
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(BSColor.Stage.foreground)
+                                    .foregroundStyle(BSColor.Stage.foreground)
                                     .lineLimit(1)
 
                                if let city = item.cities.first, !city.isEmpty {
                                    Text(city.uppercased())
                                        .font(.system(size: 8, weight: .medium))
                                        .tracking(0.6)
-                                       .foregroundColor(BSColor.Stage.muted)
+                                       .foregroundStyle(BSColor.Stage.muted)
                                }
                            }
 
@@ -218,7 +218,7 @@ struct FootprintDashboardSections {
 
                             Text(BSLocalization.format("%lld 场", item.count))
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.accent)
+                                .foregroundStyle(BSColor.Stage.accent)
                         }
                         .frame(minHeight: 44)
                         .padding(.horizontal, 14)
@@ -257,7 +257,7 @@ struct FootprintDashboardSections {
                 if !isForExport {
                     Button(BSLocalization.text("添加现场"), action: onAdd)
                         .font(BSFont.tag)
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                         .buttonStyle(.plain)
                 }
             }
@@ -268,10 +268,10 @@ struct FootprintDashboardSections {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(String(group.year))
                         .font(.system(size: 26, weight: .bold))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                     Text(BSLocalization.format("%lld 场现场", group.shows.count))
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                     Rectangle()
                         .fill(LinearGradient(colors: [BSColor.Stage.border, .clear], startPoint: .leading, endPoint: .trailing))
                         .frame(height: 1)
@@ -285,11 +285,11 @@ struct FootprintDashboardSections {
                            VStack(alignment: .trailing, spacing: 2) {
                                Text(String(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar()).suffix(2)))
                                    .font(.system(size: 20, weight: .bold))
-                                   .foregroundColor(BSColor.Stage.foreground)
+                                   .foregroundStyle(BSColor.Stage.foreground)
                                Text(footprintEnhancementMonthAbbreviation(show.effectiveDate, calendar: show.timingCalendar()))
                                    .font(.system(size: 9, weight: .bold))
                                    .tracking(1)
-                                   .foregroundColor(BSColor.Stage.accent)
+                                   .foregroundStyle(BSColor.Stage.accent)
                            }
                            .frame(width: 48, alignment: .trailing)
 
@@ -307,7 +307,7 @@ struct FootprintDashboardSections {
                                         Text(city.uppercased())
                                             .font(.system(size: 8.5, weight: .bold))
                                             .tracking(0.8)
-                                            .foregroundColor(BSColor.Stage.muted)
+                                            .foregroundStyle(BSColor.Stage.muted)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
                                             .background(Color.white.opacity(0.06), in: Capsule())
@@ -317,20 +317,20 @@ struct FootprintDashboardSections {
 
                                 Text(show.name)
                                     .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(BSColor.Stage.foreground)
+                                    .foregroundStyle(BSColor.Stage.foreground)
                                     .lineLimit(2)
 
                                 if let venue = FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) {
                                     Text(venue)
                                         .font(.system(size: 11))
-                                        .foregroundColor(BSColor.Stage.muted)
+                                        .foregroundStyle(BSColor.Stage.muted)
                                         .lineLimit(1)
                                 }
 
                                 HStack(spacing: 6) {
                                     Text(BSLocalization.format("第 %lld 场", ordinal(of: show)))
                                         .font(.system(size: 9, weight: .semibold))
-                                        .foregroundColor(BSColor.Stage.accent)
+                                        .foregroundStyle(BSColor.Stage.accent)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
                                         .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
@@ -338,7 +338,7 @@ struct FootprintDashboardSections {
                                    if let cover = covers[show.id] {
                                         Text(cover.badge.localizedTitle)
                                            .font(.system(size: 9, weight: .medium))
-                                           .foregroundColor(BSColor.Stage.dim)
+                                           .foregroundStyle(BSColor.Stage.dim)
                                    }
                                 }
                             }
@@ -375,19 +375,19 @@ struct FootprintDashboardSections {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 4) {
                     sectionLabel(title, subtitle)
-                    if let description { Text(description).font(.system(size: 10)).foregroundColor(BSColor.Stage.muted).lineSpacing(2) }
+                    if let description { Text(description).font(.system(size: 10)).foregroundStyle(BSColor.Stage.muted).lineSpacing(2) }
                 }
                 Spacer(minLength: 8)
                 if let action {
                     if isForExport {
-                        Text(action).font(.system(size: 10)).foregroundColor(BSColor.Stage.accent).lineLimit(1)
+                        Text(action).font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent).lineLimit(1)
                     } else if let actionDestination {
                         NavigationLink { actionDestination } label: {
-                            Text(action).font(.system(size: 10)).foregroundColor(BSColor.Stage.accent).lineLimit(1)
+                            Text(action).font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent).lineLimit(1)
                         }
                         .buttonStyle(.plain)
                     } else {
-                        Text(action).font(.system(size: 10)).foregroundColor(BSColor.Stage.accent).lineLimit(1)
+                        Text(action).font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent).lineLimit(1)
                     }
                 }
             }
@@ -401,9 +401,9 @@ struct FootprintDashboardSections {
 
     private func sectionLabel(_ title: String, _ subtitle: String?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 18, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(title).font(.system(size: 18, weight: .semibold)).foregroundStyle(BSColor.Stage.foreground)
             if let subtitle, !subtitle.isEmpty {
-                Text(subtitle).font(.system(size: 9)).tracking(1.5).foregroundColor(BSColor.Stage.muted)
+                Text(subtitle).font(.system(size: 9)).tracking(1.5).foregroundStyle(BSColor.Stage.muted)
             }
         }
     }

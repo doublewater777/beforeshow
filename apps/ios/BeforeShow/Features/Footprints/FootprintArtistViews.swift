@@ -62,7 +62,7 @@ private struct FootprintArtistAvatarView: View {
             )
             Text(String(name.prefix(1)).uppercased())
                 .font(.system(size: size * 0.42, weight: .bold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
         }
     }
 }
@@ -189,7 +189,7 @@ struct FootprintTopArtistCard: View {
                         .font(.system(size: 9, weight: .bold))
                         .tracking(0.4)
                 }
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Color.black.opacity(0.55), in: Capsule())
@@ -200,11 +200,11 @@ struct FootprintTopArtistCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.name)
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
                 Text(BSLocalization.format("%lld 场", item.count))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                 if let city = latestCity(for: item) {
                     HStack(spacing: 4) {
                         Image(systemName: "mappin")
@@ -213,7 +213,7 @@ struct FootprintTopArtistCard: View {
                             .lineLimit(1)
                     }
                     .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                 }
             }
 
@@ -223,7 +223,7 @@ struct FootprintTopArtistCard: View {
                 Text(BSLocalization.text("最常看").uppercased())
                     .font(.system(size: 8.5, weight: .bold))
                     .tracking(1.4)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                 if showsChevron {
                     footprintRowChevron(isForExport: isForExport, size: 12, weight: .semibold)
                 }
@@ -235,21 +235,21 @@ struct FootprintTopArtistCard: View {
         HStack(spacing: 10) {
             Text("\(rank)")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .frame(width: 16, alignment: .leading)
 
             FootprintArtistCoverView(item: item, shows: archive.shows, size: 36)
 
             Text(item.name)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineLimit(1)
 
             Spacer(minLength: 8)
 
             Text(BSLocalization.format("%lld 场", item.count))
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
 
             if showsChevron {
                 footprintRowChevron(isForExport: isForExport, size: 11, weight: .semibold)
@@ -283,10 +283,10 @@ struct FootprintArtistArchiveView: View {
             HStack(spacing: 6) {
                 Text(BSLocalization.text("同场次按最近观看排序"))
                     .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                 Image(systemName: "info.circle")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
             .padding(.top, 4)
             .accessibilityElement(children: .combine)
@@ -315,10 +315,10 @@ struct FootprintArtistArchiveView: View {
             VStack(spacing: 4) {
                 Text(BSLocalization.text("最常看"))
                     .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                 Text(items.first?.name ?? "—")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
@@ -339,10 +339,10 @@ struct FootprintArtistArchiveView: View {
         VStack(spacing: 4) {
             Text(value)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
             Text(label)
                 .font(.system(size: 11))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
         }
         .frame(maxWidth: .infinity)
     }
@@ -356,12 +356,12 @@ struct FootprintArtistArchiveView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(item.name)
                     .font(.system(size: rank == 1 ? 17 : 15, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
                 if rank == 1 {
                     Text("\(BSLocalization.text("最常看")) · #1")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
@@ -370,7 +370,7 @@ struct FootprintArtistArchiveView: View {
                 if let city = latestCity(for: item) {
                     Text(BSLocalization.format("最近观看 · %@", city))
                         .font(.system(size: 11))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .lineLimit(1)
                 }
             }
@@ -379,7 +379,7 @@ struct FootprintArtistArchiveView: View {
 
             Text(BSLocalization.format("%lld 场", item.count))
                 .font(.system(size: 13, weight: rank == 1 ? .semibold : .medium))
-                .foregroundColor(rank == 1 ? BSColor.Stage.accent : BSColor.Stage.dim)
+                .foregroundStyle(rank == 1 ? BSColor.Stage.accent : BSColor.Stage.dim)
 
             footprintRowChevron(isForExport: isForExport, size: 11, weight: .semibold)
         }
@@ -397,12 +397,12 @@ struct FootprintArtistArchiveView: View {
             if rank == 1 {
                 Image(systemName: "crown.fill")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .offset(y: -16)
             }
             Text("\(rank)")
                 .font(.system(size: rank == 1 ? 22 : 18, weight: .semibold))
-                .foregroundColor(rank == 1 ? BSColor.Stage.accent : BSColor.Stage.dim)
+                .foregroundStyle(rank == 1 ? BSColor.Stage.accent : BSColor.Stage.dim)
         }
         .frame(width: 28, height: rank == 1 ? 44 : 28)
     }

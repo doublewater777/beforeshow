@@ -73,7 +73,7 @@ struct FootprintTrendChart: View {
                ForEach(Array(months.enumerated()), id: \.element.id) { index, month in
                    Text(BSLocalization.text(key: footprintMonthKey(month.month)))
                        .font(.system(size: 8.5, weight: month.month == currentMonth ? .bold : .medium))
-                       .foregroundColor(
+                       .foregroundStyle(
                            month.month == currentMonth
                                ? BSColor.Stage.accent
                                : (currentMonth.map { month.month > $0 } ?? false ? BSColor.Stage.dim.opacity(0.68) : BSColor.Stage.foreground.opacity(0.65))
@@ -137,15 +137,15 @@ struct FootprintYearArchiveView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(summary.year)")
                         .font(.system(size: 52, weight: .ultraLight))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(BSLocalization.format("%lld 场现场", summary.showCount))
                         Text("·")
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                         Text(ShowDurationFormatter.aggregate(totalMinutes: summary.durationMinutes))
                     }
                     .font(.system(size: 13))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
 
                 yearPicker(isForExport: isForExport)
@@ -175,7 +175,7 @@ struct FootprintYearArchiveView: View {
             } else {
                 Text(BSLocalization.text("暂无本地数据"))
                     .font(BSFont.body)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .padding(.vertical, 30)
             }
         }
@@ -193,7 +193,7 @@ struct FootprintYearArchiveView: View {
                     } label: {
                         Text(String(year))
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(year == selectedYear ? BSColor.Stage.background : BSColor.Stage.dim)
+                            .foregroundStyle(year == selectedYear ? BSColor.Stage.background : BSColor.Stage.dim)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .background(year == selectedYear ? BSColor.Stage.accent : Color.white.opacity(0.045), in: Capsule())
@@ -212,10 +212,10 @@ struct FootprintYearArchiveView: View {
         return VStack(alignment: .leading, spacing: 12) {
             Text(BSLocalization.format("%@ · %@", BSLocalization.text("年度节拍"), String(activity.year)))
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(yearPeakText(activity))
                 .font(.system(size: 9))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
             HStack(alignment: .bottom, spacing: 6) {
                 ForEach(activity.months) { month in
                     VStack(spacing: 6) {
@@ -224,7 +224,7 @@ struct FootprintYearArchiveView: View {
                             .frame(height: max(4, CGFloat(month.showCount) / CGFloat(maxCount) * 82))
                        Text(monthLabel(month.month))
                            .font(.system(size: 8.5, weight: .medium))
-                           .foregroundColor(BSColor.Stage.muted)
+                           .foregroundStyle(BSColor.Stage.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .bottom)
                 }
@@ -248,14 +248,14 @@ struct FootprintYearArchiveView: View {
                     Text(BSLocalization.text("THE NIGHT OF THE YEAR"))
                         .font(.system(size: 8, weight: .semibold))
                         .tracking(1.25)
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                     Text(show.name)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(2)
                     Text([footprintEnhancementFullDateText(show.effectiveDate, calendar: show.timingCalendar()), FootprintTextNormalizer.nonEmptyTrimmed(show.city)].compactMap { $0 }.joined(separator: " · "))
                         .font(.system(size: 9))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
                 Spacer(minLength: 0)
                 footprintRowChevron(isForExport: isForExport, size: 10)
@@ -274,10 +274,10 @@ struct FootprintYearArchiveView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(String(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar()).suffix(2)))
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Text(footprintEnhancementMonthAbbreviation(show.effectiveDate, calendar: show.timingCalendar()))
                         .font(.system(size: 8))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
                 .frame(width: 38)
                 FootprintCoverView(show: show, cover: covers[show.id])
@@ -286,11 +286,11 @@ struct FootprintYearArchiveView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(show.name)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(2)
                     Text([show.city, show.venueName].compactMap { FootprintTextNormalizer.nonEmptyTrimmed($0) }.joined(separator: " · "))
                         .font(.system(size: 9))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)

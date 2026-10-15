@@ -89,7 +89,7 @@ rg -n "floatingTabBarClearance" apps/ios
 
 ### 1.5 空态统一
 
-优先复用 `BSEmptyPanel`：
+优先复用 `BSRootEmptyState`（根 tab 空态；`BSEmptyPanel` 已因无调用方删除）：
 
 - icon + title + message + 可选主按钮  
 - 各工具页空态能迁则迁，**不要**一次改所有文案业务含义（文案以各 plan 为准；本 plan 只统一 **组件**）。

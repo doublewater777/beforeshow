@@ -60,7 +60,7 @@ struct ProPaywallView: View {
                             } label: {
                                 Text(BSLocalization.text("重试"))
                                     .font(.system(size: 11))
-                                    .foregroundColor(BSColor.Stage.accent)
+                                    .foregroundStyle(BSColor.Stage.accent)
                             }
                         }
                         ctaNote
@@ -196,7 +196,7 @@ struct ProPaywallView: View {
             .font(.system(size: 10.5))
             .lineSpacing(3)
             .multilineTextAlignment(.center)
-            .foregroundColor(BSColor.Stage.dim)
+            .foregroundStyle(BSColor.Stage.dim)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 7)
             .fixedSize(horizontal: false, vertical: true)

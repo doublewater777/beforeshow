@@ -171,11 +171,11 @@ struct BSProLimitSheet: View {
                 VStack(spacing: BSSpacing.xs) {
                     Text(title)
                         .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
+                        .foregroundStyle(BSColor.textPrimary)
                         .multilineTextAlignment(.center)
                     Text(message)
                         .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }

@@ -225,14 +225,14 @@ struct OnboardingFlowView: View {
                 Text("开场前")
                     .font(.system(size: 13, weight: .semibold))
                     .tracking(2.6)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
 
                 Spacer()
 
                 Button(action: skipOnboarding) {
                     Text(invitedSnapshot != nil ? BSLocalization.text("暂不加入") : BSLocalization.text("跳过"))
                         .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                         .frame(minWidth: 64, minHeight: BSLayout.minTouchTarget)
                         .contentShape(Rectangle())
                 }
@@ -357,13 +357,13 @@ private struct OnboardingPageView: View {
             Text(page.phaseText(for: invitedSnapshot))
                 .font(.system(size: 11, weight: .bold))
                 .tracking(1.3)
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .opacity(textAppeared ? 1 : 0)
                 .offset(y: textAppeared ? 0 : 12)
 
             Text(page.title(for: invitedSnapshot))
                 .font(.custom("Songti SC", size: (page == .start && invitedSnapshot != nil) ? 28 : (page == .start ? 36 : 32), relativeTo: .largeTitle))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineSpacing(3)
                 .lineLimit(page == .start && invitedSnapshot != nil ? 2 : nil)
                 .fixedSize(horizontal: false, vertical: true)
@@ -373,7 +373,7 @@ private struct OnboardingPageView: View {
 
             Text(page.bodyText(for: invitedSnapshot))
                 .font(.system(size: 13))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 10)
@@ -501,7 +501,7 @@ private struct OnboardingContinueButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(.black)
+            .foregroundStyle(.black)
             .padding(.horizontal, 22)
             .frame(minWidth: 92, minHeight: BSLayout.minTouchTarget)
             .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 15))

@@ -134,11 +134,11 @@ struct CompanionFootprintShareCard: View {
             Text(BSLocalization.text("BEFORESHOW · 共同足迹"))
                 .font(.system(size: 10.5 * scale, weight: .semibold))
                 .tracking(1.4 * scale)
-                .foregroundColor(CompanionFootprintShareTokens.brand)
+                .foregroundStyle(CompanionFootprintShareTokens.brand)
 
             Text(dateLine)
                 .font(.system(size: 12 * scale, weight: .medium))
-                .foregroundColor(CompanionFootprintShareTokens.date)
+                .foregroundStyle(CompanionFootprintShareTokens.date)
         }
     }
 
@@ -147,14 +147,14 @@ struct CompanionFootprintShareCard: View {
             ForEach(Array(eventLines.enumerated()), id: \.offset) { _, line in
                 Text(line)
                     .font(.system(size: 22 * scale, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
             }
             if let venue = FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) {
                 Text(venue)
                     .font(.system(size: 12 * scale, weight: .regular))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .padding(.top, 2 * scale)
             }
         }
@@ -167,7 +167,7 @@ struct CompanionFootprintShareCard: View {
                 Text(BSLocalization.format("TOGETHER · %@", String(format: "%02d", count)))
                     .font(.system(size: 10 * scale, weight: .bold))
                     .tracking(1.3 * scale)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .padding(.horizontal, 9 * scale)
                     .padding(.vertical, 4 * scale)
                     .background(BSColor.Stage.accent.opacity(0.16))
@@ -178,7 +178,7 @@ struct CompanionFootprintShareCard: View {
 
             Text(relationshipTitle)
                 .font(.system(size: 24 * scale, weight: .bold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineSpacing(4 * scale)
 
             memberAvatarsRow(scale: scale)
@@ -208,7 +208,7 @@ struct CompanionFootprintShareCard: View {
 
             Image(systemName: "link")
                 .font(.system(size: 11 * scale, weight: .semibold))
-                .foregroundColor(BSColor.Stage.accent.opacity(0.8))
+                .foregroundStyle(BSColor.Stage.accent.opacity(0.8))
 
             ForEach(Array(memberNames.enumerated()), id: \.offset) { _, name in
                 memberPill(name: name, initial: String(name.prefix(1)), scale: scale)
@@ -221,7 +221,7 @@ struct CompanionFootprintShareCard: View {
         HStack(spacing: 7 * scale) {
             Text(initial)
                 .font(.system(size: 11 * scale, weight: .bold))
-                .foregroundColor(BSColor.Stage.background)
+                .foregroundStyle(BSColor.Stage.background)
                 .frame(width: 26 * scale, height: 26 * scale)
                 .background(
                     LinearGradient(
@@ -234,7 +234,7 @@ struct CompanionFootprintShareCard: View {
 
             Text(name)
                 .font(.system(size: 12 * scale, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineLimit(1)
         }
         .padding(.horizontal, 8 * scale)
@@ -247,7 +247,7 @@ struct CompanionFootprintShareCard: View {
         HStack {
             Text(BSLocalization.text("BeforeShow · 现场共同记忆"))
                 .font(.system(size: 10.5 * scale, weight: .medium))
-                .foregroundColor(CompanionFootprintShareTokens.footer)
+                .foregroundStyle(CompanionFootprintShareTokens.footer)
 
             Spacer()
 
@@ -256,7 +256,7 @@ struct CompanionFootprintShareCard: View {
                     ?? BSLocalization.text("已收进共同足迹")
             )
                 .font(.system(size: 10.5 * scale, weight: .medium))
-                .foregroundColor(CompanionFootprintShareTokens.brand.opacity(0.85))
+                .foregroundStyle(CompanionFootprintShareTokens.brand.opacity(0.85))
         }
     }
 }

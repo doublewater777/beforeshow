@@ -58,10 +58,10 @@ struct FootprintPageExportView<Content: View>: View {
                 Text("BEFORESHOW · LIVE ARCHIVE")
                     .font(.system(size: 9.5, weight: .medium))
                     .tracking(1.65)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                 Text(title)
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
             }
 
             VStack(alignment: .leading, spacing: 16) {
@@ -69,7 +69,7 @@ struct FootprintPageExportView<Content: View>: View {
                     Text(kicker)
                         .font(.system(size: 10, weight: .semibold))
                         .tracking(2)
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                 }
                 content()
             }
@@ -80,7 +80,7 @@ struct FootprintPageExportView<Content: View>: View {
                 Text(footprintFullDateText(Date(), calendar: Calendar.current))
             }
             .font(.system(size: 9.5))
-            .foregroundColor(BSColor.Stage.dim)
+            .foregroundStyle(BSColor.Stage.dim)
             .padding(.top, 8)
         }
         .padding(.horizontal, 20)

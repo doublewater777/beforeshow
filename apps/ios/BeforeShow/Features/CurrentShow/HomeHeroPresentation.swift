@@ -133,7 +133,7 @@ struct HomeHeroStage: View {
                     .tint(.white)
                 Text("正在准备视频…")
                     .font(BSFont.V3.caption)
-                    .foregroundColor(.white.opacity(0.86))
+                    .foregroundStyle(.white.opacity(0.86))
             }
             .padding(.horizontal, BSSpacing.md)
             .padding(.vertical, BSSpacing.compact)

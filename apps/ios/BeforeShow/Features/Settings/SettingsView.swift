@@ -254,20 +254,6 @@ struct BSSettingsRow: View {
     }
 }
 
-// 保持兼容旧调用的辅助桥接
-struct SettingsNativeRow: View {
-    let icon: String
-    var iconBackground: Color = BSColor.Stage.accent
-    let title: String
-    var subtitle: String? = nil
-    var value: String? = nil
-    var valueTint: Color = BSColor.Stage.muted
-
-    var body: some View {
-        BSSettingsRow(icon: icon, tint: iconBackground, title: title, value: value)
-    }
-}
-
 // MARK: - VIP Live Pass Ticket Card (现场通行证卡片)
 
 private struct SettingsMembershipPassCard: View {

@@ -80,10 +80,10 @@ struct LiveAndWidgetShowcaseView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(selectedCategory == .liveActivity ? "实时活动 & 灵动岛" : "桌面与锁屏小组件")
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
                 Text(selectedCategory == .liveActivity ? "现场多舞台驱动 · 锁屏与灵动岛实时协同" : "倒计时与现场模式自适应收束")
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.textSecondary)
+                    .foregroundStyle(BSColor.textSecondary)
             }
 
             Spacer()
@@ -93,7 +93,7 @@ struct LiveAndWidgetShowcaseView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(BSColor.textSecondary)
+                    .foregroundStyle(BSColor.textSecondary)
                     .frame(width: 30, height: 30)
                     .background(BSColor.surfaceElevated)
                     .clipShape(Circle())
@@ -185,10 +185,10 @@ struct LiveAndWidgetShowcaseView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 14, weight: .bold))
-                .foregroundColor(BSColor.Accent.warm)
+                .foregroundStyle(BSColor.Accent.warm)
             Text(subtitle)
                 .font(.system(size: 11))
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
         }
     }
 
@@ -209,11 +209,11 @@ struct LiveAndWidgetShowcaseView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("01:23:45")
                         .font(.system(size: 23, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.46))
+                        .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.46))
 
                     Text("已开场")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                 }
             }
 
@@ -221,17 +221,17 @@ struct LiveAndWidgetShowcaseView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("正在演: King Gizzard & The Lizard Wizard · 爱舞台")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
                     Text("下一场: ❤️ 万能青年旅店 (11:44 · 草莓舞台)")
                         .font(.system(size: 12))
-                        .foregroundColor(BSColor.textSecondary)
+                        .foregroundStyle(BSColor.textSecondary)
                         .lineLimit(1)
                     Text("· 快开始了")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(BSColor.Accent.warm)
+                        .foregroundStyle(BSColor.Accent.warm)
                 }
             }
         }
@@ -261,10 +261,10 @@ struct LiveAndWidgetShowcaseView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("草莓音乐节 2026 · 上海站")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(BSColor.textSecondary)
+                        .foregroundStyle(BSColor.textSecondary)
                     Text("世博公园")
                         .font(.system(size: 10))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                 }
 
                 Spacer()
@@ -272,28 +272,28 @@ struct LiveAndWidgetShowcaseView: View {
                 VStack(alignment: .trailing, spacing: 3) {
                     Text("01:23:45")
                         .font(.system(size: 21, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.46))
+                        .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.46))
 
                     Text("已开场")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                 }
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("正在演: King Gizzard & The Lizard Wizard · 爱舞台")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
                     Text("下一场: ❤️ 万能青年旅店 (11:44 · 草莓舞台)")
                         .font(.system(size: 12))
-                        .foregroundColor(BSColor.textSecondary)
+                        .foregroundStyle(BSColor.textSecondary)
                         .lineLimit(1)
                     Text("· 快开始了")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(BSColor.Accent.warm)
+                        .foregroundStyle(BSColor.Accent.warm)
                 }
             }
         }
@@ -322,7 +322,7 @@ struct LiveAndWidgetShowcaseView: View {
                         .overlay(
                             Image(systemName: "music.note")
                                 .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(.black)
+                                .foregroundStyle(.black)
                         )
                 }
                 .padding(.leading, 10)
@@ -331,7 +331,7 @@ struct LiveAndWidgetShowcaseView: View {
 
                 Text("01:23:45")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.46))
+                    .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.46))
                     .padding(.trailing, 10)
             }
             .frame(width: 190, height: 36)
@@ -356,7 +356,7 @@ struct LiveAndWidgetShowcaseView: View {
                         .overlay(
                             Image(systemName: "music.note")
                                 .font(.system(size: 8, weight: .bold))
-                                .foregroundColor(.black)
+                                .foregroundStyle(.black)
                         )
                 )
         }
@@ -380,23 +380,23 @@ struct LiveAndWidgetShowcaseView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("02:15:30")
                         .font(.system(size: 23, weight: .bold, design: .monospaced))
-                        .foregroundColor(BSColor.Accent.warm)
+                        .foregroundStyle(BSColor.Accent.warm)
 
                     Text("距开场")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                 }
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("「夜航」巡演 · 上海站 · 回声剧场")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
                     .lineLimit(1)
 
                 Text("19:30 开场 · 预计 22:00 散场")
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.textSecondary)
+                    .foregroundStyle(BSColor.textSecondary)
             }
         }
         .padding(.horizontal, 14)
@@ -422,25 +422,25 @@ struct LiveAndWidgetShowcaseView: View {
                         .frame(width: 7, height: 7)
                     Text("正在现场")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Color(red: 1.0, green: 0.81, blue: 0.83))
+                        .foregroundStyle(Color(red: 1.0, green: 0.81, blue: 0.83))
                 }
 
                 Spacer(minLength: 4)
 
                 Text("01:23:45")
                     .font(.system(size: 32, weight: .bold, design: .monospaced))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
 
                 Spacer(minLength: 8)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("草莓音乐节 2026 · 上海站")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
+                        .foregroundStyle(BSColor.textPrimary)
                         .lineLimit(1)
                     Text("正在演: King Gizzard · 爱舞台")
                         .font(.system(size: 10))
-                        .foregroundColor(BSColor.textSecondary)
+                        .foregroundStyle(BSColor.textSecondary)
                         .lineLimit(1)
                 }
             }
@@ -481,18 +481,18 @@ struct LiveAndWidgetShowcaseView: View {
                 Text("距离开场")
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(1.2)
-                    .foregroundColor(BSColor.textSecondary)
+                    .foregroundStyle(BSColor.textSecondary)
 
                 Spacer(minLength: 4)
 
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text("56")
                         .font(.system(size: 44, weight: .semibold))
-                        .foregroundColor(Color(red: 0.96, green: 0.94, blue: 0.89))
+                        .foregroundStyle(Color(red: 0.96, green: 0.94, blue: 0.89))
                         .monospacedDigit()
                     Text("天")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(BSColor.textSecondary)
+                        .foregroundStyle(BSColor.textSecondary)
                 }
 
                 Spacer(minLength: 8)
@@ -500,11 +500,11 @@ struct LiveAndWidgetShowcaseView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("「夜航」巡演 · 上海站")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
+                        .foregroundStyle(BSColor.textPrimary)
                         .lineLimit(1)
                     Text("10月14日 19:30 · 回声剧场")
                         .font(.system(size: 10))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                         .lineLimit(1)
                 }
             }
@@ -551,24 +551,24 @@ struct LiveAndWidgetShowcaseView: View {
                     .frame(width: 6, height: 6)
                 Text("正在现场")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(Color(red: 1.0, green: 0.81, blue: 0.83))
+                    .foregroundStyle(Color(red: 1.0, green: 0.81, blue: 0.83))
             }
 
             Spacer(minLength: 4)
 
             Text("01:23:45")
                 .font(.system(size: 20, weight: .bold, design: .monospaced))
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundStyle(BSColor.textPrimary)
 
             Spacer(minLength: 6)
 
             Text("草莓音乐节")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundStyle(BSColor.textPrimary)
                 .lineLimit(1)
             Text("爱舞台")
                 .font(.system(size: 10))
-                .foregroundColor(BSColor.textSecondary)
+                .foregroundStyle(BSColor.textSecondary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -585,28 +585,28 @@ struct LiveAndWidgetShowcaseView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("距离开场")
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(BSColor.textSecondary)
+                .foregroundStyle(BSColor.textSecondary)
 
             Spacer(minLength: 4)
 
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text("56")
                     .font(.system(size: 34, weight: .bold))
-                    .foregroundColor(Color(red: 0.96, green: 0.94, blue: 0.89))
+                    .foregroundStyle(Color(red: 0.96, green: 0.94, blue: 0.89))
                 Text("天")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(BSColor.textSecondary)
+                    .foregroundStyle(BSColor.textSecondary)
             }
 
             Spacer(minLength: 6)
 
             Text("「夜航」巡演")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundStyle(BSColor.textPrimary)
                 .lineLimit(1)
             Text("上海站")
                 .font(.system(size: 10))
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -642,16 +642,16 @@ struct LiveAndWidgetShowcaseView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("「夜航」预习歌单")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.warm)
+                    .foregroundStyle(BSColor.Accent.warm)
 
                 Text("山雀 (Live)")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
                     .lineLimit(1)
 
                 Text("万能青年旅店")
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.textSecondary)
+                    .foregroundStyle(BSColor.textSecondary)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
@@ -659,10 +659,10 @@ struct LiveAndWidgetShowcaseView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "play.circle.fill")
                         .font(.system(size: 26))
-                        .foregroundColor(BSColor.Accent.warm)
+                        .foregroundStyle(BSColor.Accent.warm)
                     Text("点击播放")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -685,10 +685,10 @@ struct LiveAndWidgetShowcaseView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("还有 56 天")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(BSColor.textPrimary)
+                    .foregroundStyle(BSColor.textPrimary)
                 Text("「夜航」巡演 · 10月14日 19:30")
                     .font(.system(size: 10))
-                    .foregroundColor(BSColor.textSecondary)
+                    .foregroundStyle(BSColor.textSecondary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -710,10 +710,10 @@ struct LiveAndWidgetShowcaseView: View {
                 VStack(spacing: 0) {
                     Text("56")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(BSColor.textPrimary)
+                        .foregroundStyle(BSColor.textPrimary)
                     Text("天")
                         .font(.system(size: 8))
-                        .foregroundColor(BSColor.textSecondary)
+                        .foregroundStyle(BSColor.textSecondary)
                 }
             }
             .frame(width: 70, height: 70)

@@ -69,7 +69,7 @@ struct CurrentShowEndConfirmationSheet: View {
                     } label: {
                         Text("刚刚散场")
                             .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.liveTitle)
+                            .foregroundStyle(BSColor.Stage.liveTitle)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)
                             .background(BSColor.Stage.live.opacity(0.13))
@@ -118,11 +118,11 @@ struct CurrentShowEndConfirmationSheet: View {
             HStack {
                 Text("现场时长")
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                 Spacer()
                 Text(durationText)
                     .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
             }
 
             HStack(spacing: 9) {

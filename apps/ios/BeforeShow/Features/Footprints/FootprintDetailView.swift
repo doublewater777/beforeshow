@@ -312,20 +312,20 @@ struct FootprintDetailView: View {
                 Text(heroEyebrow)
                     .font(FootprintDetailTokens.eyebrowFont)
                     .tracking(1.4)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
                 Text(show.name)
                     .font(BSFont.V3.title2)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(3)
                     .minimumScaleFactor(0.88)
                     .padding(.top, BSSpacing.sm)
 
                 Text(FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? BSLocalization.text("未填写场馆"))
                     .font(BSFont.V3.small)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(2)
                     .padding(.top, BSSpacing.sm)
 
@@ -338,7 +338,7 @@ struct FootprintDetailView: View {
                         .minimumScaleFactor(0.72)
                 }
                 .font(FootprintDetailTokens.identityDetailFont.weight(.semibold))
-                .foregroundColor(BSColor.Stage.accent.opacity(0.88))
+                .foregroundStyle(BSColor.Stage.accent.opacity(0.88))
             }
             .frame(
                 maxWidth: .infinity,
@@ -387,15 +387,15 @@ struct FootprintDetailView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(BSLocalization.text("记忆碎片"))
                         .font(FootprintDetailTokens.sectionFont)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Spacer()
                     HStack(alignment: .firstTextBaseline, spacing: BSSpacing.xs) {
                         Text(BSLocalization.format("%lld 条", fragments.count))
                             .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                         Image(systemName: "chevron.right")
                             .font(BSFont.V3.caption.weight(.semibold))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                 }
                 .contentShape(Rectangle())
@@ -408,10 +408,10 @@ struct FootprintDetailView: View {
                     VStack(spacing: BSSpacing.compact) {
                         Image(systemName: "sparkles.rectangle.stack")
                             .font(BSFont.title.weight(.light))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                         Text(BSLocalization.text("这一晚还没有留下记忆碎片"))
                             .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: FootprintDetailTokens.emptyMemoryHeight)
@@ -492,15 +492,15 @@ struct FootprintDetailView: View {
                 .overlay(
                     Text(String(name.prefix(1)))
                         .font(BSFont.headline)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                 )
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)
                     .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(BSLocalization.format("共同留下 %lld 场足迹", count))
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
             Spacer()
         }
@@ -574,18 +574,18 @@ struct FootprintDetailView: View {
         HStack(spacing: BSSpacing.compact) {
             Image(systemName: icon)
                 .font(FootprintDetailTokens.iconFont)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .frame(width: FootprintDetailTokens.infoIconSize, height: FootprintDetailTokens.infoIconSize)
                 .background(FootprintDetailTokens.infoIconFill, in: RoundedRectangle(cornerRadius: BSRadius.sm))
             Text(title)
                 .font(BSFont.V3.caption)
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(width: FootprintDetailTokens.infoTitleWidth, alignment: .leading)
             Text(value)
                 .font(BSFont.V3.small.weight(.medium))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineLimit(2)
             Spacer(minLength: 0)
         }
@@ -723,12 +723,12 @@ struct FootprintDetailView: View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(FootprintDetailTokens.sectionFont)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Spacer()
             if let trailing {
                 Text(trailing)
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
         }
     }

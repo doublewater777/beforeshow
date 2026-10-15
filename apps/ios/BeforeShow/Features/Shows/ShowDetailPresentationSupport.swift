@@ -30,16 +30,16 @@ struct ShowDetailExperienceTile: View {
         VStack(alignment: .leading, spacing: BSSpacing.xs) {
             Image(systemName: action.iconName)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
 
             Text(title)
                 .font(BSFont.V3.small.weight(.medium))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineLimit(1)
 
             Text(subtitle)
                 .font(BSFont.V3.caption)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }

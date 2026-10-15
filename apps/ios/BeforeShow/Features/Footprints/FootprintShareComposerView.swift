@@ -108,7 +108,7 @@ struct FootprintShareComposerView: View {
                             .tint(.white)
                         Text(BSLocalization.text("生成中…"))
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                     }
                 }
                 .ignoresSafeArea()
@@ -153,11 +153,11 @@ struct FootprintShareComposerView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(BSLocalization.text("选择画面"))
                     .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 Text("\(selected.count) / \(FootprintShareSelectionPolicy.maximumSelectionCount)")
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
 
             LazyVGrid(
@@ -175,7 +175,7 @@ struct FootprintShareComposerView: View {
 
             Text(selected.isEmpty ? BSLocalization.text("至少选择一个画面") : BSLocalization.text("成品会按记忆时间排列，票根与时刻表排在最后。"))
                 .font(BSFont.V3.caption)
-                .foregroundColor(selected.isEmpty ? BSColor.Stage.danger : BSColor.Stage.dim)
+                .foregroundStyle(selected.isEmpty ? BSColor.Stage.danger : BSColor.Stage.dim)
         }
     }
 
@@ -190,7 +190,7 @@ struct FootprintShareComposerView: View {
                             .scaledToFill()
                     } else {
                         BSColor.Stage.surface
-                            .overlay(Image(systemName: "photo").foregroundColor(BSColor.Stage.dim))
+                            .overlay(Image(systemName: "photo").foregroundStyle(BSColor.Stage.dim))
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -205,13 +205,13 @@ struct FootprintShareComposerView: View {
 
                 Text(material.title)
                     .font(BSFont.V3.caption.weight(.semibold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .padding(BSSpacing.sm)
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(BSFont.headline)
-                    .foregroundColor(
+                    .foregroundStyle(
                         isSelected ? BSColor.Stage.accent : FootprintShareComposerTokens.unselectedIndicator
                     )
                     .padding(BSSpacing.sm)
@@ -247,15 +247,15 @@ struct FootprintShareComposerView: View {
         HStack(alignment: .top, spacing: BSSpacing.compact) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(BSFont.caption.weight(.semibold))
-                .foregroundColor(BSColor.Accent.warm)
+                .foregroundStyle(BSColor.Accent.warm)
                 .padding(.top, BSSpacing.xs)
             VStack(alignment: .leading, spacing: 4) {
                 Text(BSLocalization.text("分享票根前请检查"))
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(BSLocalization.text("确认画面中没有二维码、订单号及其他个人信息。"))
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -275,7 +275,7 @@ struct FootprintShareComposerView: View {
         Button { renderAndShare() } label: {
             Label(BSLocalization.text("分享图片"), systemImage: "square.and.arrow.up")
                 .font(BSFont.caption.weight(.semibold))
-                .foregroundColor(canShare ? BSColor.Stage.background : BSColor.Stage.dim)
+                .foregroundStyle(canShare ? BSColor.Stage.background : BSColor.Stage.dim)
                 .frame(maxWidth: .infinity)
                 .frame(height: FootprintShareComposerTokens.actionHeight)
                 .background(

@@ -31,14 +31,14 @@ struct FootprintVenueArchiveView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(BSLocalization.format("全部场馆 · %lld", items.count))
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 HStack(spacing: 4) {
                     Text(BSLocalization.text("场次"))
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .semibold))
                 }
                 .font(.system(size: 11))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
             }
             .padding(.top, 8)
             .accessibilityElement(children: .combine)
@@ -62,7 +62,7 @@ struct FootprintVenueArchiveView: View {
                 Text(BSLocalization.text("仅统计你有观演记录的场馆"))
                     .font(.system(size: 11))
             }
-            .foregroundColor(BSColor.Stage.dim)
+            .foregroundStyle(BSColor.Stage.dim)
             .frame(maxWidth: .infinity)
             .padding(.top, 8)
             .accessibilityElement(children: .combine)
@@ -88,7 +88,7 @@ struct FootprintVenueArchiveView: View {
                         .font(.system(size: 9, weight: .bold))
                         .tracking(0.6)
                 }
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Color.black.opacity(0.28), in: Capsule())
@@ -96,7 +96,7 @@ struct FootprintVenueArchiveView: View {
 
                 Text(item.name)
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(2)
 
                 if let city = item.cities.first, !city.isEmpty {
@@ -107,21 +107,21 @@ struct FootprintVenueArchiveView: View {
                             .lineLimit(1)
                     }
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("\(item.count)")
                         .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                     Text(BSLocalization.text("场现场"))
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
 
                 Text(BSLocalization.format("占全部现场的 %lld%%", percentage(item.count)))
                     .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
 
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
@@ -129,7 +129,7 @@ struct FootprintVenueArchiveView: View {
                     Text(BSLocalization.format("最近到访 %@", latestVisitText(for: item)))
                 }
                 .font(.system(size: 11))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
             }
 
             Spacer(minLength: 0)
@@ -167,16 +167,16 @@ struct FootprintVenueArchiveView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(item.name)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(2)
                 Text(venueMetaText(for: item))
                     .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .lineLimit(1)
                 if item.id == mostRecentVenueID {
                     Text(BSLocalization.text("最近到访"))
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
@@ -188,7 +188,7 @@ struct FootprintVenueArchiveView: View {
 
             Text(BSLocalization.format("%lld 场", item.count))
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
 
             footprintRowChevron(isForExport: isForExport, size: 11, weight: .semibold)
         }
@@ -235,7 +235,7 @@ struct FootprintVenueCoverStack: View {
                     .overlay(
                         Image(systemName: "building.2")
                             .font(.system(size: 16))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     )
                     .frame(width: width, height: height)
             } else {

@@ -24,24 +24,24 @@ struct ProPaywallPlanSelectionView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(ProPaywallCopy.planName(plan))
                     .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .padding(.bottom, 9)
 
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(priceAmount(plan))
                         .font(.system(size: 21, weight: .semibold))
                         .kerning(-0.4)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
                     Text(ProPaywallCopy.periodLabel(plan))
                         .font(.system(size: 11))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                 }
 
                 Text(ProPaywallCopy.planNote(plan, product: product(plan)))
                     .font(.system(size: 10.5))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 5)
@@ -74,7 +74,7 @@ struct ProPaywallPlanSelectionView: View {
                 if plan == .yearly {
                     Text(BSLocalization.text("推荐"))
                         .font(.system(size: 9.5, weight: .bold))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(BSColor.Stage.surface)

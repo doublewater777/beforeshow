@@ -52,7 +52,7 @@ struct CompanionPairFootprintView: View {
                 if shows.isEmpty {
                     Text(BSLocalization.text("散场后，你们一起看过的现场会出现在这里。"))
                         .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(BSSpacing.lg)
                         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
@@ -100,18 +100,18 @@ struct CompanionPairFootprintView: View {
             Text(BSLocalization.text("TOGETHER"))
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.4)
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
 
             Text(BSLocalization.format("我和%@一起看过 %lld 场现场", companionName, Int64(shows.count)))
                 .font(BSFont.V3.title2)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: BSSpacing.sm) {
                 avatar(name: BSLocalization.text("我"), initial: BSLocalization.text("我"))
                 Image(systemName: "link")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                 avatar(name: companionName, initial: String(companionName.prefix(1)))
             }
             .padding(.top, BSSpacing.xs)
@@ -133,12 +133,12 @@ struct CompanionPairFootprintView: View {
         HStack(spacing: 7) {
             Text(initial)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(BSColor.Stage.background)
+                .foregroundStyle(BSColor.Stage.background)
                 .frame(width: 28, height: 28)
                 .background(BSColor.Stage.accent, in: Circle())
             Text(name)
                 .font(BSFont.caption.weight(.semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
@@ -149,18 +149,18 @@ struct CompanionPairFootprintView: View {
         HStack(spacing: BSSpacing.compact) {
             Image(systemName: "music.note")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .frame(width: 34, height: 34)
                 .background(BSColor.Stage.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(show.name)
                     .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
                 Text(relationshipShowMetadata(show))
                     .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
             }
 
@@ -168,7 +168,7 @@ struct CompanionPairFootprintView: View {
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
         }
         .padding(BSSpacing.compact)
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))

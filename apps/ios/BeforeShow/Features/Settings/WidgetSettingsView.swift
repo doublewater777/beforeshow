@@ -99,7 +99,7 @@ struct WidgetSettingsView: View {
             Text(BSLocalization.text("距离开场"))
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
 
             Spacer(minLength: BSSpacing.xs)
 
@@ -107,12 +107,12 @@ struct WidgetSettingsView: View {
                 Text("\(countdownDays)")
                     .font(.system(size: 56, weight: .semibold))
                     .tracking(-0.5)
-                    .foregroundColor(BSColor.Stage.heroIvory)
+                    .foregroundStyle(BSColor.Stage.heroIvory)
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
                 Text(BSLocalization.format("天（按天数）", countdownDays))
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
             .lineLimit(1)
 
@@ -121,11 +121,11 @@ struct WidgetSettingsView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(showTitle)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(2)
                 Text(showDateLine)
                     .font(.system(size: 10))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .lineLimit(1)
             }
         }
@@ -138,12 +138,12 @@ struct WidgetSettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(listeningTitle)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(2)
                     if let listeningSubtitle {
                         Text(listeningSubtitle)
                             .font(.system(size: 11))
-                            .foregroundColor(BSColor.Stage.foreground.opacity(0.7))
+                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
                             .lineLimit(1)
                     }
                 }
@@ -151,7 +151,7 @@ struct WidgetSettingsView: View {
 
                 Image(systemName: listening?.isPlaying == true ? "pause.fill" : "play.fill")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(BSColor.Stage.background)
+                    .foregroundStyle(BSColor.Stage.background)
                     .frame(width: 34, height: 34)
                     .background(BSColor.Stage.heroWarmGold, in: Circle())
             }
@@ -164,7 +164,7 @@ struct WidgetSettingsView: View {
         VStack(spacing: BSSpacing.sm) {
             Text("9:41")
                 .font(.system(size: 60, weight: .semibold, design: .rounded))
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.9))
 
             HStack(spacing: BSSpacing.md) {
                 Gauge(value: lockGaugeProgress) {
@@ -220,7 +220,7 @@ struct WidgetSettingsView: View {
                 if index > 0 {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .frame(height: 40)
                 }
 
@@ -228,7 +228,7 @@ struct WidgetSettingsView: View {
                     stepIcon(step.symbol)
                     Text(step.title)
                         .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -247,7 +247,7 @@ struct WidgetSettingsView: View {
         if let symbol {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .frame(width: 40, height: 40)
                 .background(BSColor.Stage.accent.opacity(0.12), in: Circle())
         } else {

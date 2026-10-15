@@ -40,13 +40,13 @@ struct FootprintSearchSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(BSLocalization.text("搜索与筛选")).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(BSLocalization.text("搜索与筛选")).font(.system(size: 21, weight: .semibold)).foregroundStyle(BSColor.Stage.foreground)
             Text(BSLocalization.text("从历史记录中快速找到某位艺人、城市、场馆或年份。"))
-                .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
+                .font(.system(size: 12.5)).foregroundStyle(BSColor.Stage.muted).padding(.top, 6)
 
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundColor(BSColor.Stage.muted)
-                TextField(BSLocalization.text("搜索足迹"), text: $query).foregroundColor(BSColor.Stage.foreground)
+                Image(systemName: "magnifyingglass").foregroundStyle(BSColor.Stage.muted)
+                TextField(BSLocalization.text("搜索足迹"), text: $query).foregroundStyle(BSColor.Stage.foreground)
             }
             .padding(.horizontal, 12).frame(height: 44)
             .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
@@ -58,7 +58,7 @@ struct FootprintSearchSheet: View {
                     ForEach(chips, id: \.self) { chip in
                         Button(chip.label) { filter = chip }
                             .font(.system(size: 11.5, weight: .medium))
-                            .foregroundColor(filter == chip ? BSColor.Stage.accent : BSColor.Stage.muted)
+                            .foregroundStyle(filter == chip ? BSColor.Stage.accent : BSColor.Stage.muted)
                             .padding(.horizontal, 11).padding(.vertical, 7)
                             .background(filter == chip ? BSColor.Stage.accent.opacity(0.07) : Color.white.opacity(0.03), in: Capsule())
                             .overlay(Capsule().stroke(filter == chip ? BSColor.Stage.accent.opacity(0.28) : BSColor.Stage.border))
@@ -74,9 +74,9 @@ struct FootprintSearchSheet: View {
                             HStack(spacing: 10) {
                                 FootprintResolvedCoverImage(show: show, cover: covers[show.id]).frame(width: 40, height: 52).clipShape(RoundedRectangle(cornerRadius: 9))
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(show.name).font(BSFont.caption).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+                                    Text(show.name).font(BSFont.caption).foregroundStyle(BSColor.Stage.foreground).lineLimit(1)
                                     Text("\([show.city, show.venueName].compactMap { $0 }.joined(separator: " · ")) · \(footprintDayText(show.effectiveDate, calendar: show.timingCalendar()))")
-                                        .font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted).lineLimit(1)
+                                        .font(.system(size: 11.5)).foregroundStyle(BSColor.Stage.muted).lineLimit(1)
                                 }
                                 Spacer()
                             }
@@ -89,13 +89,13 @@ struct FootprintSearchSheet: View {
                         VStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 28, weight: .light))
-                                .foregroundColor(BSColor.Stage.dim)
+                                .foregroundStyle(BSColor.Stage.dim)
                             Text(BSLocalization.text("未找到匹配的现场"))
                                 .font(BSFont.body)
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                             Text(BSLocalization.text("尝试更换关键词或年份、城市筛选"))
                                 .font(BSFont.caption)
-                                .foregroundColor(BSColor.Stage.dim)
+                                .foregroundStyle(BSColor.Stage.dim)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 36)
@@ -106,7 +106,7 @@ struct FootprintSearchSheet: View {
             .padding(.top, 8)
 
             Button(BSLocalization.text("完成")) { dismiss() }
-                .font(BSFont.caption).foregroundColor(BSColor.Stage.foreground)
+                .font(BSFont.caption).foregroundStyle(BSColor.Stage.foreground)
                 .frame(maxWidth: .infinity).frame(height: 45)
                 .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
                 .padding(.top, 12)

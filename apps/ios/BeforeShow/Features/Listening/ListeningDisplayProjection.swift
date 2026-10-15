@@ -906,20 +906,6 @@ extension ListeningRoomCoordinator {
         return mechanism.beginCabinetDrag(disc)
     }
 
-    func takePlayableDiscFromCabinet(_ disc: ListeningDisc) {
-        let discState = discPresentation(for: disc)
-        guard discState.canLoad else {
-            mechanism.notice = discState.statusText
-            return
-        }
-        mechanism.notice = nil
-        if mechanism.position != .stored {
-            loadPlayableDisc(disc)
-        } else {
-            mechanism.takeFromCabinet(disc)
-        }
-    }
-
     /// Once a manually inserted disc is seated, close the lid and start playback.
     func finalizeManualDiscInsertionIfNeeded() {
         guard !mechanism.isAutomatic,

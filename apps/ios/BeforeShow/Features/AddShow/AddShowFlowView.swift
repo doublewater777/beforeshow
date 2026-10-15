@@ -310,7 +310,7 @@ struct AddShowFlowView: View {
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 11, weight: .semibold))
                             }
-                            .foregroundColor(BSColor.Accent.prepare)
+                            .foregroundStyle(BSColor.Accent.prepare)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
                             .background(BSColor.Accent.prepare.opacity(0.10))
@@ -328,7 +328,7 @@ struct AddShowFlowView: View {
                         HStack(spacing: 8) {
                             Text("已识别来源")
                                 .font(.system(size: 12))
-                                .foregroundColor(BSColor.textTertiary)
+                                .foregroundStyle(BSColor.textTertiary)
 
                             HStack(spacing: 5) {
                                 Image(systemName: "checkmark")
@@ -336,7 +336,7 @@ struct AddShowFlowView: View {
                                 Text(detectedLinkSource)
                             }
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(BSColor.Accent.prepare)
+                            .foregroundStyle(BSColor.Accent.prepare)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
                             .background(BSColor.Accent.prepare.opacity(0.10))
@@ -370,7 +370,7 @@ struct AddShowFlowView: View {
 
                     Text(BSLocalization.format("目前支持：%@", ShowLinkPlatformCatalog.supportSummary))
                         .font(.system(size: 12))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Button {
@@ -385,11 +385,11 @@ struct AddShowFlowView: View {
                             Spacer(minLength: 0)
                             Text(BSLocalization.text("如何获取链接？"))
                                 .font(.system(size: 12))
-                                .foregroundColor(BSColor.textTertiary)
+                                .foregroundStyle(BSColor.textTertiary)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 11, weight: .semibold))
                         }
-                        .foregroundColor(BSColor.Accent.violet)
+                        .foregroundStyle(BSColor.Accent.violet)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: BSLayout.minTouchTarget)
                         .contentShape(Rectangle())
@@ -455,7 +455,7 @@ struct AddShowFlowView: View {
             if let saveBarStatus {
                 Text(saveBarStatus.text)
                     .font(.system(size: 12))
-                    .foregroundColor(saveBarStatus.tint)
+                    .foregroundStyle(saveBarStatus.tint)
                     .frame(maxWidth: .infinity)
             }
 
@@ -494,13 +494,13 @@ struct AddShowFlowView: View {
                     .fill(BSColor.Stage.accent.opacity(0.13))
                 Image(systemName: "sparkles")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
             }
             .frame(width: 26, height: 26)
 
             Text(BSLocalization.text("设为当前现场"))
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundStyle(BSColor.textPrimary)
 
             Spacer()
 

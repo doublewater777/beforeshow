@@ -31,7 +31,7 @@ struct CurrentShowHomeHeader: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(show.name)
                                 .font(.system(size: 15, weight: .heavy))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                                 .lineLimit(1)
                             statusChip(live)
                         }
@@ -43,7 +43,7 @@ struct CurrentShowHomeHeader: View {
                 Text(BSLocalization.text("当前"))
                     .font(.system(size: 32, weight: .bold))
                     .tracking(-0.5)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .transition(.opacity)
             }
 
@@ -74,7 +74,7 @@ struct CurrentShowHomeHeader: View {
         }
         .font(.system(size: 10.5, weight: .semibold))
         .tracking(0.6)
-        .foregroundColor(color == BSColor.Stage.live ? BSColor.Stage.liveTitle : color)
+        .foregroundStyle(color == BSColor.Stage.live ? BSColor.Stage.liveTitle : color)
         .padding(.horizontal, 9)
         .padding(.vertical, 4)
         .background(color.opacity(0.08), in: Capsule())
@@ -85,7 +85,7 @@ struct CurrentShowHomeHeader: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                 .background(Color.white.opacity(0.07), in: Circle())
                 .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))

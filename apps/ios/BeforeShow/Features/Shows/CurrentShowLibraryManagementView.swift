@@ -149,10 +149,10 @@ struct CurrentShowLibraryManagementView: View {
     private var searchField: some View {
         HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
             TextField("搜索艺人、城市或场馆", text: $searchText)
                 .font(.system(size: 13))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
         }
@@ -169,7 +169,7 @@ struct CurrentShowLibraryManagementView: View {
                 Button { filter = item } label: {
                     Text("\(BSLocalization.text(key: item.rawValue)) \(count(for: item, sections: sections))")
                         .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
-                        .foregroundColor(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
+                        .foregroundStyle(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
                         .frame(maxWidth: .infinity)
                         .frame(height: 38)
                         .background(filter == item ? Color.white.opacity(0.10) : .clear)
@@ -189,11 +189,11 @@ struct CurrentShowLibraryManagementView: View {
                 Text(section.title)
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(1.3)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                 Spacer()
                 Text(BSLocalization.format("%lld 场", section.shows.count))
                     .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
             .frame(height: BSSpacing.roomy)
             if layout == .covers {
@@ -475,7 +475,7 @@ struct CurrentShowLibraryManagementView: View {
             if visibleShows.isEmpty {
                 Image(systemName: "music.note.list")
                     .font(.system(size: 34, weight: .light))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                     .frame(width: 80, height: 80)
                     .background(Color.white.opacity(0.045), in: Circle())
                     .overlay(Circle().stroke(BSColor.Stage.border))
@@ -483,12 +483,12 @@ struct CurrentShowLibraryManagementView: View {
                 Text(BSLocalization.text("暂无现场演出"))
                     .font(BSFont.heroTitle)
                     .tracking(BSFont.titleTracking)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .multilineTextAlignment(.center)
 
                 Text(BSLocalization.text("把要去的音乐现场放进来，\n随时查看倒计时与专场信息。"))
                     .font(BSFont.body)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
                     .multilineTextAlignment(.center)
 
                 Button {
@@ -496,7 +496,7 @@ struct CurrentShowLibraryManagementView: View {
                 } label: {
                     Text(BSLocalization.text("添加现场"))
                         .font(.system(size: 14.5, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.background)
+                        .foregroundStyle(BSColor.Stage.background)
                         .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
                         .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
                         .contentShape(RoundedRectangle(cornerRadius: 16))
@@ -505,33 +505,33 @@ struct CurrentShowLibraryManagementView: View {
             } else if isSearching {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 32, weight: .light))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .frame(width: 72, height: 72)
                     .background(Color.white.opacity(0.04), in: Circle())
                     .overlay(Circle().stroke(BSColor.Stage.border))
 
                 Text(BSLocalization.text("未找到相关现场"))
                     .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
 
                 Text(BSLocalization.text("尝试更换搜索词或切换筛选分类"))
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             } else {
                 Image(systemName: filterEmptyIcon)
                     .font(.system(size: 32, weight: .light))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .frame(width: 72, height: 72)
                     .background(Color.white.opacity(0.04), in: Circle())
                     .overlay(Circle().stroke(BSColor.Stage.border))
 
                 Text(filterEmptyTitle)
                     .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
 
                 Text(filterEmptySubtitle)
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
+                    .foregroundStyle(BSColor.Stage.muted)
             }
             Spacer(minLength: 40)
         }

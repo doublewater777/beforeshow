@@ -48,7 +48,7 @@ struct AddShowLinkGuideView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(BSColor.textTertiary)
+                            .foregroundStyle(BSColor.textTertiary)
                     }
                     .accessibilityLabel(BSLocalization.text("关闭"))
                 }
@@ -98,16 +98,16 @@ struct AddShowLinkGuideView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(platform.displayName)
                                         .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(BSColor.textPrimary)
+                                        .foregroundStyle(BSColor.textPrimary)
                                     Text(URL(string: platform.overviewURL)?.host() ?? platform.overviewURL)
                                         .font(.system(size: 11))
-                                        .foregroundColor(BSColor.textTertiary)
+                                        .foregroundStyle(BSColor.textTertiary)
                                         .lineLimit(1)
                                 }
                                 Spacer(minLength: 4)
                                 Image(systemName: "arrow.up.right")
                                     .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(BSColor.textTertiary.opacity(0.6))
+                                    .foregroundStyle(BSColor.textTertiary.opacity(0.6))
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
@@ -137,15 +137,15 @@ struct AddShowLinkGuideView: View {
             HStack(spacing: 12) {
                 Image(systemName: "questionmark.circle.fill")
                     .font(.system(size: 20))
-                    .foregroundColor(BSColor.Accent.violet)
+                    .foregroundStyle(BSColor.Accent.violet)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(BSLocalization.text("如何获取链接？"))
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
+                        .foregroundStyle(BSColor.textPrimary)
                     Text(BSLocalization.text("查看秀动示例教程（搜索、分享与拷贝）"))
                         .font(.system(size: 11))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                 }
 
                 Spacer(minLength: 4)
@@ -156,7 +156,7 @@ struct AddShowLinkGuideView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                 }
-                .foregroundColor(BSColor.Accent.violet)
+                .foregroundStyle(BSColor.Accent.violet)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)

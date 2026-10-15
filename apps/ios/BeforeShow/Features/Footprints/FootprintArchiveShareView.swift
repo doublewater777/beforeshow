@@ -89,17 +89,17 @@ struct FootprintArchiveShareCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
                 Text("BEFORESHOW · LIVE ARCHIVE")
-                    .font(.system(size: 9.5, weight: .medium)).tracking(1.65).foregroundColor(accent)
+                    .font(.system(size: 9.5, weight: .medium)).tracking(1.65).foregroundStyle(accent)
                 Spacer()
                 Text(FootprintArchiveShareCopy.chip(for: category))
-                    .font(.system(size: 9.5)).foregroundColor(BSColor.Stage.muted)
+                    .font(.system(size: 9.5)).foregroundStyle(BSColor.Stage.muted)
                     .padding(.horizontal, 8).padding(.vertical, 5)
                     .background(Color.white.opacity(0.045), in: Capsule())
                     .overlay(Capsule().stroke(Color.white.opacity(0.10)))
             }
 
             Text(FootprintArchiveShareCopy.kicker(for: category))
-                .font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundColor(accent)
+                .font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundStyle(accent)
                 .padding(.top, 23)
 
             if category == .overview {
@@ -113,7 +113,7 @@ struct FootprintArchiveShareCard: View {
                 Spacer()
                 Text(footprintFullDateText(Date(), calendar: Calendar.current))
             }
-            .font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim)
+            .font(.system(size: 9.5)).foregroundStyle(BSColor.Stage.dim)
             .padding(.top, 18)
         }
         .padding(20)
@@ -143,12 +143,12 @@ struct FootprintArchiveShareCard: View {
             Text("\(archive.shows.count)")
                 .font(.system(size: 61, weight: .ultraLight))
                 .foregroundStyle(LinearGradient(colors: [Color(red: 0.96, green: 0.94, blue: 0.89), accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-            Text(BSLocalization.text("场现场")).font(.system(size: 14)).foregroundColor(BSColor.Stage.muted)
+            Text(BSLocalization.text("场现场")).font(.system(size: 14)).foregroundStyle(BSColor.Stage.muted)
         }
         .padding(.top, 6)
 
         Text(BSLocalization.format("走过 %lld 座城市，留下 %lld 位艺人的现场记忆", archive.cities.count, archive.artists.count))
-            .font(.system(size: 11)).foregroundColor(BSColor.Stage.muted).lineSpacing(1.55)
+            .font(.system(size: 11)).foregroundStyle(BSColor.Stage.muted).lineSpacing(1.55)
             .padding(.top, 7)
 
         HStack(spacing: 7) {
@@ -186,16 +186,16 @@ struct FootprintArchiveShareCard: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .lastTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(label).font(.system(size: 10)).foregroundColor(BSColor.Stage.dim)
+                    Text(label).font(.system(size: 10)).foregroundStyle(BSColor.Stage.dim)
                     Text(top?.name ?? BSLocalization.text("还没有记录"))
-                        .font(.system(size: 24, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+                        .font(.system(size: 24, weight: .semibold)).foregroundStyle(BSColor.Stage.foreground).lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
                 Spacer(minLength: 0)
                 if let top {
                     HStack(alignment: .lastTextBaseline, spacing: 4) {
-                        Text("\(top.count)").font(.system(size: 42, weight: .ultraLight)).foregroundColor(accent)
-                        Text(BSLocalization.text("场")).font(.system(size: 10)).foregroundColor(BSColor.Stage.muted)
+                        Text("\(top.count)").font(.system(size: 42, weight: .ultraLight)).foregroundStyle(accent)
+                        Text(BSLocalization.text("场")).font(.system(size: 10)).foregroundStyle(BSColor.Stage.muted)
                     }
                 }
             }
@@ -213,7 +213,7 @@ struct FootprintArchiveShareCard: View {
                 Spacer()
                 Text(BSLocalization.format("%lld 场现场", archive.shows.count))
             }
-            .font(.system(size: 10)).foregroundColor(BSColor.Stage.dim)
+            .font(.system(size: 10)).foregroundStyle(BSColor.Stage.dim)
             .padding(.top, 16).padding(.bottom, 4)
         }
     }
@@ -224,8 +224,8 @@ struct FootprintArchiveShareCard: View {
 
     private func shareMetric(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(value).font(.system(size: 15, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1).minimumScaleFactor(0.72)
-            Text(label).font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim)
+            Text(value).font(.system(size: 15, weight: .semibold)).foregroundStyle(BSColor.Stage.foreground).lineLimit(1).minimumScaleFactor(0.72)
+            Text(label).font(.system(size: 9.5)).foregroundStyle(BSColor.Stage.dim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(9)
@@ -235,21 +235,21 @@ struct FootprintArchiveShareCard: View {
 
     private func shareFocus(_ label: String, item: FootprintRankItem?) -> some View {
         HStack(spacing: 9) {
-            Text(label).font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim).frame(width: 45, alignment: .leading)
-            Text(item?.name ?? BSLocalization.text("还没有记录")).font(.system(size: 11.5, weight: .medium)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+            Text(label).font(.system(size: 9.5)).foregroundStyle(BSColor.Stage.dim).frame(width: 45, alignment: .leading)
+            Text(item?.name ?? BSLocalization.text("还没有记录")).font(.system(size: 11.5, weight: .medium)).foregroundStyle(BSColor.Stage.foreground).lineLimit(1)
             Spacer(minLength: 0)
-            if let item { Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.muted) }
+            if let item { Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10.5)).foregroundStyle(BSColor.Stage.muted) }
         }
     }
 
     private func shareRank(index: Int, item: FootprintRankItem, maximum: Int) -> some View {
         HStack(spacing: 8) {
-            Text("\(index + 1)").font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim).frame(width: 17, alignment: .leading)
+            Text("\(index + 1)").font(.system(size: 9.5)).foregroundStyle(BSColor.Stage.dim).frame(width: 17, alignment: .leading)
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(item.name).font(.system(size: 11.5, weight: .medium)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+                    Text(item.name).font(.system(size: 11.5, weight: .medium)).foregroundStyle(BSColor.Stage.foreground).lineLimit(1)
                     Spacer(minLength: 0)
-                    Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10)).foregroundColor(BSColor.Stage.muted)
+                    Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10)).foregroundStyle(BSColor.Stage.muted)
                 }
                 GeometryReader { geometry in
                     Capsule().fill(Color.white.opacity(0.065)).overlay(alignment: .leading) {

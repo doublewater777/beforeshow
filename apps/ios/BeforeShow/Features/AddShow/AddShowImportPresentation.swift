@@ -127,14 +127,14 @@ struct AddShowMultilineInput: View {
             if text.isEmpty {
                 Text(placeholder)
                     .font(BSFont.body)
-                    .foregroundColor(BSColor.textTertiary.opacity(0.74))
+                    .foregroundStyle(BSColor.textTertiary.opacity(0.74))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
             }
 
             TextEditor(text: $text)
                 .font(BSFont.body)
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundStyle(BSColor.textPrimary)
                 .keyboardType(keyboardType)
                 .textInputAutocapitalization(.never)
                 .textContentType(keyboardType == .URL ? .URL : nil)
@@ -160,11 +160,11 @@ struct AddShowNoteCard: View {
         HStack(alignment: .top, spacing: BSSpacing.sm) {
             Image(systemName: iconName)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
                 .frame(width: 18, height: 18)
             Text(text)
                 .font(.system(size: 12, weight: .regular))
-                .foregroundColor(BSColor.textTertiary)
+                .foregroundStyle(BSColor.textTertiary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -192,17 +192,17 @@ struct AddShowLinkFailureCard: View {
                         .fill(BSColor.Accent.danger.opacity(0.14))
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.Accent.danger)
+                        .foregroundStyle(BSColor.Accent.danger)
                 }
                 .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(failure.title)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
+                        .foregroundStyle(BSColor.textPrimary)
                     Text(failure.message)
                         .font(.system(size: 12.5))
-                        .foregroundColor(BSColor.textTertiary)
+                        .foregroundStyle(BSColor.textTertiary)
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -212,7 +212,7 @@ struct AddShowLinkFailureCard: View {
                 Button(action: onRetry) {
                     Text(BSLocalization.text("换个链接重试"))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
+                        .foregroundStyle(BSColor.textPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                         .background(Color.white.opacity(0.07))
@@ -227,7 +227,7 @@ struct AddShowLinkFailureCard: View {
                 Button(action: onManual) {
                     Text(BSLocalization.text("改用手动填写"))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.accent)
+                        .foregroundStyle(BSColor.Stage.accent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                         .background(BSColor.Stage.accent.opacity(0.10))
@@ -242,7 +242,7 @@ struct AddShowLinkFailureCard: View {
 
             Label("已填写的内容会保留，不用重打", systemImage: "checkmark")
                 .font(.system(size: 11.5))
-                .foregroundColor(BSColor.Accent.prepare)
+                .foregroundStyle(BSColor.Accent.prepare)
         }
         .padding(16)
         .background(
@@ -274,11 +274,11 @@ struct AddShowImportedBanner: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(BSColor.Accent.prepare)
+                .foregroundStyle(BSColor.Accent.prepare)
 
             Text(BSLocalization.format("已从%@识别出信息，请核对；金色标出的还需补充。", sourceName))
                 .font(.system(size: 12.5))
-                .foregroundColor(Color(red: 0.79, green: 0.92, blue: 0.87))
+                .foregroundStyle(Color(red: 0.79, green: 0.92, blue: 0.87))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -319,7 +319,7 @@ struct AddShowOCRStepsView: View {
                         if step < activeStep {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(BSColor.Accent.prepare)
+                                .foregroundStyle(BSColor.Accent.prepare)
                         } else if step == activeStep {
                             ProgressView()
                                 .controlSize(.mini)
@@ -327,14 +327,14 @@ struct AddShowOCRStepsView: View {
                         } else {
                             Text("\(step)")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.dim)
+                                .foregroundStyle(BSColor.Stage.dim)
                         }
                     }
                     .frame(width: 26, height: 26)
 
                     Text(title)
                         .font(.system(size: 13, weight: step == activeStep ? .medium : .regular))
-                        .foregroundColor(stepForeground(for: step))
+                        .foregroundStyle(stepForeground(for: step))
                 }
                 .accessibilityElement(children: .combine)
             }

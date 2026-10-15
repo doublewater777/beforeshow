@@ -45,7 +45,7 @@ struct HomeLiveTimetableContent: View {
                     HomeLivePulse(reduceMotion: reduceMotion)
                     Text(BSLocalization.text("正在演出"))
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.liveTitle)
+                        .foregroundStyle(BSColor.Stage.liveTitle)
                 }
                 Spacer(minLength: 0)
                 stat(value: BSLocalization.format("%d 分钟", Int((lead.secondsUntilEnd / 60).rounded(.up))), label: BSLocalization.text("剩余"))
@@ -75,25 +75,25 @@ struct HomeLiveTimetableContent: View {
             Text(BSLocalization.text("同时在演"))
                 .font(.system(size: 11, weight: .semibold))
                 .tracking(0.6)
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
             ForEach(others) { perf in
                 Button {
                     mainID = perf.id
                 } label: {
                     HStack(spacing: 8) {
                         Circle().fill(BSColor.Stage.live.opacity(0.6)).frame(width: 5, height: 5)
-                        Text("\(perf.artistName)\(perf.isInterested ? Text("  \(Image(systemName: "heart.fill"))").font(.system(size: 10)).foregroundColor(BSColor.Stage.accent) : Text(""))")
+                        Text("\(perf.artistName)\(perf.isInterested ? Text("  \(Image(systemName: "heart.fill"))").font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent) : Text(""))")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.foreground.opacity(0.88))
+                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.88))
                             .lineLimit(1)
                         Spacer(minLength: 8)
                         Text(perf.stageName)
                             .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                             .lineLimit(1)
                         Image(systemName: "arrow.up.arrow.down")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                     .padding(.horizontal, 12)
                     .frame(minHeight: 40)
@@ -120,21 +120,21 @@ struct HomeLiveTimetableContent: View {
                         Text("\(minutes)")
                             .font(.system(size: 72, weight: .ultraLight))
                             .monospacedDigit()
-                            .foregroundColor(BSColor.Stage.heroWarmGold)
+                            .foregroundStyle(BSColor.Stage.heroWarmGold)
                             .padding(.vertical, -9)
                         Text(BSLocalization.text("分钟"))
                             .font(.system(size: 20, weight: .regular))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                     Text(BSLocalization.format("%@ 开演", clock(first.startsAt)))
                         .font(.system(size: 12.5, weight: .regular))
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                         .padding(.top, 10)
                 } else {
                     Text(clock(first.startsAt))
                         .font(.system(size: 64, weight: .thin))
                         .monospacedDigit()
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                 }
                 names(slot).padding(.top, 12)
                 meta(stages(slot), time: nil)
@@ -150,10 +150,10 @@ struct HomeLiveTimetableContent: View {
             Text(clock(first))
                 .font(.system(size: 64, weight: .thin))
                 .monospacedDigit()
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(BSLocalization.text("首场开演"))
                 .font(.system(size: 12.5, weight: .regular))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .padding(.top, 6)
             upcomingRows(Array(upcoming.prefix(2)))
         }
@@ -167,17 +167,17 @@ struct HomeLiveTimetableContent: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(FestivalDay.word(for: next, distance: FestivalDay.distance(from: Date(), to: next, calendar: .current), calendar: .current))
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                     Text(clock(next))
                         .font(.system(size: 44, weight: .light))
                         .monospacedDigit()
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                 }
             }
             if let opener = upcoming.first {
                 Text("\(opener.artistName) · \(opener.stageName)")
                     .font(.system(size: 12.5, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .padding(.top, 10)
             }
         }
@@ -190,12 +190,12 @@ struct HomeLiveTimetableContent: View {
         let joined = performances.enumerated().reduce(Text("")) { text, element in
             element.offset == 0
                 ? Text("\(text)\(element.element.artistName)")
-                : Text("\(text)\(Text(" ／ ").fontWeight(.light).foregroundColor(BSColor.Stage.accent))\(element.element.artistName)")
+                : Text("\(text)\(Text(" ／ ").fontWeight(.light).foregroundStyle(BSColor.Stage.accent))\(element.element.artistName)")
         }
         return joined
             .font(.system(size: 22, weight: .semibold))
             .tracking(-0.45)
-            .foregroundColor(BSColor.Stage.foreground)
+            .foregroundStyle(BSColor.Stage.foreground)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -203,7 +203,7 @@ struct HomeLiveTimetableContent: View {
         Text([stages, time].compactMap { $0 }.joined(separator: " · "))
             .font(.system(size: 12.5, weight: .regular))
             .monospacedDigit()
-            .foregroundColor(BSColor.Stage.muted)
+            .foregroundStyle(BSColor.Stage.muted)
             .padding(.top, 5)
     }
 
@@ -213,10 +213,10 @@ struct HomeLiveTimetableContent: View {
                 .font(.system(size: 22, weight: .semibold))
                 .monospacedDigit()
                 .tracking(-0.3)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(label)
                 .font(.system(size: 11, weight: .regular))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
         }
     }
 
@@ -241,26 +241,26 @@ struct HomeLiveTimetableContent: View {
             Text(clock(perf.startsAt))
                 .font(.system(size: 12.5, weight: .regular))
                 .monospacedDigit()
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
                 .frame(width: 44, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(perf.artistName)\(perf.isInterested ? Text("  \(Image(systemName: "heart.fill"))").font(.system(size: 10)).foregroundColor(BSColor.Stage.accent) : Text(""))")
+                Text("\(perf.artistName)\(perf.isInterested ? Text("  \(Image(systemName: "heart.fill"))").font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent) : Text(""))")
                     .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .fixedSize(horizontal: false, vertical: true)
                 if perf.isStartingSoon {
                     HStack(spacing: 5) {
                         Circle().strokeBorder(BSColor.Stage.live, lineWidth: 1.5).frame(width: 6, height: 6)
                         Text(BSLocalization.format("%d 分钟后", Int((perf.secondsUntilStart / 60).rounded(.up))))
                             .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.liveTitle)
+                            .foregroundStyle(BSColor.Stage.liveTitle)
                     }
                 }
             }
             Spacer(minLength: 8)
             Text(perf.stageName)
                 .font(.system(size: 12, weight: .regular))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .lineLimit(1)
         }
         .padding(.vertical, 9)

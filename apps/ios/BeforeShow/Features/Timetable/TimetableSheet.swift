@@ -221,7 +221,7 @@ struct TimetableSheet: View {
                             isAIImporting = false
                         } label: {
                             Image(systemName: "chevron.left")
-                                .foregroundColor(BSColor.textSecondary)
+                                .foregroundStyle(BSColor.textSecondary)
                         }
                         .accessibilityLabel(BSLocalization.text("返回"))
                     }
@@ -457,7 +457,7 @@ struct TimetableSheet: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .foregroundColor(BSColor.textSecondary)
+                .foregroundStyle(BSColor.textSecondary)
                 .frame(minWidth: 32, minHeight: 32)
         }
         .accessibilityLabel(BSLocalization.text("更多"))

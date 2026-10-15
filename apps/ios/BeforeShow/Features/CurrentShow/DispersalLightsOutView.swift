@@ -69,11 +69,11 @@ struct DispersalLightsOutOverlay: View {
                 Text("散场")
                     .font(.system(size: 42, weight: .light))
                     .tracking(5)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(BSLocalization.format("这是你的第 %lld 场现场", ordinal))
                     .font(.system(size: 13, weight: .medium))
                     .tracking(0.6)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
             }
             .padding(.horizontal, BSSpacing.lg)
             .opacity(DispersalLightsOutMotion.titleOpacity(progress: progress))

@@ -178,7 +178,7 @@ struct FootprintGeoMap: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .frame(width: 30, height: 30)
                 .background(BSColor.Stage.background.opacity(0.72), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(BSColor.Stage.border))
@@ -218,7 +218,7 @@ struct FootprintGeoMap: View {
                             .frame(width: 6, height: 6)
                         Text(item.name)
                             .font(.system(size: 7, weight: .medium))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                 }
             }
@@ -244,10 +244,10 @@ struct FootprintGeoMap: View {
                 .shadow(color: BSColor.Stage.accent.opacity(isPrimary ? 0.34 : 0.14), radius: isPrimary ? 11 : 5)
             Text(item.name)
                 .font(.system(size: isPrimary ? 8 : 7))
-                .foregroundColor(isPrimary ? BSColor.Stage.accent : BSColor.Stage.dim)
+                .foregroundStyle(isPrimary ? BSColor.Stage.accent : BSColor.Stage.dim)
             Text(BSLocalization.format("%lld 场", item.count))
                 .font(.system(size: 7))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.format("%@，%lld 场", item.name, item.count))
@@ -299,8 +299,8 @@ struct FootprintCityArchiveView: View {
     private func cityRow(_ item: FootprintCityArchiveItem, isForExport: Bool) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.name).font(BSFont.headline).foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.format("%lld 场 · %@", item.count, yearSpanText(item.yearSpan))).font(BSFont.V3.caption).foregroundColor(BSColor.Stage.muted)
+                Text(item.name).font(BSFont.headline).foregroundStyle(BSColor.Stage.foreground)
+                Text(BSLocalization.format("%lld 场 · %@", item.count, yearSpanText(item.yearSpan))).font(BSFont.V3.caption).foregroundStyle(BSColor.Stage.muted)
             }
             Spacer()
             footprintRowChevron(isForExport: isForExport)
@@ -336,13 +336,13 @@ struct FootprintCityDetailView: View {
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(String(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar()).suffix(2)))
                                 .font(.system(size: 17, weight: .medium))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                             Text(footprintEnhancementMonthAbbreviation(show.effectiveDate, calendar: show.timingCalendar()))
                                 .font(.system(size: 8))
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                             Text(String(show.timingCalendar().component(.year, from: show.effectiveDate)))
                                 .font(.system(size: 8))
-                                .foregroundColor(BSColor.Stage.dim)
+                                .foregroundStyle(BSColor.Stage.dim)
                         }
                         .frame(width: 42)
                         FootprintCoverView(show: show, cover: covers[show.id])
@@ -351,11 +351,11 @@ struct FootprintCityDetailView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(show.name)
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.foreground)
+                                .foregroundStyle(BSColor.Stage.foreground)
                                 .lineLimit(2)
                             Text(FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? item.name)
                                 .font(.system(size: 9))
-                                .foregroundColor(BSColor.Stage.muted)
+                                .foregroundStyle(BSColor.Stage.muted)
                                 .lineLimit(2)
                         }
                         Spacer(minLength: 0)
@@ -392,20 +392,20 @@ struct FootprintCityDetailView: View {
                         Text(BSLocalization.text("CITY ARCHIVE"))
                             .font(.system(size: 8, weight: .semibold))
                             .tracking(1.5)
-                            .foregroundColor(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.accent)
                         Text(item.name)
                             .font(.system(size: 38, weight: .regular))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                     }
                    Spacer()
                    VStack(alignment: .trailing, spacing: 7) {
                         Text("\(item.count)")
                            .font(.system(size: 44, weight: .ultraLight))
-                           .foregroundColor(BSColor.Stage.accent)
+                           .foregroundStyle(BSColor.Stage.accent)
                        Text(BSLocalization.text("场现场"))
                             .font(.system(size: 7))
                             .tracking(1)
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                 }
                 Spacer(minLength: 18)
@@ -413,16 +413,16 @@ struct FootprintCityDetailView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(BSLocalization.format("%lld 个场馆", item.venueCount))
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Text(item.yearSpan.displayText)
                             .font(.system(size: 9))
-                            .foregroundColor(BSColor.Stage.muted)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                     Spacer()
                     Text(BSLocalization.text("现场档案"))
                         .font(.system(size: 8, weight: .medium))
                         .tracking(1)
-                        .foregroundColor(BSColor.Stage.dim)
+                        .foregroundStyle(BSColor.Stage.dim)
                 }
             }
             .padding(18)

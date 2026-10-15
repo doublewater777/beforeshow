@@ -43,6 +43,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Swift / Xcode local state and build products
+apps/ios/build
 .build/
 .swiftpm/
 DerivedData*/

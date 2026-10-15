@@ -64,16 +64,16 @@ struct FootprintDashboardExportView: View {
             HStack(spacing: 5) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
                 Text("BEFORESHOW · LIVE ARCHIVE")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(1.8)
-                    .foregroundColor(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.accent)
             }
             Spacer()
             Text(BSLocalization.text("我的现场足迹"))
                 .font(.system(size: 10, weight: .medium))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
         }
         .padding(.horizontal, 20)
         .padding(.top, 24)
@@ -84,15 +84,15 @@ struct FootprintDashboardExportView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("BeforeShow 开场前")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(BSLocalization.text("走过的现场，慢慢长成你的档案"))
                     .font(.system(size: 9.5))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
             Spacer()
             Text(footprintFullDateText(Date(), calendar: Calendar.current))
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
         }
         .padding(.horizontal, 20)
         .padding(.top, 30)

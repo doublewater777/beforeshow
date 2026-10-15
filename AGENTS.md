@@ -1,6 +1,6 @@
 # AGENTS.md
 
-不用考虑兼容性，这个app还没有上线，不要大字号适配，不需要voice over
+App 已上线：持久化格式（SwiftData 模型、UserDefaults key、深链 URL、widget kind）需要兼容旧版本，删改 @Model 必须带迁移方案。不要大字号适配，不需要voice over
 
 临时文件、截图不要上传git，密钥不要上传git
 

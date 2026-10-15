@@ -17,10 +17,10 @@ struct MemoryTimelineSection: View {
                 Text(phase.title)
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(1.0)
-                    .foregroundColor(phaseTitleColor)
+                    .foregroundStyle(phaseTitleColor)
                 Text(BSLocalization.format("%lld 条", fragments.count))
                     .font(.system(size: 9.5))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                 Rectangle()
                     .fill(BSColor.Stage.border)
                     .frame(height: 1)
@@ -93,7 +93,7 @@ private struct MemoryTimelinePost: View {
                         Text(MemoryFragmentRelativeTime.format(fragment.createdAt, now: context.date))
                     }
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Spacer()
                     Menu {
                         Button("编辑记忆", action: onEdit)
@@ -101,7 +101,7 @@ private struct MemoryTimelinePost: View {
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                             .frame(width: 32, height: 28)
                     }
                     .accessibilityLabel("管理这条记忆")
@@ -121,7 +121,7 @@ private struct MemoryTimelinePost: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(fragment.text ?? "")
                 .font(.system(size: 14, design: .serif))
-                .foregroundColor(Color(red: 0.90, green: 0.91, blue: 0.93))
+                .foregroundStyle(Color(red: 0.90, green: 0.91, blue: 0.93))
                 .lineSpacing(7)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -140,7 +140,7 @@ private struct MemoryTimelinePost: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(text)
                         .font(.system(size: 13))
-                        .foregroundColor(Color(red: 0.90, green: 0.91, blue: 0.93))
+                        .foregroundStyle(Color(red: 0.90, green: 0.91, blue: 0.93))
                         .lineSpacing(5)
                 }
                 .padding(13)
@@ -212,7 +212,7 @@ struct MemoryThumbnail: View {
                 ZStack {
                     BSColor.Stage.surface
                     Image(systemName: "photo")
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
             }
         }

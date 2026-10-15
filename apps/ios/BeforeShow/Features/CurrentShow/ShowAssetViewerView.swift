@@ -39,14 +39,14 @@ struct ShowAssetViewerView: View {
                 if let disclaimer = kind.viewerDisclaimer {
                     Text(disclaimer)
                         .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(Color.white.opacity(0.45))
+                        .foregroundStyle(Color.white.opacity(0.45))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 8)
                 }
                 Text("双指缩放，拖动查看细节")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.55))
+                    .foregroundStyle(Color.white.opacity(0.55))
                     .padding(.bottom, 28)
             }
             .opacity(isChromeVisible ? 1 : 0)

@@ -48,10 +48,10 @@ struct ProEntitlementDebugPicker: View {
         VStack(alignment: .leading, spacing: BSSpacing.xs) {
             Text(BSLocalization.text("Pro 状态测试"))
                 .font(BSFont.V3.body.weight(.semibold))
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
             Text(BSLocalization.text("切换后立即生效，仅调试构建可见。"))
                 .font(BSFont.V3.small)
-                .foregroundColor(BSColor.Stage.muted)
+                .foregroundStyle(BSColor.Stage.muted)
 
             Picker(BSLocalization.text("Pro 状态"), selection: Binding(get: { selectedOption }, set: { selectedOption = $0 })) {
                 ForEach(DebugProEntitlementOption.allCases, id: \.self) { option in
@@ -89,7 +89,7 @@ struct DebugPrintPendingNotificationsRow: View {
             HStack(spacing: BSSpacing.compact) {
                 Image(systemName: "bell.badge")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
                     .background(Color.gray)
                     .clipShape(RoundedRectangle(cornerRadius: 7))
@@ -98,10 +98,10 @@ struct DebugPrintPendingNotificationsRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(BSLocalization.text("打印待发通知"))
                         .font(BSFont.V3.body)
-                        .foregroundColor(BSColor.Stage.foreground)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Text(BSLocalization.text("输出当前现场已排程的本地通知到控制台"))
                         .font(BSFont.V3.small)
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
 
                 Spacer()

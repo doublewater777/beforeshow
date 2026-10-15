@@ -47,7 +47,7 @@ struct HomeCountdownLockup: View {
                 Text(identity.title)
                     .font(.system(size: 22, weight: .semibold))
                     .tracking(-0.45)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
@@ -164,7 +164,7 @@ struct HomeCountdownLockup: View {
                 if dateText != nil, venueSummary != nil {
                     Text(" · ")
                         .font(.system(size: 12.5, weight: .regular))
-                        .foregroundColor(BSColor.Stage.muted)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
                 if let venueSummary {
                     locationControl(venueSummary, opensRoute: opensRoute)
@@ -176,7 +176,7 @@ struct HomeCountdownLockup: View {
     private func identityDateText(_ value: String) -> some View {
         Text(value)
             .font(.system(size: 12.5, weight: .regular))
-            .foregroundColor(BSColor.Stage.muted)
+            .foregroundStyle(BSColor.Stage.muted)
     }
 
     @ViewBuilder
@@ -185,11 +185,11 @@ struct HomeCountdownLockup: View {
             if opensRoute {
                 Image(systemName: "map")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent.opacity(0.85))
+                    .foregroundStyle(BSColor.Stage.accent.opacity(0.85))
             }
             Text(summary)
                 .font(.system(size: 12.5, weight: .regular))
-                .foregroundColor(opensRoute ? BSColor.Stage.foreground.opacity(0.78) : BSColor.Stage.muted)
+                .foregroundStyle(opensRoute ? BSColor.Stage.foreground.opacity(0.78) : BSColor.Stage.muted)
         }
 
         if opensRoute {
@@ -224,7 +224,7 @@ struct HomeCountdownLockup: View {
                 )
                     .font(.system(size: 10.5, weight: .semibold))
                     .tracking(0.65)
-                    .foregroundColor(statusColor(for: phase, timeState: timeState))
+                    .foregroundStyle(statusColor(for: phase, timeState: timeState))
                     .lineLimit(1)
             }
             .padding(.horizontal, 9)
@@ -245,7 +245,7 @@ struct HomeCountdownLockup: View {
                 Text(mode)
                     .font(.system(size: 9.5, weight: .semibold))
                     .tracking(1.45)
-                    .foregroundColor(modeLabelColor(for: phase))
+                    .foregroundStyle(modeLabelColor(for: phase))
                     .lineLimit(1)
             }
         }
@@ -332,17 +332,17 @@ struct HomeCountdownLockup: View {
                                 value: days
                             )
                             .lineLimit(1)
-                            .foregroundColor(BSColor.Stage.heroIvory)
+                            .foregroundStyle(BSColor.Stage.heroIvory)
                             // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
                             .padding(.vertical, -9)
                         Text(BSLocalization.format("天（按天数）", days))
                             .font(.system(size: 20, weight: .regular))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                     }
                     if timeState.isDatedPostponement {
                         Text(BSLocalization.format("原定 %@", Self.originalDateText(for: show, calendar: show.timingCalendar())))
                             .font(.system(size: 12.5, weight: .regular))
-                            .foregroundColor(BSColor.Stage.dim)
+                            .foregroundStyle(BSColor.Stage.dim)
                             .padding(.top, 10)
                     }
                 }
@@ -364,7 +364,7 @@ struct HomeCountdownLockup: View {
             Text("--")
                 .font(.system(size: clockNumber, weight: .thin))
                 .monospacedDigit()
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
         }
     }
 
@@ -378,7 +378,7 @@ struct HomeCountdownLockup: View {
 
                 Text(BSLocalization.text("正在现场"))
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.liveTitle)
+                    .foregroundStyle(BSColor.Stage.liveTitle)
             }
 
             Spacer(minLength: 0)
@@ -394,10 +394,10 @@ struct HomeCountdownLockup: View {
                         value: elapsed
                     )
                     .tracking(-0.3)
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundStyle(BSColor.Stage.foreground)
                 Text(BSLocalization.text("已开场"))
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
             }
         }
         .padding(.vertical, 4)
@@ -424,7 +424,7 @@ struct HomeCountdownLockup: View {
         return Button(action: primaryActionHandler(action)) {
             Text(action.title)
                 .font(.system(size: 13.5, weight: .semibold))
-                .foregroundColor(action.usesLiveTint ? BSColor.Stage.liveTitle : BSColor.Stage.accent)
+                .foregroundStyle(action.usesLiveTint ? BSColor.Stage.liveTitle : BSColor.Stage.accent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(tint.opacity(0.10))
@@ -443,7 +443,7 @@ struct HomeCountdownLockup: View {
         Button(action: action) {
             Text(BSLocalization.text("完整时刻表"))
                 .font(.system(size: 13.5, weight: .semibold))
-                .foregroundColor(BSColor.Stage.accent)
+                .foregroundStyle(BSColor.Stage.accent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(BSColor.Stage.accent.opacity(0.10))
@@ -472,7 +472,7 @@ struct HomeCountdownLockup: View {
             Text(isDayEnded ? BSLocalization.text("今天结束了") : BSLocalization.text("这一场结束了"))
                 .font(.system(size: 44, weight: .light))
                 .tracking(1)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
             if isDayEnded {
                 let copy: String = {
@@ -492,7 +492,7 @@ struct HomeCountdownLockup: View {
                 }()
                 Text(copy)
                     .font(.system(size: 12.5, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundStyle(BSColor.Stage.dim)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 10)
@@ -505,7 +505,7 @@ struct HomeCountdownLockup: View {
             Text(BSLocalization.text("这场已经结束了吗？"))
                 .font(.system(size: 30, weight: .light))
                 .tracking(-0.5)
-                .foregroundColor(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground)
 
         }
     }
@@ -518,11 +518,11 @@ struct HomeCountdownLockup: View {
             Text(canceled ? BSLocalization.text("这场取消了") : BSLocalization.text("还在等新的日期"))
                 .font(.system(size: 44, weight: .light))
                 .tracking(1)
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
 
             Text(canceled ? BSLocalization.text("现场资料还帮你留着") : BSLocalization.text("新日期确定后，会继续倒数"))
                 .font(.system(size: 12.5, weight: .regular))
-                .foregroundColor(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.dim)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 10)
