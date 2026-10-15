@@ -403,7 +403,7 @@ private struct CDPlayerControlsView: View {
                 .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
                 .accessibilityLabel(BSLocalization.text(
-                    control == .playPause
+                    key: control == .playPause
                         ? (playerPresentation.showsPauseControl ? "暂停" : "播放")
                         : control.label
                 ))

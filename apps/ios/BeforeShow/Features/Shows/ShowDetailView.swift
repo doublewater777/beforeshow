@@ -444,7 +444,7 @@ struct ShowDetailView: View {
                 } label: {
                     ShowDetailExperienceTile(
                         action: .memoryFragments,
-                        title: BSLocalization.text(ShowDetailExperienceAction.memoryFragments.rawValue),
+                        title: BSLocalization.text(key: ShowDetailExperienceAction.memoryFragments.rawValue),
                         subtitle: memoryFragmentsSubtitle
                     )
                 }

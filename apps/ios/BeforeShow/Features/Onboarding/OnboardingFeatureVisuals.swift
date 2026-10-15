@@ -176,7 +176,7 @@ struct OnboardingTimetableFeatureVisual: View {
                     Text(row.0)
                         .foregroundColor(Color.black.opacity(0.48))
                         .frame(width: 38, alignment: .leading)
-                    Text(BSLocalization.text(row.1))
+                    Text(BSLocalization.text(key: row.1))
                         .fontWeight(.semibold)
                 }
                 .font(.system(size: 9))

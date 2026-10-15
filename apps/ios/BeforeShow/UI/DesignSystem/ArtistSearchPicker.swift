@@ -28,8 +28,8 @@ struct ArtistSearchPicker: View {
             if let failure {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        Text(BSLocalization.text(failure.title))
-                        Text(BSLocalization.text(failure.detail))
+                        Text(BSLocalization.text(key: failure.title))
+                        Text(BSLocalization.text(key: failure.detail))
                     }
                     .foregroundStyle(BSColor.textTertiary)
                     Spacer()

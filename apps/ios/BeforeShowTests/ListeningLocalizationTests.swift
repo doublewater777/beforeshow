@@ -17,15 +17,14 @@ final class ListeningLocalizationTests: XCTestCase {
                 for match in regex.matches(in: source, range: NSRange(location: 0, length: ns.length)) { keys.insert(ns.substring(with: match.range(at: 1))) }
             }
         }
+        let catalog = try StringCatalog("Localizable")
         for locale in ["zh-Hans", "zh-Hant", "en"] {
-            let data = try Data(contentsOf: root.appendingPathComponent("Resources/\(locale).lproj/Localizable.strings"))
-            let values = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String])
+            let values = catalog.table(locale)
             for key in keys { XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)") }
         }
     }
 
     func testListeningCapabilityProjectionCopyExistsInThreeLanguages() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
         let keys: Set<String> = [
             "正在准备…", "完整播放", "试听模式", "仅歌曲信息", "暂不可播放",
             "立即授权", "打开设置", "重试", "试听", "部分曲目可试听", "30 秒试听",
@@ -49,9 +48,9 @@ final class ListeningLocalizationTests: XCTestCase {
             "选一场现场，", "听听即将相遇的音乐。", "添加一场想去的现场，", "唱片就从这里开始。", "选择对应的 Apple Music 艺人", "连接 %@", "正在搜索艺人…", "换个名字搜索", "清除搜索", "装入并试听", "%@ 等 %d 位艺人"
         ]
 
+        let catalog = try StringCatalog("Listening")
         for locale in ["zh-Hans", "zh-Hant", "en"] {
-            let data = try Data(contentsOf: root.appendingPathComponent("Resources/\(locale).lproj/Listening.strings"))
-            let values = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String])
+            let values = catalog.table(locale)
             XCTAssertEqual(Set(values.keys), keys)
             for key in keys {
                 XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)")

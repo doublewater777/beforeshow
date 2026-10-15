@@ -70,7 +70,7 @@ struct CurrentShowLibraryCoverCard: View {
                 Button(role: action.isDestructive ? .destructive : nil) {
                     onAction(action)
                 } label: {
-                    Label(BSLocalization.text(action.rawValue), systemImage: action.icon)
+                    Label(BSLocalization.text(key: action.rawValue), systemImage: action.icon)
                 }
             }
         }
@@ -137,7 +137,7 @@ struct CurrentShowLibraryRow: View {
                     Button(role: action.isDestructive ? .destructive : nil) {
                         onAction(action)
                     } label: {
-                        Label(BSLocalization.text(action.rawValue), systemImage: action.icon)
+                        Label(BSLocalization.text(key: action.rawValue), systemImage: action.icon)
                     }
                 }
             } label: {

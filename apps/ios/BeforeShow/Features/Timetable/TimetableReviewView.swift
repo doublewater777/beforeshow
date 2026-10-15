@@ -41,7 +41,7 @@ struct TimetableReviewView: View {
                 TimetableReviewExitNotice(onContinue: { isConfirmingExit = false }, onDiscard: onCancel)
             }
             if let error = session.saveError, session.errorPerformanceID == nil, session.errorStageID == nil {
-                Text(BSLocalization.text(TimetableReviewIssues.message(for: error)))
+                Text(BSLocalization.text(key: TimetableReviewIssues.message(for: error)))
                     .font(BSFont.caption)
                     .foregroundStyle(TimetableStyle.attention)
                     .padding(BSSpacing.compact)

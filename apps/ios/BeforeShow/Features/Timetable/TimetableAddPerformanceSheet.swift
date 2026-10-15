@@ -270,7 +270,7 @@ struct TimetableAddPerformanceSheet: View {
 
             if TimetablePreviewPlayer.shared.failedPerformanceID == previewSessionID,
                let message = TimetablePreviewPlayer.shared.failureMessage {
-                Text(BSLocalization.text(message))
+                Text(BSLocalization.text(key: message))
                     .font(.system(size: 12))
                     .foregroundStyle(TimetableStyle.muted)
             }

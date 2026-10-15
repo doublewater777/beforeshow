@@ -167,7 +167,7 @@ struct CurrentShowLibraryManagementView: View {
         HStack(spacing: 4) {
             ForEach(CurrentShowLibraryFilter.allCases) { item in
                 Button { filter = item } label: {
-                    Text("\(BSLocalization.text(item.rawValue)) \(count(for: item, sections: sections))")
+                    Text("\(BSLocalization.text(key: item.rawValue)) \(count(for: item, sections: sections))")
                         .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
                         .foregroundColor(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
                         .frame(maxWidth: .infinity)

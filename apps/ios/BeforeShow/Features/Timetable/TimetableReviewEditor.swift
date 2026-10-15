@@ -36,7 +36,7 @@ struct TimetableReviewEditor: View {
             TimetableArtistConnectionView(performance: $performance, linker: artistLinker, onRevealSearch: onRevealArtistSearch)
 
             if let error = inlineError {
-                Text(BSLocalization.text(error))
+                Text(BSLocalization.text(key: error))
                     .font(BSFont.caption)
                     .foregroundStyle(TimetableStyle.attention)
             }

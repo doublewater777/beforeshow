@@ -253,7 +253,7 @@ final class TimetableManagementCoordinator: ObservableObject {
         do {
             _ = try draft.buildTimetable()
         } catch let error as TimetableValidationError {
-            presentToast(.failure, message: BSLocalization.text(TimetableReviewIssues.message(for: error)))
+            presentToast(.failure, message: BSLocalization.text(key: TimetableReviewIssues.message(for: error)))
             return false
         } catch {
             return false
@@ -363,7 +363,7 @@ final class TimetableManagementCoordinator: ObservableObject {
             case .overlappingDays: message = "结束时间与下一天的演出重叠"
             default: message = "修改失败，请重试"
             }
-            dayManagementError = BSLocalization.text(message)
+            dayManagementError = BSLocalization.text(key: message)
             return false
         }
     }

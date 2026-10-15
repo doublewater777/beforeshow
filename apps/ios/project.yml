@@ -27,6 +27,8 @@ settings:
     CODE_SIGN_STYLE: Automatic
     CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: true
     STRING_CATALOG_GENERATE_SYMBOLS: true
+    LOCALIZATION_PREFERS_STRING_CATALOGS: true
+    SWIFT_EMIT_LOC_STRINGS: true
 targets:
   BeforeShow:
     type: application

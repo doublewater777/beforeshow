@@ -7,5 +7,5 @@ enum SettingsEntry: String, CaseIterable, Equatable {
     case rateApp = "评价此应用"
     case about = "关于开场前"
 
-    var displayTitle: String { BSLocalization.text(rawValue) }
+    var displayTitle: String { BSLocalization.text(key: rawValue) }
 }
