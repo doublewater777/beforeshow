@@ -2,9 +2,12 @@ import SwiftUI
 
 /// Top bar of the current tab. In live mode the large "当前" title gives way to
 /// the show's identity: the cover, collapsed to a 3:4 thumbnail, plus its status.
+/// Tapping it expands the cover back; while the show is still live, the status chip
+/// beside "当前" returns to live mode.
 struct CurrentShowHomeHeader: View {
     let show: Show
     let live: LiveModeState?
+    let isLiveLayout: Bool
     let coverNamespace: Namespace.ID
     let onToggleCover: () -> Void
     let onOpenSettings: () -> Void
@@ -12,7 +15,7 @@ struct CurrentShowHomeHeader: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let live {
+            if let live, isLiveLayout {
                 Button(action: onToggleCover) {
                     HStack(spacing: 12) {
                         ShowCoverImageView(
@@ -45,6 +48,16 @@ struct CurrentShowHomeHeader: View {
                     .tracking(-0.5)
                     .foregroundStyle(BSColor.Stage.foreground)
                     .transition(.opacity)
+
+                if let live {
+                    Button(action: onToggleCover) {
+                        statusChip(live)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .contentShape(Rectangle())
+                    .transition(.opacity)
+                }
             }
 
             Spacer(minLength: 0)

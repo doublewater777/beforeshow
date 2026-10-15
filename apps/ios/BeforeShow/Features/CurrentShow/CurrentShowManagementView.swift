@@ -469,7 +469,8 @@ struct CurrentShowManagementSection: View {
 
             CurrentShowHomeHeader(
                 show: show,
-                live: isLiveLayout ? liveState : nil,
+                live: liveState,
+                isLiveLayout: isLiveLayout,
                 coverNamespace: coverNamespace,
                 onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { prefersExpandedCover.toggle() } },
                 onOpenSettings: onOpenSettings,
