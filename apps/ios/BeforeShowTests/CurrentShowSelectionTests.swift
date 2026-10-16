@@ -314,6 +314,80 @@ final class CurrentShowSelectionTests: XCTestCase {
         )
     }
 
+    func testAutomaticFestivalSurvivesMidnightUntilAnotherShowActuallyStarts() throws {
+        for hasTimetable in [false, true] {
+            let festival = try Show(
+                name: "多日音乐节",
+                date: makeDate(year: 2026, month: 6, day: 15, hour: 0),
+                startTime: makeDate(year: 2026, month: 6, day: 15, hour: 14),
+                endDate: makeDate(year: 2026, month: 6, day: 17, hour: 0),
+                endTime: makeDate(year: 2026, month: 6, day: 17, hour: 22),
+                timeZoneIdentifier: "UTC"
+            )
+            if hasTimetable {
+                let days = try [15, 17].map { day in
+                    try TimetableDay(
+                        date: makeDate(year: 2026, month: 6, day: day, hour: 0),
+                        stages: [TimetableStage(name: "主舞台", performances: [
+                            TimetablePerformance(
+                                artistName: "演出艺人",
+                                startsAt: makeDate(year: 2026, month: 6, day: day, hour: 14),
+                                endsAt: makeDate(year: 2026, month: 6, day: day, hour: 22)
+                            )
+                        ])]
+                    )
+                }
+                festival.timetable = try Timetable(timeZoneIdentifier: "UTC", days: days)
+            }
+            let other = try Show(
+                name: "另一场",
+                date: makeDate(year: 2026, month: 6, day: 17, hour: 0),
+                startTime: makeDate(year: 2026, month: 6, day: 17, hour: 10),
+                endTime: makeDate(year: 2026, month: 6, day: 17, hour: 12),
+                timeZoneIdentifier: "UTC"
+            )
+            let policy = InitialCurrentShowPolicy(calendar: calendar)
+            let beforeOpening = [
+                makeDate(year: 2026, month: 6, day: 15, hour: 23),
+                makeDate(year: 2026, month: 6, day: 16, hour: 12),
+                makeDate(year: 2026, month: 6, day: 17, hour: 0),
+                makeDate(year: 2026, month: 6, day: 17, hour: 9)
+            ]
+            for instant in beforeOpening {
+                XCTAssertEqual(
+                    policy.candidate(from: [other, festival], retaining: festival.id, now: instant)?.id,
+                    festival.id,
+                    "Retain the festival between sessions (timetable: \(hasTimetable), time: \(instant))"
+                )
+            }
+            XCTAssertEqual(
+                policy.candidate(
+                    from: [other, festival], retaining: festival.id,
+                    now: makeDate(year: 2026, month: 6, day: 17, hour: 10)
+                )?.id,
+                other.id
+            )
+        }
+    }
+
+    func testAutomaticCurrentShowSurvivesUndatedPostponement() throws {
+        let current = try makeShow(name: "原当前现场", day: 16)
+        let other = try makeShow(name: "另一场", day: 20)
+        let policy = InitialCurrentShowPolicy(calendar: calendar)
+        let selectedID = try XCTUnwrap(policy.candidate(from: [other, current], now: now)?.id)
+        current.markPostponed(newDate: nil)
+
+        XCTAssertEqual(
+            policy.candidate(from: [other, current], retaining: selectedID, now: now)?.id,
+            current.id
+        )
+        XCTAssertEqual(
+            policy.candidate(from: [other, current], now: now)?.id,
+            other.id,
+            "An unselected undated postponed show must not become a new candidate"
+        )
+    }
+
     func testAutomaticSelectionExcludesHistoricalCanceledAndUndatedPostponed() throws {
         let historical = try makeShow(name: "补录", day: 14)
         historical.markAddedAsHistorical()

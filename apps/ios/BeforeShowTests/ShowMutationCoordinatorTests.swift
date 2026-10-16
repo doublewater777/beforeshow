@@ -413,7 +413,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
         XCTAssertEqual(updatedSelection.selectedShowID, added.id)
-        XCTAssertEqual(result.outcome, .current)
+        XCTAssertEqual(result.outcome, .future, "An automatically selected upcoming show is still a future addition")
     }
 
     @MainActor

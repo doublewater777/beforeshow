@@ -65,6 +65,13 @@ struct InitialCurrentShowPolicy {
         retaining selectedShowID: UUID? = nil,
         now: Date = Date()
     ) -> Show? {
+        // ADR 0030: keep the current show available for listening while its new date is unknown.
+        if let retained = shows.first(where: { $0.id == selectedShowID }),
+           retained.wasAddedAsHistorical != true,
+           retained.changeStatus == .postponed, retained.postponedDate == nil {
+            return retained
+        }
+
         let projected = shows.compactMap { show -> (show: Show, state: CurrentShowTimeState)? in
             guard show.wasAddedAsHistorical != true,
                   show.changeStatus != .canceled,
@@ -98,9 +105,19 @@ struct InitialCurrentShowPolicy {
 
         // The festival stays current between days, and the post-show experience
         // stays for up to three days unless another show is actually live.
-        if let retained,
-           retained.state.kind == .dayEnded || retained.state.kind == .postShow {
-            return retained.show
+        if let retained {
+            if retained.state.kind == .dayEnded || retained.state.kind == .postShow {
+                return retained.show
+            }
+            // The next session's date is .today even before its doors open.
+            // Use the first session to distinguish that break from a show yet to begin.
+            if retained.state.kind == .today {
+                let timing = retained.show.timingFields
+                let eventCalendar = timing.eventCalendar(fallback: calendar)
+                let firstStart = timing.resolvedSessions(calendar: eventCalendar).first?.startsAt
+                    ?? CurrentShowTimeState.effectiveStartTime(timing: timing, calendar: eventCalendar)
+                if firstStart <= now { return retained.show }
+            }
         }
 
         let future = projected.filter {
