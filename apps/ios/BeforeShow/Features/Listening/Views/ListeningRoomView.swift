@@ -32,8 +32,10 @@ struct ListenRootView: View {
     }
 
     private var show: Show? {
-        let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
-        return shows.first { $0.id == id }
+        CurrentShowSession().selectCurrentShow(
+            from: shows,
+            manualSelection: CurrentShowSelectionStore.canonical(in: selections)
+        )
     }
 
     /// Only Current Show identity owns the root loading task. Artist identity

@@ -78,7 +78,6 @@ enum AddShowPersistenceCoordinator {
     static func persist(
         _ show: Show,
         lifecycle: AddShowFinalLifecycle,
-        setAsCurrent: Bool = false,
         selections _: [CurrentShowSelection] = [],
         notificationStates _: [NotificationSchedulingState] = [],
         in modelContext: ModelContext,
@@ -92,47 +91,32 @@ enum AddShowPersistenceCoordinator {
         }
 
         let selectionStore = CurrentShowSelectionStore(modelContext: modelContext)
-        let existingSelection = try selectionStore.canonicalSelection()
-        let existingCurrent = CurrentShowSession().selectCurrentShow(
-            from: persistedShows,
-            manualSelection: existingSelection,
-            now: now
-        )
-
         modelContext.insert(show)
 
-        let outcome: AddShowSaveOutcome
         let notificationState: NotificationSchedulingState?
         switch lifecycle {
         case .ended:
-            // Historical shows still belong to Footprints, but Current Show is a
-            // durable user-owned selection rather than a lifecycle filter. When
-            // there is no valid Current yet, let the newly added historical show
-            // bootstrap it; otherwise never steal the existing selection.
-            if setAsCurrent || existingCurrent == nil {
-                _ = try selectionStore.select(showID: show.id)
-            }
-
-            if show.endedAt == nil {
-                show.markAddedAsHistorical()
-                outcome = .footprint
-                notificationState = nil
-            } else {
-                // A confirmed ended import can still own a future after-show reminder.
-                notificationState = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
-                outcome = .footprint
-            }
-
+            // A show imported through the historical path cannot take over Current,
+            // even when the user supplied an actual end time.
+            show.markAddedAsHistorical()
+            notificationState = show.endedAt == nil
+                ? nil
+                : try NotificationSchedulingStateStore.canonicalize(in: modelContext)
         case .future, .live:
-            let becameCurrent = setAsCurrent || (existingCurrent == nil)
-            if becameCurrent {
-                _ = try selectionStore.select(showID: show.id)
-            }
-
-            // Every newly added upcoming/live show gets its own notification nodes.
             notificationState = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
-            outcome = setAsCurrent ? .current : (lifecycle == .live && becameCurrent ? .current : .future)
         }
+
+        // Historical imports must never become the automatic Current Show.
+        // Reconcile the complete portfolio so an earlier show can replace an
+        // automatic upcoming selection, but not a manual one.
+        let availableShows = try modelContext.fetch(FetchDescriptor<Show>())
+        let selection = try selectionStore.bootstrapIfNeeded(shows: availableShows, now: now)
+        let resolved = CurrentShowSession().selectCurrentShow(
+            from: availableShows, manualSelection: selection, now: now
+        )
+        let outcome: AddShowSaveOutcome = lifecycle == .ended
+            ? .footprint
+            : (lifecycle == .live && resolved?.id == show.id ? .current : .future)
 
         let committedState: CurrentShowCommittedState
         do {

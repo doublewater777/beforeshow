@@ -379,28 +379,29 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
         XCTAssertEqual(selection.selectedShowID, show.id)
+        XCTAssertEqual(selection.isManual, false)
+        XCTAssertEqual(selection.selectionPolicyVersion, 2)
         XCTAssertNotNil(result.notificationState)
         XCTAssertEqual(result.outcome, .future)
     }
 
     @MainActor
-    func testAddShowWithSetAsCurrentOverridesExistingSelection() async throws {
+    func testAutoEarlierShowReplacesAutomaticSelection() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
         let currentDate = now.addingTimeInterval(3 * 86_400)
         let addedDate = now.addingTimeInterval(86_400)
         let current = try Show(name: "旧现场", date: currentDate, startTime: currentDate)
-        let selection = CurrentShowSelection(selectedShowID: current.id)
+        let selection = CurrentShowSelection(selectedShowID: current.id, isManual: false)
         context.insert(current)
         context.insert(selection)
         try context.save()
 
-        let added = try Show(name: "设为当前的现场", date: addedDate, startTime: addedDate)
+        let added = try Show(name: "更近的现场", date: addedDate, startTime: addedDate)
         let result = try await AddShowPersistenceCoordinator.persist(
             added,
             lifecycle: .future,
-            setAsCurrent: true,
             selections: [selection],
             notificationStates: [],
             in: context,
@@ -412,11 +413,11 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
         XCTAssertEqual(updatedSelection.selectedShowID, added.id)
-        XCTAssertEqual(result.outcome, .current)
+        XCTAssertEqual(result.outcome, .future, "An automatically selected upcoming show is still a future addition")
     }
 
     @MainActor
-    func testAddShowWithoutSetAsCurrentPreservesExistingSelection() async throws {
+    func testAddShowPreservesManualSelection() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date()
@@ -428,11 +429,10 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         context.insert(selection)
         try context.save()
 
-        let added = try Show(name: "默认不设为当前", date: addedDate, startTime: addedDate)
+        let added = try Show(name: "新加入现场", date: addedDate, startTime: addedDate)
         let result = try await AddShowPersistenceCoordinator.persist(
             added,
             lifecycle: .future,
-            setAsCurrent: false,
             selections: [selection],
             notificationStates: [],
             in: context,

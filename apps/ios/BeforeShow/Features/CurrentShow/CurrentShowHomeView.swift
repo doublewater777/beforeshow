@@ -54,7 +54,7 @@ struct CurrentShowHomeView: View {
     }
 
     private var currentShow: Show? {
-        session.selectCurrentShow(from: liveShows, manualSelection: selections.first)
+        session.selectCurrentShow(from: liveShows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
     }
 
     private var homeArrival: CurrentShowHomeArrival? {
@@ -93,7 +93,7 @@ struct CurrentShowHomeView: View {
         let showsPart = liveShows
             .map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSince1970)" }
             .joined(separator: "|")
-        let selectionPart = selections.first?.selectedShowID?.uuidString ?? "-"
+        let selectionPart = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID?.uuidString ?? "-"
         return "\(selectionPart)#\(showsPart)"
     }
 
@@ -207,7 +207,7 @@ struct CurrentShowHomeView: View {
             }
             #endif
             .task(id: widgetSyncFingerprint) {
-                WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                WidgetDataSync.sync(shows: shows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
             }
             .onChange(of: focusedPerformanceID) {
                 BeforeShowWidgetKind.reloadAllTimelines()
@@ -226,10 +226,23 @@ struct CurrentShowHomeView: View {
             }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
-                    WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                    WidgetDataSync.sync(shows: shows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
                     Task {
+                        await refreshAutomaticCurrentShowIfNeeded()
                         await reconcileNotificationPortfolio()
                         await requestNotificationPermissionIfEligible()
+                    }
+                }
+            }
+            .task {
+                // Reconcile on entry and while the Current tab is mounted. The
+                // minute cadence also handles show starts and retention expiry.
+                while !Task.isCancelled {
+                    await refreshAutomaticCurrentShowIfNeeded()
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                    } catch {
+                        break
                     }
                 }
             }
@@ -408,6 +421,29 @@ struct CurrentShowHomeView: View {
             in: modelContext,
             session: session
         )
+    }
+
+    @MainActor
+    private func refreshAutomaticCurrentShowIfNeeded() async {
+        let selection = CurrentShowSelectionStore.canonical(in: selections)
+        // Legacy selections are manual, and must not be silently converted.
+        if let selection, selection.isManual != false { return }
+        let candidate = InitialCurrentShowPolicy().candidate(
+            from: liveShows,
+            retaining: selection?.selectedShowID
+        )
+        guard selection?.selectedShowID != candidate?.id else { return }
+        do {
+            let state = try ShowMutationCoordinator.commitCurrentShowState(
+                shows: liveShows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
+            _ = await ShowMutationCoordinator.syncPostCommit(state, in: modelContext)
+        } catch {
+            modelContext.rollback()
+        }
     }
 
     private func selectCurrentShow(_ target: Show) {

@@ -121,36 +121,19 @@ enum CompanionAcceptedSessionImporter {
         makeCurrent: Bool,
         now: Date
     ) throws -> Bool {
-        // Automatic bootstrap stays best-effort for lightweight model containers.
-        // An explicit Current choice belongs to this import transaction and propagates persistence failure.
         let store = CurrentShowSelectionStore(modelContext: modelContext)
+        // Some lightweight import contexts omit the selection model. Keep the
+        // automatic branch best-effort, while explicit API selections must persist.
+        let previousID = (try? store.canonicalSelection())?.selectedShowID
         if makeCurrent {
             _ = try store.select(showID: show.id)
-            return true
+            return previousID != show.id
         }
-        let selection: CurrentShowSelection?
-        do {
-            selection = try store.canonicalSelection()
-        } catch {
-            return false
-        }
-
-        let current = CurrentShowSession().selectCurrentShow(
-            from: shows,
-            manualSelection: selection,
-            now: now
+        let selection = try? store.bootstrapIfNeeded(shows: shows, now: now)
+        let resolved = CurrentShowSession().selectCurrentShow(
+            from: shows, manualSelection: selection, now: now
         )
-        guard current == nil,
-              show.wasAddedAsHistorical != true,
-              CurrentShowTimeState(show: show, now: now).isAutomaticallySelectable else {
-            return false
-        }
-        do {
-            _ = try store.select(showID: show.id)
-            return true
-        } catch {
-            return false
-        }
+        return resolved?.id == show.id && previousID != show.id
     }
 
     private static func result(

@@ -241,6 +241,199 @@ final class CurrentShowSelectionTests: XCTestCase {
         )
     }
 
+    func testAutomaticSelectionChoosesNearestFutureRegardlessOfAddOrder() throws {
+        let farther = try makeShow(name: "较远", day: 24)
+        let closer = try makeShow(name: "较近", day: 16)
+        let selection = CurrentShowSelection(
+            selectedShowID: farther.id, isManual: false
+        )
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [farther, closer], manualSelection: selection, now: now
+        )
+        XCTAssertEqual(selected?.id, closer.id)
+    }
+
+    func testOverlappingLiveShowsRetainCurrentAutomaticShow() throws {
+        let first = try Show(
+            name: "先开场",
+            date: makeDate(year: 2026, month: 6, day: 15),
+            startTime: makeDate(year: 2026, month: 6, day: 15, hour: 19)
+        )
+        let second = try Show(
+            name: "后开场",
+            date: makeDate(year: 2026, month: 6, day: 15),
+            startTime: makeDate(year: 2026, month: 6, day: 15, hour: 20)
+        )
+        let atOverlap = makeDate(year: 2026, month: 6, day: 15, hour: 20)
+            .addingTimeInterval(30 * 60)
+        let selection = CurrentShowSelection(
+            selectedShowID: first.id, isManual: false
+        )
+        let resolved = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [first, second], manualSelection: selection, now: atOverlap
+        )
+        XCTAssertEqual(resolved?.id, first.id)
+    }
+
+    func testAutomaticSelectionRetainsPostShowThenAdvancesAfterThreeDays() throws {
+        let finished = try makeShow(name: "刚散场", day: 14)
+        finished.markEnded(at: makeDate(year: 2026, month: 6, day: 14, hour: 22))
+        let upcoming = try makeShow(name: "下一场", day: 20)
+        let selection = CurrentShowSelection(
+            selectedShowID: finished.id, isManual: false
+        )
+        let session = CurrentShowSession(calendar: calendar)
+        XCTAssertEqual(
+            session.selectCurrentShow(from: [finished, upcoming], manualSelection: selection, now: now)?.id,
+            finished.id
+        )
+        let afterRetention = makeDate(year: 2026, month: 6, day: 19, hour: 12)
+        XCTAssertEqual(
+            session.selectCurrentShow(from: [finished, upcoming], manualSelection: selection, now: afterRetention)?.id,
+            upcoming.id
+        )
+    }
+
+    func testLiveShowOverridesAutomaticPostShowButNotManual() throws {
+        let finished = try makeShow(name: "散场", day: 14)
+        finished.markEnded(at: makeDate(year: 2026, month: 6, day: 14, hour: 22))
+        let live = try makeShow(name: "正在现场", day: 15)
+        let atLive = makeDate(year: 2026, month: 6, day: 15, hour: 21)
+        let session = CurrentShowSession(calendar: calendar)
+        let automatic = CurrentShowSelection(
+            selectedShowID: finished.id, isManual: false
+        )
+        XCTAssertEqual(
+            session.selectCurrentShow(from: [finished, live], manualSelection: automatic, now: atLive)?.id,
+            live.id
+        )
+        let manual = CurrentShowSelection(selectedShowID: finished.id)
+        XCTAssertEqual(
+            session.selectCurrentShow(from: [finished, live], manualSelection: manual, now: atLive)?.id,
+            finished.id
+        )
+    }
+
+    func testAutomaticFestivalSurvivesMidnightUntilAnotherShowActuallyStarts() throws {
+        for hasTimetable in [false, true] {
+            let festival = try Show(
+                name: "多日音乐节",
+                date: makeDate(year: 2026, month: 6, day: 15, hour: 0),
+                startTime: makeDate(year: 2026, month: 6, day: 15, hour: 14),
+                endDate: makeDate(year: 2026, month: 6, day: 17, hour: 0),
+                endTime: makeDate(year: 2026, month: 6, day: 17, hour: 22),
+                timeZoneIdentifier: "UTC"
+            )
+            if hasTimetable {
+                let days = try [15, 17].map { day in
+                    try TimetableDay(
+                        date: makeDate(year: 2026, month: 6, day: day, hour: 0),
+                        stages: [TimetableStage(name: "主舞台", performances: [
+                            TimetablePerformance(
+                                artistName: "演出艺人",
+                                startsAt: makeDate(year: 2026, month: 6, day: day, hour: 14),
+                                endsAt: makeDate(year: 2026, month: 6, day: day, hour: 22)
+                            )
+                        ])]
+                    )
+                }
+                festival.timetable = try Timetable(timeZoneIdentifier: "UTC", days: days)
+            }
+            let other = try Show(
+                name: "另一场",
+                date: makeDate(year: 2026, month: 6, day: 17, hour: 0),
+                startTime: makeDate(year: 2026, month: 6, day: 17, hour: 10),
+                endTime: makeDate(year: 2026, month: 6, day: 17, hour: 12),
+                timeZoneIdentifier: "UTC"
+            )
+            let policy = InitialCurrentShowPolicy(calendar: calendar)
+            let beforeOpening = [
+                makeDate(year: 2026, month: 6, day: 15, hour: 23),
+                makeDate(year: 2026, month: 6, day: 16, hour: 12),
+                makeDate(year: 2026, month: 6, day: 17, hour: 0),
+                makeDate(year: 2026, month: 6, day: 17, hour: 9)
+            ]
+            for instant in beforeOpening {
+                XCTAssertEqual(
+                    policy.candidate(from: [other, festival], retaining: festival.id, now: instant)?.id,
+                    festival.id,
+                    "Retain the festival between sessions (timetable: \(hasTimetable), time: \(instant))"
+                )
+            }
+            XCTAssertEqual(
+                policy.candidate(
+                    from: [other, festival], retaining: festival.id,
+                    now: makeDate(year: 2026, month: 6, day: 17, hour: 10)
+                )?.id,
+                other.id
+            )
+        }
+    }
+
+    func testAutomaticCurrentShowSurvivesUndatedPostponement() throws {
+        let current = try makeShow(name: "原当前现场", day: 16)
+        let other = try makeShow(name: "另一场", day: 20)
+        let policy = InitialCurrentShowPolicy(calendar: calendar)
+        let selectedID = try XCTUnwrap(policy.candidate(from: [other, current], now: now)?.id)
+        current.markPostponed(newDate: nil)
+
+        XCTAssertEqual(
+            policy.candidate(from: [other, current], retaining: selectedID, now: now)?.id,
+            current.id
+        )
+        XCTAssertEqual(
+            policy.candidate(from: [other, current], now: now)?.id,
+            other.id,
+            "An unselected undated postponed show must not become a new candidate"
+        )
+    }
+
+    func testAutomaticSelectionExcludesHistoricalCanceledAndUndatedPostponed() throws {
+        let historical = try makeShow(name: "补录", day: 14)
+        historical.markAddedAsHistorical()
+        let canceled = try makeShow(name: "取消", day: 16)
+        canceled.markCanceled()
+        let postponed = try makeShow(name: "延期待定", day: 17)
+        postponed.markPostponed(newDate: nil)
+        let future = try makeShow(name: "有效现场", day: 20)
+        let selected = InitialCurrentShowPolicy(calendar: calendar).candidate(
+            from: [historical, canceled, postponed, future], now: now
+        )
+        XCTAssertEqual(selected?.id, future.id)
+    }
+
+    @MainActor
+    func testBootstrapReconcilesAutomaticSelectionButKeepsManual() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let farther = try makeShow(name: "较远", day: 24)
+        let closer = try makeShow(name: "较近", day: 16)
+        let selection = CurrentShowSelection(
+            selectedShowID: farther.id, isManual: false
+        )
+        context.insert(farther)
+        context.insert(closer)
+        context.insert(selection)
+        try context.save()
+        let store = CurrentShowSelectionStore(modelContext: context)
+        _ = try store.bootstrapIfNeeded(
+            shows: [farther, closer],
+            now: now,
+            policy: InitialCurrentShowPolicy(calendar: calendar)
+        )
+        XCTAssertEqual(selection.selectedShowID, closer.id)
+        XCTAssertEqual(selection.isManual, false)
+        XCTAssertEqual(selection.selectionPolicyVersion, 2)
+        selection.select(showID: farther.id)
+        _ = try store.bootstrapIfNeeded(
+            shows: [farther, closer],
+            now: now,
+            policy: InitialCurrentShowPolicy(calendar: calendar)
+        )
+        XCTAssertEqual(selection.selectedShowID, farther.id)
+        XCTAssertEqual(selection.isManual, true)
+    }
+
     @MainActor
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(

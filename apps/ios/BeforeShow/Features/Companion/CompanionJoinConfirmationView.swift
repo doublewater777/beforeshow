@@ -237,10 +237,8 @@ private struct CompanionJoinConfirmationView: View {
     let onJoin: (CompanionAcceptedImportStrategy) -> Void
     let onClose: () -> Void
     @Query private var localShows: [Show]
-    @Query private var selections: [CurrentShowSelection]
     @State private var myNickname: String = CompanionUserProfile.nickname ?? ""
     @State private var duplicateChoice: CompanionDuplicateJoinChoice?
-    @State private var switchToCurrentAfterJoin = false
     private let showFormatter = ShowDisplayFormatter()
 
     private var localMatch: CompanionLocalMatchResult {
@@ -316,24 +314,12 @@ private struct CompanionJoinConfirmationView: View {
         } else {
             strategy = .automatic
         }
-        return strategy.settingCurrent(switchToCurrentAfterJoin)
+        return strategy
     }
 
     private var needsDuplicateChoice: Bool {
         if case .multiple = localMatch { return duplicateChoice == nil }
         return false
-    }
-
-    private var hasOtherCurrentShow: Bool {
-        guard isLiveNow else { return false }
-        let currentID = CurrentShowSession()
-            .selectCurrentShow(from: localShows, manualSelection: selections.first)?
-            .id
-        guard let currentID else { return false }
-        if case .single(let match) = localMatch, match.id == currentID {
-            return false
-        }
-        return true
     }
 
     var body: some View {
@@ -378,14 +364,10 @@ private struct CompanionJoinConfirmationView: View {
         }
         .onChange(of: session?.sessionLocator.recordName) { _, _ in
             duplicateChoice = nil
-            switchToCurrentAfterJoin = false
         }
         .onChange(of: localShows.map(\.id)) { _, _ in
             if case .multiple = localMatch {
                 duplicateChoice = nil
-            }
-            if !hasOtherCurrentShow {
-                switchToCurrentAfterJoin = false
             }
         }
         .preferredColorScheme(.dark)
@@ -733,8 +715,6 @@ private struct CompanionJoinConfirmationView: View {
         case .none:
             if historical {
                 return BSLocalization.text("确认后，这场会进入你的足迹，并记录你们一起去过。")
-            } else if hasOtherCurrentShow {
-                return BSLocalization.text("这场正在进行中。加入后可选择是否设为当前现场。")
             } else {
                 return BSLocalization.text("加入后可在现场页看到彼此状态，并共同记录足迹。")
             }
@@ -747,18 +727,6 @@ private struct CompanionJoinConfirmationView: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
-
-            if hasOtherCurrentShow {
-                Toggle(isOn: $switchToCurrentAfterJoin) {
-                    Text(BSLocalization.text("设为当前现场"))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.foreground)
-                }
-                .tint(BSColor.Stage.accent)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
 
             Button {
                 let trimmed = myNickname.trimmingCharacters(in: .whitespacesAndNewlines)
