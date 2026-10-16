@@ -39,7 +39,7 @@ struct CurrentShowManagementSection: View {
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var isHeaderOverContent = false
-    @State private var prefersExpandedCover = false
+    @AppStorage(CurrentShowCoverPreference.key) private var expandedCoverShowID = ""
     @Namespace private var coverNamespace
     @State private var homeArrivalFlags = CurrentShowHomeArrivalFlags.arrived
     /// SwiftUI may nil an item binding before the dismissal animation has ended.
@@ -312,7 +312,7 @@ struct CurrentShowManagementSection: View {
         let phase = HomeShowPhase(timeState: timeState, now: now)
         // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
         let coverWidth = min(352, max(0, availableWidth - 40))
-        let isLiveLayout = liveState != nil && !prefersExpandedCover
+        let isLiveLayout = liveState != nil && !CurrentShowCoverPreference.isExpanded(storedShowID: expandedCoverShowID, showID: show.id)
         // 与倒计时卡共用同一次推荐决策；现场模式只展示时刻表，不消费推荐。
         let recommendation = liveState == nil ? resolvedRecommendation(snapshot: snapshot) : nil
         let displayedPrimaryAction: HomeCountdownLockup.PrimaryAction? = liveState == nil
@@ -471,7 +471,7 @@ struct CurrentShowManagementSection: View {
                 live: liveState,
                 isLiveLayout: isLiveLayout,
                 coverNamespace: coverNamespace,
-                onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { prefersExpandedCover.toggle() } },
+                onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { expandedCoverShowID = CurrentShowCoverPreference.toggled(storedShowID: expandedCoverShowID, showID: show.id) } },
                 onOpenSettings: onOpenSettings,
                 onAddShow: onAddShow
             )
@@ -481,8 +481,8 @@ struct CurrentShowManagementSection: View {
         }
         .animation(.smooth(duration: 0.6), value: isLiveLayout)
         .onChange(of: liveState != nil) { _, isLive in
-            if !isLive {
-                prefersExpandedCover = false
+            if !isLive, CurrentShowCoverPreference.isExpanded(storedShowID: expandedCoverShowID, showID: show.id) {
+                expandedCoverShowID = ""
             }
         }
     }
@@ -597,7 +597,7 @@ struct CurrentShowManagementSection: View {
             pendingConfirmedEndDate = nil
             pendingEndIntent = nil
             isPresentationVisibilityLatched = true
-            let wasLive = !prefersExpandedCover
+            let wasLive = !CurrentShowCoverPreference.isExpanded(storedShowID: expandedCoverShowID, showID: show.id)
             Task { @MainActor in
                 let didConfirm = await onConfirmEnd(date)
                 guard didConfirm else {
