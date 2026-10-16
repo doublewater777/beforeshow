@@ -75,6 +75,9 @@ final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDe
             if let destinationString { parsed[NotificationUserInfoKey.destination] = destinationString }
             if let featureString { parsed[NotificationUserInfoKey.feature] = featureString }
             if let deepLink = NotificationDeepLink(userInfo: parsed) {
+                ProductAnalytics.capture(.appOpenedFrom(
+                    source: .notification, destination: deepLink.destination.rawValue, feature: deepLink.feature
+                ))
                 NotificationDeepLinkRouter.shared.route(to: deepLink)
             }
         }

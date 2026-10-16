@@ -461,6 +461,7 @@ struct CurrentShowHomeView: View {
             ) {
                 show.markEnded(at: date)
             }
+            if show.endedAt != nil { ProductAnalytics.capture(.showEndedConfirmed(showID: show.id)) }
             return show.endedAt != nil
         } catch {
             presentToast(.failure, message: BSLocalization.text("散场时间没有保存，请重试"))

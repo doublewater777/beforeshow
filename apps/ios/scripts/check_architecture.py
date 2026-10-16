@@ -25,7 +25,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShowTests/ShowDraftTests.swift": 1_051,
     "BeforeShowTests/TimetableImportTests.swift": 1_033,
     "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 935,
-    "BeforeShow/Features/AddShow/AddShowFlowView.swift": 880,
+    "BeforeShow/Features/AddShow/AddShowFlowView.swift": 876,
     "BeforeShow/Features/Shows/ShowDetailView.swift": 875,
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 829,
     "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 819,
@@ -40,7 +40,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 664,
     "Shared/CurrentShowTimeState.swift": 636,
     "BeforeShow/Features/Memory/MemoryUnifiedEditorView.swift": 636,
-    "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 636,
+    "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 632,
     "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 613,
 }
 

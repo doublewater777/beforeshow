@@ -78,6 +78,7 @@ final class TimetableManagementCoordinator {
                 )
                 newAssets.append((assetID, path))
             }
+            let isNew = show.timetable == nil
             let oldAssets = newImagesData.isEmpty ? [] : show.assets.filter { $0.kind == .timetable }
             let oldPaths = oldAssets.map(\.relativePath)
 
@@ -106,6 +107,11 @@ final class TimetableManagementCoordinator {
             }
 
             try modelContext.save()
+            ProductAnalytics.capture(.timetableSaved(
+                showID: show.id,
+                performanceCount: draft.days.flatMap(\.stages).flatMap(\.performances).count,
+                isNew: isNew
+            ))
             let container = modelContext.container
             Task {
                 await LocalNotificationCenter.shared.reconcilePortfolio(in: ModelContext(container))

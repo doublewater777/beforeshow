@@ -1,6 +1,5 @@
 import Foundation
 import PhotosUI
-import PostHog
 import SwiftData
 import SwiftUI
 import UIKit
@@ -663,7 +662,7 @@ struct AddShowFlowView: View {
             } else {
                 message = nil
             }
-            PostHogSDK.shared.capture("screenshot_recognized")
+            ProductAnalytics.capture(.screenshotRecognized)
             presentToast(.success, message: BSLocalization.text("识别完成"))
         } catch is CancellationError {
             // 页面关闭或新请求取消：不写失败态
@@ -745,7 +744,7 @@ struct AddShowFlowView: View {
             message = draft.startTime == nil
                 ? BSLocalization.text("链接里没有明确开场时间，请确认后再添加。")
                 : nil
-            PostHogSDK.shared.capture("show_link_parsed")
+            ProductAnalytics.capture(.showLinkParsed)
             presentToast(.success, message: BSLocalization.text("解析完成"))
         } catch is CancellationError {
             return
@@ -770,10 +769,7 @@ struct AddShowFlowView: View {
         do {
             let show = try draft.makeShow()
             if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: shows) {
-                PostHogSDK.shared.capture("duplicate_show_blocked", properties: [
-                    "method": sheet.rawValue,
-                    "existing_show_id": duplicate.id.uuidString
-                ])
+                ProductAnalytics.capture(.duplicateShowBlocked(method: sheet.rawValue, existingShowID: duplicate.id))
                 message = BSLocalization.text("这场已经在 BeforeShow 里了")
                 presentToast(.neutral, message: BSLocalization.text("这场已经在 BeforeShow 里了"))
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
@@ -784,7 +780,7 @@ struct AddShowFlowView: View {
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             let capacity = FreeShowCapacityCoordinator()
             guard capacity.canAddShow(from: shows, entitlement: entitlement) else {
-                PostHogSDK.shared.capture("pro_limit_reached")
+                ProductAnalytics.capture(.proLimitReached)
                 paywallSheet = .limit
                 presentToast(.neutral, message: BSLocalization.text("保存上限"))
                 isSaving = false
@@ -839,10 +835,10 @@ struct AddShowFlowView: View {
                         in: modelContext,
                         entitlement: ProEntitlementStorage.decode(entitlementRawValue)
                     )
-                    PostHogSDK.shared.capture("show_added", properties: [
-                        "method": sheet.rawValue,
-                        "lifecycle": outcome.rawValue
-                    ])
+                    ProductAnalytics.capture(.showAdded(
+                        showID: show.id, method: sheet.rawValue, lifecycle: outcome.rawValue,
+                        isFirstShow: !shows.contains { $0.id != show.id }, isFestival: ShowFlavor.inferred(from: show) == .festival
+                    ))
                     didSave = true
                     coverLifecycle.finalize(keeping: draft.coverImageURL)
 

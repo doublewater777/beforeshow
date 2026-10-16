@@ -1,4 +1,3 @@
-import PostHog
 import SwiftUI
 
 struct DispersalCeremonySheet: View {
@@ -99,10 +98,7 @@ struct DispersalCeremonySheet: View {
     }
 
     private func closeWithoutSaving() {
-        PostHogSDK.shared.capture(
-            "dispersal_ceremony_skipped",
-            properties: ["trigger": "close"]
-        )
+        ProductAnalytics.capture(.dispersalCeremonySkipped(showID: show.id, trigger: "close"))
         dismiss()
     }
 
@@ -117,17 +113,9 @@ struct DispersalCeremonySheet: View {
 
         do {
             try await onCommit(draftRating, noteToSave)
-            var properties: [String: Any] = [
-                "has_rating": draftRating != nil,
-                "has_note": noteToSave != nil
-            ]
-            if let draftRating {
-                properties["rating_value"] = draftRating
-            }
-            PostHogSDK.shared.capture(
-                "dispersal_ceremony_completed",
-                properties: properties
-            )
+            ProductAnalytics.capture(.dispersalCeremonyCompleted(
+                showID: show.id, rating: draftRating, hasNote: noteToSave != nil
+            ))
             switch Self.nextDestination(
                 after: .combined,
                 commitSucceeded: true,

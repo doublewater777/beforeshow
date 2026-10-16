@@ -45,6 +45,7 @@ struct CurrentShowCountdownCard: View {
         } catch {
             modelContext.rollback()
         }
+        ProductAnalytics.capture(.featureRecommendationTapped(showID: show.id, feature: feature, surface: .card))
         onRecommendation(feature)
     }
 
@@ -58,6 +59,7 @@ struct CurrentShowCountdownCard: View {
                 in: modelContext
             ) {
                 try modelContext.save()
+                ProductAnalytics.capture(.featureRecommendationShown(showID: show.id, feature: feature))
             }
         } catch {
             modelContext.rollback()
