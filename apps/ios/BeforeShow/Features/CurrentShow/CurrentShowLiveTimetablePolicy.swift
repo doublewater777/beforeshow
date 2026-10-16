@@ -4,7 +4,8 @@ enum CurrentShowLiveTimetablePolicy {
     static func resolve(
         for show: Show,
         now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        focusedPerformanceID: UUID? = nil
     ) -> LiveModeState? {
         guard let timetable = show.lifecycleTimetable,
               show.endedAt == nil,
@@ -17,7 +18,8 @@ enum CurrentShowLiveTimetablePolicy {
         eventCalendar.timeZone = TimeZone(identifier: timetable.timeZoneIdentifier) ?? calendar.timeZone
         let state = LiveModeStateEngine.calculate(
             days: LiveModeStateEngine.buildInputs(from: timetable),
-            now: now
+            now: now,
+            focusedPerformanceID: focusedPerformanceID
         )
         switch state.phase {
         case .active, .dayEnded:

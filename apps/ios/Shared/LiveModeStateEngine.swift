@@ -103,7 +103,8 @@ enum LiveModeStateEngine {
     /// Never infers location/walking ETA. Strictly uses actual scheduled times.
     static func calculate(
         days: [LiveDayInput],
-        now: Date
+        now: Date,
+        focusedPerformanceID: UUID? = nil
     ) -> LiveModeState {
         let validDays = days.filter { !$0.performances.isEmpty }
             .sorted { $0.date < $1.date }
@@ -166,7 +167,7 @@ enum LiveModeStateEngine {
         // Check if currently inside one day's performance window
         if let currentSpan = daySpans.first(where: { now >= $0.start && now < $0.end }) {
             let dayPerfs = currentSpan.day.performances
-            let current = selectCurrent(from: dayPerfs, now: now)
+            let current = selectCurrent(from: dayPerfs, now: now, focusedPerformanceID: focusedPerformanceID)
             let upcoming = selectUpcoming(from: dayPerfs, now: now)
 
             return LiveModeState(
@@ -229,17 +230,20 @@ enum LiveModeStateEngine {
     // MARK: - Current & Upcoming Sorting Policies
 
     /// Selects and orders currently active performances.
-    /// Canonical Rule: Interested takes precedence; without interested, show objective
-    /// parallel list without guessing user's location.
+    /// A currently playing focus leads, followed by interest and scheduled start.
     private static func selectCurrent(
         from performances: [LivePerformanceInput],
-        now: Date
+        now: Date,
+        focusedPerformanceID: UUID?
     ) -> [LivePerformanceSnapshot] {
         let active = performances.filter { $0.startsAt <= now && now < $0.endsAt }
 
         let snapshots = active.map { makeSnapshot($0, now: now) }
 
         return snapshots.sorted { lhs, rhs in
+            if (lhs.id == focusedPerformanceID) != (rhs.id == focusedPerformanceID) {
+                return lhs.id == focusedPerformanceID
+            }
             // 1. Interested takes precedence
             if lhs.isInterested != rhs.isInterested {
                 return lhs.isInterested && !rhs.isInterested

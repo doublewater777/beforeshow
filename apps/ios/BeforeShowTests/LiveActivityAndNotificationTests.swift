@@ -107,6 +107,34 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertEqual(state.currentStageName, "Electronic Tent")
     }
 
+    func testLiveActivityCurrentArtistFollowsFocusedPerformance() throws {
+        let focused = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Focused", stageID: UUID(), stageName: "Main Stage",
+            startsAt: date(20, 15), endsAt: date(21, 0), isInterested: false
+        )
+        let interested = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Interested", stageID: UUID(), stageName: "Tent",
+            startsAt: date(20, 0), endsAt: date(22, 0), isInterested: true
+        )
+        let day = WidgetTimetableDay(id: UUID(), date: date(0, 0), performances: [interested, focused])
+        let snapshot = makeSnapshot(timetableDays: [day])
+        let defaultState = try XCTUnwrap(LiveActivityPlanner.desiredState(
+            snapshot: snapshot, now: date(20, 30), coverFilename: nil
+        )?.state)
+        let focusedState = try XCTUnwrap(LiveActivityPlanner.desiredState(
+            snapshot: snapshot, now: date(20, 30), coverFilename: nil, focusedPerformanceID: focused.id
+        )?.state)
+
+        XCTAssertEqual(focusedState.currentArtistName, "Focused")
+        XCTAssertEqual(focusedState.currentStageName, "Main Stage")
+        XCTAssertEqual(focusedState.currentStartsAt, date(20, 15))
+        XCTAssertEqual(LiveActivityPlanner.action(
+            snapshot: snapshot, now: date(20, 30),
+            existing: [LiveActivityExisting(showID: snapshot.showID.uuidString, isPending: false, state: defaultState)],
+            coverFilename: nil, focusedPerformanceID: focused.id
+        ), .update(focusedState))
+    }
+
     // MARK: - 3. Multi-day Intermission: Ends Today, Restarts Next Day
 
     func testLiveActivityEndsAfterTodayAndRestartsNextDay() {

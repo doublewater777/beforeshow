@@ -85,9 +85,9 @@ struct CurrentShowManagementSection: View {
     }
 
     var body: some View {
-        TimelineView(CurrentShowTimelineSchedule(isActive: isHeroPlaybackActive)) { context in
+        CurrentShowLiveTimetableContent(show: show, isActive: isHeroPlaybackActive) { now, liveState in
             GeometryReader { geometry in
-                homeContent(now: context.date, availableWidth: geometry.size.width)
+                homeContent(now: now, availableWidth: geometry.size.width, liveState: liveState)
             }
         }
         #if DEBUG
@@ -295,7 +295,7 @@ struct CurrentShowManagementSection: View {
     }
 
     @ViewBuilder
-    private func homeContent(now: Date, availableWidth: CGFloat) -> some View {
+    private func homeContent(now: Date, availableWidth: CGFloat, liveState: LiveModeState?) -> some View {
         let snapshot = HomeHeroSnapshot(show: show, now: now)
         let timeState = snapshot.timeState
         let followUpShows = CurrentShowFollowUpPolicy.laterShows(
@@ -312,7 +312,6 @@ struct CurrentShowManagementSection: View {
         let phase = HomeShowPhase(timeState: timeState, now: now)
         // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
         let coverWidth = min(352, max(0, availableWidth - 40))
-        let liveState = CurrentShowLiveTimetablePolicy.resolve(for: show, now: now)
         let isLiveLayout = liveState != nil && !prefersExpandedCover
         // 与倒计时卡共用同一次推荐决策；现场模式只展示时刻表，不消费推荐。
         let recommendation = liveState == nil ? resolvedRecommendation(snapshot: snapshot) : nil

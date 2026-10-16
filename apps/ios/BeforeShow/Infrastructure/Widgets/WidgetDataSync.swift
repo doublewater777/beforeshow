@@ -278,11 +278,13 @@ actor ShowLiveActivityController {
 
         let snapshot = request.snapshot
         let now = request.now
+        let focusedPerformanceID = LiveModeFocusStore.read()
         let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
         let desired = LiveActivityPlanner.desiredState(
             snapshot: snapshot,
             now: now,
-            coverFilename: nil
+            coverFilename: nil,
+            focusedPerformanceID: focusedPerformanceID
         )
 
         let normalizedWidgetSource = request.widgetCoverSource?
@@ -327,7 +329,8 @@ actor ShowLiveActivityController {
                 snapshot: snapshot,
                 now: now,
                 existing: existing,
-                coverFilename: coverFilename
+                coverFilename: coverFilename,
+                focusedPerformanceID: focusedPerformanceID
             )
         } else {
             action = .endAll

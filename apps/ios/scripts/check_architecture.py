@@ -37,7 +37,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/Listening/Views/ListeningPolishedBottomChrome.swift": 696,
     "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 680,
     "BeforeShow/Features/CurrentShow/HomeLiveModeView.swift": 678,
-    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 665,
+    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 664,
     "Shared/CurrentShowTimeState.swift": 636,
     "BeforeShow/Features/Memory/MemoryUnifiedEditorView.swift": 636,
     "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 636,
