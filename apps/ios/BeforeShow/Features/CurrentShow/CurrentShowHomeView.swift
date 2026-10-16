@@ -23,6 +23,7 @@ struct CurrentShowHomeView: View {
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(LiveModeFocusStore.key, store: LiveModeFocusStore.defaults) private var focusedPerformanceID: String?
     @State private var isShowingAddShowCoordinator = false
     @State private var isShowingAddShowReview = false
     @State private var isShowingWidgetPreview = false
@@ -206,6 +207,10 @@ struct CurrentShowHomeView: View {
             }
             #endif
             .task(id: widgetSyncFingerprint) {
+                WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+            }
+            .onChange(of: focusedPerformanceID) {
+                BeforeShowWidgetKind.reloadAllTimelines()
                 WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
             }
             .onChange(of: currentShow?.id, initial: true) { _, newShowID in

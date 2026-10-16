@@ -166,6 +166,75 @@ final class LiveModeStateEngineTests: XCTestCase {
         XCTAssertEqual(state.currentPerformances[1].stageName, "Main Stage")
     }
 
+    func testFocusedCurrentPerformanceLeadsWithoutChangingInterest() {
+        let focused = LivePerformanceInput(
+            id: UUID(), artistName: "Focused", stageID: UUID(), stageName: "Main",
+            startsAt: date(20, 15), endsAt: date(21, 0), isInterested: false
+        )
+        let interested = LivePerformanceInput(
+            id: UUID(), artistName: "Interested", stageID: UUID(), stageName: "Tent",
+            startsAt: date(20, 0), endsAt: date(22, 0), isInterested: true
+        )
+        let day = LiveDayInput(id: UUID(), date: date(0, 0), performances: [interested, focused])
+
+        let state = LiveModeStateEngine.calculate(
+            days: [day], now: date(20, 30), focusedPerformanceID: focused.id
+        )
+
+        XCTAssertEqual(state.currentPerformances.map(\.id), [focused.id, interested.id])
+        XCTAssertEqual(state.currentPerformances.map(\.isInterested), [false, true])
+    }
+
+    func testInactiveFocusUsesDefaultOrderingWithoutFollowingStage() {
+        let stageID = UUID()
+        let ended = LivePerformanceInput(
+            id: UUID(), artistName: "Ended", stageID: stageID, stageName: "Main",
+            startsAt: date(19, 0), endsAt: date(20, 30), isInterested: false
+        )
+        let successor = LivePerformanceInput(
+            id: UUID(), artistName: "Same stage next set", stageID: stageID, stageName: "Main",
+            startsAt: date(20, 30), endsAt: date(21, 0), isInterested: false
+        )
+        let earlier = LivePerformanceInput(
+            id: UUID(), artistName: "Earlier", stageID: UUID(), stageName: "Side",
+            startsAt: date(19, 30), endsAt: date(21, 0), isInterested: false
+        )
+        let interested = LivePerformanceInput(
+            id: UUID(), artistName: "Interested", stageID: UUID(), stageName: "Tent",
+            startsAt: date(20, 0), endsAt: date(22, 0), isInterested: true
+        )
+        let future = LivePerformanceInput(
+            id: UUID(), artistName: "Future", stageID: stageID, stageName: "Main",
+            startsAt: date(21, 0), endsAt: date(22, 0), isInterested: false
+        )
+        let day = LiveDayInput(
+            id: UUID(), date: date(0, 0), performances: [ended, successor, earlier, interested, future]
+        )
+
+        for focus in [ended.id, future.id, UUID()] {
+            let state = LiveModeStateEngine.calculate(
+                days: [day], now: date(20, 30), focusedPerformanceID: focus
+            )
+            XCTAssertEqual(state.currentPerformances.map(\.id), [interested.id, earlier.id, successor.id])
+            XCTAssertEqual(state.upcomingPerformances.map(\.id), [future.id])
+        }
+    }
+
+    func testFocusedPerformanceDefaultsRoundTripAcrossReaders() throws {
+        let suite = "live-mode-focus-tests-\(UUID().uuidString)"
+        let writer = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { writer.removePersistentDomain(forName: suite) }
+        XCTAssertNil(LiveModeFocusStore.read(defaults: writer))
+
+        let focusedID = UUID()
+        writer.set(focusedID.uuidString, forKey: LiveModeFocusStore.key)
+        let reader = try XCTUnwrap(UserDefaults(suiteName: suite))
+        XCTAssertEqual(LiveModeFocusStore.read(defaults: reader), focusedID)
+
+        writer.removeObject(forKey: LiveModeFocusStore.key)
+        XCTAssertNil(LiveModeFocusStore.read(defaults: reader))
+    }
+
     // MARK: - 4. Multi-day Intermission: Today Ended, Tomorrow Continues
 
     func testMultiDayIntermissionTransitionsToDayEndedAndTomorrowContinues() {

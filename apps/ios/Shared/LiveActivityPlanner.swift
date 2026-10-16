@@ -33,7 +33,8 @@ enum LiveActivityPlanner {
     static func desiredState(
         snapshot: WidgetShowSnapshot?,
         now: Date,
-        coverFilename: String?
+        coverFilename: String?,
+        focusedPerformanceID: UUID? = nil
     ) -> (state: ShowLiveActivityAttributes.ContentState, activityEnd: Date)? {
         guard let snapshot,
               snapshot.timing.changeStatus != .canceled,
@@ -61,7 +62,9 @@ enum LiveActivityPlanner {
                     }
                 )
             }
-            let liveState = LiveModeStateEngine.calculate(days: liveDays, now: now)
+            let liveState = LiveModeStateEngine.calculate(
+                days: liveDays, now: now, focusedPerformanceID: focusedPerformanceID
+            )
 
             switch liveState.phase {
             case .dayEnded:
@@ -190,9 +193,12 @@ enum LiveActivityPlanner {
         snapshot: WidgetShowSnapshot?,
         now: Date,
         existing: [LiveActivityExisting],
-        coverFilename: String?
+        coverFilename: String?,
+        focusedPerformanceID: UUID? = nil
     ) -> LiveActivityAction {
-        guard let desired = desiredState(snapshot: snapshot, now: now, coverFilename: coverFilename),
+        guard let desired = desiredState(
+            snapshot: snapshot, now: now, coverFilename: coverFilename, focusedPerformanceID: focusedPerformanceID
+        ),
               let snapshot else {
             return .endAll
         }

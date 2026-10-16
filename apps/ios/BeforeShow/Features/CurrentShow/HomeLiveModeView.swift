@@ -9,7 +9,7 @@ struct HomeLiveModeView: View {
     var onEndShow: (() -> Void)?
     let onOpenTimetable: () -> Void
 
-    @State private var mainID: UUID?
+    @AppStorage(LiveModeFocusStore.key, store: LiveModeFocusStore.defaults) private var focusedPerformanceID: String?
     @State private var avatars = TimetableArtistAvatarStore()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -100,7 +100,7 @@ struct HomeLiveModeView: View {
     @ViewBuilder
     private var onStage: some View {
         let current = state.currentPerformances
-        let lead = current.first { $0.id == mainID } ?? current[0]
+        let lead = current[0]
         let others = current.filter { $0.id != lead.id }
         let total = lead.endsAt.timeIntervalSince(lead.startsAt)
         let progress = total > 0 ? max(0, min(1, 1 - lead.secondsUntilEnd / total)) : 0
@@ -167,7 +167,7 @@ struct HomeLiveModeView: View {
             sectionLabel(BSLocalization.text("同时在演"))
             HStack(spacing: 10) {
                 ForEach(others.prefix(2)) { perf in
-                    Button { withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { mainID = perf.id } } label: {
+                    Button { withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { focusedPerformanceID = perf.id.uuidString } } label: {
                         parallelTile(perf)
                     }
                     .buttonStyle(.plain)

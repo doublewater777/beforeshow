@@ -35,7 +35,9 @@ struct WidgetFestivalNow {
                 )
             })
         }.filter { !$0.performances.isEmpty }.sorted { $0.date < $1.date }
-        let state = LiveModeStateEngine.calculate(days: days, now: now)
+        let state = LiveModeStateEngine.calculate(
+            days: days, now: now, focusedPerformanceID: LiveModeFocusStore.read()
+        )
         let upcoming = state.upcomingPerformances.sorted { $0.startsAt < $1.startsAt }
         firstPick = upcoming.first(where: \.isInterested)
 
