@@ -1,4 +1,6 @@
 import AVFoundation
+import MediaPlayer
+import UIKit
 import XCTest
 @testable import BeforeShow
 
@@ -178,6 +180,18 @@ final class PreviewListeningPlaybackServiceTests: XCTestCase {
         try await service.load([item("first"), item("second")], startingAt: "first", at: 0)
         try await service.play()
         try await waitUntil { self.service.phase == .playing }
+    }
+
+    func testArtworkRequestHandlerRunsOffTheMainActor() async {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { _ in }
+        let artwork = PreviewListeningPlaybackService.makeArtwork(image)
+        // MPNowPlayingInfoCenter renders artwork on its own background queue.
+        let rendered = await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: artwork.image(at: image.size) != nil)
+            }
+        }
+        XCTAssertTrue(rendered)
     }
 
     private func item(_ id: String) -> ListeningPlaybackItem {
