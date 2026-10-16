@@ -59,6 +59,10 @@ final class CompanionAnalyticsAttempt {
         } else if let error {
             properties["error_category"] = category(for: error)
         }
+        if outcome == .succeeded, operation != .share {
+            // 北极星陪伴行为，见 docs/observability/product-analytics.md。
+            properties["core_action"] = true
+        }
         capture("finished", properties: properties)
     }
 

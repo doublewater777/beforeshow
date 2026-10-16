@@ -1,4 +1,3 @@
-import PostHog
 import StoreKit
 import SwiftUI
 
@@ -91,7 +90,7 @@ struct ProPaywallView: View {
         .preferredColorScheme(.dark)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            PostHogSDK.shared.capture("pro_paywall_viewed")
+            ProductAnalytics.capture(.proPaywallViewed)
             await loadProducts()
         }
         .sheet(item: $legalPage) { page in
@@ -323,9 +322,7 @@ struct ProPaywallView: View {
         do {
             let entitlement = try await store.purchase(productID: product.id)
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
-            PostHogSDK.shared.capture("pro_purchase_completed", properties: [
-                "plan": plan.rawValue
-            ])
+            ProductAnalytics.capture(.proPurchaseCompleted(plan: plan.rawValue))
             didPurchase = true
             message = BSLocalization.text("Pro 已启用。")
             withAnimation(.easeOut(duration: BSMotion.interface)) {
@@ -338,9 +335,7 @@ struct ProPaywallView: View {
             showsWinback = false
             message = BSLocalization.text("当前已是 Pro，挽留方案不适用。")
         } catch {
-            PostHogSDK.shared.capture("pro_purchase_failed", properties: [
-                "plan": plan.rawValue
-            ])
+            ProductAnalytics.capture(.proPurchaseFailed(plan: plan.rawValue))
             message = BSLocalization.text("购买暂时没有完成。")
         }
     }
@@ -353,7 +348,7 @@ struct ProPaywallView: View {
         do {
             let entitlement = try await store.restorePurchases()
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
-            PostHogSDK.shared.capture("pro_restored")
+            ProductAnalytics.capture(.proRestored)
             didPurchase = true
             message = BSLocalization.text("已恢复 Pro。")
         } catch ProSubscriptionError.nothingToRestore {

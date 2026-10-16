@@ -1,4 +1,3 @@
-import PostHog
 import SwiftData
 import SwiftUI
 
@@ -153,14 +152,11 @@ struct OnboardingFlowView: View {
                         invitedSnapshot: invitedSnapshot,
                         onAddShow: {
                             isShowingAddShow = true
-                            PostHogSDK.shared.capture("onboarding_add_show_tapped")
+                            ProductAnalytics.capture(.onboardingAddShowTapped)
                         },
                         onJoinInvite: { _ in
                             guard let snapshot = invitedSnapshot else { return (false, nil) }
-                            PostHogSDK.shared.capture(
-                                "onboarding_invite_accepted",
-                                properties: ["token": snapshot.token, "show": snapshot.showName]
-                            )
+                            ProductAnalytics.capture(.onboardingInviteAccepted)
                             let outcome = await CompanionInviteClipboardDetector.acceptDirectly(
                                 snapshot: snapshot,
                                 in: modelContext
@@ -187,13 +183,10 @@ struct OnboardingFlowView: View {
         .onAppear {
             guard !hasCapturedStart else { return }
             hasCapturedStart = true
-            PostHogSDK.shared.capture("onboarding_started")
+            ProductAnalytics.capture(.onboardingStarted)
         }
         .onChange(of: page) { _, newPage in
-            PostHogSDK.shared.capture(
-                "onboarding_page_viewed",
-                properties: ["page": newPage.analyticsValue]
-            )
+            ProductAnalytics.capture(.onboardingPageViewed(page: newPage.analyticsValue))
         }
     }
 
@@ -297,19 +290,13 @@ struct OnboardingFlowView: View {
         if let snapshot = invitedSnapshot {
             CompanionInviteClipboardDetector.markTokenProcessed(snapshot.token)
         }
-        PostHogSDK.shared.capture(
-            "onboarding_skipped",
-            properties: ["from_page": page.analyticsValue]
-        )
+        ProductAnalytics.capture(.onboardingSkipped(fromPage: page.analyticsValue))
         completeOnboarding(method: "skip")
     }
 
     private func completeOnboarding(method: String) {
         OnboardingCompletionStore.markCompleted()
-        PostHogSDK.shared.capture(
-            "onboarding_completed",
-            properties: ["method": method]
-        )
+        ProductAnalytics.capture(.onboardingCompleted(method: method))
         onCompleted()
     }
 }

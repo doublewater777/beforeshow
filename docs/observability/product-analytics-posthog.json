@@ -1,0 +1,386 @@
+{
+  "project_id": 461647,
+  "dashboard": {
+    "name": "BeforeShow · 产品北极星与留存",
+    "description": "真机 App Store / TestFlight，排除模拟器和侧载。月陪伴现场数、用户留存漏斗、周留存、功能推荐转化。",
+    "pinned": true,
+    "tags": [
+      "product-analytics"
+    ],
+    "id": 2218938,
+    "url": "https://us.posthog.com/project/461647/dashboard/2218938"
+  },
+  "actions": [
+    {
+      "name": "陪伴行为（core_action）",
+      "description": "北极星与留存的回访事件：带 core_action = true 的事件。",
+      "tags": [
+        "product-analytics"
+      ],
+      "steps": [
+        {
+          "event": "listen_playback_started",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        },
+        {
+          "event": "timetable_saved",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        },
+        {
+          "event": "memory_fragment_created",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        },
+        {
+          "event": "dispersal_ceremony_completed",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        },
+        {
+          "event": "memory_card_shared",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        },
+        {
+          "event": "app_opened_from",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        },
+        {
+          "event": "companion_invitation_finished",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        },
+        {
+          "event": "companion_join_finished",
+          "properties": [
+            {
+              "key": "core_action",
+              "value": [
+                "true"
+              ],
+              "operator": "exact",
+              "type": "event"
+            }
+          ]
+        }
+      ],
+      "id": 390681
+    }
+  ],
+  "insights": [
+    {
+      "name": "北极星 · 月陪伴现场数",
+      "description": "自然月内至少一次陪伴行为（core_action = true）的去重现场数；现场 = coalesce(show_id, current_show_id)。",
+      "query": {
+        "kind": "DataVisualizationNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT toStartOfMonth(timestamp) AS month, count(DISTINCT coalesce(properties.show_id, properties.current_show_id)) AS accompanied_shows FROM events WHERE properties.core_action = true AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND timestamp > now() - INTERVAL 12 MONTH GROUP BY month ORDER BY month"
+        },
+        "display": "ActionsLineGraph",
+        "chartSettings": {
+          "xAxis": {
+            "column": "month"
+          },
+          "yAxis": [
+            {
+              "column": "accompanied_shows"
+            }
+          ]
+        }
+      },
+      "tags": [
+        "product-analytics"
+      ],
+      "id": 12939092,
+      "short_id": "ctmwQeOk"
+    },
+    {
+      "name": "留存 · 核心留存（第一场 → 第二场，90 天）",
+      "description": "核心留存率 = 漏斗第 7 步 / 第 3 步：首次 show_added 后 90 天内再次 show_added。",
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "FunnelsQuery",
+          "dateRange": {
+            "date_from": "-180d"
+          },
+          "series": [
+            {
+              "kind": "EventsNode",
+              "event": "show_added",
+              "name": "添加第一场",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                },
+                {
+                  "type": "hogql",
+                  "key": "properties.is_first_show = true"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": "show_added",
+              "name": "再次添加现场",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                },
+                {
+                  "type": "hogql",
+                  "key": "properties.is_first_show = false"
+                }
+              ]
+            }
+          ],
+          "funnelsFilter": {
+            "funnelWindowInterval": 90,
+            "funnelWindowIntervalUnit": "day",
+            "funnelOrderType": "ordered"
+          }
+        }
+      },
+      "tags": [
+        "product-analytics"
+      ],
+      "id": 12939093,
+      "short_id": "adPhH63v"
+    },
+    {
+      "name": "留存 · 7 步用户漏斗",
+      "description": "安装 → 引导 → 第一场 → 激活 → 现场日回访 → 散场收束 → 复用。PostHog 漏斗只能用一个总窗口（90 天），各步窗口见 product-analytics.md。",
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "FunnelsQuery",
+          "dateRange": {
+            "date_from": "-180d"
+          },
+          "series": [
+            {
+              "kind": "EventsNode",
+              "event": "Application Installed",
+              "name": "1 安装",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": "onboarding_completed",
+              "name": "2 完成引导",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": "show_added",
+              "name": "3 添加第一场",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                },
+                {
+                  "type": "hogql",
+                  "key": "properties.is_first_show = true"
+                }
+              ]
+            },
+            {
+              "kind": "ActionsNode",
+              "id": 390681,
+              "name": "4 激活",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": null,
+              "name": "5 现场日回访",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                },
+                {
+                  "type": "hogql",
+                  "key": "properties.current_show_phase IN ('show_day', 'live')"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": null,
+              "name": "6 散场收束",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                },
+                {
+                  "type": "hogql",
+                  "key": "event = 'dispersal_ceremony_completed' OR (event = 'memory_fragment_created' AND properties.phase IN ('live', 'after'))"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": "show_added",
+              "name": "7 复用",
+              "properties": [
+                {
+                  "type": "hogql",
+                  "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+                },
+                {
+                  "type": "hogql",
+                  "key": "properties.is_first_show = false"
+                }
+              ]
+            }
+          ],
+          "funnelsFilter": {
+            "funnelWindowInterval": 90,
+            "funnelWindowIntervalUnit": "day",
+            "funnelOrderType": "ordered"
+          }
+        }
+      },
+      "tags": [
+        "product-analytics"
+      ],
+      "id": 12939094,
+      "short_id": "418uVpp4"
+    },
+    {
+      "name": "留存 · 周留存（show_added → 陪伴行为）",
+      "description": "起始事件 show_added，回访事件为陪伴行为（core_action = true）。",
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "RetentionQuery",
+          "dateRange": {
+            "date_from": "-90d"
+          },
+          "properties": [
+            {
+              "type": "hogql",
+              "key": "properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false"
+            }
+          ],
+          "retentionFilter": {
+            "period": "Week",
+            "totalIntervals": 12,
+            "retentionType": "retention_first_time",
+            "targetEntity": {
+              "id": "show_added",
+              "name": "show_added",
+              "type": "events"
+            },
+            "returningEntity": {
+              "id": 390681,
+              "name": "陪伴行为",
+              "type": "actions"
+            }
+          }
+        }
+      },
+      "tags": [
+        "product-analytics"
+      ],
+      "id": 12939095,
+      "short_id": "VwL0YRSv"
+    },
+    {
+      "name": "推荐 · 露出 → 点击转化（30 天）",
+      "description": "按 feature / surface 拆分。露出只来自主卡（card）；通知点击（notification）无露出事件，转化率为空。",
+      "query": {
+        "kind": "DataTableNode",
+        "source": {
+          "kind": "HogQLQuery",
+          "query": "SELECT properties.feature AS feature, properties.surface AS surface, countIf(event = 'feature_recommendation_shown') AS shown, countIf(event = 'feature_recommendation_tapped') AS tapped, round(100.0 * tapped / nullIf(shown, 0), 1) AS tap_percent FROM events WHERE event IN ('feature_recommendation_shown', 'feature_recommendation_tapped') AND properties.$app_namespace = 'com.doublewaterapps.beforeshow' AND properties.$is_emulator = false AND properties.$is_sideloaded = false AND timestamp > now() - INTERVAL 30 DAY GROUP BY feature, surface ORDER BY feature, surface"
+        }
+      },
+      "tags": [
+        "product-analytics"
+      ],
+      "id": 12939096,
+      "short_id": "AqPeFUZS"
+    }
+  ]
+}

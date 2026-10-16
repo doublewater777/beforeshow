@@ -1,7 +1,6 @@
 import AVFoundation
 import AVKit
 import PhotosUI
-import PostHog
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -549,17 +548,14 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
         media: [MemoryDraftMedia],
         caption: String
     ) async throws {
-        _ = try await MemoryFragmentCreationCoordinator.create(
+        let fragment = try await MemoryFragmentCreationCoordinator.create(
             showID: show.id,
             draftID: draftID,
             media: media,
             caption: caption,
             modelContext: modelContext
         )
-        PostHogSDK.shared.capture(
-            "memory_fragment_created",
-            properties: ["has_media": !media.isEmpty, "media_count": media.count]
-        )
+        ProductAnalytics.capture(.memoryFragmentCreated(showID: show.id, mediaCount: media.count, phase: fragment.phase))
         presentToast(.success, "已加入这场现场")
     }
 

@@ -361,6 +361,7 @@ struct FootprintShareComposerView: View {
                 presentToast(.failure, BSLocalization.text("系统分享面板暂时无法打开"))
                 return
             }
+            ProductAnalytics.capture(.memoryCardShared(showID: show.id, materialCount: orderedMaterials.count))
         } catch {
             presentToast(.failure, BSLocalization.text("分享图片生成失败，请重试"))
         }

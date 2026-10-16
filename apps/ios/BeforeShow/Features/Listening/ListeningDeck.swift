@@ -397,6 +397,9 @@ final class ListeningDeck {
         let previous = lastTransport
         lastTransport = change
         if change.phase == .playing {
+            if previous?.phase != .playing {
+                ProductAnalytics.capture(.listenPlaybackStarted(source: engine.source))
+            }
             if previous?.phase != .playing || previous?.songID != change.songID {
                 // Baseline for this stretch of listening.
                 recordSample(immediate: false)

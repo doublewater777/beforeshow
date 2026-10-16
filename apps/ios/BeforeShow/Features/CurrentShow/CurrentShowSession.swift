@@ -189,6 +189,7 @@ struct CurrentShowFeatureRootView: View {
         do {
             try FeatureRecommendationLedger.markHandled(showID: deepLink.showID, feature: feature, in: modelContext)
             try modelContext.save()
+            ProductAnalytics.capture(.featureRecommendationTapped(showID: deepLink.showID, feature: feature, surface: .notification))
         } catch {
             modelContext.rollback()
         }

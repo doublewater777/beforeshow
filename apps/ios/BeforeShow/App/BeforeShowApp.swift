@@ -115,8 +115,12 @@ struct BeforeShowApp: App {
                         if CompanionInviteWebLink.token(from: url) != nil || CompanionInviteWebLink.validShareURL(url) {
                             appDelegate.deliverCompanionInviteURL(url)
                         } else if url.scheme == "beforeshow", url.host == "listen" || url.host == "listening" {
+                            ProductAnalytics.capture(.appOpenedFrom(source: .widget, destination: "listen", feature: nil))
                             NotificationDeepLinkRouter.shared.route(to: NotificationDeepLink(showID: UUID(), destination: .listen))
                         } else if let deepLink = NotificationDeepLink(url: url) {
+                            ProductAnalytics.capture(.appOpenedFrom(
+                                source: .liveActivity, destination: deepLink.destination.rawValue, feature: nil
+                            ))
                             NotificationDeepLinkRouter.shared.route(to: deepLink)
                         }
                     }

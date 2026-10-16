@@ -1,5 +1,4 @@
 import Foundation
-import PostHog
 import StoreKit
 import UIKit
 
@@ -67,10 +66,7 @@ enum AppReviewPrompt {
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) {
         if moment == .settings {
-            PostHogSDK.shared.capture(
-                "app_review_store_opened",
-                properties: ["moment": moment.rawValue]
-            )
+            ProductAnalytics.capture(.appReviewStoreOpened(moment: moment.rawValue))
             openWriteReviewPage()
             return
         }
@@ -87,10 +83,7 @@ enum AppReviewPrompt {
             version: version,
             defaults: defaults
         )
-        PostHogSDK.shared.capture(
-            "app_review_prompt_requested",
-            properties: ["moment": moment.rawValue]
-        )
+        ProductAnalytics.capture(.appReviewPromptRequested(moment: moment.rawValue))
 
         Task { @MainActor in
             try? await Task.sleep(
