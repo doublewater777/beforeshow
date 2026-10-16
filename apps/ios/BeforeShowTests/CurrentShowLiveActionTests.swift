@@ -4,6 +4,17 @@ import XCTest
 final class CurrentShowLiveActionTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 2_000_000_000)
 
+    func testExpandedCoverIsRememberedOnlyForTheShowThatChoseIt() {
+        let show = UUID()
+        let other = UUID()
+
+        let stored = CurrentShowCoverPreference.toggled(storedShowID: "", showID: show)
+        XCTAssertTrue(CurrentShowCoverPreference.isExpanded(storedShowID: stored, showID: show))
+        XCTAssertFalse(CurrentShowCoverPreference.isExpanded(storedShowID: stored, showID: other))
+        XCTAssertEqual(CurrentShowCoverPreference.toggled(storedShowID: stored, showID: show), "")
+        XCTAssertEqual(CurrentShowCoverPreference.toggled(storedShowID: stored, showID: other), other.uuidString)
+    }
+
     func testHomeLiveTimetableUsesFestivalTimeZoneBeforeOpening() throws {
         let day = Date(timeIntervalSince1970: 1790956800) // October 3, Taipei midnight.
         let show = try makeTimetableShow(on: day)

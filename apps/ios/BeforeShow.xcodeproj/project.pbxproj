@@ -115,6 +115,7 @@
 		32B649F4B9B6E273712514DA /* CoverAmbientColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D87D73BEDFED2B10860DBE /* CoverAmbientColor.swift */; };
 		32CA75F87F89C3EBEB394F55 /* TimetablePerformanceInspectorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3858942B559D1FD467BDCA7 /* TimetablePerformanceInspectorSheet.swift */; };
 		32F38F7D644669137B2140A5 /* ShowAssetSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAFD895E014AE959125BDDE /* ShowAssetSheet.swift */; };
+		32F8D3A01C75EA8AAF18FC92 /* CurrentShowCoverPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F14165D92E2CC15B61519B57 /* CurrentShowCoverPreference.swift */; };
 		33940C996643B57246B99B3B /* ProEntitlement.swift in Sources */ = {isa = PBXBuildFile; fileRef = F183C29A92FD2E5A0843FD34 /* ProEntitlement.swift */; };
 		343976B8CA553A435C73EF2F /* DebugSampleShowSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C44BEEF212FB83909D3F65D1 /* DebugSampleShowSeeder.swift */; };
 		343C08E6254B662376F98DD0 /* ShowMutationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5672EB406C774E952C5A524D /* ShowMutationCoordinator.swift */; };
@@ -1088,6 +1089,7 @@
 		F0D0828056BA70804926DB3E /* BSDateFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSDateFormat.swift; sourceTree = "<group>"; };
 		F0E75E1CBD66CC4A663A1964 /* CompanionPendingInviteDrainPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionPendingInviteDrainPolicy.swift; sourceTree = "<group>"; };
 		F13A1B9D952484963ECEFDAC /* TimetableExperienceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableExperienceTests.swift; sourceTree = "<group>"; };
+		F14165D92E2CC15B61519B57 /* CurrentShowCoverPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowCoverPreference.swift; sourceTree = "<group>"; };
 		F183C29A92FD2E5A0843FD34 /* ProEntitlement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProEntitlement.swift; sourceTree = "<group>"; };
 		F230E93BAB2AA006202C2C0C /* FootprintDebugSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDebugSeeder.swift; sourceTree = "<group>"; };
 		F35BD1012092049EB683666A /* ListeningStateMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningStateMessage.swift; sourceTree = "<group>"; };
@@ -1526,6 +1528,7 @@
 			children = (
 				59153E7457D318B5DDFD1885 /* CurrentShowCompanionView.swift */,
 				D1276B611ECF18AEC295C28A /* CurrentShowCountdownCard.swift */,
+				F14165D92E2CC15B61519B57 /* CurrentShowCoverPreference.swift */,
 				DE4F15B170B1C7EC5AD85E18 /* CurrentShowEndConfirmationSheet.swift */,
 				078588CFEB87081EEA5CE6DC /* CurrentShowEndPolicy.swift */,
 				49B8477BF803706C9650372D /* CurrentShowFollowUpPolicy.swift */,
@@ -2338,6 +2341,7 @@
 				32B649F4B9B6E273712514DA /* CoverAmbientColor.swift in Sources */,
 				B8EDEF780D7F04E461B8EF82 /* CurrentShowCompanionView.swift in Sources */,
 				9FB1AC46DF0F11302E133A0A /* CurrentShowCountdownCard.swift in Sources */,
+				32F8D3A01C75EA8AAF18FC92 /* CurrentShowCoverPreference.swift in Sources */,
 				48606CDD2A02920777AC91CC /* CurrentShowEndConfirmationSheet.swift in Sources */,
 				6399E214FFED59CFEFDDFAA8 /* CurrentShowEndPolicy.swift in Sources */,
 				5712B63B77419BD3E414B965 /* CurrentShowFollowUpPolicy.swift in Sources */,
