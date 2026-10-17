@@ -351,13 +351,12 @@ actor ShowLiveActivityController {
                 snapshot: snapshot, now: now, focusedPerformanceID: focusedPerformanceID
             )
             : []
-        if !artistSources.isEmpty {
+        if artistSources.isEmpty {
+            guard request.generation == latestGeneration else { return }
+            WidgetCoverCache.pruneCovers(keeping: request.retainedCoverSources)
+        } else {
             let requestGeneration = request.generation
             let retained = request.retainedCoverSources.union(artistSources)
-            let snapshot = snapshot
-            let now = now
-            let focusedPerformanceID = focusedPerformanceID
-            let coverFilename = coverFilename
             Task {
                 await fetchArtistAvatarsAndRefresh(
                     sources: artistSources,
@@ -413,8 +412,11 @@ actor ShowLiveActivityController {
             focusedPerformanceID: focusedPerformanceID,
             artistImageFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for:)
         )
-        if case .update = updateAction {
+        switch updateAction {
+        case .update, .schedule:
             await perform(updateAction, showID: snapshot?.showID.uuidString, generation: generation)
+        default:
+            break
         }
     }
 
