@@ -39,6 +39,7 @@ struct LiveActivityContent {
     let mode: Mode
     let kicker: String
     let timerTarget: Date
+    let timerInterval: ClosedRange<Date>?
     let caption: String?
     let title: String
     let subtitle: String?
@@ -67,6 +68,7 @@ struct LiveActivityContent {
             mode = .ended
             kicker = BSLocalization.text("已散场")
             timerTarget = state.endDate ?? state.startDate
+            timerInterval = nil
             caption = nil
             title = state.showName
             subtitle = state.venueName
@@ -76,10 +78,12 @@ struct LiveActivityContent {
         } else if let artist = state.currentArtistName {
             let start = state.currentStartsAt ?? state.startDate
             let end = state.currentEndsAt ?? state.endDate ?? state.startDate
+            let boundary = state.currentEndsAt ?? state.endDate ?? LiveActivityCopy.endBoundary(for: state)
             mode = .set
             kicker = BSLocalization.text("正在演出")
             // 与普通演出同一语义:正计时「已开场」，剩余交给进度条与静态结束时刻。
             timerTarget = start
+            timerInterval = start < boundary ? start...boundary : nil
             caption = BSLocalization.text("已开场")
             title = artist
             let ends = BSLocalization.format("%@ 结束", clock(end))
@@ -99,6 +103,7 @@ struct LiveActivityContent {
             mode = isLive ? .set : .between
             kicker = BSLocalization.text(isLive ? "正在演出" : "下一场")
             timerTarget = state.nextStartsAt ?? state.startDate
+            timerInterval = nil
             caption = isLive ? BSLocalization.text("已开场") : nil
             title = artist
             subtitle = state.nextStageName
@@ -111,6 +116,8 @@ struct LiveActivityContent {
             mode = .started
             kicker = BSLocalization.text("正在现场")
             timerTarget = state.startDate
+            let boundary = state.endDate ?? LiveActivityCopy.endBoundary(for: state)
+            timerInterval = state.startDate < boundary ? state.startDate...boundary : nil
             caption = BSLocalization.text("已开场")
             title = state.showName
             subtitle = state.endDate.map { BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar)) }
@@ -123,6 +130,7 @@ struct LiveActivityContent {
             mode = .pre
             kicker = BSLocalization.text("距离开场")
             timerTarget = state.startDate
+            timerInterval = nil
             caption = nil
             title = state.showName
             let opening = BSLocalization.format("%@ 开场", clock(state.startDate))
@@ -192,6 +200,14 @@ enum LiveActivityCopy {
         now >= endBoundary(for: state)
     }
 
+    /// 驱动 Live Activity 在开场、场次更替与散场等里程碑自主刷新的计划点集。
+    static func milestones(for state: ShowLiveActivityAttributes.ContentState) -> [Date] {
+        var points: Set<Date> = [state.startDate, endBoundary(for: state)]
+        if let currentEnds = state.currentEndsAt { points.insert(currentEnds) }
+        if let nextStarts = state.nextStartsAt { points.insert(nextStarts) }
+        return points.sorted()
+    }
+
     /// 24 小时制，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
         BSDateFormat.clock(date, timeZone: calendar.timeZone)
@@ -199,8 +215,8 @@ enum LiveActivityCopy {
 }
 
 // MARK: - 计时文本
-// Text(style: .timer) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
-// 就能走动的计时;跨零自动从倒数切到正计时,始终无符号。
+// Text(style: .timer) 与 Text(timerInterval:) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
+// 就能走动的计时;跨零自动从倒数切到正计时,散场边界自动冻结停表。
 
 struct LiveActivityTimerText: View {
     let content: LiveActivityContent
@@ -215,13 +231,9 @@ struct LiveActivityTimerText: View {
                     .font(.system(size: fontSize * 0.82, weight: .medium))
                     .foregroundStyle(WidgetTheme.muted)
                 +
-                Text(content.timerTarget, style: .timer)
-                    .font(.system(size: fontSize, weight: .semibold))
-                    .foregroundStyle(content.timerColor)
+                timerLabel
             } else {
-                Text(content.timerTarget, style: .timer)
-                    .font(.system(size: fontSize, weight: .semibold))
-                    .foregroundStyle(content.timerColor)
+                timerLabel
             }
         }
         .monospacedDigit()
@@ -229,6 +241,18 @@ struct LiveActivityTimerText: View {
         .minimumScaleFactor(0.65)
         .multilineTextAlignment(alignment)
         .accessibilityLabel(Text("\(prefix.map { "\($0) " } ?? "")\(content.kicker) \(Text(content.timerTarget, style: .timer))"))
+    }
+
+    private var timerLabel: Text {
+        if let interval = content.timerInterval {
+            Text(timerInterval: interval, pauseTime: interval.upperBound, countsDown: false)
+                .font(.system(size: fontSize, weight: .semibold))
+                .foregroundStyle(content.timerColor)
+        } else {
+            Text(content.timerTarget, style: .timer)
+                .font(.system(size: fontSize, weight: .semibold))
+                .foregroundStyle(content.timerColor)
+        }
     }
 }
 
