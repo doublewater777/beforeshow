@@ -152,9 +152,12 @@ struct TimetablePerformanceInspectorSheet: View {
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         let isNameEmpty = draftArtistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        Button(BSLocalization.text("保存"), action: commitAndReturn)
+                        Button(action: commitAndReturn) {
+                            Image(systemName: "checkmark")
+                        }
+                            .accessibilityLabel(BSLocalization.text("保存"))
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(TimetableStyle.mine)
+                            .foregroundStyle(TimetableStyle.foreground)
                             .disabled(isNameEmpty)
                             .opacity(isNameEmpty ? 0.35 : 1)
                     }
@@ -651,14 +654,7 @@ struct TimetablePerformanceInspectorSheet: View {
                         .font(.system(size: 15))
                         .foregroundStyle(TimetableStyle.foreground)
                     Spacer()
-                    DatePicker("", selection: Binding(
-                        get: { draftStartsAt },
-                        set: {
-                            if $0 < draftEndsAt {
-                                draftStartsAt = $0
-                            }
-                        }
-                    ), displayedComponents: .hourAndMinute)
+                    DatePicker("", selection: $draftStartsAt, in: day.performanceEditingRange(timeZone: timeZone), displayedComponents: [.date, .hourAndMinute])
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .environment(\.timeZone, timeZone)
@@ -676,14 +672,7 @@ struct TimetablePerformanceInspectorSheet: View {
                         .font(.system(size: 15))
                         .foregroundStyle(TimetableStyle.foreground)
                     Spacer()
-                    DatePicker("", selection: Binding(
-                        get: { draftEndsAt },
-                        set: {
-                            if $0 > draftStartsAt {
-                                draftEndsAt = $0
-                            }
-                        }
-                    ), displayedComponents: .hourAndMinute)
+                    DatePicker("", selection: $draftEndsAt, in: day.performanceEditingRange(timeZone: timeZone), displayedComponents: [.date, .hourAndMinute])
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .environment(\.timeZone, timeZone)
