@@ -19,6 +19,8 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var startDate: Date
         /// 用户填写的散场时间；缺省时由 endBoundary 提供默认边界。
         var endDate: Date?
+        /// 实际生命周期结束边界(包含散场或当日落幕)
+        var lifecycleEnd: Date? = nil
         var timeZoneSecondsFromGMT: Int? = nil
         var endTimeZoneSecondsFromGMT: Int? = nil
         var timeZoneIdentifier: String? = nil
@@ -48,7 +50,7 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
 
         /// Shared by ActivityKit staleness and the widget's bounded system timer.
         var endBoundary: Date {
-            endDate ?? currentEndsAt ?? startDate.addingTimeInterval(
+            lifecycleEnd ?? endDate ?? currentEndsAt ?? startDate.addingTimeInterval(
                 TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600
             )
         }

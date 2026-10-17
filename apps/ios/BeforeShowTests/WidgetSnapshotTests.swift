@@ -637,7 +637,7 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(unchanged, .keep(desired.state))
 
         var changedState = desired.state
-        changedState.endDate = desired.state.endDate?.addingTimeInterval(3_600)
+        changedState.lifecycleEnd = (desired.state.lifecycleEnd ?? now).addingTimeInterval(3_600)
         let changed = LiveActivityPlanner.action(
             snapshot: snapshot,
             now: now,

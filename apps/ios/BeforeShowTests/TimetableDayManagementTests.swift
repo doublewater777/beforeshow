@@ -4,6 +4,71 @@ import XCTest
 
 @MainActor
 final class TimetableDayManagementTests: XCTestCase {
+    func testPerformanceEditsRejectUnrelatedDatesAndAdjacentDayOverlapWithoutMutation() throws {
+        let first = try makeDay(17, endsAt: date("Asia/Shanghai", 10, 18, 2))
+        let next = try makeDay(18)
+        let timetable = try Timetable(timeZoneIdentifier: "Asia/Shanghai", days: [first, next])
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        container.mainContext.insert(timetable)
+        let performance = try XCTUnwrap(first.performances.first)
+        let original = TimetableDraft(from: timetable)
+        let cases: [(Date, Date, TimetableValidationError)] = [
+            (date("Asia/Shanghai", 10, 20, 14), date("Asia/Shanghai", 10, 20, 15), .invalidDayDate),
+            (date("Asia/Shanghai", 10, 17, 23), date("Asia/Shanghai", 10, 18, 16), .overlappingDays),
+            (date("Asia/Shanghai", 10, 17, 23), date("Asia/Shanghai", 12, 20, 1), .invalidDayDate),
+            (date("Asia/Shanghai", 10, 18, 1), date("Asia/Shanghai", 10, 18, 2), .invalidDayDate)
+        ]
+        for (start, end, error) in cases {
+            XCTAssertThrowsError(try performance.updateDetails(artistName: "Changed", startsAt: start, endsAt: end)) {
+                XCTAssertEqual($0 as? TimetableValidationError, error)
+            }
+            XCTAssertEqual(TimetableDraft(from: timetable), original)
+        }
+        let second = try XCTUnwrap(next.performances.first)
+        XCTAssertThrowsError(try second.updateDetails(
+            artistName: "Changed", startsAt: date("Asia/Shanghai", 10, 18, 1),
+            endsAt: date("Asia/Shanghai", 10, 18, 15)
+        )) {
+            XCTAssertEqual($0 as? TimetableValidationError, .overlappingDays)
+        }
+        XCTAssertEqual(TimetableDraft(from: timetable), original)
+    }
+
+    func testOvernightPerformanceEditsPersistAcrossDST() throws {
+        for (zone, month, dayNumber, endHour, duration) in [
+            ("Asia/Shanghai", 10, 17, 1, 1.5),
+            ("America/Los_Angeles", 3, 7, 4, 3.5),
+            ("America/Los_Angeles", 10, 31, 4, 5.5)
+        ] {
+            let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+            let day = try TimetableDay(date: date(zone, month, dayNumber), stages: [
+                TimetableStage(name: "Main", performances: [TimetablePerformance(
+                    artistName: "Artist", startsAt: date(zone, month, dayNumber, 14),
+                    endsAt: date(zone, month, dayNumber, 15)
+                )])
+            ])
+            let timetable = try Timetable(timeZoneIdentifier: zone, days: [day])
+            container.mainContext.insert(timetable)
+            let performance = try XCTUnwrap(day.performances.first)
+            let editingRange = day.performanceEditingRange(timeZone: TimeZone(identifier: zone)!)
+            XCTAssertTrue(editingRange.contains(date(zone, month, dayNumber + 1, 23, 59)))
+            XCTAssertFalse(editingRange.contains(date(zone, month, dayNumber + 2)))
+            let start = date(zone, month, dayNumber, 23, 30)
+            let end = date(zone, month, dayNumber + 1, endHour)
+            try performance.updateDetails(artistName: "Artist", startsAt: start, endsAt: end)
+            try container.mainContext.save()
+            let context = ModelContext(container)
+            let reloaded = try XCTUnwrap(context.fetch(FetchDescriptor<TimetablePerformance>()).first)
+            XCTAssertEqual(reloaded.startsAt, start)
+            XCTAssertEqual(reloaded.endsAt, end)
+            XCTAssertEqual(reloaded.endsAt.timeIntervalSince(reloaded.startsAt), duration * 3600)
+            XCTAssertEqual(reloaded.stage?.day?.timetable?.timeZoneIdentifier, zone)
+            XCTAssertNoThrow(try TimetableDraft(from: timetable).buildTimetable())
+            XCTAssertNotEqual(TimetableTimeFormat.range(start, end, timeZone: TimeZone(identifier: zone)!),
+                              "23:30–0\(endHour):00")
+        }
+    }
+
     func testDateChangesPreserveLocalTimesOvernightSetsAndArtistStateAcrossDST() throws {
         for (zone, month, originalDay, targetDay) in [
             ("Asia/Shanghai", 10, 17, 19),

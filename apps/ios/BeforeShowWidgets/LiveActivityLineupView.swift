@@ -181,4 +181,3 @@ struct LiveActivityThinRing: View {
         .frame(width: size, height: size)
     }
 }
-
