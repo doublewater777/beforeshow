@@ -440,7 +440,8 @@ actor ShowLiveActivityController {
     }
 
     private func staleDate(for state: ShowLiveActivityAttributes.ContentState) -> Date? {
-        endBoundary(for: state)
+        let now = Date()
+        return state.startDate > now ? state.startDate : endBoundary(for: state)
     }
 
     private func request(attributes: ShowLiveActivityAttributes, content: ActivityContent<ShowLiveActivityAttributes.ContentState>) {

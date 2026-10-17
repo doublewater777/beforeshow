@@ -22,67 +22,56 @@ import WidgetKit
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
-            let schedule = LiveActivityMilestoneSchedule(milestones: LiveActivityCopy.milestones(for: context.state))
-            TimelineView(schedule) { timeline in
-                let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
-                LiveActivityBannerView(
-                    state: context.state,
-                    isLive: isLive,
-                    now: timeline.date
-                )
-            }
+            let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
+            LiveActivityBannerView(
+                state: context.state,
+                isLive: isLive
+            )
         } dynamicIsland: { context in
-            let schedule = LiveActivityMilestoneSchedule(milestones: LiveActivityCopy.milestones(for: context.state))
+            let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
             return DynamicIsland {
-                // expanded 顶部 leading/trailing 都留空:互不遮挡，计时改放 bottom 右中。
+                // expanded 顶部 leading/trailing 都留空:leading 图标与 bottom 封面位
+                // 视觉重复;trailing 计时贴岛右上圆角会被裁。计时改放 bottom 右中,
+                // 大字号,与信息列垂直居中。
                 DynamicIslandExpandedRegion(.bottom) {
-                    TimelineView(schedule) { timeline in
-                        let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
-                        LiveActivityExpandedDetails(state: context.state, isLive: isLive, now: timeline.date)
-                    }
+                    LiveActivityExpandedDetails(state: context.state, isLive: isLive)
                 }
             } compactLeading: {
-                TimelineView(schedule) { timeline in
-                    let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
-                    let content = LiveActivityContent(state: context.state, isLive: isLive, now: timeline.date)
-                    if let lineup = content.lineup {
-                        LiveActivityCompactAvatar(filename: lineup.avatar, name: content.title, size: 22)
-                    } else if let cover = context.state.coverImageFilename, !cover.isEmpty {
-                        LiveActivityCompactAvatar(filename: cover, name: content.title, size: 22)
-                    } else {
-                        LiveActivityAppIconMark(size: 20)
-                    }
+                let content = LiveActivityContent(state: context.state, isLive: isLive)
+                if let lineup = content.lineup {
+                    LiveActivityCompactAvatar(filename: lineup.avatar, name: content.title, size: 22)
+                } else if let cover = context.state.coverImageFilename, !cover.isEmpty {
+                    LiveActivityCompactAvatar(filename: cover, name: content.title, size: 22)
+                } else {
+                    LiveActivityAppIconMark(size: 20)
                 }
             } compactTrailing: {
-                TimelineView(schedule) { timeline in
-                    let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
-                    let content = LiveActivityContent(state: context.state, isLive: isLive, now: timeline.date)
-                    if content.lineup != nil, content.mode == .set, let progress = content.progress {
-                        // 现场模式正在演:右侧一个随本场时间走满的红环，与左侧头像呼应。
-                        ZStack {
-                            Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 2).padding(0.8)
-                            LiveActivityThinRing(progress: progress, size: 20)
+                let content = LiveActivityContent(state: context.state, isLive: isLive)
+                if content.lineup != nil, content.mode == .set, let progress = content.progress {
+                    // 现场模式正在演:右侧一个随本场时间走满的红环，与左侧头像呼应。
+                    ZStack {
+                        Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 2).padding(0.8)
+                        LiveActivityThinRing(progress: progress, size: 20)
+                    }
+                    .frame(width: 20, height: 20)
+                } else if content.mode == .ended {
+                    Text(content.kicker)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(content.kickerColor)
+                        .lineLimit(1)
+                } else {
+                    HStack(spacing: 2.5) {
+                        if content.showsWave {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(WidgetTheme.live)
                         }
-                        .frame(width: 20, height: 20)
-                    } else if content.mode == .ended {
-                        Text(content.kicker)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(content.kickerColor)
-                            .lineLimit(1)
-                    } else {
-                        HStack(spacing: 2.5) {
-                            if content.showsWave {
-                                Image(systemName: "waveform")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(WidgetTheme.live)
-                            }
-                            LiveActivityTimerText(
-                                content: content,
-                                fontSize: 11,
-                                alignment: content.showsWave ? .leading : .trailing
-                            )
-                            .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
-                        }
+                        LiveActivityTimerText(
+                            content: content,
+                            fontSize: 11,
+                            alignment: content.showsWave ? .leading : .trailing
+                        )
+                        .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
                     }
                 }
             } minimal: {
@@ -209,8 +198,10 @@ enum LiveActivityArtwork {
     /// 显示尺寸只有 20-48pt,缩到 128px 足够。
     static func downscaled(_ image: UIImage, maxPixels: CGFloat = 128) -> UIImage {
         guard max(image.size.width, image.size.height) > maxPixels else { return image }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
         let size = CGSize(width: maxPixels, height: maxPixels)
-        return UIGraphicsImageRenderer(size: size).image { _ in
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
             image.draw(in: CGRect(origin: .zero, size: size))
         }
     }
