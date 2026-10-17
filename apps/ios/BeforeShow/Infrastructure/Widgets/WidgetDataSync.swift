@@ -295,16 +295,10 @@ actor ShowLiveActivityController {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
 
-        // 现场模式:主现场 / 同时在演 / 下一场的艺人头像与封面同一套缓存。
-        let artistSources = desired == nil ? [] : LiveActivityPlanner.featuredArtistImageSources(
-            snapshot: snapshot, now: now, focusedPerformanceID: focusedPerformanceID
-        )
-        let retained = request.retainedCoverSources.union(artistSources)
-        for source in retained.sorted() {
+        for source in request.retainedCoverSources.sorted() {
             await WidgetCoverCache.refresh(for: source)
             guard request.generation == latestGeneration else { return }
         }
-        WidgetCoverCache.pruneCovers(keeping: retained)
 
         let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
         if !hadWidgetCover, hasWidgetCover {
@@ -350,6 +344,45 @@ actor ShowLiveActivityController {
             showID: snapshot?.showID.uuidString,
             generation: request.generation
         )
+
+        // 现场模式艺人头像:优先呈现已有缓存，后台按需补齐下载并在就绪后单独刷新，避免弱网阻塞主活动。
+        let artistSources = (desired != nil && activitiesEnabled)
+            ? LiveActivityPlanner.featuredArtistImageSources(
+                snapshot: snapshot, now: now, focusedPerformanceID: focusedPerformanceID
+            )
+            : []
+        var didFetchNewArtistImages = false
+        for source in artistSources.sorted() {
+            guard request.generation == latestGeneration else { return }
+            if WidgetCoverCache.cachedCoverPath(matching: source) == nil {
+                await WidgetCoverCache.refresh(for: source)
+                if WidgetCoverCache.cachedCoverPath(matching: source) != nil {
+                    didFetchNewArtistImages = true
+                }
+            }
+        }
+        WidgetCoverCache.pruneCovers(keeping: request.retainedCoverSources.union(artistSources))
+
+        if didFetchNewArtistImages, activitiesEnabled, request.generation == latestGeneration {
+            let updatedExisting: [LiveActivityExisting] = Activity<ShowLiveActivityAttributes>.activities.map {
+                LiveActivityExisting(
+                    showID: $0.attributes.showID,
+                    isPending: Self.isPending($0),
+                    state: $0.content.state
+                )
+            }
+            let updateAction = LiveActivityPlanner.action(
+                snapshot: snapshot,
+                now: now,
+                existing: updatedExisting,
+                coverFilename: coverFilename,
+                focusedPerformanceID: focusedPerformanceID,
+                artistImageFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for:)
+            )
+            if case .update = updateAction {
+                await perform(updateAction, showID: snapshot?.showID.uuidString, generation: request.generation)
+            }
+        }
     }
 
     private func perform(_ action: LiveActivityAction, showID: String?, generation: UInt64) async {
