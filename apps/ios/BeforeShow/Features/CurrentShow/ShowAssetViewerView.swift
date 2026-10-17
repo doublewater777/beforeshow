@@ -51,7 +51,7 @@ struct ShowAssetViewerView: View {
             }
             .opacity(isChromeVisible ? 1 : 0)
         }
-        .toolbarVisibility(isChromeVisible ? .visible : .hidden, for: .navigationBar)
+        .toolbar(isChromeVisible ? .visible : .hidden, for: .navigationBar)
         .navigationTitle(kind.viewerTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { manageMenu }

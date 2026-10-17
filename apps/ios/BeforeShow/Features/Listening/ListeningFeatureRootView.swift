@@ -100,11 +100,10 @@ struct RootBottomChromeModifier: ViewModifier {
     func body(content: Content) -> some View {
         if let selection {
             content
-                .safeAreaBar(edge: .bottom, spacing: 0) {
+                .bsBottomBar {
                     ListeningPolishedBottomChrome(selectedTab: selection)
                         .padding(.bottom, BSSpacing.xs)
                 }
-                .scrollEdgeEffectStyle(.soft, for: .bottom)
         } else {
             content
         }

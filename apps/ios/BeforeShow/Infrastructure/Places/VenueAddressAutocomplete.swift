@@ -66,8 +66,7 @@ enum MapKitAddressFormatter {
     }
 
     static func displayAddress(for mapItem: MKMapItem) -> String {
-        let address = mapItem.addressRepresentations?.fullAddress(includingRegion: false, singleLine: true)
-            ?? mapItem.address?.fullAddress
+        let address = mapItem.bsFullAddress
             ?? mapItem.name
             ?? ""
         return address.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -106,7 +105,7 @@ private extension AddressSuggestion {
     init?(mapItem: MKMapItem) {
         let name = (mapItem.name ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let district = (mapItem.addressRepresentations?.cityName ?? "")
+        let district = (mapItem.bsCityName ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let address = MapKitAddressFormatter.displayAddress(for: mapItem)
 
@@ -118,8 +117,8 @@ private extension AddressSuggestion {
             name,
             district,
             address,
-            "\(mapItem.location.coordinate.latitude)",
-            "\(mapItem.location.coordinate.longitude)"
+            "\(mapItem.bsCoordinate.latitude)",
+            "\(mapItem.bsCoordinate.longitude)"
         ].joined(separator: "|")
 
         self.init(

@@ -555,7 +555,7 @@ struct WidgetCoverImage: View {
     var body: some View {
         image
         .resizable()
-        .widgetAccentedRenderingMode(.fullColor)
+        .bsFullColorWidgetImage()
         .scaledToFill()
         .frame(width: WidgetTheme.mediumCoverSize.width, height: WidgetTheme.mediumCoverSize.height)
         .clipShape(RoundedRectangle(cornerRadius: WidgetTheme.widgetCoverCornerRadius, style: .continuous))

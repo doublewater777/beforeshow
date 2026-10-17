@@ -176,6 +176,24 @@ final class PreviewListeningPlaybackServiceTests: XCTestCase {
         XCTAssertEqual(service.currentTime, 5, accuracy: 0.1)
     }
 
+    func testSystemQueueChangesReachObserversWithoutAVFoundationObservation() async throws {
+        try await service.load([item("first"), item("second")], startingAt: "first", at: 0)
+        var observedSong: String?
+        let task = Task { @MainActor in
+            for await id in BSObservationValues({ self.service.currentSongID }) {
+                observedSong = id
+            }
+        }
+        defer { task.cancel() }
+        try await waitUntil { observedSong == "first" }
+
+        // Simulate an automatic advance performed by the player, outside the service.
+        player.advanceToNextItem()
+        try await waitUntil { observedSong == "second" }
+        player.removeAllItems()
+        try await waitUntil { self.service.hasEnded }
+    }
+
     private func start() async throws {
         try await service.load([item("first"), item("second")], startingAt: "first", at: 0)
         try await service.play()

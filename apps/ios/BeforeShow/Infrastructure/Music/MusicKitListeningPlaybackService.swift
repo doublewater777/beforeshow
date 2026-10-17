@@ -1,22 +1,36 @@
 import Foundation
+import Combine
+import Observation
 @preconcurrency import MusicKit
 
 /// Full-catalog playback on `ApplicationMusicPlayer`, the way Apple's MusicKit
 /// samples drive it: one shared player, one queue per loaded disc, state read
 /// straight from the player. Lock Screen and Control Center belong to the system.
 @MainActor
+@Observable
 final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     let source = ListeningPlaybackSource.fullCatalog
     private let player: ApplicationMusicPlayer
     private var songsByID: [String: Song] = [:]
     private var durationBySongID: [String: TimeInterval] = [:]
     private(set) var queuedSongIDs: [String] = []
-    private var focusObserver: NSObjectProtocol?
+    private var playerRevision = 0
+    @ObservationIgnored private var playerObservers: [AnyCancellable] = []
+    @ObservationIgnored private var focusObserver: NSObjectProtocol?
 
     init(player: ApplicationMusicPlayer = .shared) {
         self.player = player
+        observePlayer()
         focusObserver = AppAudioSession.observeFocusLoss(of: .listening) { [weak self] in
             self?.pause()
+        }
+    }
+
+    private func observePlayer() {
+        playerObservers = [player.state.objectWillChange, player.queue.objectWillChange].map { changes in
+            changes.sink { [weak self] _ in
+                Task { @MainActor in self?.playerRevision &+= 1 }
+            }
         }
     }
 
@@ -25,7 +39,8 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     var phase: ListeningPlaybackTransportPhase {
-        switch player.state.playbackStatus {
+        _ = playerRevision
+        return switch player.state.playbackStatus {
         case .playing: .playing
         case .paused: .paused
         case .stopped: .stopped
@@ -42,6 +57,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     var hasEnded: Bool {
+        _ = playerRevision
         guard !queuedSongIDs.isEmpty else { return false }
         let status = player.state.playbackStatus
         guard status == .stopped || status == .paused else { return false }
@@ -87,6 +103,8 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         player.state.repeatMode = MusicPlayer.RepeatMode.none
         player.state.shuffleMode = .off
         player.queue = ApplicationMusicPlayer.Queue(for: songs, startingAt: songsByID[startID])
+        observePlayer()
+        playerRevision &+= 1
         AppAudioSession.lease(.listening)
         await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
@@ -139,6 +157,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     private var currentEntrySongID: String? {
+        _ = playerRevision
         guard case let .song(song) = player.queue.currentEntry?.item else { return nil }
         return song.id.rawValue
     }

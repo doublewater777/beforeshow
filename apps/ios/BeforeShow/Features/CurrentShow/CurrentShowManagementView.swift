@@ -652,10 +652,8 @@ private struct HomeHeaderScrollObserver: ViewModifier {
     @Binding var isOverContent: Bool
 
     func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y
-        } action: { _, y in
-            let next = y > 10
+        content.bsOnScrollOffset { offset in
+            let next = offset.y > 10
             if isOverContent != next {
                 isOverContent = next
             }

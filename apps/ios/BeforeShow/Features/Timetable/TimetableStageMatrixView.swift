@@ -19,7 +19,7 @@ struct TimetableStageMatrixView: View {
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
-    @State private var position = ScrollPosition(edge: .top)
+    @State private var position = BSScrollController()
     @State private var scrolledDayID: UUID?
     /// A tap on empty lane space only proposes a slot; nothing is saved until the form is.
     @State private var ghost: Ghost?
@@ -105,24 +105,17 @@ struct TimetableStageMatrixView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         timelineGrid(layout: layout, lane: lane, performances: performances, stages: stages)
                             .frame(width: width, height: layout.contentHeight, alignment: .topLeading)
+                            .background(BSScrollObservation(enclosing: true, controller: position) { offset in
+                                viewport.updateVerticalOffset(offset.y)
+                            })
                             .background(ScrollViewBouncesConfigurator(bounces: false, directionalLock: true))
-                    }
-                    .scrollPosition($position)
-                    .onScrollGeometryChange(for: CGFloat.self) { geo in
-                        geo.contentOffset.y
-                    } action: { _, y in
-                        viewport.updateVerticalOffset(y)
                     }
                     .frame(width: width, height: gridHeight, alignment: .topLeading)
                     .clipped()
                     .background(ScrollViewBouncesConfigurator(bounces: false, directionalLock: true))
                 }
                 .frame(width: width, height: geo.size.height, alignment: .topLeading)
-            }
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.x
-            } action: { _, x in
-                viewport.updateHorizontalOffset(x)
+                .bsOnScrollOffset(enclosing: true) { viewport.updateHorizontalOffset($0.x) }
             }
             .onChange(of: CGSize(width: geo.size.width, height: gridHeight), initial: true) { _, size in
                 viewport.updateSize(size)
@@ -132,7 +125,7 @@ struct TimetableStageMatrixView: View {
                 canReturnToNow = available
             }
             .onChange(of: returnToNowRequest) { _, _ in
-                withAnimation(.snappy) { scrollToNow(layout, viewport: gridHeight) }
+                scrollToNow(layout, viewport: gridHeight, animated: true)
             }
             // The sheet reports a tiny height while presenting; wait for the real one.
             .onChange(of: [day.id.hashValue, Int(geo.size.height)], initial: true) {
@@ -149,9 +142,9 @@ struct TimetableStageMatrixView: View {
         Self.ruler + CGFloat(index) * (lane + Self.laneGap)
     }
 
-    private func scrollToNow(_ layout: TimetableMatrixLayout, viewport: CGFloat) {
-        guard let nowY = layout.nowY else { position.scrollTo(edge: .top); return }
-        position.scrollTo(y: max(0, nowY - viewport * 0.35))
+    private func scrollToNow(_ layout: TimetableMatrixLayout, viewport: CGFloat, animated: Bool = false) {
+        guard let nowY = layout.nowY else { position.scrollTo(y: 0); return }
+        position.scrollTo(y: max(0, nowY - viewport * 0.35), animated: animated)
     }
 
     // MARK: - Timeline Grid

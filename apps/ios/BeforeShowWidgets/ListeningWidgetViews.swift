@@ -227,12 +227,12 @@ private struct CoverImage: View {
         if let path, let uiImage = UIImage(contentsOfFile: path) {
             Image(uiImage: uiImage)
                 .resizable()
-                .widgetAccentedRenderingMode(.fullColor)
+                .bsFullColorWidgetImage()
                 .scaledToFill()
         } else {
             Image("default_cover")
                 .resizable()
-                .widgetAccentedRenderingMode(.fullColor)
+                .bsFullColorWidgetImage()
                 .scaledToFill()
         }
     }

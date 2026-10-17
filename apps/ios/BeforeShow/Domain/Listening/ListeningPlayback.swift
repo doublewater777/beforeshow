@@ -261,10 +261,8 @@ enum ListeningPlaybackError: Error, Equatable {
     case unsupportedSource
 }
 
-/// One Apple player per source. The player is the single source of truth:
-/// `phase`, `currentSongID`, `hasEnded` and `failure` are observable (MusicKit
-/// player state and queue on iOS 26.4+, AVFoundation with
-/// `AVPlayer.isObservationEnabled`), so the deck and SwiftUI read them directly.
+/// One Apple player per source; each adapter bridges native state changes into
+/// Observation so transport and SwiftUI stay in sync on iOS 17 and later.
 @MainActor
 protocol ListeningPlaybackServicing: AnyObject {
     var source: ListeningPlaybackSource { get }

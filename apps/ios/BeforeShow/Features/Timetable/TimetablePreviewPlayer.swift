@@ -118,7 +118,7 @@ final class TimetablePreviewPlayer {
     private func playAndMonitor(performanceID: UUID) async {
         do {
             try await playback.play()
-            let changes = Observations { [playback] in
+            let changes = BSObservationValues { [playback] in
                 (phase: playback.phase, failed: playback.failure != nil, ended: playback.hasEnded)
             }
             for await state in changes {

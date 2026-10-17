@@ -189,7 +189,7 @@ struct ShowDetailView: View {
         }
         .fullScreenCover(isPresented: $isShowingCoverPreview) {
             ShowCoverFullscreenPreview(urlString: show.coverImageURL)
-                .navigationTransition(.zoom(sourceID: "cover", in: coverTransition))
+                .bsNavigationZoom(sourceID: "cover", in: coverTransition)
         }
         .alert(
             DangerConfirmation.deleteShow.title,
@@ -237,7 +237,7 @@ struct ShowDetailView: View {
                 )
                 .frame(width: 74, height: 98)
                 .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                .matchedTransitionSource(id: "cover", in: coverTransition)
+                .bsTransitionSource(id: "cover", in: coverTransition)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(BSLocalization.text("查看封面大图"))

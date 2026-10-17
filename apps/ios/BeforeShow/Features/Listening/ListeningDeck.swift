@@ -349,7 +349,7 @@ final class ListeningDeck {
     private func observe(_ engine: any ListeningPlaybackServicing) {
         observationTask?.cancel()
         observationTask = Task { @MainActor [weak self] in
-            let transport = Observations { [weak self] () -> Transport? in
+            let transport = BSObservationValues { [weak self] () -> Transport? in
                 guard let engine = self?.engine else { return nil }
                 return Transport(engine)
             }

@@ -1,5 +1,6 @@
 import Foundation
 import MapKit
+import CoreLocation
 
 struct GeocodedCoordinate: Equatable, Sendable {
     let latitude: Double
@@ -64,9 +65,15 @@ final class MapKitGeocoding: Geocoding {
             return cached
         }
         let query = Self.composeQuery(city: city, address: address)
-        guard !query.isEmpty, let request = MKGeocodingRequest(addressString: query) else { return nil }
-        let mapItems = try await request.mapItems
-        guard let location = mapItems.first?.location else { return nil }
+        guard !query.isEmpty else { return nil }
+        let location: CLLocation?
+        if #available(iOS 26, *) {
+            guard let request = MKGeocodingRequest(addressString: query) else { return nil }
+            location = try await request.mapItems.first?.location
+        } else {
+            location = try await CLGeocoder().geocodeAddressString(query).first?.location
+        }
+        guard let location else { return nil }
         let coord = GeocodedCoordinate(
             latitude: location.coordinate.latitude,
             longitude: location.coordinate.longitude

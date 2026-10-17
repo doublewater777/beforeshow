@@ -169,7 +169,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
     @Namespace private var glassNamespace
 
     var body: some View {
-        GlassEffectContainer(spacing: ListeningBottomBarLayout.gap) {
+        BSGlassEffectContainer(spacing: ListeningBottomBarLayout.gap) {
             ZStack {
                 selectionLens
 
@@ -224,8 +224,8 @@ private struct ListeningLiquidGlassBottomChrome: View {
         )
         .clipShape(Capsule())
         .contentShape(Capsule())
-        .glassEffect(.regular.interactive(), in: Capsule())
-        .glassEffectID("listen", in: glassNamespace)
+        .bsGlass(in: Capsule())
+        .bsGlassID("listen", in: glassNamespace)
         .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
     }
 
@@ -272,8 +272,8 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Circle())
-        .glassEffectID(glassID(for: tab), in: glassNamespace)
+        .bsGlass(in: Circle())
+        .bsGlassID(glassID(for: tab), in: glassNamespace)
         .accessibilityLabel(tab.localizedTitle)
         .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
         .accessibilityAddTraits(isSelected ? .isSelected : [])

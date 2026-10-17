@@ -214,7 +214,7 @@ struct FootprintDetailView: View {
                     FootprintCoverImageViewer(source: source)
                 }
             }
-            .navigationTransition(.zoom(sourceID: "cover", in: coverTransition))
+            .bsNavigationZoom(sourceID: "cover", in: coverTransition)
         }
         .fullScreenCover(item: $mediaMemoryTarget) { target in
             MemoryFragmentReviewView(
@@ -395,7 +395,7 @@ struct FootprintDetailView: View {
             Button(action: openCover) {
                 cover
                     .contentShape(Rectangle())
-                    .matchedTransitionSource(id: "cover", in: coverTransition)
+                    .bsTransitionSource(id: "cover", in: coverTransition)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(BSLocalization.text("查看封面大图"))
