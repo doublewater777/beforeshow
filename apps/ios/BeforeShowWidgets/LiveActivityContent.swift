@@ -180,9 +180,9 @@ enum LiveActivityCopy {
         isStale || now >= startDate
     }
 
-    /// 统一散场边界:优先明确散场/全天结束时间,其次当前场次结束,最后 4 小时兜底。
+    /// 统一散场边界:优先生命周期结束边界,其次明确散场/全天结束时间,其次当前场次结束,最后 4 小时兜底。
     static func endBoundary(for state: ShowLiveActivityAttributes.ContentState) -> Date {
-        state.endDate ?? state.currentEndsAt ?? state.startDate.addingTimeInterval(
+        state.lifecycleEnd ?? state.endDate ?? state.currentEndsAt ?? state.startDate.addingTimeInterval(
             TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600
         )
     }

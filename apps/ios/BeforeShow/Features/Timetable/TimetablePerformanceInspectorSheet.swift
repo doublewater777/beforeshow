@@ -155,25 +155,21 @@ struct TimetablePerformanceInspectorSheet: View {
                         Button(action: commitAndReturn) {
                             Image(systemName: "checkmark")
                         }
-                            .accessibilityLabel(BSLocalization.text("保存"))
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(TimetableStyle.foreground)
-                            .disabled(isNameEmpty)
-                            .opacity(isNameEmpty ? 0.35 : 1)
+                        .accessibilityLabel(BSLocalization.text("保存"))
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(TimetableStyle.foreground)
+                        .disabled(isNameEmpty)
+                        .opacity(isNameEmpty ? 0.35 : 1)
                     }
                 } else {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(BSLocalization.text("完成")) {
-                            dismiss()
-                        }
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(TimetableStyle.foreground)
+                        Button(BSLocalization.text("完成")) { dismiss() }
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(TimetableStyle.foreground)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(BSLocalization.text("编辑")) {
-                            withAnimation(TimetableStyle.pressSpring) {
-                                isEditing = true
-                            }
+                            withAnimation(TimetableStyle.pressSpring) { isEditing = true }
                         }
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(TimetableStyle.mine)
@@ -347,9 +343,7 @@ struct TimetablePerformanceInspectorSheet: View {
                     .fill(isPlayingPreview ? TimetableStyle.mine.opacity(0.25) : Color.white.opacity(0.12))
                     .frame(width: 44, height: 44)
                 if isLoadingPreview {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.white)
+                    ProgressView().controlSize(.small).tint(.white)
                 } else if isPlayingPreview {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 16, weight: .bold))
@@ -381,27 +375,16 @@ struct TimetablePerformanceInspectorSheet: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(Color(red: 0.16, green: 0.16, blue: 0.18).opacity(0.96))
-                    .shadow(color: Color.black.opacity(0.35), radius: 10, y: 4)
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(TimetableStyle.attention.opacity(0.35), lineWidth: 1)
-            )
+            .background(Capsule().fill(Color(red: 0.16, green: 0.16, blue: 0.18).opacity(0.96)).shadow(color: Color.black.opacity(0.35), radius: 10, y: 4))
+            .overlay(Capsule().strokeBorder(TimetableStyle.attention.opacity(0.35), lineWidth: 1))
             .padding(.top, 8)
             .transition(.move(edge: .top).combined(with: .opacity))
             .onTapGesture {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    self.saveErrorMessage = nil
-                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { self.saveErrorMessage = nil }
             }
             .task(id: saveErrorMessage) {
                 try? await Task.sleep(for: .seconds(3.5))
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    self.saveErrorMessage = nil
-                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { self.saveErrorMessage = nil }
             }
         }
     }
@@ -654,7 +637,10 @@ struct TimetablePerformanceInspectorSheet: View {
                         .font(.system(size: 15))
                         .foregroundStyle(TimetableStyle.foreground)
                     Spacer()
-                    DatePicker("", selection: $draftStartsAt, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("", selection: Binding(
+                        get: { draftStartsAt },
+                        set: { if $0 < draftEndsAt { draftStartsAt = $0 } }
+                    ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .environment(\.timeZone, timeZone)
@@ -662,9 +648,7 @@ struct TimetablePerformanceInspectorSheet: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
 
-                Divider()
-                    .padding(.leading, 16)
-                    .overlay(Color.white.opacity(0.06))
+                Divider().padding(.leading, 16).overlay(Color.white.opacity(0.06))
 
                 // Ends At Row
                 HStack {
@@ -672,7 +656,10 @@ struct TimetablePerformanceInspectorSheet: View {
                         .font(.system(size: 15))
                         .foregroundStyle(TimetableStyle.foreground)
                     Spacer()
-                    DatePicker("", selection: $draftEndsAt, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("", selection: Binding(
+                        get: { draftEndsAt },
+                        set: { if $0 > draftStartsAt { draftEndsAt = $0 } }
+                    ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .environment(\.timeZone, timeZone)
@@ -719,6 +706,16 @@ struct TimetablePerformanceInspectorSheet: View {
         }
 
         guard draftStartsAt < draftEndsAt else {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+            }
+            return
+        }
+
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
+        guard calendar.isDate(draftStartsAt, inSameDayAs: day.date) else {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")

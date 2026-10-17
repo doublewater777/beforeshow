@@ -437,7 +437,10 @@ actor ShowLiveActivityController {
         if state.startDate > now {
             return state.startDate
         }
-        return state.endDate ?? state.startDate.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600)
+        return state.lifecycleEnd
+            ?? state.endDate
+            ?? state.currentEndsAt
+            ?? state.startDate.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600)
     }
 
     private func request(

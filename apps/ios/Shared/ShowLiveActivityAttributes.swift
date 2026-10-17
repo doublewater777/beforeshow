@@ -20,6 +20,8 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var startDate: Date
         /// 预计谢幕(endBoundary);只在 hasStarted 后展示
         var endDate: Date?
+        /// 实际生命周期结束边界(包含散场或当日落幕)
+        var lifecycleEnd: Date? = nil
         var timeZoneSecondsFromGMT: Int? = nil
         var endTimeZoneSecondsFromGMT: Int? = nil
         var timeZoneIdentifier: String? = nil
