@@ -362,7 +362,6 @@ actor ShowLiveActivityController {
                     sources: artistSources,
                     retained: retained,
                     snapshot: snapshot,
-                    now: now,
                     focusedPerformanceID: focusedPerformanceID,
                     coverFilename: coverFilename,
                     generation: requestGeneration
@@ -375,7 +374,6 @@ actor ShowLiveActivityController {
         sources: Set<String>,
         retained: Set<String>,
         snapshot: WidgetShowSnapshot?,
-        now: Date,
         focusedPerformanceID: UUID?,
         coverFilename: String?,
         generation: UInt64
@@ -404,20 +402,15 @@ actor ShowLiveActivityController {
                 state: $0.content.state
             )
         }
-        let updateAction = LiveActivityPlanner.action(
+        let refreshAction = LiveActivityPlanner.action(
             snapshot: snapshot,
-            now: now,
+            now: Date(),
             existing: updatedExisting,
             coverFilename: coverFilename,
             focusedPerformanceID: focusedPerformanceID,
             artistImageFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for:)
         )
-        switch updateAction {
-        case .update, .schedule:
-            await perform(updateAction, showID: snapshot?.showID.uuidString, generation: generation)
-        default:
-            break
-        }
+        await perform(refreshAction, showID: snapshot?.showID.uuidString, generation: generation)
     }
 
     private func perform(_ action: LiveActivityAction, showID: String?, generation: UInt64) async {
