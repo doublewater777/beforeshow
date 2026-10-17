@@ -54,6 +54,38 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertFalse(state.isInterestedNext)
     }
 
+    func testLiveActivityCarriesConcurrentArtistAndArtistImages() {
+        let main = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Bonobo", stageID: UUID(), stageName: "Tent",
+            startsAt: date(20, 0), endsAt: date(21, 0), isInterested: true, artistImageURL: "https://img/bonobo"
+        )
+        let other = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Coldplay", stageID: UUID(), stageName: "Main",
+            startsAt: date(20, 0), endsAt: date(22, 0), isInterested: false, artistImageURL: "https://img/coldplay"
+        )
+        let later = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Pulp", stageID: UUID(), stageName: "Main",
+            startsAt: date(22, 30), endsAt: date(23, 30), isInterested: false, artistImageURL: nil
+        )
+        let snapshot = makeSnapshot(timetableDays: [WidgetTimetableDay(id: UUID(), date: date(0, 0), performances: [main, other, later])])
+
+        let state = LiveActivityPlanner.desiredState(
+            snapshot: snapshot, now: date(20, 30), coverFilename: nil,
+            artistImageFilename: { "la-" + $0 }
+        )?.state
+
+        XCTAssertEqual(state?.currentArtistName, "Bonobo")
+        XCTAssertEqual(state?.alsoArtistName, "Coldplay")
+        XCTAssertEqual(state?.alsoStageName, "Main")
+        XCTAssertEqual(state?.currentArtistImageFilename, "la-https://img/bonobo")
+        XCTAssertEqual(state?.alsoArtistImageFilename, "la-https://img/coldplay")
+        XCTAssertNil(state?.nextArtistImageFilename)
+        XCTAssertEqual(
+            LiveActivityPlanner.featuredArtistImageSources(snapshot: snapshot, now: date(20, 30)),
+            ["https://img/bonobo", "https://img/coldplay"]
+        )
+    }
+
     func testLiveActivityCountsDownToNextSetBetweenSets() {
         let p1 = WidgetTimetablePerformance(
             id: UUID(), artistName: "The Strokes", stageID: UUID(), stageName: "Main Stage",

@@ -19,17 +19,18 @@ enum WidgetDataSync {
         manualSelection: CurrentShowSelection?,
         now: Date = Date()
     ) -> Bool {
+        let validShows = shows.filter { $0.modelContext != nil }
         syncGeneration &+= 1
         let generation = syncGeneration
 
         let session = CurrentShowSession()
         let currentShow = session.selectCurrentShow(
-            from: shows,
+            from: validShows,
             manualSelection: manualSelection,
             now: now
         )
         let liveActivityShow = LiveActivityShowResolver().resolve(
-            shows: shows,
+            shows: validShows,
             currentShow: currentShow,
             now: now
         )
@@ -158,7 +159,8 @@ extension WidgetShowSnapshot {
                             stageName: stage.name,
                             startsAt: p.startsAt,
                             endsAt: p.endsAt,
-                            isInterested: p.isInterested
+                            isInterested: p.isInterested,
+                            artistImageURL: p.artistAvatarURL
                         )
                     }
                 }
@@ -293,11 +295,16 @@ actor ShowLiveActivityController {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
 
-        for source in request.retainedCoverSources.sorted() {
+        // 现场模式:主现场 / 同时在演 / 下一场的艺人头像与封面同一套缓存。
+        let artistSources = desired == nil ? [] : LiveActivityPlanner.featuredArtistImageSources(
+            snapshot: snapshot, now: now, focusedPerformanceID: focusedPerformanceID
+        )
+        let retained = request.retainedCoverSources.union(artistSources)
+        for source in retained.sorted() {
             await WidgetCoverCache.refresh(for: source)
             guard request.generation == latestGeneration else { return }
         }
-        WidgetCoverCache.pruneCovers(keeping: request.retainedCoverSources)
+        WidgetCoverCache.pruneCovers(keeping: retained)
 
         let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
         if !hadWidgetCover, hasWidgetCover {
@@ -330,7 +337,8 @@ actor ShowLiveActivityController {
                 now: now,
                 existing: existing,
                 coverFilename: coverFilename,
-                focusedPerformanceID: focusedPerformanceID
+                focusedPerformanceID: focusedPerformanceID,
+                artistImageFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for:)
             )
         } else {
             action = .endAll

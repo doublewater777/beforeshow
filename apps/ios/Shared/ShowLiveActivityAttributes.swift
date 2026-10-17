@@ -39,6 +39,13 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var isNextStartingSoon: Bool = false
         var isInterestedNext: Bool = false
         var isFestivalDayActive: Bool = false
+        /// 与主现场同时在演的另一场(现场模式)。
+        var alsoArtistName: String? = nil
+        var alsoStageName: String? = nil
+        /// App Group 内艺人头像小图文件名;nil 用首字母。
+        var currentArtistImageFilename: String? = nil
+        var alsoArtistImageFilename: String? = nil
+        var nextArtistImageFilename: String? = nil
 
         var startCalendar: Calendar {
             calendar(identifier: timeZoneIdentifier, offsetSeconds: timeZoneSecondsFromGMT)

@@ -36,17 +36,37 @@ struct ShowLiveActivity: Widget {
                     LiveActivityExpandedDetails(state: context.state, isLive: isLive)
                 }
             } compactLeading: {
-                LiveActivityAppIconMark(size: 20)
+                let content = LiveActivityContent(state: context.state, isLive: isLive)
+                if let lineup = content.lineup {
+                    LiveActivityCompactAvatar(filename: lineup.avatar, name: content.title, size: 22)
+                } else if let cover = context.state.coverImageFilename, !cover.isEmpty {
+                    LiveActivityCompactAvatar(filename: cover, name: content.title, size: 22)
+                } else {
+                    LiveActivityAppIconMark(size: 20)
+                }
             } compactTrailing: {
                 let content = LiveActivityContent(state: context.state, isLive: isLive)
-                HStack(spacing: 4) {
+                if content.lineup != nil, content.mode == .set, let progress = content.progress {
+                    // 现场模式正在演:右侧一个随本场时间走满的红环，与左侧头像呼应。
+                    ZStack {
+                        Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 2).padding(0.8)
+                        LiveActivityThinRing(progress: progress, size: 20)
+                    }
+                    .frame(width: 20, height: 20)
+                } else {
+                HStack(spacing: 2.5) {
                     if content.showsWave {
                         Image(systemName: "waveform")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(WidgetTheme.live)
                     }
-                    LiveActivityTimerText(content: content, fontSize: 11)
-                        .frame(width: 48, alignment: .trailing)
+                    LiveActivityTimerText(
+                        content: content,
+                        fontSize: 11,
+                        alignment: content.showsWave ? .leading : .trailing
+                    )
+                    .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
+                }
                 }
             } minimal: {
                 LiveActivityAppIconMark(size: 14)
@@ -61,20 +81,33 @@ struct ShowLiveActivity: Widget {
 // 就能走动的计时;跨零自动从倒数切到正计时,始终无符号。阶段颜色跟
 // context.isStale(staleDate = startDate)。
 
-private struct LiveActivityTimerText: View {
+struct LiveActivityTimerText: View {
     let content: LiveActivityContent
     var fontSize: CGFloat
+    var prefix: String? = nil
     var alignment: TextAlignment = .trailing
 
     var body: some View {
-        Text(content.timerTarget, style: .timer)
-            .font(.system(size: fontSize, weight: .semibold))
-            .monospacedDigit()
-            .foregroundStyle(content.timerColor)
-            .lineLimit(1)
-            .minimumScaleFactor(0.65)
-            .multilineTextAlignment(alignment)
-            .accessibilityLabel(Text("\(content.kicker) \(Text(content.timerTarget, style: .timer))"))
+        Group {
+            if let prefix, !prefix.isEmpty {
+                Text("\(prefix) ")
+                    .font(.system(size: fontSize * 0.82, weight: .medium))
+                    .foregroundStyle(WidgetTheme.muted)
+                +
+                Text(content.timerTarget, style: .timer)
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundStyle(content.timerColor)
+            } else {
+                Text(content.timerTarget, style: .timer)
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundStyle(content.timerColor)
+            }
+        }
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.65)
+        .multilineTextAlignment(alignment)
+        .accessibilityLabel(Text("\(prefix.map { "\($0) " } ?? "")\(content.kicker) \(Text(content.timerTarget, style: .timer))"))
     }
 }
 
@@ -99,8 +132,39 @@ private struct LiveActivityAppIconMark: View {
     }
 }
 
+/// 灵动岛 compact 的头像:系统要求图片像素不超过展示区域，否则渲染成灰色占位，
+/// 所以先缩到 3x 尺寸再交给归档。
+private struct LiveActivityCompactAvatar: View {
+    let filename: String?
+    let name: String
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let filename,
+               let image = LiveActivityArtwork.containerImage(filename: filename)
+                .map({ LiveActivityArtwork.downscaled($0, maxPixels: size * 3) }) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Circle().fill(WidgetTheme.surfaceRaised)
+                    Text(String(name.prefix(1)))
+                        .font(.system(size: size * 0.45, weight: .bold))
+                        .foregroundStyle(WidgetTheme.foreground)
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+}
+
 private struct LiveActivityExpandedArtwork: View {
     let filename: String?
+    var size: CGSize = CGSize(width: 44, height: 58)
+    var cornerRadius: CGFloat = 9
 
     var body: some View {
         Group {
@@ -109,16 +173,22 @@ private struct LiveActivityExpandedArtwork: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(WidgetTheme.surfaceRaised)
             }
         }
-        .frame(width: 44, height: 58)
-        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 }
 
 enum LiveActivityArtwork {
+    /// App Group 内的小图(封面或艺人头像);不做 App 图标兜底。
+    static func containerImage(filename: String) -> UIImage? {
+        guard !filename.isEmpty, let container = WidgetSnapshotStore.containerURL else { return nil }
+        return UIImage(contentsOfFile: container.appendingPathComponent(filename).path)
+    }
+
     static func image(filename: String?) -> UIImage? {
         if let filename, !filename.isEmpty,
            let container = WidgetSnapshotStore.containerURL {
@@ -155,149 +225,12 @@ enum LiveActivityArtwork {
 
     /// Live Activity 视图要序列化给系统渲染进程,1024px/1MB 的原图会超预算;
     /// 显示尺寸只有 20-48pt,缩到 128px 足够。
-    private static func downscaled(_ image: UIImage, maxPixels: CGFloat = 128) -> UIImage {
+    static func downscaled(_ image: UIImage, maxPixels: CGFloat = 128) -> UIImage {
         guard max(image.size.width, image.size.height) > maxPixels else { return image }
         let size = CGSize(width: maxPixels, height: maxPixels)
         return UIGraphicsImageRenderer(size: size).image { _ in
             image.draw(in: CGRect(origin: .zero, size: size))
         }
-    }
-}
-
-// MARK: - 内容
-// 设计稿:Design 画布「实时活动」。四种状态共用一套版式:
-// 左列 = 状态标签 + 大计时;右列 = 主角(艺人或演出名)+ 舞台/场馆 + 下一场一行。
-// 红 = 正在演，金 = 等待开场。
-
-private struct LiveActivityContent {
-    enum Mode {
-        /// 时刻表里正在演的一场
-        case set
-        /// 场间:倒数下一场
-        case between
-        /// 开场前(含音乐节今日首场前)
-        case pre
-        /// 普通演出已开场
-        case started
-    }
-
-    struct Next {
-        let time: String
-        let artist: String
-        let stage: String?
-        let isInterested: Bool
-        let isSoon: Bool
-    }
-
-    let mode: Mode
-    let kicker: String
-    let timerTarget: Date
-    let caption: String?
-    let title: String
-    let subtitle: String?
-    let timeRange: String?
-    let progress: ClosedRange<Date>?
-    let next: Next?
-
-    init(state: ShowLiveActivityAttributes.ContentState, isLive: Bool) {
-        let clock = { (date: Date) in LiveActivityCopy.clockText(date, calendar: state.startCalendar) }
-        let upcoming = state.nextArtistName.map { artist in
-            Next(
-                time: state.nextStartsAt.map(clock) ?? "",
-                artist: artist,
-                stage: state.nextStageName,
-                isInterested: state.isInterestedNext,
-                isSoon: state.isNextStartingSoon
-            )
-        }
-
-        if let artist = state.currentArtistName {
-            let start = state.currentStartsAt ?? state.startDate
-            let end = state.currentEndsAt ?? state.endDate ?? state.startDate
-            mode = .set
-            kicker = BSLocalization.text("正在演出")
-            // 现场模式正在演:倒数到本场结束，配合进度条决定何时去下一个舞台。
-            timerTarget = end
-            caption = BSLocalization.text("剩余")
-            title = artist
-            subtitle = state.currentStageName
-            timeRange = "\(clock(start))–\(clock(end))"
-            progress = start < end ? start...end : nil
-            next = upcoming
-        } else if state.isFestivalDayActive, let artist = state.nextArtistName {
-            // 场间:startDate 指向下一场开演。过点后 app 没来得及更新时,
-            // 下一场就是正在演的那场,计时转为已开演时长。
-            mode = isLive ? .set : .between
-            kicker = BSLocalization.text(isLive ? "正在演出" : "下一场")
-            timerTarget = state.nextStartsAt ?? state.startDate
-            caption = isLive ? BSLocalization.text("已开场") : nil
-            title = artist
-            subtitle = state.nextStageName
-            timeRange = state.nextStartsAt.map(clock)
-            progress = nil
-            next = nil
-        } else if isLive {
-            mode = .started
-            kicker = BSLocalization.text("正在现场")
-            timerTarget = state.startDate
-            caption = BSLocalization.text("已开场")
-            title = state.showName
-            subtitle = state.endDate.map { BSLocalization.format("预计 %@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar)) }
-                ?? state.venueName
-            timeRange = nil
-            // 普通演出:开场到预计散场的进度，与现场模式同一条进度条。
-            progress = state.endDate.flatMap { $0 > state.startDate ? state.startDate...$0 : nil }
-            next = nil
-        } else {
-            mode = .pre
-            kicker = BSLocalization.text("距离开场")
-            timerTarget = state.startDate
-            caption = nil
-            title = state.showName
-            let opening = BSLocalization.format("%@ 开场", clock(state.startDate))
-            if let venue = state.venueName, !venue.isEmpty {
-                subtitle = BSLocalization.format("%1$@ · %2$@", opening, venue)
-            } else {
-                subtitle = opening
-            }
-            timeRange = nil
-            progress = nil
-            next = upcoming
-        }
-    }
-
-    var showsWave: Bool { mode == .set || mode == .started }
-
-    var kickerColor: Color {
-        switch mode {
-        case .set, .started: WidgetTheme.liveTitle
-        case .between: WidgetTheme.accent
-        case .pre: WidgetTheme.muted
-        }
-    }
-
-    var timerColor: Color {
-        switch mode {
-        case .set, .started: WidgetTheme.foreground
-        case .between, .pre: WidgetTheme.heroWarmGold
-        }
-    }
-
-    var glowColor: Color {
-        showsWave ? WidgetTheme.live : WidgetTheme.accent
-    }
-}
-
-private enum LiveActivityCopy {
-    /// 阶段判定:staleDate = startDate 时 isStale 即「已过开场」;
-    /// 若 staleDate 已让位给 endDate(开场后才同步),用渲染时刻兜底。
-    static func isLive(isStale: Bool, startDate: Date, now: Date = .now) -> Bool {
-        isStale || now >= startDate
-    }
-
-    /// 24 小时制，时区使用活动所在地。
-    static func clockText(_ date: Date, calendar: Calendar) -> String {
-        BSDateFormat.clock(date, timeZone: calendar.timeZone)
     }
 }
 
@@ -352,7 +285,7 @@ private struct LiveActivityNextLine: View {
     }
 }
 
-private struct LiveActivitySetProgress: View {
+struct LiveActivitySetProgress: View {
     let range: ClosedRange<Date>
 
     var body: some View {
@@ -367,6 +300,79 @@ private struct LiveActivitySetProgress: View {
     }
 }
 
+/// 第二行元数据自适应行:空间足够全量展示,空间受限时通过 ViewThatFits 智能降级,并用 layoutPriority 保护关键时间绝不截断。
+private struct LiveActivityMetadataLine: View {
+    let venue: String?
+    let openingText: String
+    let endText: String?
+    var fontSize: CGFloat = 12
+
+    private var hasVenue: Bool {
+        guard let venue else { return false }
+        return !venue.isEmpty
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            // 阶梯 1: 空间充足时全量展示 (场馆 · 23:00 开场 · 01:00 散场)
+            HStack(spacing: 4) {
+                if hasVenue {
+                    Text(venue!)
+                        .truncationMode(.tail)
+                    Text("·")
+                        .foregroundStyle(WidgetTheme.dim)
+                }
+                Text(openingText)
+                    .monospacedDigit()
+                    .layoutPriority(1)
+                if let endText {
+                    Text("·")
+                        .foregroundStyle(WidgetTheme.dim)
+                    Text(endText)
+                        .monospacedDigit()
+                        .layoutPriority(1)
+                }
+            }
+
+            // 阶梯 2: 空间不足时，若有散场时间优先保散场 (场馆 · 01:00 散场)
+            if let endText {
+                HStack(spacing: 4) {
+                    if hasVenue {
+                        Text(venue!)
+                            .truncationMode(.tail)
+                        Text("·")
+                            .foregroundStyle(WidgetTheme.dim)
+                    }
+                    Text(endText)
+                        .monospacedDigit()
+                        .layoutPriority(1)
+                }
+            }
+
+            // 阶梯 3: 仅开场时间 (场馆 · 23:00 开场)
+            HStack(spacing: 4) {
+                if hasVenue {
+                    Text(venue!)
+                        .truncationMode(.tail)
+                    Text("·")
+                        .foregroundStyle(WidgetTheme.dim)
+                }
+                Text(openingText)
+                    .monospacedDigit()
+                    .layoutPriority(1)
+            }
+
+            // 阶梯 4: 极端极限兜底（仅时间数字）
+            Text(endText ?? openingText)
+                .monospacedDigit()
+        }
+        .font(.system(size: fontSize))
+        .foregroundStyle(WidgetTheme.muted)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+    }
+}
+
 // MARK: - Dynamic Island expanded bottom
 // 封面 3:4 在左;右侧状态行(右端时段或计时)+ 主角 + 舞台;其下进度条与下一场。
 
@@ -376,50 +382,77 @@ private struct LiveActivityExpandedDetails: View {
 
     var body: some View {
         let content = LiveActivityContent(state: state, isLive: isLive)
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                LiveActivityExpandedArtwork(filename: state.coverImageFilename)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        LiveActivityKicker(content: content)
-                        Spacer(minLength: 4)
-                        if let range = content.timeRange, content.mode == .set {
-                            Text(range)
-                                .font(.system(size: 12, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(WidgetTheme.muted)
-                                .lineLimit(1)
-                        } else {
-                            LiveActivityTimerText(content: content, fontSize: 13)
-                                .frame(width: 64, alignment: .trailing)
-                        }
-                    }
-                    Text(content.title)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.foreground)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    if let subtitle = content.subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 13))
-                            .foregroundStyle(WidgetTheme.muted)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            if let progress = content.progress {
-                LiveActivitySetProgress(range: progress)
-            }
-            if let next = content.next {
-                LiveActivityNextLine(next: next)
+        Group {
+            if let lineup = content.lineup {
+                LiveActivityLineup(content: content, lineup: lineup, heroSize: 54)
+            } else {
+                standard(content)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 2)
-        .padding(.bottom, 10)
-        .offset(y: -5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func standard(_ content: LiveActivityContent) -> some View {
+        let openingText = "\(LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar)) 开场"
+        let endText: String? = state.endDate.map { "\(LiveActivityCopy.clockText($0, calendar: state.endCalendar)) 散场" }
+
+        HStack(alignment: .top, spacing: 11) {
+            LiveActivityExpandedArtwork(
+                filename: state.coverImageFilename,
+                size: CGSize(width: 54, height: 72),
+                cornerRadius: 8
+            )
+
+            VStack(alignment: .leading, spacing: 0) {
+                // 1. 巡演标题（最多 2 行）
+                Text(content.title)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(WidgetTheme.foreground)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+
+                Spacer(minLength: 4)
+
+                // 2. 第二行：地点与时间锚点（自适应阶梯降级，防超长）
+                LiveActivityMetadataLine(
+                    venue: state.venueName,
+                    openingText: openingText,
+                    endText: endText,
+                    fontSize: 12
+                )
+
+                Spacer(minLength: 4)
+
+                // 3. 第三行：声波 + 正在现场 · 走表
+                HStack(spacing: 5) {
+                    if content.showsWave {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(WidgetTheme.live)
+                    }
+                    Text(content.kicker)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(content.kickerColor)
+                        .lineLimit(1)
+
+                    Text("·")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(WidgetTheme.dim)
+
+                    LiveActivityTimerText(
+                        content: content,
+                        fontSize: 14,
+                        prefix: nil,
+                        alignment: .leading
+                    )
+                    .fontWeight(.bold)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 72)
+        }
     }
 }
 
@@ -433,55 +466,86 @@ private struct LiveActivityBannerView: View {
 
     var body: some View {
         let content = LiveActivityContent(state: state, isLive: isLive)
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 22) {
-                VStack(alignment: .leading, spacing: 4) {
-                    LiveActivityKicker(content: content)
-                    LiveActivityTimerText(content: content, fontSize: 23, alignment: .leading)
-                    if let caption = content.caption {
-                        Text(caption)
-                            .font(.system(size: 12))
-                            .foregroundStyle(WidgetTheme.muted)
-                            .accessibilityHidden(true)
-                    }
-                }
-                // 「1 小时 24 分钟」这类长计时也要和右列留出呼吸。
-                .frame(width: 108, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(content.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.foreground)
-                        .lineLimit(2)
-                    if let subtitle = content.subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 13))
-                            .foregroundStyle(WidgetTheme.muted)
-                            .lineLimit(1)
-                    }
-                    if let next = content.next {
-                        LiveActivityNextLine(next: next)
-                            .padding(.top, 6)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if let progress = content.progress {
-                LiveActivitySetProgress(range: progress)
+        Group {
+            if let lineup = content.lineup {
+                LiveActivityLineup(content: content, lineup: lineup)
+            } else {
+                standard(content)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
+        .padding(16)
         .background(alignment: .topLeading) {
-            RadialGradient(
-                colors: [content.glowColor.opacity(0.22), content.glowColor.opacity(0)],
-                center: .topLeading,
-                startRadius: 0,
-                endRadius: 200
-            )
+            // 现场模式阵容按稿子用中性底，只靠头像与进度环表达状态。
+            if content.lineup == nil {
+                RadialGradient(
+                    colors: [content.glowColor.opacity(0.22), content.glowColor.opacity(0)],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: 200
+                )
+            }
         }
         .activityBackgroundTint(Color.black.opacity(0.72))
         .activitySystemActionForegroundColor(WidgetTheme.foreground)
+    }
+
+    @ViewBuilder
+    private func standard(_ content: LiveActivityContent) -> some View {
+        let openingText = "\(LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar)) 开场"
+        let endText: String? = state.endDate.map { "\(LiveActivityCopy.clockText($0, calendar: state.endCalendar)) 散场" }
+
+        HStack(alignment: .top, spacing: 14) {
+            LiveActivityExpandedArtwork(
+                filename: state.coverImageFilename,
+                size: CGSize(width: 72, height: 96),
+                cornerRadius: 10
+            )
+
+            VStack(alignment: .leading, spacing: 0) {
+                // 1. 标题：最多两行，字号 17pt bold
+                Text(content.title)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(WidgetTheme.foreground)
+                    .lineLimit(2)
+
+                Spacer(minLength: 4)
+
+                // 2. 第二行信息：地点与时间锚点（自适应阶梯降级，防超长）
+                LiveActivityMetadataLine(
+                    venue: state.venueName,
+                    openingText: openingText,
+                    endText: endText,
+                    fontSize: 13
+                )
+
+                Spacer(minLength: 4)
+
+                // 3. 状态行：声波 + 正在现场 · 实时走表
+                HStack(spacing: 5) {
+                    if content.showsWave {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(WidgetTheme.live)
+                    }
+                    Text(content.kicker)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(content.kickerColor)
+                        .lineLimit(1)
+
+                    Text("·")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(WidgetTheme.dim)
+
+                    LiveActivityTimerText(
+                        content: content,
+                        fontSize: 16,
+                        prefix: nil,
+                        alignment: .leading
+                    )
+                    .fontWeight(.bold)
+                }
+            }
+            .frame(height: 96)
+        }
     }
 }
