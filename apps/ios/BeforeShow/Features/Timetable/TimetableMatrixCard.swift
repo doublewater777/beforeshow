@@ -322,7 +322,16 @@ enum TimetableTimeFormat {
     }
 
     static func range(_ start: Date, _ end: Date, timeZone: TimeZone) -> String {
-        "\(time(start, timeZone: timeZone))–\(time(end, timeZone: timeZone))"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        guard !calendar.isDate(start, inSameDayAs: end) else {
+            return "\(time(start, timeZone: timeZone))–\(time(end, timeZone: timeZone))"
+        }
+        let formatter = DateFormatter()
+        formatter.timeZone = timeZone
+        formatter.calendar = calendar
+        formatter.setLocalizedDateFormatFromTemplate("Md")
+        return "\(formatter.string(from: start)) \(time(start, timeZone: timeZone))–\(formatter.string(from: end)) \(time(end, timeZone: timeZone))"
     }
 }
 

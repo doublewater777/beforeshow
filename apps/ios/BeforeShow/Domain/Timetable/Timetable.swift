@@ -191,6 +191,21 @@ final class Timetable {
         return calendar
     }
 
+    fileprivate func validatePerformanceEdit(_ performance: TimetablePerformance, startsAt: Date, endsAt: Date) throws {
+        guard let day = performance.stage?.day, days.contains(where: { $0.id == day.id }),
+              day.performances.contains(where: { $0.id == performance.id }) else {
+            throw TimetableValidationError.alreadyOwned
+        }
+        let range = day.performanceEditingRange(timeZone: calendar.timeZone)
+        guard range.contains(startsAt), range.contains(endsAt) else {
+            throw TimetableValidationError.invalidDayDate
+        }
+        let others = day.performances.filter { $0.id != performance.id }
+        let start = min(startsAt, others.map(\.startsAt).min() ?? startsAt)
+        let end = max(endsAt, others.map(\.endsAt).max() ?? endsAt)
+        try validateDayInterval(date: day.date, start: start, end: end, excluding: day.id)
+    }
+
     private func validateDayInterval(date: Date, start: Date, end: Date, excluding id: UUID? = nil) throws {
         guard calendar.isDate(start, inSameDayAs: date) else { throw TimetableValidationError.invalidDayDate }
         for other in days where other.id != id {
@@ -233,6 +248,15 @@ final class TimetableDay {
 
     var performances: [TimetablePerformance] {
         stages.flatMap(\.performances).sorted(by: TimetablePerformance.chronologicalOrder)
+    }
+
+    /// The service day may continue after midnight, but editing cannot extend its axis indefinitely.
+    func performanceEditingRange(timeZone: TimeZone) -> ClosedRange<Date> {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let start = calendar.startOfDay(for: date)
+        let end = calendar.date(byAdding: .day, value: 2, to: start)!
+        return start...end.addingTimeInterval(-1)
     }
 
     fileprivate func setDate(_ date: Date) {
@@ -354,6 +378,9 @@ final class TimetablePerformance {
         guard startsAt.timeIntervalSince1970.isFinite,
               endsAt.timeIntervalSince1970.isFinite, startsAt < endsAt else {
             throw TimetableValidationError.invalidPerformanceInterval
+        }
+        if startsAt != self.startsAt || endsAt != self.endsAt {
+            try stage?.day?.timetable?.validatePerformanceEdit(self, startsAt: startsAt, endsAt: endsAt)
         }
         self.artistName = trimmed
         let artistID = appleMusicArtistID?.trimmingCharacters(in: .whitespacesAndNewlines)
