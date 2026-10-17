@@ -201,8 +201,10 @@ enum LiveActivityCopy {
     }
 
     /// 驱动 Live Activity 在开场、场次更替与散场等里程碑自主刷新的计划点集。
-    static func milestones(for state: ShowLiveActivityAttributes.ContentState) -> [Date] {
-        var points: Set<Date> = [state.startDate, endBoundary(for: state)]
+    /// 包含当前时间作为初始条目，确保在开场前渲染时，TimelineView 的初始条目取当前时刻，
+    /// 避免在全部里程碑皆在未来时首个条目直接取到 startDate 导致提前进入「正在现场」。
+    static func milestones(for state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> [Date] {
+        var points: Set<Date> = [now, state.startDate, endBoundary(for: state)]
         if let currentEnds = state.currentEndsAt { points.insert(currentEnds) }
         if let nextStarts = state.nextStartsAt { points.insert(nextStarts) }
         return points.sorted()
