@@ -117,7 +117,20 @@
       }
     },
     "%@ 散场" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ends"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 散場"
+          }
+        }
+      }
     },
     "%@ 正在现场" : {
       "localizations" : {

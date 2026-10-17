@@ -185,7 +185,9 @@ enum LiveActivityCopy {
         if state.nextArtistName != nil {
             return false
         }
-        let end = state.currentEndsAt ?? state.endDate ?? state.startDate.addingTimeInterval(3 * 3600)
+        let end = state.endDate ?? state.currentEndsAt ?? state.startDate.addingTimeInterval(
+            TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600
+        )
         return now >= end
     }
 

@@ -386,6 +386,22 @@
         }
       }
     },
+    "%@ 散场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ends"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 散場"
+          }
+        }
+      }
+    },
     "%@ 开始" : {
       "localizations" : {
         "en" : {

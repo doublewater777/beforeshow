@@ -400,8 +400,10 @@ private struct LiveActivityExpandedDetails: View {
 
     @ViewBuilder
     private func standard(_ content: LiveActivityContent) -> some View {
-        let openingText = "\(LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar)) 开场"
-        let endText: String? = state.endDate.map { "\(LiveActivityCopy.clockText($0, calendar: state.endCalendar)) 散场" }
+        let openingText = BSLocalization.format("%@ 开场", LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar))
+        let endText: String? = state.endDate.map {
+            BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar))
+        }
 
         HStack(alignment: .top, spacing: 11) {
             LiveActivityExpandedArtwork(
@@ -411,14 +413,14 @@ private struct LiveActivityExpandedDetails: View {
             )
 
             VStack(alignment: .leading, spacing: 0) {
-                // 1. 巡演标题（最多 2 行）
+                // 1. 巡演标题（最多 2 行，有下一场预告时限 1 行）
                 Text(content.title)
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(WidgetTheme.foreground)
-                    .lineLimit(2)
+                    .lineLimit(content.next == nil ? 2 : 1)
                     .minimumScaleFactor(0.85)
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 2)
 
                 // 2. 第二行：地点与时间锚点（自适应阶梯降级，防超长）
                 LiveActivityMetadataLine(
@@ -428,7 +430,13 @@ private struct LiveActivityExpandedDetails: View {
                     fontSize: 12
                 )
 
-                Spacer(minLength: 4)
+                if let next = content.next {
+                    Spacer(minLength: 2)
+                    LiveActivityNextLine(next: next)
+                        .font(.system(size: 11))
+                }
+
+                Spacer(minLength: 2)
 
                 // 3. 第三行：声波 + 正在现场 · 走表 (散场时为：已散场)
                 HStack(spacing: 5) {
@@ -498,8 +506,10 @@ private struct LiveActivityBannerView: View {
 
     @ViewBuilder
     private func standard(_ content: LiveActivityContent) -> some View {
-        let openingText = "\(LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar)) 开场"
-        let endText: String? = state.endDate.map { "\(LiveActivityCopy.clockText($0, calendar: state.endCalendar)) 散场" }
+        let openingText = BSLocalization.format("%@ 开场", LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar))
+        let endText: String? = state.endDate.map {
+            BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar))
+        }
 
         HStack(alignment: .top, spacing: 14) {
             LiveActivityExpandedArtwork(
@@ -509,13 +519,13 @@ private struct LiveActivityBannerView: View {
             )
 
             VStack(alignment: .leading, spacing: 0) {
-                // 1. 标题：最多两行，字号 17pt bold
+                // 1. 标题：最多两行，字号 17pt bold（有预告时限 1 行）
                 Text(content.title)
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(WidgetTheme.foreground)
-                    .lineLimit(2)
+                    .lineLimit(content.next == nil ? 2 : 1)
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 2)
 
                 // 2. 第二行信息：地点与时间锚点（自适应阶梯降级，防超长）
                 LiveActivityMetadataLine(
@@ -525,7 +535,12 @@ private struct LiveActivityBannerView: View {
                     fontSize: 13
                 )
 
-                Spacer(minLength: 4)
+                if let next = content.next {
+                    Spacer(minLength: 2)
+                    LiveActivityNextLine(next: next)
+                }
+
+                Spacer(minLength: 2)
 
                 // 3. 状态行：声波 + 正在现场 · 实时走表 (散场时为：已散场)
                 HStack(spacing: 5) {
