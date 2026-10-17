@@ -38,7 +38,7 @@ struct LiveActivityContent {
 
     let mode: Mode
     let kicker: String
-    let timerTarget: Date
+    let timerInterval: ClosedRange<Date>
     let caption: String?
     let title: String
     let subtitle: String?
@@ -48,7 +48,9 @@ struct LiveActivityContent {
     /// 现场模式:主角艺人头像、舞台、同时在演;非 nil 时用「阵容」版式。
     var lineup: (avatar: String?, stage: String?, also: Also?)? = nil
 
-    init(state: ShowLiveActivityAttributes.ContentState, isLive: Bool, now: Date = .now) {
+    init(state: ShowLiveActivityAttributes.ContentState, isStale: Bool, now: Date = .now) {
+        timerInterval = state.timerInterval
+        let isLive = now >= state.startDate
         let clock = { (date: Date) in LiveActivityCopy.clockText(date, calendar: state.startCalendar) }
         let upcoming = state.nextArtistName.map { artist in
             Next(
@@ -61,12 +63,11 @@ struct LiveActivityContent {
             )
         }
 
-        let isEnded = isLive && LiveActivityCopy.isEnded(state: state, now: now)
+        let isEnded = state.hasEnded(isStale: isStale, now: now)
 
         if isEnded {
             mode = .ended
             kicker = BSLocalization.text("已散场")
-            timerTarget = state.endDate ?? state.startDate
             caption = nil
             title = state.showName
             subtitle = state.venueName
@@ -79,7 +80,6 @@ struct LiveActivityContent {
             mode = .set
             kicker = BSLocalization.text("正在演出")
             // 与普通演出同一语义:正计时「已开场」，剩余交给进度条与静态结束时刻。
-            timerTarget = start
             caption = BSLocalization.text("已开场")
             title = artist
             let ends = BSLocalization.format("%@ 结束", clock(end))
@@ -98,7 +98,6 @@ struct LiveActivityContent {
             // 下一场就是正在演的那场,计时转为已开演时长。
             mode = isLive ? .set : .between
             kicker = BSLocalization.text(isLive ? "正在演出" : "下一场")
-            timerTarget = state.nextStartsAt ?? state.startDate
             caption = isLive ? BSLocalization.text("已开场") : nil
             title = artist
             subtitle = state.nextStageName
@@ -109,8 +108,7 @@ struct LiveActivityContent {
             lineup = (state.nextArtistImageFilename, state.nextStageName, nil)
         } else if isLive {
             mode = .started
-            kicker = BSLocalization.text("正在现场")
-            timerTarget = state.startDate
+            kicker = BSLocalization.text("现场计时")
             caption = BSLocalization.text("已开场")
             title = state.showName
             subtitle = state.endDate.map { BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar)) }
@@ -121,8 +119,7 @@ struct LiveActivityContent {
             next = nil
         } else {
             mode = .pre
-            kicker = BSLocalization.text("距离开场")
-            timerTarget = state.startDate
+            kicker = BSLocalization.text("现场计时")
             caption = nil
             title = state.showName
             let opening = BSLocalization.format("%@ 开场", clock(state.startDate))
@@ -137,7 +134,7 @@ struct LiveActivityContent {
         }
     }
 
-    var showsWave: Bool { mode == .set || mode == .started }
+    var showsWave: Bool { mode == .set }
 
     var nextStartText: String?
 
@@ -155,16 +152,16 @@ struct LiveActivityContent {
 
     var kickerColor: Color {
         switch mode {
-        case .set, .started: WidgetTheme.liveTitle
+        case .set: WidgetTheme.liveTitle
         case .between: WidgetTheme.accent
-        case .pre, .ended: WidgetTheme.muted
+        case .pre, .started, .ended: WidgetTheme.muted
         }
     }
 
     var timerColor: Color {
         switch mode {
-        case .set, .started: WidgetTheme.foreground
-        case .between, .pre, .ended: WidgetTheme.heroWarmGold
+        case .set, .started, .pre: WidgetTheme.foreground
+        case .between, .ended: WidgetTheme.heroWarmGold
         }
     }
 
@@ -174,24 +171,6 @@ struct LiveActivityContent {
 }
 
 enum LiveActivityCopy {
-    /// 阶段判定:staleDate = startDate 时 isStale 即「已过开场」;
-    /// 若 staleDate 已让位给 endDate(开场后才同步),用渲染时刻兜底。
-    static func isLive(isStale: Bool, startDate: Date, now: Date = .now) -> Bool {
-        isStale || now >= startDate
-    }
-
-    /// 统一散场边界:优先明确散场/全天结束时间,其次当前场次结束,最后 4 小时兜底。
-    static func endBoundary(for state: ShowLiveActivityAttributes.ContentState) -> Date {
-        state.endDate ?? state.currentEndsAt ?? state.startDate.addingTimeInterval(
-            TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600
-        )
-    }
-
-    /// 散场判定:到达散场边界即视为已散场(不受已过期的 nextArtistName 干扰)。
-    static func isEnded(state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> Bool {
-        now >= endBoundary(for: state)
-    }
-
     /// 24 小时制，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
         BSDateFormat.clock(date, timeZone: calendar.timeZone)
@@ -199,50 +178,20 @@ enum LiveActivityCopy {
 }
 
 // MARK: - 计时文本
-// Text(style: .timer) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
-// 就能走动的计时;跨零自动从倒数切到正计时,始终无符号。
+// Text(timerInterval:) 由系统时间驱动，在开场前保持零，散场后停止累计。
 
 struct LiveActivityTimerText: View {
     let content: LiveActivityContent
     var fontSize: CGFloat
-    var prefix: String? = nil
     var alignment: TextAlignment = .trailing
 
     var body: some View {
-        Group {
-            if let prefix, !prefix.isEmpty {
-                Text("\(prefix) ")
-                    .font(.system(size: fontSize * 0.82, weight: .medium))
-                    .foregroundStyle(WidgetTheme.muted)
-                +
-                Text(content.timerTarget, style: .timer)
-                    .font(.system(size: fontSize, weight: .semibold))
-                    .foregroundStyle(content.timerColor)
-            } else {
-                Text(content.timerTarget, style: .timer)
-                    .font(.system(size: fontSize, weight: .semibold))
-                    .foregroundStyle(content.timerColor)
-            }
-        }
-        .monospacedDigit()
-        .lineLimit(1)
-        .minimumScaleFactor(0.65)
-        .multilineTextAlignment(alignment)
-        .accessibilityLabel(Text("\(prefix.map { "\($0) " } ?? "")\(content.kicker) \(Text(content.timerTarget, style: .timer))"))
-    }
-}
-
-struct LiveActivitySetProgress: View {
-    let range: ClosedRange<Date>
-
-    var body: some View {
-        ProgressView(timerInterval: range, countsDown: false) {
-            EmptyView()
-        } currentValueLabel: {
-            EmptyView()
-        }
-        .progressViewStyle(.linear)
-        .tint(WidgetTheme.live)
-        .labelsHidden()
+        Text(timerInterval: content.timerInterval, countsDown: false)
+            .font(.system(size: fontSize, weight: .semibold))
+            .foregroundStyle(content.timerColor)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+            .multilineTextAlignment(alignment)
     }
 }

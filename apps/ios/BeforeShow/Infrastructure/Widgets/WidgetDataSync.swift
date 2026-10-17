@@ -415,7 +415,7 @@ actor ShowLiveActivityController {
             guard isCurrent() else { return }
             let target = Activity<ShowLiveActivityAttributes>.activities
                 .first(where: { $0.attributes.showID == showID })
-            let content = ActivityContent(state: state, staleDate: staleDate(for: state))
+            let content = ActivityContent(state: state, staleDate: state.endBoundary)
             if let target {
                 await target.update(content)
             } else {
@@ -426,13 +426,13 @@ actor ShowLiveActivityController {
         case .request(let state):
             await endAll(generation: generation)
             guard isCurrent() else { return }
-            let content = ActivityContent(state: state, staleDate: staleDate(for: state))
+            let content = ActivityContent(state: state, staleDate: state.endBoundary)
             request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
 
         case .schedule(let state, let start):
             await endAll(generation: generation)
             guard isCurrent() else { return }
-            let content = ActivityContent(state: state, staleDate: staleDate(for: state))
+            let content = ActivityContent(state: state, staleDate: state.endBoundary)
             do {
                 let alert = AlertConfiguration(
                     title: "开场前",
@@ -456,14 +456,6 @@ actor ShowLiveActivityController {
         case .endAll:
             await endAll(generation: generation)
         }
-    }
-
-    private func staleDate(for state: ShowLiveActivityAttributes.ContentState) -> Date? {
-        let now = Date()
-        if state.startDate > now {
-            return state.startDate
-        }
-        return state.endDate ?? state.startDate.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600)
     }
 
     private func request(
