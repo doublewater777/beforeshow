@@ -445,10 +445,10 @@ struct FestivalCircularView: View {
     var body: some View {
         switch phase {
         case .live(let main, _):
-            ProgressView(timerInterval: main.startsAt...main.endsAt, countsDown: true) {
+            ProgressView(timerInterval: main.startsAt...main.endsAt, countsDown: false) {
                 EmptyView()
             } currentValueLabel: {
-                label(Text(timerInterval: Date.now...main.endsAt, countsDown: true, showsHours: false), caption: "剩余")
+                label(Text(main.startsAt, style: .timer), caption: "已开场")
             }
             .progressViewStyle(.circular)
         case .between(let slot, _):

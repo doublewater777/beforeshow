@@ -34,7 +34,8 @@ enum LiveActivityPlanner {
         snapshot: WidgetShowSnapshot?,
         now: Date,
         coverFilename: String?,
-        focusedPerformanceID: UUID? = nil
+        focusedPerformanceID: UUID? = nil,
+        artistImageFilename: (String) -> String? = { _ in nil }
     ) -> (state: ShowLiveActivityAttributes.ContentState, activityEnd: Date)? {
         guard let snapshot,
               snapshot.timing.changeStatus != .canceled,
@@ -65,6 +66,10 @@ enum LiveActivityPlanner {
             let liveState = LiveModeStateEngine.calculate(
                 days: liveDays, now: now, focusedPerformanceID: focusedPerformanceID
             )
+            let imageSources = artistImageSources(in: timetable)
+            func image(_ id: UUID?) -> String? {
+                id.flatMap { imageSources[$0] }.flatMap(artistImageFilename)
+            }
 
             switch liveState.phase {
             case .dayEnded:
@@ -88,6 +93,7 @@ enum LiveActivityPlanner {
                 guard now < dayEnd else { return nil }
 
                 let current = liveState.currentPerformances.first
+                let also = liveState.currentPerformances.dropFirst().first
                 let upcoming = liveState.upcomingPerformances.first
                 // 场间:计时倒数到下一场开演(staleDate 也随之落在开演时刻)。
                 let start = current?.startsAt ?? upcoming?.startsAt ?? now
@@ -114,7 +120,12 @@ enum LiveActivityPlanner {
                         nextStartsAt: upcoming?.startsAt,
                         isNextStartingSoon: upcoming?.isStartingSoon ?? false,
                         isInterestedNext: upcoming?.isInterested ?? false,
-                        isFestivalDayActive: true
+                        isFestivalDayActive: true,
+                        alsoArtistName: also?.artistName,
+                        alsoStageName: also?.stageName,
+                        currentArtistImageFilename: image(current?.id),
+                        alsoArtistImageFilename: image(also?.id),
+                        nextArtistImageFilename: image(upcoming?.id)
                     ),
                     dayEnd
                 )
@@ -149,7 +160,8 @@ enum LiveActivityPlanner {
                         nextStartsAt: upcoming?.startsAt,
                         isNextStartingSoon: upcoming?.isStartingSoon ?? false,
                         isInterestedNext: upcoming?.isInterested ?? false,
-                        isFestivalDayActive: false
+                        isFestivalDayActive: false,
+                        nextArtistImageFilename: image(upcoming?.id)
                     ),
                     activityEnd
                 )
@@ -167,13 +179,17 @@ enum LiveActivityPlanner {
         guard now < activityEnd else {
             return nil
         }
+
+        // 仅在真实设置了散场钟点/时间时提供 endDate；未填写时不计算虚假进度
+        let explicitEnd = snapshot.timing.endTime != nil ? timeState.endBoundary : nil
+
         return (
             ShowLiveActivityAttributes.ContentState(
                 showName: snapshot.name,
                 city: snapshot.city,
                 venueName: snapshot.venueName,
                 startDate: start,
-                endDate: timeState.endBoundary,
+                endDate: explicitEnd,
                 timeZoneSecondsFromGMT: snapshot.timing.timeZoneSecondsFromGMT,
                 endTimeZoneSecondsFromGMT: snapshot.timing.endTimeZoneSecondsFromGMT,
                 timeZoneIdentifier: snapshot.timing.sessionTimeZoneIdentifier ?? snapshot.timing.timeZoneIdentifier,
@@ -194,10 +210,12 @@ enum LiveActivityPlanner {
         now: Date,
         existing: [LiveActivityExisting],
         coverFilename: String?,
-        focusedPerformanceID: UUID? = nil
+        focusedPerformanceID: UUID? = nil,
+        artistImageFilename: (String) -> String? = { _ in nil }
     ) -> LiveActivityAction {
         guard let desired = desiredState(
-            snapshot: snapshot, now: now, coverFilename: coverFilename, focusedPerformanceID: focusedPerformanceID
+            snapshot: snapshot, now: now, coverFilename: coverFilename,
+            focusedPerformanceID: focusedPerformanceID, artistImageFilename: artistImageFilename
         ),
               let snapshot else {
             return .endAll
@@ -227,5 +245,28 @@ enum LiveActivityPlanner {
         }
 
         return .schedule(desired.state, start: earliest)
+    }
+
+    /// 实时活动当前会用到的艺人图(主现场 / 同时在演 / 下一场),由 app 侧先缓存小图。
+    static func featuredArtistImageSources(
+        snapshot: WidgetShowSnapshot?,
+        now: Date,
+        focusedPerformanceID: UUID? = nil
+    ) -> Set<String> {
+        var sources = Set<String>()
+        _ = desiredState(
+            snapshot: snapshot, now: now, coverFilename: nil, focusedPerformanceID: focusedPerformanceID,
+            artistImageFilename: { sources.insert($0); return nil }
+        )
+        return sources
+    }
+
+    private static func artistImageSources(in timetable: WidgetTimetableSnapshot) -> [UUID: String] {
+        var sources: [UUID: String] = [:]
+        for performance in timetable.days.flatMap(\.performances) {
+            let url = performance.artistImageURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !url.isEmpty { sources[performance.id] = url }
+        }
+        return sources
     }
 }

@@ -1,21 +1,38 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "%1$@ · %2$@" : {
+    " " : {
+
+    },
+    "--" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$@"
+            "value" : "--"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$@"
+            "value" : "--"
           }
         }
       }
+    },
+    "·" : {
+
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      },
+      "shouldTranslate" : false
     },
     "%@ %@" : {
       "localizations" : {
@@ -83,17 +100,6 @@
         }
       }
     },
-    "%@ · %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@"
-          }
-        }
-      },
-      "shouldTranslate" : false
-    },
     "%@ 开场" : {
       "localizations" : {
         "en" : {
@@ -106,6 +112,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 開場"
+          }
+        }
+      }
+    },
+    "%@ 散场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ends"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 散場"
           }
         }
       }
@@ -126,6 +148,22 @@
         }
       }
     },
+    "%@ 结束" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 結束"
+          }
+        }
+      }
+    },
     "%@–%@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -136,6 +174,22 @@
         }
       },
       "shouldTranslate" : false
+    },
+    "%1$@ · %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
     },
     "%d月%d日" : {
       "localizations" : {
@@ -170,7 +224,6 @@
       }
     },
     "%lld" : {
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lld 分钟前" : {
@@ -205,22 +258,6 @@
         }
       }
     },
-    "%lld 天 %lld 小时" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days %lld hours"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 天 %lld 小時"
-          }
-        }
-      }
-    },
     "%lld 天 · 想看 %lld 场" : {
       "localizations" : {
         "en" : {
@@ -239,6 +276,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld 天 · 想看 %2$lld 場"
+          }
+        }
+      }
+    },
+    "%lld 天 %lld 小时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days %lld hours"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 天 %lld 小時"
           }
         }
       }
@@ -371,22 +424,6 @@
         }
       }
     },
-    "--" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--"
-          }
-        }
-      }
-    },
     "COUNTDOWN" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -474,6 +511,39 @@
         }
       }
     },
+    "下一场 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up Next · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一場 · %@"
+          }
+        }
+      }
+    },
+    "下一场 %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一場 %@"
+          }
+        }
+      }
+    },
     "下一场 %@ · %@" : {
       "localizations" : {
         "en" : {
@@ -492,22 +562,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一場 %1$@ · %2$@"
-          }
-        }
-      }
-    },
-    "下一场 · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Up Next · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下一場 · %@"
           }
         }
       }
@@ -624,6 +678,22 @@
         }
       }
     },
+    "今日首场 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First Set · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日首場 · %@"
+          }
+        }
+      }
+    },
     "今日首场 %@ · %@" : {
       "localizations" : {
         "en" : {
@@ -642,22 +712,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今日首場 %1$@ · %2$@"
-          }
-        }
-      }
-    },
-    "今日首场 · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "First Set · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今日首場 · %@"
           }
         }
       }
@@ -726,6 +780,38 @@
         }
       }
     },
+    "最近一场现场，离开场还有多久。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See how long until your next show starts."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近一場現場，離開場還有多久。"
+          }
+        }
+      }
+    },
+    "最近一场现场的歌，轻点接着听。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Songs for your next show, one tap to pick up where you left off."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近一場現場的歌，輕點接著聽。"
+          }
+        }
+      }
+    },
     "出门之前，再确认一下" : {
       "localizations" : {
         "en" : {
@@ -790,22 +876,6 @@
         }
       }
     },
-    "剩余" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "left"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "剩餘"
-          }
-        }
-      }
-    },
     "即将开场" : {
       "localizations" : {
         "en" : {
@@ -834,6 +904,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "即將開場 · %@站"
+          }
+        }
+      }
+    },
+    "同时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時"
           }
         }
       }
@@ -934,22 +1020,6 @@
         }
       }
     },
-    "天前" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "days ago"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "天前"
-          }
-        }
-      }
-    },
     "天（按天数）" : {
       "localizations" : {
         "en" : {
@@ -990,6 +1060,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "天"
+          }
+        }
+      }
+    },
+    "天前" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "days ago"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "天前"
           }
         }
       }
@@ -1086,6 +1172,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已開場"
+          }
+        }
+      }
+    },
+    "已散场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已散場"
           }
         }
       }
@@ -1282,6 +1384,9 @@
         }
       }
     },
+    "持续进行中" : {
+
+    },
     "播放或暂停" : {
       "localizations" : {
         "en" : {
@@ -1442,38 +1547,6 @@
         }
       }
     },
-    "最近一场现场的歌，轻点接着听。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Songs for your next show, one tap to pick up where you left off."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近一場現場的歌，輕點接著聽。"
-          }
-        }
-      }
-    },
-    "最近一场现场，离开场还有多久。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "See how long until your next show starts."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近一場現場，離開場還有多久。"
-          }
-        }
-      }
-    },
     "正在" : {
       "localizations" : {
         "en" : {
@@ -1585,6 +1658,9 @@
           }
         }
       }
+    },
+    "等待开场" : {
+
     },
     "结束" : {
       "localizations" : {
