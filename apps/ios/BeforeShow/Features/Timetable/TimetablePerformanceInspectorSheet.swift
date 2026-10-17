@@ -548,28 +548,16 @@ struct TimetablePerformanceInspectorSheet: View {
                             let isSelected = draftStageID == stage.id
                             let color = TimetableStageLight.color(stage.sortOrder)
                             Button {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                    draftStageID = stage.id
-                                }
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { draftStageID = stage.id }
                             } label: {
                                 HStack(spacing: 6) {
-                                    TimetableStageLight.marker(stage.sortOrder)
-                                        .fill(color)
-                                        .frame(width: 8, height: 8)
-                                    Text(stage.name)
-                                        .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
-                                        .lineLimit(1)
+                                    TimetableStageLight.marker(stage.sortOrder).fill(color).frame(width: 8, height: 8)
+                                    Text(stage.name).font(.system(size: 14, weight: isSelected ? .semibold : .medium)).lineLimit(1)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 9)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(isSelected ? color.opacity(0.18) : Color.white.opacity(0.04))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .strokeBorder(isSelected ? color.opacity(0.6) : Color.clear, lineWidth: 1)
-                                )
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(isSelected ? color.opacity(0.18) : Color.white.opacity(0.04)))
+                                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(isSelected ? color.opacity(0.6) : Color.clear, lineWidth: 1))
                                 .foregroundStyle(isSelected ? TimetableStyle.foreground : TimetableStyle.muted)
                             }
                             .buttonStyle(.plain)
@@ -583,27 +571,16 @@ struct TimetablePerformanceInspectorSheet: View {
                                 let isSelected = draftStageID == stage.id
                                 let color = TimetableStageLight.color(stage.sortOrder)
                                 Button {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                        draftStageID = stage.id
-                                    }
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { draftStageID = stage.id }
                                 } label: {
                                     HStack(spacing: 6) {
-                                        TimetableStageLight.marker(stage.sortOrder)
-                                            .fill(color)
-                                            .frame(width: 8, height: 8)
-                                        Text(stage.name)
-                                            .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+                                        TimetableStageLight.marker(stage.sortOrder).fill(color).frame(width: 8, height: 8)
+                                        Text(stage.name).font(.system(size: 14, weight: isSelected ? .semibold : .medium))
                                     }
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
-                                    .background(
-                                        Capsule()
-                                            .fill(isSelected ? color.opacity(0.2) : Color.white.opacity(0.06))
-                                    )
-                                    .overlay(
-                                        Capsule()
-                                            .strokeBorder(isSelected ? color.opacity(0.8) : Color.white.opacity(0.1), lineWidth: 1)
-                                    )
+                                    .background(Capsule().fill(isSelected ? color.opacity(0.2) : Color.white.opacity(0.06)))
+                                    .overlay(Capsule().strokeBorder(isSelected ? color.opacity(0.8) : Color.white.opacity(0.1), lineWidth: 1))
                                     .foregroundStyle(isSelected ? TimetableStyle.foreground : TimetableStyle.muted)
                                 }
                                 .buttonStyle(.plain)
@@ -614,10 +591,7 @@ struct TimetablePerformanceInspectorSheet: View {
                     }
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(TimetableStyle.card)
-            )
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TimetableStyle.card))
         }
     }
 
@@ -713,14 +687,35 @@ struct TimetablePerformanceInspectorSheet: View {
             return
         }
 
-        var calendar = Calendar.current
+        var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        guard calendar.isDate(draftStartsAt, inSameDayAs: day.date) else {
+        let sessionMax = calendar.date(byAdding: .hour, value: 36, to: day.date) ?? day.date.addingTimeInterval(36 * 3600)
+        let otherStarts = day.performances.filter { $0.id != performance.id }.map(\.startsAt)
+        let effectiveDayStart = (otherStarts + [draftStartsAt]).min() ?? draftStartsAt
+
+        guard draftStartsAt >= day.date, draftEndsAt <= sessionMax,
+              calendar.isDate(effectiveDayStart, inSameDayAs: day.date) else {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
             }
             return
+        }
+
+        if let timetable = day.timetable {
+            let overlapsPreceding = timetable.days.contains { other in
+                other.date < day.date && (other.performances.map(\.endsAt).max() ?? .distantPast) > draftStartsAt
+            }
+            let overlapsFollowing = timetable.days.contains { other in
+                other.date > day.date && draftEndsAt > (other.performances.map(\.startsAt).min() ?? .distantFuture)
+            }
+            if overlapsPreceding || overlapsFollowing {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    saveErrorMessage = BSLocalization.text("保存失败，请检查演出时间")
+                }
+                return
+            }
         }
 
         do {

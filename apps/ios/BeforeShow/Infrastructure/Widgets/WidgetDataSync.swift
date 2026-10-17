@@ -246,6 +246,7 @@ actor ShowLiveActivityController {
     private var latestGeneration: UInt64 = 0
     private var pendingSync: PendingSync?
     private var isProcessing = false
+    private var transitionTasks: [String: Task<Void, Never>] = [:]
 
     func sync(
         snapshot: WidgetShowSnapshot?,
@@ -396,12 +397,14 @@ actor ShowLiveActivityController {
                 guard isCurrent() else { return }
                 request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
             }
+            arrangeTransitions(for: state, showID: showID, generation: generation)
 
         case .request(let state):
             await endAll(generation: generation)
             guard isCurrent() else { return }
             let content = ActivityContent(state: state, staleDate: staleDate(for: state))
             request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
+            arrangeTransitions(for: state, showID: showID, generation: generation)
 
         case .schedule(let state, let start):
             await endAll(generation: generation)
@@ -421,6 +424,7 @@ actor ShowLiveActivityController {
                     alertConfiguration: alert,
                     start: start
                 )
+                arrangeTransitions(for: state, showID: showID, generation: generation)
             } catch {
                 #if DEBUG
                 print("[ShowLiveActivity] schedule failed: \(error)")
@@ -432,27 +436,71 @@ actor ShowLiveActivityController {
         }
     }
 
-    private func staleDate(for state: ShowLiveActivityAttributes.ContentState) -> Date? {
-        let now = Date()
-        if state.startDate > now {
-            return state.startDate
-        }
-        return state.lifecycleEnd
+    private func endBoundary(for state: ShowLiveActivityAttributes.ContentState) -> Date {
+        state.lifecycleEnd
             ?? state.endDate
             ?? state.currentEndsAt
             ?? state.startDate.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600)
     }
 
-    private func request(
-        attributes: ShowLiveActivityAttributes,
-        content: ActivityContent<ShowLiveActivityAttributes.ContentState>
+    private func arrangeTransitions(
+        for state: ShowLiveActivityAttributes.ContentState,
+        showID: String?,
+        generation: UInt64
     ) {
+        let key = showID ?? ""
+        transitionTasks[key]?.cancel()
+
+        let now = Date()
+        let openDate = state.startDate
+        let endDate = endBoundary(for: state)
+        guard endDate > now else { return }
+
+        transitionTasks[key] = Task { [weak self] in
+            if openDate > now {
+                let delay = openDate.timeIntervalSince(now)
+                try? await Task.sleep(nanoseconds: UInt64(max(0, delay) * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await self?.updateActivityAtOpening(showID: showID, state: state, generation: generation)
+            }
+
+            let remaining = endDate.timeIntervalSince(Date())
+            if remaining > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(max(0, remaining) * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await self?.updateActivityAtEnding(showID: showID, state: state, generation: generation)
+            }
+        }
+    }
+
+    private func updateActivityAtOpening(
+        showID: String?,
+        state: ShowLiveActivityAttributes.ContentState,
+        generation: UInt64
+    ) async {
+        guard generation == latestGeneration,
+              let activity = Activity<ShowLiveActivityAttributes>.activities.first(where: { $0.attributes.showID == showID }) else { return }
+        await activity.update(ActivityContent(state: state, staleDate: endBoundary(for: state)))
+    }
+
+    private func updateActivityAtEnding(
+        showID: String?,
+        state: ShowLiveActivityAttributes.ContentState,
+        generation: UInt64
+    ) async {
+        guard generation == latestGeneration,
+              let activity = Activity<ShowLiveActivityAttributes>.activities.first(where: { $0.attributes.showID == showID }) else { return }
+        await activity.update(ActivityContent(state: state, staleDate: nil))
+    }
+
+    private func staleDate(for state: ShowLiveActivityAttributes.ContentState) -> Date? {
+        let now = Date()
+        return state.startDate > now ? state.startDate : endBoundary(for: state)
+    }
+
+    private func request(attributes: ShowLiveActivityAttributes, content: ActivityContent<ShowLiveActivityAttributes.ContentState>) {
         do {
-            _ = try Activity<ShowLiveActivityAttributes>.request(
-                attributes: attributes,
-                content: content,
-                pushType: nil
-            )
+            _ = try Activity<ShowLiveActivityAttributes>.request(attributes: attributes, content: content, pushType: nil)
         } catch {
             #if DEBUG
             print("[ShowLiveActivity] request failed: \(error)")
@@ -464,16 +512,9 @@ actor ShowLiveActivityController {
         activity.activityState == .pending
     }
 
-    private static func runtimeRecords(
-        from activities: [Activity<ShowLiveActivityAttributes>]
-    ) -> [LiveActivityRuntimeRecord] {
+    private static func runtimeRecords(from activities: [Activity<ShowLiveActivityAttributes>]) -> [LiveActivityRuntimeRecord] {
         activities.map {
-            LiveActivityRuntimeRecord(
-                id: $0.id,
-                showID: $0.attributes.showID,
-                isPending: isPending($0),
-                state: $0.content.state
-            )
+            LiveActivityRuntimeRecord(id: $0.id, showID: $0.attributes.showID, isPending: isPending($0), state: $0.content.state)
         }
     }
 
@@ -484,6 +525,8 @@ actor ShowLiveActivityController {
         let activities = Activity<ShowLiveActivityAttributes>.activities
         for activity in activities where predicate(activity) {
             guard generation == latestGeneration else { return }
+            transitionTasks[activity.attributes.showID]?.cancel()
+            transitionTasks.removeValue(forKey: activity.attributes.showID)
             await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
@@ -502,6 +545,8 @@ actor ShowLiveActivityController {
 
         for activity in activities where activity.id != keeperID {
             guard generation == latestGeneration else { return }
+            transitionTasks[activity.attributes.showID]?.cancel()
+            transitionTasks.removeValue(forKey: activity.attributes.showID)
             await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
@@ -530,6 +575,8 @@ actor ShowLiveActivityController {
     }
 
     private func endAll(generation: UInt64) async {
+        for task in transitionTasks.values { task.cancel() }
+        transitionTasks.removeAll()
         let activities = Activity<ShowLiveActivityAttributes>.activities
         for activity in activities {
             guard generation == latestGeneration else { return }
