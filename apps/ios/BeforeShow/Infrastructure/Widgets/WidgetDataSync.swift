@@ -11,6 +11,7 @@ enum WidgetDataSync {
     static let lockScreenWidgetKind = BeforeShowWidgetKind.lockScreenCountdown
 
     @MainActor private static var syncGeneration: UInt64 = 0
+    @MainActor private static var widgetReloadGeneration: UInt64 = 0
 
     @MainActor
     @discardableResult
@@ -67,7 +68,7 @@ enum WidgetDataSync {
                         WidgetListeningStore.write(nil)
                     }
                 }
-                BeforeShowWidgetKind.reloadAllTimelines()
+                widgetReloadGeneration = generation
             }
         }
 
@@ -76,6 +77,7 @@ enum WidgetDataSync {
             retainedCoverSources.insert(cover)
         }
 
+        let reloadGeneration = widgetReloadGeneration
         // SwiftData Show is not Sendable; only immutable value snapshots cross actors.
         Task {
             await ShowLiveActivityController.shared.sync(
@@ -83,7 +85,8 @@ enum WidgetDataSync {
                 widgetCoverSource: widgetSnapshot?.coverImageURL,
                 retainedCoverSources: retainedCoverSources,
                 now: now,
-                generation: generation
+                generation: generation,
+                widgetReloadGeneration: reloadGeneration
             )
         }
         return didStoreSnapshot
@@ -239,6 +242,7 @@ actor ShowLiveActivityController {
         let retainedCoverSources: Set<String>
         let now: Date
         let generation: UInt64
+        let widgetReloadGeneration: UInt64
     }
 
     private init() {}
@@ -246,13 +250,16 @@ actor ShowLiveActivityController {
     private var latestGeneration: UInt64 = 0
     private var pendingSync: PendingSync?
     private var isProcessing = false
+    private var lastWidgetReloadGeneration: UInt64 = 0
+    private var artworkTask: Task<Void, Never>?
 
     func sync(
         snapshot: WidgetShowSnapshot?,
         widgetCoverSource: String?,
         retainedCoverSources: Set<String>,
         now: Date,
-        generation: UInt64
+        generation: UInt64,
+        widgetReloadGeneration: UInt64
     ) async {
         latestGeneration = max(latestGeneration, generation)
         guard generation == latestGeneration else { return }
@@ -262,7 +269,8 @@ actor ShowLiveActivityController {
             widgetCoverSource: widgetCoverSource,
             retainedCoverSources: retainedCoverSources,
             now: now,
-            generation: generation
+            generation: generation,
+            widgetReloadGeneration: widgetReloadGeneration
         )
         guard !isProcessing else { return }
 
@@ -281,7 +289,6 @@ actor ShowLiveActivityController {
         let snapshot = request.snapshot
         let now = request.now
         let focusedPerformanceID = LiveModeFocusStore.read()
-        let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
         let desired = LiveActivityPlanner.desiredState(
             snapshot: snapshot,
             now: now,
@@ -289,9 +296,8 @@ actor ShowLiveActivityController {
             focusedPerformanceID: focusedPerformanceID
         )
 
+        artworkTask?.cancel()
         let normalizedWidgetSource = request.widgetCoverSource?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let liveSource = snapshot?.coverImageURL?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
 
@@ -300,21 +306,41 @@ actor ShowLiveActivityController {
             snapshot: snapshot, now: now, focusedPerformanceID: focusedPerformanceID
         )
         let retained = request.retainedCoverSources.union(artistSources)
-        for source in retained.sorted() {
-            await WidgetCoverCache.refresh(for: source)
-            guard request.generation == latestGeneration else { return }
-        }
-        WidgetCoverCache.pruneCovers(keeping: retained)
-
+        await WidgetArtworkPreparation.prepareCached(sources: retained)
+        guard request.generation == latestGeneration else { return }
         let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
-        if !hadWidgetCover, hasWidgetCover {
-            await MainActor.run {
-                BeforeShowWidgetKind.reloadAllTimelines()
+        if request.widgetReloadGeneration > lastWidgetReloadGeneration || (!hadWidgetCover && hasWidgetCover) {
+            lastWidgetReloadGeneration = request.widgetReloadGeneration
+            await MainActor.run { BeforeShowWidgetKind.reloadAllTimelines() }
+        }
+        await publish(request, focusedPerformanceID: focusedPerformanceID)
+        guard request.generation == latestGeneration else { return }
+        await WidgetCoverCache.pruneCovers(keeping: retained)
+        guard request.generation == latestGeneration else { return }
+
+        // Downloads do not hold the sync queue: a new show/focus can publish immediately.
+        artworkTask = Task {
+            await WidgetArtworkPreparation.refresh(sources: retained) { source in
+                await self.artworkReady(source, request: request, focusedPerformanceID: focusedPerformanceID)
             }
         }
+    }
 
+    private func artworkReady(_ source: String, request: PendingSync, focusedPerformanceID: UUID?) async {
+        guard !Task.isCancelled, request.generation == latestGeneration else { return }
+        if request.retainedCoverSources.contains(source) {
+            await MainActor.run { BeforeShowWidgetKind.reloadAllTimelines() }
+        }
+        await publish(request, focusedPerformanceID: focusedPerformanceID)
+    }
+
+    private func publish(_ request: PendingSync, focusedPerformanceID: UUID?) async {
+        guard request.generation == latestGeneration else { return }
+        let snapshot = request.snapshot
+        let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
+        let liveSource = snapshot?.coverImageURL?.trimmingCharacters(in: .whitespacesAndNewlines)
         var coverFilename: String?
-        if desired != nil, let liveSource, !liveSource.isEmpty {
+        if let liveSource, !liveSource.isEmpty {
             coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: liveSource)
         }
 
@@ -334,7 +360,7 @@ actor ShowLiveActivityController {
         if activitiesEnabled {
             action = LiveActivityPlanner.action(
                 snapshot: snapshot,
-                now: now,
+                now: request.now,
                 existing: existing,
                 coverFilename: coverFilename,
                 focusedPerformanceID: focusedPerformanceID,
