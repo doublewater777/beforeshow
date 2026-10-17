@@ -8365,6 +8365,22 @@
         }
       }
     },
+    "已散场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已散場"
+          }
+        }
+      }
+    },
     "已恢复 Pro。" : {
       "localizations" : {
         "en" : {

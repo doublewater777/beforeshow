@@ -433,7 +433,11 @@ actor ShowLiveActivityController {
     }
 
     private func staleDate(for state: ShowLiveActivityAttributes.ContentState) -> Date? {
-        state.startDate > Date() ? state.startDate : state.endDate
+        let now = Date()
+        if state.startDate > now {
+            return state.startDate
+        }
+        return state.endDate ?? state.startDate.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600)
     }
 
     private func request(

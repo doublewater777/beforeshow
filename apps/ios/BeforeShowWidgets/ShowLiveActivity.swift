@@ -53,20 +53,25 @@ struct ShowLiveActivity: Widget {
                         LiveActivityThinRing(progress: progress, size: 20)
                     }
                     .frame(width: 20, height: 20)
+                } else if content.mode == .ended {
+                    Text(content.kicker)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(content.kickerColor)
+                        .lineLimit(1)
                 } else {
-                HStack(spacing: 2.5) {
-                    if content.showsWave {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(WidgetTheme.live)
+                    HStack(spacing: 2.5) {
+                        if content.showsWave {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(WidgetTheme.live)
+                        }
+                        LiveActivityTimerText(
+                            content: content,
+                            fontSize: 11,
+                            alignment: content.showsWave ? .leading : .trailing
+                        )
+                        .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
                     }
-                    LiveActivityTimerText(
-                        content: content,
-                        fontSize: 11,
-                        alignment: content.showsWave ? .leading : .trailing
-                    )
-                    .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
-                }
                 }
             } minimal: {
                 LiveActivityAppIconMark(size: 14)
@@ -425,7 +430,7 @@ private struct LiveActivityExpandedDetails: View {
 
                 Spacer(minLength: 4)
 
-                // 3. 第三行：声波 + 正在现场 · 走表
+                // 3. 第三行：声波 + 正在现场 · 走表 (散场时为：已散场)
                 HStack(spacing: 5) {
                     if content.showsWave {
                         Image(systemName: "waveform")
@@ -437,17 +442,19 @@ private struct LiveActivityExpandedDetails: View {
                         .foregroundStyle(content.kickerColor)
                         .lineLimit(1)
 
-                    Text("·")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(WidgetTheme.dim)
+                    if content.mode != .ended {
+                        Text("·")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(WidgetTheme.dim)
 
-                    LiveActivityTimerText(
-                        content: content,
-                        fontSize: 14,
-                        prefix: nil,
-                        alignment: .leading
-                    )
-                    .fontWeight(.bold)
+                        LiveActivityTimerText(
+                            content: content,
+                            fontSize: 14,
+                            prefix: nil,
+                            alignment: .leading
+                        )
+                        .fontWeight(.bold)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -475,8 +482,8 @@ private struct LiveActivityBannerView: View {
         }
         .padding(16)
         .background(alignment: .topLeading) {
-            // 现场模式阵容按稿子用中性底，只靠头像与进度环表达状态。
-            if content.lineup == nil {
+            // 现场模式阵容按稿子用中性底，只靠头像与进度环表达状态；散场态亦无光晕。
+            if content.lineup == nil && content.mode != .ended {
                 RadialGradient(
                     colors: [content.glowColor.opacity(0.22), content.glowColor.opacity(0)],
                     center: .topLeading,
@@ -520,7 +527,7 @@ private struct LiveActivityBannerView: View {
 
                 Spacer(minLength: 4)
 
-                // 3. 状态行：声波 + 正在现场 · 实时走表
+                // 3. 状态行：声波 + 正在现场 · 实时走表 (散场时为：已散场)
                 HStack(spacing: 5) {
                     if content.showsWave {
                         Image(systemName: "waveform")
@@ -532,17 +539,19 @@ private struct LiveActivityBannerView: View {
                         .foregroundStyle(content.kickerColor)
                         .lineLimit(1)
 
-                    Text("·")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(WidgetTheme.dim)
+                    if content.mode != .ended {
+                        Text("·")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(WidgetTheme.dim)
 
-                    LiveActivityTimerText(
-                        content: content,
-                        fontSize: 16,
-                        prefix: nil,
-                        alignment: .leading
-                    )
-                    .fontWeight(.bold)
+                        LiveActivityTimerText(
+                            content: content,
+                            fontSize: 16,
+                            prefix: nil,
+                            alignment: .leading
+                        )
+                        .fontWeight(.bold)
+                    }
                 }
             }
             .frame(height: 96)

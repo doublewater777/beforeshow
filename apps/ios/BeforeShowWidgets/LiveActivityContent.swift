@@ -16,6 +16,8 @@ struct LiveActivityContent {
         case pre
         /// 普通演出已开场
         case started
+        /// 已散场
+        case ended
     }
 
     struct Next {
@@ -46,7 +48,7 @@ struct LiveActivityContent {
     /// 现场模式:主角艺人头像、舞台、同时在演;非 nil 时用「阵容」版式。
     var lineup: (avatar: String?, stage: String?, also: Also?)? = nil
 
-    init(state: ShowLiveActivityAttributes.ContentState, isLive: Bool) {
+    init(state: ShowLiveActivityAttributes.ContentState, isLive: Bool, now: Date = .now) {
         let clock = { (date: Date) in LiveActivityCopy.clockText(date, calendar: state.startCalendar) }
         let upcoming = state.nextArtistName.map { artist in
             Next(
@@ -59,7 +61,19 @@ struct LiveActivityContent {
             )
         }
 
-        if let artist = state.currentArtistName {
+        let isEnded = isLive && LiveActivityCopy.isEnded(state: state, now: now)
+
+        if isEnded {
+            mode = .ended
+            kicker = BSLocalization.text("已散场")
+            timerTarget = state.endDate ?? state.startDate
+            caption = nil
+            title = state.showName
+            subtitle = state.venueName
+            timeRange = nil
+            progress = nil
+            next = nil
+        } else if let artist = state.currentArtistName {
             let start = state.currentStartsAt ?? state.startDate
             let end = state.currentEndsAt ?? state.endDate ?? state.startDate
             mode = .set
@@ -134,7 +148,7 @@ struct LiveActivityContent {
             return timeRange
         case .between:
             return nextStartText.map { BSLocalization.format("%@ 开场", $0) }
-        case .pre, .started:
+        case .pre, .started, .ended:
             return nil
         }
     }
@@ -143,14 +157,14 @@ struct LiveActivityContent {
         switch mode {
         case .set, .started: WidgetTheme.liveTitle
         case .between: WidgetTheme.accent
-        case .pre: WidgetTheme.muted
+        case .pre, .ended: WidgetTheme.muted
         }
     }
 
     var timerColor: Color {
         switch mode {
         case .set, .started: WidgetTheme.foreground
-        case .between, .pre: WidgetTheme.heroWarmGold
+        case .between, .pre, .ended: WidgetTheme.heroWarmGold
         }
     }
 
@@ -164,6 +178,15 @@ enum LiveActivityCopy {
     /// 若 staleDate 已让位给 endDate(开场后才同步),用渲染时刻兜底。
     static func isLive(isStale: Bool, startDate: Date, now: Date = .now) -> Bool {
         isStale || now >= startDate
+    }
+
+    /// 散场判定:超过明确散场时间(或未明确散场时按兜底时长算)即视为已散场。
+    static func isEnded(state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> Bool {
+        if state.nextArtistName != nil {
+            return false
+        }
+        let end = state.currentEndsAt ?? state.endDate ?? state.startDate.addingTimeInterval(3 * 3600)
+        return now >= end
     }
 
     /// 24 小时制，时区使用活动所在地。
