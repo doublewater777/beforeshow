@@ -393,6 +393,38 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNotNil(UIImage(contentsOfFile: cachedPath))
     }
 
+    func testLiveActivityTimingSurvivesAnArchiveCreatedBeforeOpening() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let end = start.addingTimeInterval(2 * 3_600)
+        let archivedAt = start.addingTimeInterval(-600)
+        var state = ShowLiveActivityAttributes.ContentState(
+            showName: "夜航西飞", startDate: start, endDate: end,
+            coverImageFilename: nil
+        )
+
+        // The same boundary drives ActivityKit staleness and the system timer.
+        XCTAssertEqual(state.endBoundary, end)
+        XCTAssertEqual(state.timerInterval, start...end)
+        XCTAssertFalse(state.hasEnded(isStale: false, now: archivedAt))
+        XCTAssertFalse(state.hasEnded(isStale: false, now: start))
+        XCTAssertTrue(state.hasEnded(isStale: true, now: archivedAt))
+        XCTAssertTrue(state.hasEnded(isStale: false, now: end))
+
+        state.endDate = nil
+        let fallbackEnd = start.addingTimeInterval(4 * 3_600)
+        XCTAssertEqual(state.endBoundary, fallbackEnd)
+        XCTAssertEqual(state.timerInterval, start...fallbackEnd)
+        XCTAssertTrue(state.hasEnded(isStale: false, now: fallbackEnd))
+
+        // A festival set timer stops at the set end, without ending the whole day.
+        state.endDate = end
+        state.currentStartsAt = start
+        state.currentEndsAt = start.addingTimeInterval(3_600)
+        XCTAssertEqual(state.timerInterval, start...start.addingTimeInterval(3_600))
+        XCTAssertEqual(state.endBoundary, end)
+        XCTAssertFalse(state.hasEnded(isStale: false, now: start.addingTimeInterval(3_600)))
+    }
+
     func testLiveActivityContentStateCarriesEditableFields() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         let state = ShowLiveActivityAttributes.ContentState(

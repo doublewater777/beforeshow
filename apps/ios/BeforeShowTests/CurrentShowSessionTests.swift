@@ -503,7 +503,7 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertEqual(resolved?.id, current.id)
     }
 
-    func testCoverCachePrunesToWidgetAndLiveActivityUnion() throws {
+    func testCoverCachePrunesToWidgetAndLiveActivityUnion() async throws {
         let container = FileManager.default.temporaryDirectory
             .appendingPathComponent("phase1-cover-union-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: container, withIntermediateDirectories: true)
@@ -522,7 +522,7 @@ final class CurrentShowSessionTests: XCTestCase {
         let legacy = container.appendingPathComponent(WidgetSnapshotStore.legacyCoverCacheFilename)
         try Data("legacy".utf8).write(to: legacy)
 
-        WidgetCoverCache.pruneCovers(keeping: [widgetSource, liveSource])
+        await WidgetCoverCache.pruneCovers(keeping: [widgetSource, liveSource])
 
         assertFakeCoverCacheExists(source: widgetSource, in: container)
         assertFakeCoverCacheExists(source: liveSource, in: container)

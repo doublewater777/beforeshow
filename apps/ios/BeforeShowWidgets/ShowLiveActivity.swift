@@ -6,38 +6,20 @@ import WidgetKit
 // 原型契约:docs/design/live-activity-time-prototype/index.html(HIG 四表面)
 // 生命周期由 app 侧 ShowLiveActivityController 管理(决策在 Shared/LiveActivityPlanner)。
 //
-// 平台事实(实测 iOS 26.5):Live Activity 视图是归档快照,TimelineView 不会
-// 每秒重渲染;只有 Text 的系统时间样式(.timer)由系统数据源驱动走动。
-// 因此:
-// - 可见计时 = Text(state.startDate, style: .timer):开场前倒数、过零自动
-//   正计时、永远无正负号。不能加 locale 覆盖(实测 en_US_POSIX 会让 .timer
-//   退化成「1 hour, 17 minutes」长句撑破布局)。不覆盖时由系统按 locale 与
-//   可用宽度自选格式:zh 锁屏宽卡片倒数为「N 分钟」短语、正计时为纯数字,
-//   岛 compact 窄宽度下均为纯数字。
-// - 阶段(金/红、「距开场 / 已开场」)= context.isStale 或渲染时刻已过
-//   startDate;staleDate 指向 startDate(app 侧 WidgetDataSync),过 T 系统把
-//   内容标记 stale 并重渲染翻阶段,无需 push、无需打开 app。
-//   hasStarted 仅为兼容保留,UI 不使用。
+// Live Activity 不依赖 TimelineView 唤醒。系统计时文本自行累计并在边界停止，
+// context.isStale 只表示到达散场边界。
 
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
-            let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
-            LiveActivityBannerView(
-                state: context.state,
-                isLive: isLive
-            )
+            LiveActivityBannerView(state: context.state, isStale: context.isStale)
         } dynamicIsland: { context in
-            let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
-            return DynamicIsland {
-                // expanded 顶部 leading/trailing 都留空:leading 图标与 bottom 封面位
-                // 视觉重复;trailing 计时贴岛右上圆角会被裁。计时改放 bottom 右中,
-                // 大字号,与信息列垂直居中。
+            DynamicIsland {
                 DynamicIslandExpandedRegion(.bottom) {
-                    LiveActivityExpandedDetails(state: context.state, isLive: isLive)
+                    LiveActivityExpandedDetails(state: context.state, isStale: context.isStale)
                 }
             } compactLeading: {
-                let content = LiveActivityContent(state: context.state, isLive: isLive)
+                let content = LiveActivityContent(state: context.state, isStale: context.isStale)
                 if let lineup = content.lineup {
                     LiveActivityCompactAvatar(filename: lineup.avatar, name: content.title, size: 22)
                 } else if let cover = context.state.coverImageFilename, !cover.isEmpty {
@@ -46,14 +28,18 @@ struct ShowLiveActivity: Widget {
                     LiveActivityAppIconMark(size: 20)
                 }
             } compactTrailing: {
-                let content = LiveActivityContent(state: context.state, isLive: isLive)
+                let content = LiveActivityContent(state: context.state, isStale: context.isStale)
                 if content.lineup != nil, content.mode == .set, let progress = content.progress {
-                    // 现场模式正在演:右侧一个随本场时间走满的红环，与左侧头像呼应。
                     ZStack {
                         Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 2).padding(0.8)
                         LiveActivityThinRing(progress: progress, size: 20)
                     }
                     .frame(width: 20, height: 20)
+                } else if content.mode == .ended {
+                    Text(content.kicker)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(content.kickerColor)
+                        .lineLimit(1)
                 } else {
                     HStack(spacing: 2.5) {
                         if content.showsWave {
@@ -193,34 +179,14 @@ enum LiveActivityArtwork {
     /// 显示尺寸只有 20-48pt,缩到 128px 足够。
     static func downscaled(_ image: UIImage, maxPixels: CGFloat = 128) -> UIImage {
         guard max(image.size.width, image.size.height) > maxPixels else { return image }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
         let size = CGSize(width: maxPixels, height: maxPixels)
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+        return UIGraphicsImageRenderer(size: size).image { _ in
             image.draw(in: CGRect(origin: .zero, size: size))
         }
     }
 }
 
 // MARK: - 共用部件
-
-private struct LiveActivityKicker: View {
-    let content: LiveActivityContent
-
-    var body: some View {
-        HStack(spacing: 5) {
-            if content.showsWave {
-                Image(systemName: "waveform")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(WidgetTheme.live)
-            }
-            Text(content.kicker)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(content.kickerColor)
-                .lineLimit(1)
-        }
-    }
-}
 
 /// 「♥ 18:00 椅子乐团 风舞台」:想看给金心，快开始给红环。
 private struct LiveActivityNextLine: View {
@@ -331,10 +297,10 @@ private struct LiveActivityMetadataLine: View {
 
 private struct LiveActivityExpandedDetails: View {
     let state: ShowLiveActivityAttributes.ContentState
-    let isLive: Bool
+    let isStale: Bool
 
     var body: some View {
-        let content = LiveActivityContent(state: state, isLive: isLive)
+        let content = LiveActivityContent(state: state, isStale: isStale)
         Group {
             if let lineup = content.lineup {
                 LiveActivityLineup(content: content, lineup: lineup, heroSize: 54)
@@ -386,7 +352,7 @@ private struct LiveActivityExpandedDetails: View {
 
                 Spacer(minLength: 2)
 
-                // 3. 第三行：声波 + 正在现场 · 走表
+                // 3. 第三行：声波 + 正在现场 · 走表 (散场时为：已散场)
                 HStack(spacing: 5) {
                     if content.showsWave {
                         Image(systemName: "waveform")
@@ -398,17 +364,18 @@ private struct LiveActivityExpandedDetails: View {
                         .foregroundStyle(content.kickerColor)
                         .lineLimit(1)
 
-                    Text("·")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(WidgetTheme.dim)
+                    if content.mode != .ended {
+                        Text("·")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(WidgetTheme.dim)
 
-                    LiveActivityTimerText(
-                        content: content,
-                        fontSize: 14,
-                        prefix: nil,
-                        alignment: .leading
-                    )
-                    .fontWeight(.bold)
+                        LiveActivityTimerText(
+                            content: content,
+                            fontSize: 14,
+                            alignment: .leading
+                        )
+                        .fontWeight(.bold)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -423,10 +390,10 @@ private struct LiveActivityExpandedDetails: View {
 
 private struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
-    let isLive: Bool
+    let isStale: Bool
 
     var body: some View {
-        let content = LiveActivityContent(state: state, isLive: isLive)
+        let content = LiveActivityContent(state: state, isStale: isStale)
         Group {
             if let lineup = content.lineup {
                 LiveActivityLineup(content: content, lineup: lineup)
@@ -436,8 +403,8 @@ private struct LiveActivityBannerView: View {
         }
         .padding(16)
         .background(alignment: .topLeading) {
-            // 现场模式阵容按稿子用中性底，只靠头像与进度环表达状态。
-            if content.lineup == nil {
+            // 现场模式阵容按稿子用中性底，只靠头像与进度环表达状态；散场态亦无光晕。
+            if content.lineup == nil && content.mode != .ended {
                 RadialGradient(
                     colors: [content.glowColor.opacity(0.22), content.glowColor.opacity(0)],
                     center: .topLeading,
@@ -488,7 +455,7 @@ private struct LiveActivityBannerView: View {
 
                 Spacer(minLength: 2)
 
-                // 3. 状态行：声波 + 正在现场 · 实时走表
+                // 3. 状态行：声波 + 正在现场 · 实时走表 (散场时为：已散场)
                 HStack(spacing: 5) {
                     if content.showsWave {
                         Image(systemName: "waveform")
@@ -500,17 +467,18 @@ private struct LiveActivityBannerView: View {
                         .foregroundStyle(content.kickerColor)
                         .lineLimit(1)
 
-                    Text("·")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(WidgetTheme.dim)
+                    if content.mode != .ended {
+                        Text("·")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(WidgetTheme.dim)
 
-                    LiveActivityTimerText(
-                        content: content,
-                        fontSize: 16,
-                        prefix: nil,
-                        alignment: .leading
-                    )
-                    .fontWeight(.bold)
+                        LiveActivityTimerText(
+                            content: content,
+                            fontSize: 16,
+                            alignment: .leading
+                        )
+                        .fontWeight(.bold)
+                    }
                 }
             }
             .frame(height: 96)

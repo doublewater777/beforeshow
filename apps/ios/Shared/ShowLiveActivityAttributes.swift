@@ -6,10 +6,9 @@ import Foundation
 // attributes 只放稳定身份字段;可编辑展示字段放 ContentState,
 // 这样延期/改场馆/换封面时 update 能生效(attributes 本身不可变)。
 //
-// 无 push 时 ContentState 只在 app 运行时更新,跨开场零点可能拿不到 update。
-// 所以渲染侧不依赖 hasStarted:阶段(颜色/文案)由 context.isStale 判定
-// (staleDate = startDate,过 T 系统重渲染),计时用系统 Text(style: .timer)
-// 跨零自动倒数/正计时。hasStarted 仅为兼容保留,UI 不得以它作为渲染依据。
+// 无 push 时仅由 App 更新 ContentState。staleDate 始终指向散场边界，
+// 渲染侧以 context.isStale 显示散场；计时使用有边界的系统 timerInterval。
+// hasStarted 仅为兼容保留，不驱动渲染。
 
 struct ShowLiveActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
@@ -18,7 +17,7 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var venueName: String?
         /// 开场时刻(effective start)
         var startDate: Date
-        /// 预计谢幕(endBoundary);只在 hasStarted 后展示
+        /// 用户填写的散场时间；缺省时由 endBoundary 提供默认边界。
         var endDate: Date?
         /// 实际生命周期结束边界(包含散场或当日落幕)
         var lifecycleEnd: Date? = nil
@@ -28,11 +27,11 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var endTimeZoneIdentifier: String? = nil
         /// App Group 容器内的封面缓存文件名(Live Activity 小图规格);nil 用占位
         var coverImageFilename: String?
-        /// 开场是否已过,由 app 同步时写入。仅为兼容保留;UI 阶段以 context.isStale 为准。
+        /// 开场是否已过，由 App 同步时写入，仅为兼容保留。
         var hasStarted: Bool = false
         var currentArtistName: String? = nil
         var currentStageName: String? = nil
-        /// 主现场这一场的起止;有值时计时改为「本场剩余」。
+        /// 主现场这一场的起止；计时在单场结束时停止。
         var currentStartsAt: Date? = nil
         var currentEndsAt: Date? = nil
         var nextArtistName: String? = nil
@@ -48,6 +47,23 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var currentArtistImageFilename: String? = nil
         var alsoArtistImageFilename: String? = nil
         var nextArtistImageFilename: String? = nil
+
+        /// Shared by ActivityKit staleness and the widget's bounded system timer.
+        var endBoundary: Date {
+            lifecycleEnd ?? endDate ?? currentEndsAt ?? startDate.addingTimeInterval(
+                TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600
+            )
+        }
+
+        var timerInterval: ClosedRange<Date> {
+            let start = currentStartsAt ?? startDate
+            let end = min(currentEndsAt ?? endBoundary, endBoundary)
+            return start...max(start, end)
+        }
+
+        func hasEnded(isStale: Bool, now: Date) -> Bool {
+            isStale || now >= endBoundary
+        }
 
         var startCalendar: Calendar {
             calendar(identifier: timeZoneIdentifier, offsetSeconds: timeZoneSecondsFromGMT)
