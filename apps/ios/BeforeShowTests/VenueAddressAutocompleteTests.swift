@@ -35,8 +35,8 @@ final class VenueAddressAutocompleteTests: XCTestCase {
         XCTAssertEqual(formatted, "浙江省杭州市上城区中山南路77号")
     }
 
-    @available(iOS 26, *)
     func testMapItemAddressKeepsFullAddressInsteadOfShortLabel() throws {
+        guard #available(iOS 26, *) else { throw XCTSkip("Requires the iOS 26 MapKit address constructor") }
         let address = try XCTUnwrap(MKAddress(
             fullAddress: "1 Apple Park Way, Cupertino, CA 95014",
             shortAddress: "Apple Park"

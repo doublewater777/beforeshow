@@ -490,6 +490,7 @@ private struct ListeningRackCarryRecognizer: ViewModifier {
     let onChanged: (CGSize) -> Void
     let onEnded: (Bool) -> Void
     @State private var carrying = false
+    @GestureState private var gestureActive = false
 
     func body(content: Content) -> some View {
         if #available(iOS 18, *) {
@@ -500,6 +501,7 @@ private struct ListeningRackCarryRecognizer: ViewModifier {
             content.simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.3, maximumDistance: 10)
                     .sequenced(before: DragGesture(minimumDistance: 0))
+                    .updating($gestureActive) { _, active, _ in active = true }
                     .onChanged { value in
                         guard case .second(true, let drag) = value, let drag else { return }
                         if !carrying {
@@ -519,6 +521,11 @@ private struct ListeningRackCarryRecognizer: ViewModifier {
                         carrying = false
                     }
             )
+            .onChange(of: gestureActive) { _, active in
+                guard !active, carrying else { return }
+                onEnded(true)
+                carrying = false
+            }
             .onDisappear {
                 if carrying { onEnded(true) }
                 carrying = false

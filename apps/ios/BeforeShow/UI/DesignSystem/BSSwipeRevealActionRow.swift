@@ -177,6 +177,7 @@ private struct BSHorizontalSwipeModifier: ViewModifier {
     let onChanged: (CGFloat) -> Void
     let onEnded: (CGFloat, CGFloat, Bool) -> Void
     @State private var horizontal: Bool?
+    @GestureState private var gestureActive = false
 
     func body(content: Content) -> some View {
         if #available(iOS 18, *) {
@@ -184,6 +185,7 @@ private struct BSHorizontalSwipeModifier: ViewModifier {
         } else {
             content.simultaneousGesture(
                 DragGesture(minimumDistance: 15)
+                    .updating($gestureActive) { _, active, _ in active = true }
                     .onChanged { value in
                         if horizontal == nil {
                             horizontal = abs(value.translation.width) > abs(value.translation.height)
@@ -197,6 +199,11 @@ private struct BSHorizontalSwipeModifier: ViewModifier {
                         horizontal = nil
                     }
             )
+            .onChange(of: gestureActive) { _, active in
+                guard !active, horizontal != nil else { return }
+                if horizontal == true { onEnded(0, 0, true) }
+                horizontal = nil
+            }
             .onDisappear {
                 if horizontal == true { onEnded(0, 0, true) }
                 horizontal = nil
