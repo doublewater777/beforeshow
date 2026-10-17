@@ -180,19 +180,69 @@ enum LiveActivityCopy {
         isStale || now >= startDate
     }
 
-    /// 散场判定:超过明确散场时间(或未明确散场时按兜底时长算)即视为已散场。
-    static func isEnded(state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> Bool {
-        if state.nextArtistName != nil {
-            return false
-        }
-        let end = state.endDate ?? state.currentEndsAt ?? state.startDate.addingTimeInterval(
+    /// 统一散场边界:优先明确散场/全天结束时间,其次当前场次结束,最后 4 小时兜底。
+    static func endBoundary(for state: ShowLiveActivityAttributes.ContentState) -> Date {
+        state.endDate ?? state.currentEndsAt ?? state.startDate.addingTimeInterval(
             TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3600
         )
-        return now >= end
+    }
+
+    /// 散场判定:到达散场边界即视为已散场(不受已过期的 nextArtistName 干扰)。
+    static func isEnded(state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> Bool {
+        now >= endBoundary(for: state)
     }
 
     /// 24 小时制，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
         BSDateFormat.clock(date, timeZone: calendar.timeZone)
+    }
+}
+
+// MARK: - 计时文本
+// Text(style: .timer) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
+// 就能走动的计时;跨零自动从倒数切到正计时,始终无符号。
+
+struct LiveActivityTimerText: View {
+    let content: LiveActivityContent
+    var fontSize: CGFloat
+    var prefix: String? = nil
+    var alignment: TextAlignment = .trailing
+
+    var body: some View {
+        Group {
+            if let prefix, !prefix.isEmpty {
+                Text("\(prefix) ")
+                    .font(.system(size: fontSize * 0.82, weight: .medium))
+                    .foregroundStyle(WidgetTheme.muted)
+                +
+                Text(content.timerTarget, style: .timer)
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundStyle(content.timerColor)
+            } else {
+                Text(content.timerTarget, style: .timer)
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundStyle(content.timerColor)
+            }
+        }
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.65)
+        .multilineTextAlignment(alignment)
+        .accessibilityLabel(Text("\(prefix.map { "\($0) " } ?? "")\(content.kicker) \(Text(content.timerTarget, style: .timer))"))
+    }
+}
+
+struct LiveActivitySetProgress: View {
+    let range: ClosedRange<Date>
+
+    var body: some View {
+        ProgressView(timerInterval: range, countsDown: false) {
+            EmptyView()
+        } currentValueLabel: {
+            EmptyView()
+        }
+        .progressViewStyle(.linear)
+        .tint(WidgetTheme.live)
+        .labelsHidden()
     }
 }

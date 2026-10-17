@@ -22,55 +22,69 @@ import WidgetKit
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
-            LiveActivityBannerView(
-                state: context.state,
-                isLive: LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
-            )
+            let end = LiveActivityCopy.endBoundary(for: context.state)
+            TimelineView(.explicit([context.state.startDate, end])) { timeline in
+                let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
+                LiveActivityBannerView(
+                    state: context.state,
+                    isLive: isLive,
+                    now: timeline.date
+                )
+            }
         } dynamicIsland: { context in
-            let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
+            let end = LiveActivityCopy.endBoundary(for: context.state)
             return DynamicIsland {
                 // expanded 顶部 leading/trailing 都留空:leading 图标与 bottom 封面位
                 // 视觉重复;trailing 计时贴岛右上圆角会被裁。计时改放 bottom 右中,
                 // 大字号,与信息列垂直居中。
                 DynamicIslandExpandedRegion(.bottom) {
-                    LiveActivityExpandedDetails(state: context.state, isLive: isLive)
+                    TimelineView(.explicit([context.state.startDate, end])) { timeline in
+                        let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
+                        LiveActivityExpandedDetails(state: context.state, isLive: isLive, now: timeline.date)
+                    }
                 }
             } compactLeading: {
-                let content = LiveActivityContent(state: context.state, isLive: isLive)
-                if let lineup = content.lineup {
-                    LiveActivityCompactAvatar(filename: lineup.avatar, name: content.title, size: 22)
-                } else if let cover = context.state.coverImageFilename, !cover.isEmpty {
-                    LiveActivityCompactAvatar(filename: cover, name: content.title, size: 22)
-                } else {
-                    LiveActivityAppIconMark(size: 20)
+                TimelineView(.explicit([context.state.startDate, end])) { timeline in
+                    let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
+                    let content = LiveActivityContent(state: context.state, isLive: isLive, now: timeline.date)
+                    if let lineup = content.lineup {
+                        LiveActivityCompactAvatar(filename: lineup.avatar, name: content.title, size: 22)
+                    } else if let cover = context.state.coverImageFilename, !cover.isEmpty {
+                        LiveActivityCompactAvatar(filename: cover, name: content.title, size: 22)
+                    } else {
+                        LiveActivityAppIconMark(size: 20)
+                    }
                 }
             } compactTrailing: {
-                let content = LiveActivityContent(state: context.state, isLive: isLive)
-                if content.lineup != nil, content.mode == .set, let progress = content.progress {
-                    // 现场模式正在演:右侧一个随本场时间走满的红环，与左侧头像呼应。
-                    ZStack {
-                        Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 2).padding(0.8)
-                        LiveActivityThinRing(progress: progress, size: 20)
-                    }
-                    .frame(width: 20, height: 20)
-                } else if content.mode == .ended {
-                    Text(content.kicker)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(content.kickerColor)
-                        .lineLimit(1)
-                } else {
-                    HStack(spacing: 2.5) {
-                        if content.showsWave {
-                            Image(systemName: "waveform")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(WidgetTheme.live)
+                TimelineView(.explicit([context.state.startDate, end])) { timeline in
+                    let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate, now: timeline.date)
+                    let content = LiveActivityContent(state: context.state, isLive: isLive, now: timeline.date)
+                    if content.lineup != nil, content.mode == .set, let progress = content.progress {
+                        // 现场模式正在演:右侧一个随本场时间走满的红环，与左侧头像呼应。
+                        ZStack {
+                            Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 2).padding(0.8)
+                            LiveActivityThinRing(progress: progress, size: 20)
                         }
-                        LiveActivityTimerText(
-                            content: content,
-                            fontSize: 11,
-                            alignment: content.showsWave ? .leading : .trailing
-                        )
-                        .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
+                        .frame(width: 20, height: 20)
+                    } else if content.mode == .ended {
+                        Text(content.kicker)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(content.kickerColor)
+                            .lineLimit(1)
+                    } else {
+                        HStack(spacing: 2.5) {
+                            if content.showsWave {
+                                Image(systemName: "waveform")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(WidgetTheme.live)
+                            }
+                            LiveActivityTimerText(
+                                content: content,
+                                fontSize: 11,
+                                alignment: content.showsWave ? .leading : .trailing
+                            )
+                            .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
+                        }
                     }
                 }
             } minimal: {
@@ -78,41 +92,6 @@ struct ShowLiveActivity: Widget {
                     .accessibilityLabel(Text(context.state.showName))
             }
         }
-    }
-}
-
-// MARK: - 计时文本
-// Text(style: .timer) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
-// 就能走动的计时;跨零自动从倒数切到正计时,始终无符号。阶段颜色跟
-// context.isStale(staleDate = startDate)。
-
-struct LiveActivityTimerText: View {
-    let content: LiveActivityContent
-    var fontSize: CGFloat
-    var prefix: String? = nil
-    var alignment: TextAlignment = .trailing
-
-    var body: some View {
-        Group {
-            if let prefix, !prefix.isEmpty {
-                Text("\(prefix) ")
-                    .font(.system(size: fontSize * 0.82, weight: .medium))
-                    .foregroundStyle(WidgetTheme.muted)
-                +
-                Text(content.timerTarget, style: .timer)
-                    .font(.system(size: fontSize, weight: .semibold))
-                    .foregroundStyle(content.timerColor)
-            } else {
-                Text(content.timerTarget, style: .timer)
-                    .font(.system(size: fontSize, weight: .semibold))
-                    .foregroundStyle(content.timerColor)
-            }
-        }
-        .monospacedDigit()
-        .lineLimit(1)
-        .minimumScaleFactor(0.65)
-        .multilineTextAlignment(alignment)
-        .accessibilityLabel(Text("\(prefix.map { "\($0) " } ?? "")\(content.kicker) \(Text(content.timerTarget, style: .timer))"))
     }
 }
 
@@ -290,21 +269,6 @@ private struct LiveActivityNextLine: View {
     }
 }
 
-struct LiveActivitySetProgress: View {
-    let range: ClosedRange<Date>
-
-    var body: some View {
-        ProgressView(timerInterval: range, countsDown: false) {
-            EmptyView()
-        } currentValueLabel: {
-            EmptyView()
-        }
-        .progressViewStyle(.linear)
-        .tint(WidgetTheme.live)
-        .labelsHidden()
-    }
-}
-
 /// 第二行元数据自适应行:空间足够全量展示,空间受限时通过 ViewThatFits 智能降级,并用 layoutPriority 保护关键时间绝不截断。
 private struct LiveActivityMetadataLine: View {
     let venue: String?
@@ -384,9 +348,10 @@ private struct LiveActivityMetadataLine: View {
 private struct LiveActivityExpandedDetails: View {
     let state: ShowLiveActivityAttributes.ContentState
     let isLive: Bool
+    var now: Date = .now
 
     var body: some View {
-        let content = LiveActivityContent(state: state, isLive: isLive)
+        let content = LiveActivityContent(state: state, isLive: isLive, now: now)
         Group {
             if let lineup = content.lineup {
                 LiveActivityLineup(content: content, lineup: lineup, heroSize: 54)
@@ -478,9 +443,10 @@ private struct LiveActivityExpandedDetails: View {
 private struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
     let isLive: Bool
+    var now: Date = .now
 
     var body: some View {
-        let content = LiveActivityContent(state: state, isLive: isLive)
+        let content = LiveActivityContent(state: state, isLive: isLive, now: now)
         Group {
             if let lineup = content.lineup {
                 LiveActivityLineup(content: content, lineup: lineup)
