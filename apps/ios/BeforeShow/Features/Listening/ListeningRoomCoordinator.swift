@@ -82,7 +82,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
     @ObservationIgnored private var evidenceFailure = ListeningEvidenceFailureOwner()
     @ObservationIgnored private var operation: Task<Void, Never>?
-    @ObservationIgnored private var widgetCoverTask: Task<Void, Never>?
+    @ObservationIgnored private let widgetSync = ListeningWidgetSync()
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
@@ -297,22 +297,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             isPlaying: isPlayingOverride ?? wantsPlayback,
             generatedAt: Date()
         )
-        let previous = WidgetListeningStore.read()
-        if previous == nil || !previous!.isContentEqual(to: snapshot) {
-            WidgetListeningStore.write(snapshot)
-            BeforeShowWidgetKind.reloadAllTimelines()
-        }
-        prefetchWidgetCover(artwork)
-    }
-    /// 小组件扩展的后台刷新受系统预算限制，封面由 App 下载进 App Group 后再刷新小组件。
-    private func prefetchWidgetCover(_ source: String?) {
-        guard let source, WidgetCoverCache.cachedCoverPath(matching: source) == nil else { return }
-        widgetCoverTask?.cancel()
-        widgetCoverTask = Task {
-            await WidgetCoverCache.refresh(for: source)
-            guard !Task.isCancelled, WidgetCoverCache.cachedCoverPath(matching: source) != nil else { return }
-            BeforeShowWidgetKind.reloadAllTimelines()
-        }
+        widgetSync.sync(snapshot)
     }
     var track: ListeningDiscTrack? {
         guard mechanism.position != .stored, mechanism.disc != nil else { return nil }
@@ -475,8 +460,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         setActive(false)
         resetShowCatalog()
         musicAccessRequestGeneration = UUID()
-        widgetCoverTask?.cancel()
-        widgetCoverTask = nil
+        widgetSync.cancel()
         show = nil
     }
 

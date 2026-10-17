@@ -58,19 +58,19 @@ enum WidgetCoverCache {
         await mutator.refresh(for: source)
     }
 
-    /// Compatibility helper for single-surface call sites.
-    static func pruneCovers(except currentSource: String?) {
-        let source = currentSource?.trimmingCharacters(in: .whitespacesAndNewlines)
-        pruneCovers(keeping: Set([source].compactMap { value in
-            guard let value, !value.isEmpty else { return nil }
-            return value
-        }))
+    /// The app can seed shared thumbnails from an original it already downloaded.
+    static func store(_ data: Data, for source: String) async {
+        await mutator.store(data, for: source.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    /// Keeps the union of every currently resolved surface source. This is required
-    /// now that Widget may show a user-owned historical Current Show while Live
-    /// Activity follows a different live/upcoming show.
-    static func pruneCovers(keeping sources: Set<String>) {
+    /// Pruning and download cancellation share an owner so an obsolete request
+    /// cannot restore files after the app switches its retained surface sources.
+    static func pruneCovers(keeping sources: Set<String>) async {
+        let normalized = Set(sources.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+        await mutator.prune(keeping: normalized)
+    }
+
+    fileprivate static func pruneFiles(keeping sources: Set<String>) {
         let normalized = Set(
             sources
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -190,84 +190,88 @@ enum WidgetCoverCache {
 }
 
 private actor CoverCacheMutator {
-    private var generation: UInt64 = 0
+    private var inFlight: [String: (id: UUID, task: Task<Void, Never>)] = [:]
 
     func refresh(for source: String?) async {
-        generation &+= 1
-        let ticket = generation
-
         let trimmed = source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmed.isEmpty else {
-            guard ticket == generation else { return }
-            WidgetCoverCache.pruneCovers(keeping: [])
+        guard !trimmed.isEmpty, !isReady(trimmed) else { return }
+        if let download = inFlight[trimmed] {
+            await download.task.value
             return
         }
+        let id = UUID()
+        let task = Task { await download(trimmed) }
+        inFlight[trimmed] = (id, task)
+        await task.value
+        if inFlight[trimmed]?.id == id { inFlight[trimmed] = nil }
+    }
 
-        if WidgetCoverCache.freshCoverFilename(for: trimmed) != nil,
-           WidgetCoverCache.freshLiveActivityCoverFilename(for: trimmed) != nil {
-            return
+    func prune(keeping sources: Set<String>) {
+        var retained = sources
+        // Listening changes independently while a show sync prepares its artwork.
+        // Read its durable source at the mutation boundary, not from an older request.
+        if let listening = WidgetListeningStore.read(),
+           listening.showID == WidgetSnapshotStore.read()?.showID,
+           let source = listening.coverImageURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !source.isEmpty {
+            retained.insert(source)
         }
-
-        guard let remoteURL = URL(string: trimmed),
-              let cacheURL = WidgetCoverCache.coverFileURL(for: trimmed),
-              let liveActivityURL = WidgetCoverCache.coverFileURL(
-                filename: WidgetCoverCache.liveActivityFilename(for: trimmed)
-              ),
-              let markerURL = WidgetCoverCache.markerFileURL(for: trimmed) else {
-            return
+        for (source, download) in inFlight where !retained.contains(source) {
+            download.task.cancel()
+            inFlight[source] = nil
         }
+        WidgetCoverCache.pruneFiles(keeping: retained)
+    }
 
+    private func isReady(_ source: String) -> Bool {
+        WidgetCoverCache.freshCoverFilename(for: source) != nil
+            && WidgetCoverCache.freshLiveActivityCoverFilename(for: source) != nil
+    }
+
+    private func download(_ source: String) async {
+        guard let url = URL(string: source) else { return }
         do {
             let data: Data
-            if remoteURL.isFileURL {
-                data = try Data(contentsOf: remoteURL)
+            if url.isFileURL {
+                data = try Data(contentsOf: url)
             } else {
-                let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
-                guard ticket == generation else { return }
-                guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                    #if DEBUG
-                    print("[WidgetCoverCache] non-200 for \(trimmed)")
-                    #endif
-                    return
-                }
-                guard let mime = http.mimeType, mime.hasPrefix("image/") else {
-                    #if DEBUG
-                    print("[WidgetCoverCache] unexpected MIME: \(http.mimeType ?? "nil")")
-                    #endif
-                    return
-                }
+                let (tempURL, response) = try await URLSession.shared.download(from: url)
+                defer { try? FileManager.default.removeItem(at: tempURL) }
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                      let mime = http.mimeType, mime.hasPrefix("image/") else { return }
                 data = try Data(contentsOf: tempURL)
             }
-
-            let fileSize = data.count
-            guard fileSize > 0, fileSize <= WidgetCoverCache.maxDownloadBytes else {
-                #if DEBUG
-                print("[WidgetCoverCache] payload too large: \(fileSize) bytes")
-                #endif
-                return
-            }
-            guard let jpeg = WidgetCoverCache.downsampledJPEG(
-                from: data,
-                maxPixel: WidgetCoverCache.maxPixelDimension
-            ),
-                  let liveActivityJPEG = WidgetCoverCache.downsampledJPEG(
-                    from: data,
-                    maxPixel: WidgetCoverCache.liveActivityMaxPixelDimension
-                  ) else {
-                #if DEBUG
-                print("[WidgetCoverCache] downsample failed for \(trimmed)")
-                #endif
-                return
-            }
-
-            guard ticket == generation else { return }
-            try jpeg.write(to: cacheURL, options: .atomic)
-            try liveActivityJPEG.write(to: liveActivityURL, options: .atomic)
-            try trimmed.write(to: markerURL, atomically: true, encoding: .utf8)
-            WidgetCoverCache.clearLegacyFixedCover()
+            guard !Task.isCancelled else { return }
+            store(data, for: source)
         } catch {
             #if DEBUG
             print("[WidgetCoverCache] refresh failed: \(error)")
+            #endif
+        }
+    }
+
+    func store(_ data: Data, for source: String) {
+        guard !source.isEmpty, !isReady(source),
+              !data.isEmpty, data.count <= WidgetCoverCache.maxDownloadBytes,
+              let cacheURL = WidgetCoverCache.coverFileURL(for: source),
+              let liveActivityURL = WidgetCoverCache.coverFileURL(
+                filename: WidgetCoverCache.liveActivityFilename(for: source)
+              ),
+              let markerURL = WidgetCoverCache.markerFileURL(for: source),
+              let jpeg = WidgetCoverCache.downsampledJPEG(
+                from: data, maxPixel: WidgetCoverCache.maxPixelDimension
+              ),
+              let liveActivityJPEG = WidgetCoverCache.downsampledJPEG(
+                from: data, maxPixel: WidgetCoverCache.liveActivityMaxPixelDimension
+              ) else { return }
+        do {
+            try jpeg.write(to: cacheURL, options: .atomic)
+            try liveActivityJPEG.write(to: liveActivityURL, options: .atomic)
+            try source.write(to: markerURL, atomically: true, encoding: .utf8)
+            WidgetCoverCache.clearLegacyFixedCover()
+        } catch {
+            #if DEBUG
+            print("[WidgetCoverCache] store failed: \(error)")
             #endif
         }
     }
