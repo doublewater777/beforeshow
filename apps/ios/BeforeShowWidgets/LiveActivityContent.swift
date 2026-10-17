@@ -192,9 +192,31 @@ enum LiveActivityCopy {
         now >= endBoundary(for: state)
     }
 
+    /// 实时活动关键刷新里程碑:开场时刻、当前场次结束、下一场开始、散场时刻。
+    static func milestones(for state: ShowLiveActivityAttributes.ContentState) -> [Date] {
+        var dates = [state.startDate, endBoundary(for: state)]
+        if let currentEnds = state.currentEndsAt { dates.append(currentEnds) }
+        if let nextStarts = state.nextStartsAt { dates.append(nextStarts) }
+        return dates
+    }
+
     /// 24 小时制，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
         BSDateFormat.clock(date, timeZone: calendar.timeZone)
+    }
+}
+
+/// 驱动 Live Activity 在开场与散场等里程碑自主翻转阶段的 TimelineSchedule，
+/// 即使 app 处于挂起/后台亦由系统按计划推进。
+struct LiveActivityMilestoneSchedule: TimelineSchedule {
+    let milestones: [Date]
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> [Date] {
+        var result = [startDate]
+        for milestone in milestones.sorted() where milestone > startDate {
+            result.append(milestone)
+        }
+        return result
     }
 }
 
