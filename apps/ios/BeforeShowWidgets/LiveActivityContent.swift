@@ -16,8 +16,6 @@ struct LiveActivityContent {
         case pre
         /// 普通演出已开场
         case started
-        /// 已散场
-        case ended
     }
 
     struct Next {
@@ -39,7 +37,6 @@ struct LiveActivityContent {
     let mode: Mode
     let kicker: String
     let timerTarget: Date
-    let timerInterval: ClosedRange<Date>?
     let caption: String?
     let title: String
     let subtitle: String?
@@ -49,7 +46,7 @@ struct LiveActivityContent {
     /// 现场模式:主角艺人头像、舞台、同时在演;非 nil 时用「阵容」版式。
     var lineup: (avatar: String?, stage: String?, also: Also?)? = nil
 
-    init(state: ShowLiveActivityAttributes.ContentState, isLive: Bool, now: Date = .now) {
+    init(state: ShowLiveActivityAttributes.ContentState, isLive: Bool) {
         let clock = { (date: Date) in LiveActivityCopy.clockText(date, calendar: state.startCalendar) }
         let upcoming = state.nextArtistName.map { artist in
             Next(
@@ -62,28 +59,13 @@ struct LiveActivityContent {
             )
         }
 
-        let isEnded = isLive && LiveActivityCopy.isEnded(state: state, now: now)
-
-        if isEnded {
-            mode = .ended
-            kicker = BSLocalization.text("已散场")
-            timerTarget = state.endDate ?? state.startDate
-            timerInterval = nil
-            caption = nil
-            title = state.showName
-            subtitle = state.venueName
-            timeRange = nil
-            progress = nil
-            next = nil
-        } else if let artist = state.currentArtistName {
+        if let artist = state.currentArtistName {
             let start = state.currentStartsAt ?? state.startDate
             let end = state.currentEndsAt ?? state.endDate ?? state.startDate
-            let boundary = state.currentEndsAt ?? state.endDate ?? LiveActivityCopy.endBoundary(for: state)
             mode = .set
             kicker = BSLocalization.text("正在演出")
             // 与普通演出同一语义:正计时「已开场」，剩余交给进度条与静态结束时刻。
             timerTarget = start
-            timerInterval = start < boundary ? start...boundary : nil
             caption = BSLocalization.text("已开场")
             title = artist
             let ends = BSLocalization.format("%@ 结束", clock(end))
@@ -103,7 +85,6 @@ struct LiveActivityContent {
             mode = isLive ? .set : .between
             kicker = BSLocalization.text(isLive ? "正在演出" : "下一场")
             timerTarget = state.nextStartsAt ?? state.startDate
-            timerInterval = nil
             caption = isLive ? BSLocalization.text("已开场") : nil
             title = artist
             subtitle = state.nextStageName
@@ -116,8 +97,6 @@ struct LiveActivityContent {
             mode = .started
             kicker = BSLocalization.text("正在现场")
             timerTarget = state.startDate
-            let boundary = state.endDate ?? LiveActivityCopy.endBoundary(for: state)
-            timerInterval = state.startDate < boundary ? state.startDate...boundary : nil
             caption = BSLocalization.text("已开场")
             title = state.showName
             subtitle = state.endDate.map { BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar)) }
@@ -130,7 +109,6 @@ struct LiveActivityContent {
             mode = .pre
             kicker = BSLocalization.text("距离开场")
             timerTarget = state.startDate
-            timerInterval = nil
             caption = nil
             title = state.showName
             let opening = BSLocalization.format("%@ 开场", clock(state.startDate))
@@ -156,7 +134,7 @@ struct LiveActivityContent {
             return timeRange
         case .between:
             return nextStartText.map { BSLocalization.format("%@ 开场", $0) }
-        case .pre, .started, .ended:
+        case .pre, .started:
             return nil
         }
     }
@@ -165,14 +143,14 @@ struct LiveActivityContent {
         switch mode {
         case .set, .started: WidgetTheme.liveTitle
         case .between: WidgetTheme.accent
-        case .pre, .ended: WidgetTheme.muted
+        case .pre: WidgetTheme.muted
         }
     }
 
     var timerColor: Color {
         switch mode {
         case .set, .started: WidgetTheme.foreground
-        case .between, .pre, .ended: WidgetTheme.heroWarmGold
+        case .between, .pre: WidgetTheme.heroWarmGold
         }
     }
 
@@ -184,8 +162,8 @@ struct LiveActivityContent {
 enum LiveActivityCopy {
     /// 阶段判定:staleDate = startDate 时 isStale 即「已过开场」;
     /// 若 staleDate 已让位给 endDate(开场后才同步),用渲染时刻兜底。
-    static func isLive(isStale: Bool, startDate: Date, now: Date = .now) -> Bool {
-        isStale || now >= startDate
+    static func isLive(isStale: Bool, startDate: Date) -> Bool {
+        isStale || Date() >= startDate
     }
 
     /// 统一散场边界:优先生命周期结束边界,其次明确散场/全天结束时间,其次当前场次结束,最后 4 小时兜底。
@@ -195,21 +173,6 @@ enum LiveActivityCopy {
         )
     }
 
-    /// 散场判定:到达散场边界即视为已散场(不受已过期的 nextArtistName 干扰)。
-    static func isEnded(state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> Bool {
-        now >= endBoundary(for: state)
-    }
-
-    /// 驱动 Live Activity 在开场、场次更替与散场等里程碑自主刷新的计划点集。
-    /// 包含当前时间作为初始条目，确保在开场前渲染时，TimelineView 的初始条目取当前时刻，
-    /// 避免在全部里程碑皆在未来时首个条目直接取到 startDate 导致提前进入「正在现场」。
-    static func milestones(for state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> [Date] {
-        var points: Set<Date> = [now, state.startDate, endBoundary(for: state)]
-        if let currentEnds = state.currentEndsAt { points.insert(currentEnds) }
-        if let nextStarts = state.nextStartsAt { points.insert(nextStarts) }
-        return points.sorted()
-    }
-
     /// 24 小时制，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
         BSDateFormat.clock(date, timeZone: calendar.timeZone)
@@ -217,8 +180,8 @@ enum LiveActivityCopy {
 }
 
 // MARK: - 计时文本
-// Text(style: .timer) 与 Text(timerInterval:) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
-// 就能走动的计时;跨零自动从倒数切到正计时,散场边界自动冻结停表。
+// Text(style: .timer) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
+// 就能走动的计时;跨零自动从倒数切到正计时。
 
 struct LiveActivityTimerText: View {
     let content: LiveActivityContent
@@ -246,15 +209,9 @@ struct LiveActivityTimerText: View {
     }
 
     private var timerLabel: Text {
-        if let interval = content.timerInterval {
-            Text(timerInterval: interval, pauseTime: interval.upperBound, countsDown: false)
-                .font(.system(size: fontSize, weight: .semibold))
-                .foregroundStyle(content.timerColor)
-        } else {
-            Text(content.timerTarget, style: .timer)
-                .font(.system(size: fontSize, weight: .semibold))
-                .foregroundStyle(content.timerColor)
-        }
+        Text(content.timerTarget, style: .timer)
+            .font(.system(size: fontSize, weight: .semibold))
+            .foregroundStyle(content.timerColor)
     }
 }
 
