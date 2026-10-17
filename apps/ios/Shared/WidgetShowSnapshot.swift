@@ -12,6 +12,8 @@ struct WidgetTimetablePerformance: Codable, Equatable, Hashable {
     var startsAt: Date
     var endsAt: Date
     var isInterested: Bool
+    /// Apple Music 艺人图 URL;旧快照没有此字段，解码为 nil。
+    var artistImageURL: String? = nil
 }
 
 struct WidgetTimetableDay: Codable, Equatable, Hashable {

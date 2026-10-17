@@ -42,11 +42,21 @@ enum TimetableDebugSeeder {
         case "final": offsets = [(-300, -240), (-280, -230), (-200, -140), (-190, -130), (-120, -60)].map { ($0.0 - Double(span) * 1440, $0.1 - Double(span) * 1440) }
         default: offsets = [(-30, 45), (-15, 35), (50, 110), (60, 120), (140, 200)]
         }
+        // Demo lineup carries placeholder artist photos so widgets / Live Activity show avatars.
+        let demoPhotos = [
+            "photo-1493225457124-a3eb161ffa5f", "photo-1516280440614-37939bbacd81",
+            "photo-1508700115892-45ecd05ae2ad", "photo-1501386761578-eac5c94b800a",
+            "photo-1470229722913-7c0e2dbbafd3"
+        ]
         func set(_ name: String, _ index: Int, interested: Bool) -> TimetablePerformance {
             let p = try! TimetablePerformance(
                 artistName: name,
                 startsAt: now.addingTimeInterval(offsets[index].0 * 60),
-                endsAt: now.addingTimeInterval(offsets[index].1 * 60)
+                endsAt: now.addingTimeInterval(offsets[index].1 * 60),
+                appleMusicArtistID: demo ? "demo-\(index)" : nil,
+                artistAvatarURL: demo
+                    ? "https://images.unsplash.com/\(demoPhotos[index])?auto=format&fit=crop&w=300&h=300&q=80"
+                    : nil
             )
             p.isInterested = interested
             return p

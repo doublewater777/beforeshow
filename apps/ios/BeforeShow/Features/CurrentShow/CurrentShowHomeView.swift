@@ -207,11 +207,11 @@ struct CurrentShowHomeView: View {
             }
             #endif
             .task(id: widgetSyncFingerprint) {
-                WidgetDataSync.sync(shows: shows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
+                WidgetDataSync.sync(shows: liveShows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
             }
             .onChange(of: focusedPerformanceID) {
                 BeforeShowWidgetKind.reloadAllTimelines()
-                WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                WidgetDataSync.sync(shows: liveShows, manualSelection: selections.first)
             }
             .onChange(of: currentShow?.id, initial: true) { _, newShowID in
                 homeArrivalLifecycle.observeCurrentShow(newShowID)
@@ -226,7 +226,7 @@ struct CurrentShowHomeView: View {
             }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
-                    WidgetDataSync.sync(shows: shows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
+                    WidgetDataSync.sync(shows: liveShows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
                     Task {
                         await refreshAutomaticCurrentShowIfNeeded()
                         await reconcileNotificationPortfolio()
@@ -456,7 +456,7 @@ struct CurrentShowHomeView: View {
             do {
                 let didSync = try await ShowMutationCoordinator.selectCurrentShow(
                     showID: target.id,
-                    shows: shows,
+                    shows: liveShows,
                     selections: selections,
                     notificationStates: notificationStates,
                     in: modelContext,

@@ -16,8 +16,8 @@ enum WidgetTheme {
     /// 倒计时 hero 色温递进(对齐 app 端 V4):远场奶白 (#F5EFE2) / 当天暖金 (#F0DCB6)。
     static let heroIvory = Color(red: 0.961, green: 0.937, blue: 0.886)
     static let heroWarmGold = Color(red: 0.941, green: 0.863, blue: 0.714)
-    static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
-    static let liveTitle = Color(red: 1.000, green: 0.816, blue: 0.827)
+    static let live = Color(red: 1.000, green: 0.320, blue: 0.380)
+    static let liveTitle = Color(red: 1.000, green: 0.520, blue: 0.580)
     /// 音乐节「今日已结束」的夜色。
     static let night = Color(red: 0.686, green: 0.765, blue: 0.933)
     static let widgetCoverCornerRadius: CGFloat = 12

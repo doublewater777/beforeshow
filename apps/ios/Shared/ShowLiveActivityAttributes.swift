@@ -20,6 +20,8 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var startDate: Date
         /// 预计谢幕(endBoundary);只在 hasStarted 后展示
         var endDate: Date?
+        /// 实际生命周期结束边界(包含散场或当日落幕)
+        var lifecycleEnd: Date? = nil
         var timeZoneSecondsFromGMT: Int? = nil
         var endTimeZoneSecondsFromGMT: Int? = nil
         var timeZoneIdentifier: String? = nil
@@ -39,6 +41,13 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var isNextStartingSoon: Bool = false
         var isInterestedNext: Bool = false
         var isFestivalDayActive: Bool = false
+        /// 与主现场同时在演的另一场(现场模式)。
+        var alsoArtistName: String? = nil
+        var alsoStageName: String? = nil
+        /// App Group 内艺人头像小图文件名;nil 用首字母。
+        var currentArtistImageFilename: String? = nil
+        var alsoArtistImageFilename: String? = nil
+        var nextArtistImageFilename: String? = nil
 
         var startCalendar: Calendar {
             calendar(identifier: timeZoneIdentifier, offsetSeconds: timeZoneSecondsFromGMT)
