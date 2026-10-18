@@ -60,6 +60,15 @@ extension View {
     }
 
     @ViewBuilder
+    func bsSwipeActionsContainer() -> some View {
+        if #available(iOS 27, *) {
+            swipeActionsContainer()
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
     func bsBottomBar<Bar: View>(@ViewBuilder content: () -> Bar) -> some View {
         if #available(iOS 26, *) {
             safeAreaBar(edge: .bottom, spacing: 0, content: content)

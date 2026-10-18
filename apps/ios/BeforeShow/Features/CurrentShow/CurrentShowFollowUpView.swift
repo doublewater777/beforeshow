@@ -39,25 +39,36 @@ struct CurrentShowFollowUpSummary: View {
             }
 
             ForEach(shows.prefix(2)) { show in
-                BSSwipeRevealActionRow(
-                    isRevealed: revealedShowID == show.id,
-                    actionTitle: BSLocalization.text("设为当前"),
-                    actionIcon: "pin.fill",
-                    tint: BSColor.Stage.accent,
-                    onReveal: { isRevealed in
-                        revealedShowID = isRevealed ? show.id : nil
-                    },
-                    onAction: {
-                        revealedShowID = nil
-                        onSetCurrent(show)
+                if #available(iOS 27, *) {
+                    followUpLink(show)
+                        .background(BSColor.Stage.surface.opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.white.opacity(0.09), lineWidth: 1)
+                        )
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(BSLocalization.text("设为当前"), systemImage: "pin.fill") {
+                                onSetCurrent(show)
+                            }
+                            .tint(BSColor.Stage.accent)
+                        }
+                } else {
+                    BSSwipeRevealActionRow(
+                        isRevealed: revealedShowID == show.id,
+                        actionTitle: BSLocalization.text("设为当前"),
+                        actionIcon: "pin.fill",
+                        tint: BSColor.Stage.accent,
+                        onReveal: { isRevealed in
+                            revealedShowID = isRevealed ? show.id : nil
+                        },
+                        onAction: {
+                            revealedShowID = nil
+                            onSetCurrent(show)
+                        }
+                    ) {
+                        followUpLink(show)
                     }
-                ) {
-                    NavigationLink {
-                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-                    } label: {
-                        followUpRow(show)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
 
@@ -82,6 +93,16 @@ struct CurrentShowFollowUpSummary: View {
                 .buttonStyle(.plain)
             }
         }
+        .bsSwipeActionsContainer()
+    }
+
+    private func followUpLink(_ show: Show) -> some View {
+        NavigationLink {
+            ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+        } label: {
+            followUpRow(show)
+        }
+        .buttonStyle(.plain)
     }
 
     private func followUpRow(_ show: Show) -> some View {
