@@ -194,11 +194,11 @@ struct LiveActivityTimerText: View {
                 Text(timerInterval: content.timerInterval, countsDown: false)
             }
         }
-            .font(.system(size: fontSize, weight: .semibold))
-            .foregroundStyle(content.timerColor)
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.65)
-            .multilineTextAlignment(alignment)
+        .font(.system(size: fontSize, weight: .semibold))
+        .foregroundStyle(content.timerColor)
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.65)
+        .multilineTextAlignment(alignment)
     }
 }
