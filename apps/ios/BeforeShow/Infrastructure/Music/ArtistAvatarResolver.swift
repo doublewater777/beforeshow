@@ -48,7 +48,8 @@ final class ArtistAvatarResolver {
     @ObservationIgnored private let autoRefresh: Bool
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var generations: [String: Int] = [:]
-    @ObservationIgnored private var inFlight: Set<String> = []
+    /// ID → generation of the request currently allowed to release it.
+    @ObservationIgnored private var inFlight: [String: Int] = [:]
     @ObservationIgnored private var accessRetryAt: [String: Date] = [:]
 
     init(
@@ -86,7 +87,7 @@ final class ArtistAvatarResolver {
     }
 
     func refreshIfDue(artistID: String) async {
-        guard let id = Self.normalized(artistID), !inFlight.contains(id), isDue(id) else { return }
+        guard let id = Self.normalized(artistID), inFlight[id] == nil, isDue(id) else { return }
         await refresh(artistID: id)
     }
 
@@ -94,8 +95,8 @@ final class ArtistAvatarResolver {
         guard let id = Self.normalized(artistID) else { return }
         generations[id, default: 0] += 1
         let generation = generations[id]!
-        inFlight.insert(id)
-        defer { if generations[id] == generation { inFlight.remove(id) } }
+        inFlight[id] = generation
+        defer { if inFlight[id] == generation { inFlight[id] = nil } }
 
         let previous = entries[id] ?? Entry()
         let result: Result<ArtistOfficialArtwork, Error>

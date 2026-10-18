@@ -299,9 +299,11 @@ enum FootprintArchiveRankingBuilder {
     private static func makeArtist(name: String, shows: [Show]) -> FootprintArtistArchiveItem? {
         let ordered = chronological(shows)
         guard !ordered.isEmpty else { return nil }
-        let matchingSlots = ordered.lazy
-            .flatMap(\.artists)
+        let sameName = ordered.flatMap(\.artists)
             .filter { FootprintTextNormalizer.nonEmptyTrimmed($0.name) == name }
+        // Same name is not the same artist: the most recent confirmed identity owns the card's images.
+        let artistID = sameName.last(where: { $0.appleMusicArtistID != nil })?.appleMusicArtistID
+        let matchingSlots = sameName.reversed().filter { artistID == nil || $0.appleMusicArtistID == artistID }
         let artworkURL = matchingSlots
             .compactMap { slot in
                 slot.avatarURL
@@ -323,7 +325,7 @@ enum FootprintArchiveRankingBuilder {
             latestShowDate: ordered.last.map(effectiveStart(for:)) ?? .distantPast,
             yearSpan: span(for: ordered),
             artworkURL: artworkURL,
-            artistID: matchingSlots.compactMap(\.appleMusicArtistID).first,
+            artistID: artistID,
             albumArtworkURL: albumArtworkURL
         )
     }

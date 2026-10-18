@@ -131,6 +131,24 @@ final class ArtistAvatarResolverTests: XCTestCase {
         XCTAssertNil(resolver.displayURL(artistID: "902", stored: nil))
     }
 
+    func testRecordingDuringAnInFlightRefreshStillReleasesTheID() async {
+        let resolver = makeResolver()
+        lookup.results["991"] = .failure
+        lookup.delays["991"] = .milliseconds(100)
+        let slow = Task { await resolver.refresh(artistID: "991") }
+        try? await Task.sleep(for: .milliseconds(20))
+        resolver.record(RecognizedArtist(id: "991", canonicalName: "A", avatarURL: official, appleMusicURL: nil,
+                                         isOfficialArtistPhoto: true))
+        await slow.value
+
+        clock = clock.addingTimeInterval(ArtistAvatarResolver.revalidationInterval + 1)
+        lookup.delays["991"] = nil
+        let calls = lookup.calls["991"] ?? 0
+        await resolver.refreshIfDue(artistID: "991")
+        XCTAssertEqual(lookup.calls["991"], calls + 1, "The ID must not stay stuck in flight")
+        XCTAssertEqual(resolver.displayURL(artistID: "991", stored: nil), official, "Failure keeps the verified photo")
+    }
+
     func testVerifiedPhotosSurviveRelaunch() async {
         lookup.results["999"] = .found(official)
         await makeResolver().refresh(artistID: "999")

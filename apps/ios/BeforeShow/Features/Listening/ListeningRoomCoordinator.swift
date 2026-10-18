@@ -608,7 +608,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                       artists[index].appleMusicArtistID == nil else { continue }
                 artists[index].appleMusicArtistID = candidate.id
                 artists[index].appleMusicURL = candidate.appleMusicURL?.absoluteString
-                if let officialAvatar = candidate.avatarURL { artists[index].avatarURL = officialAvatar.absoluteString }
+                if candidate.isOfficialArtistPhoto, let official = candidate.avatarURL { artists[index].avatarURL = official.absoluteString }
                 changed = true
                 matchedIndices.append(index)
             }
