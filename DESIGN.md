@@ -422,9 +422,9 @@ The source sheet appears only after the user chooses to add their own show. Link
 - Physical-material colors remain in `ListeningStyle`: wood back `#1A120E`, shadow `#211712`, face `#523829`, edge `#78543B`, highlight `#A3784D`. They describe the cabinet material only; surrounding text and controls use Stage tokens.
 - Artist identities resolve automatically from saved links or an unambiguous name match. Matching is not a required user step; platform music authorization remains a separate system permission.
 
-## iOS 26 Root Bottom Chrome Contract
+## Root Bottom Chrome Contract
 
-The app targets iOS 26+ and uses one custom root bottom chrome as the only visible top-level navigation.
+The app targets iOS 17+ (ADR 0043); Liquid Glass, safe-area bar and scroll-edge effects apply on iOS 26+ with an iOS 17 fallback. It uses one custom root bottom chrome as the only visible top-level navigation.
 
 ### Structure
 
