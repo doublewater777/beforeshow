@@ -10,7 +10,10 @@ final class CompanionRelationshipRegressionTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let date = now.addingTimeInterval(86_400)
 
+        // Exact duplicates tie on start time; InitialCurrentShowPolicy breaks ties by UUID string.
+        // Fix the IDs so the merge target is also the deterministic current pick.
         let first = try Show(
+            id: UUID(uuidString: "FFFFFFFF-0000-0000-0000-000000000001")!,
             name: "重复现场",
             date: date,
             startTime: date,
@@ -19,6 +22,7 @@ final class CompanionRelationshipRegressionTests: XCTestCase {
             creationOrigin: .user
         )
         let second = try Show(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
             name: "重复现场",
             date: date,
             startTime: date,

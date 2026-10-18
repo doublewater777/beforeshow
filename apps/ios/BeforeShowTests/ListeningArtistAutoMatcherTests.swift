@@ -487,7 +487,8 @@ import SwiftData
 
         XCTAssertEqual(current.artists.first?.appleMusicArtistID, "12345")
         XCTAssertEqual(current.artists.first?.appleMusicURL, "https://music.apple.com/cn/artist/the-band/12345")
-        XCTAssertEqual(current.artists.first?.avatarURL, "https://example.com/artist.jpg")
+        // Unified artist avatars (#345): another show's unknown-source image is not copied across shows.
+        XCTAssertNil(current.artists.first?.avatarURL)
         let queries = await search.queries
         XCTAssertTrue(queries.isEmpty)
     }
