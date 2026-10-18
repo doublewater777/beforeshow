@@ -35,8 +35,9 @@ enum FootprintSearchMatcher {
     }
 
     static func matches(show: Show, query: String, filter: FootprintSearchFilter) -> Bool {
+        let year = show.timingCalendar().component(.year, from: show.effectiveDate)
         let searchable = ([show.name] + show.artistNames
-            + [show.city, show.venueName, String(show.timingCalendar().component(.year, from: show.effectiveDate))]
+            + [show.city, show.venueName, String(year)]
                 .compactMap { $0 })
             .joined(separator: " ")
         let matchesQuery = ArtistNameMatching.contains(searchable, query: query)
@@ -44,8 +45,8 @@ enum FootprintSearchMatcher {
         switch filter {
         case .all:
             matchesFilter = true
-        case let .year(year):
-            matchesFilter = show.timingCalendar().component(.year, from: show.effectiveDate) == year
+        case let .year(selected):
+            matchesFilter = year == selected
         case let .city(city):
             matchesFilter = show.city?.trimmingCharacters(in: .whitespacesAndNewlines) == city
         }

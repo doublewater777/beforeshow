@@ -150,7 +150,7 @@ struct TimetableAddPerformanceSheet: View {
                     .accessibilityLabel(BSLocalization.text("添加"))
                     .foregroundStyle(TimetableStyle.foreground)
                     .disabled(trimmedName.isEmpty || hasCommitted)
-                    .opacity(trimmedName.isEmpty ? 0.35 : 1)
+                    .opacity(trimmedName.isEmpty || hasCommitted ? 0.35 : 1)
                 }
             }
         }

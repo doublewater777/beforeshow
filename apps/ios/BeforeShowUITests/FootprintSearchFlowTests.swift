@@ -11,13 +11,7 @@ final class FootprintSearchFlowTests: XCTestCase {
         ]
         app.launch()
 
-        let tab = app.buttons.matching(identifier: "root.tab.footprints").firstMatch
-        XCTAssertTrue(tab.waitForExistence(timeout: 20))
-        tab.tap()
-
-        let searchEntry = app.buttons["Search Footprints"]
-        XCTAssertTrue(searchEntry.waitForExistence(timeout: 10))
-        searchEntry.tap()
+        openSearch(in: app)
 
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
@@ -47,10 +41,7 @@ final class FootprintSearchFlowTests: XCTestCase {
         ]
         app.launch()
 
-        let tab = app.buttons.matching(identifier: "root.tab.footprints").firstMatch
-        XCTAssertTrue(tab.waitForExistence(timeout: 20))
-        tab.tap()
-        app.buttons["Search Footprints"].tap()
+        openSearch(in: app)
 
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
@@ -60,6 +51,20 @@ final class FootprintSearchFlowTests: XCTestCase {
         field.buttons["Clear text"].tap()
         let result = results(in: app).matching(NSPredicate(format: "label CONTAINS %@", "夏夜回忆现场")).firstMatch
         XCTAssertTrue(result.waitForExistence(timeout: 5))
+    }
+
+    /// The app restores the last navigation path; pop back to the Footprints root first.
+    private func openSearch(in app: XCUIApplication) {
+        let tab = app.buttons.matching(identifier: "root.tab.footprints").firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 20))
+        tab.tap()
+        let searchEntry = app.buttons["Search Footprints"]
+        for _ in 0..<3 where !searchEntry.waitForExistence(timeout: 3) {
+            let back = app.navigationBars.buttons["BackButton"]
+            if back.exists { back.tap() }
+        }
+        XCTAssertTrue(searchEntry.waitForExistence(timeout: 5))
+        searchEntry.tap()
     }
 
     private func focusAndType(_ text: String, into field: XCUIElement, app: XCUIApplication) {
