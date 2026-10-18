@@ -24,6 +24,8 @@ struct TimetableAddPerformanceSheet: View {
     @State private var searchAttempt = 0
     @State private var previewSessionID = UUID()
     @State private var saveErrorMessage: String? = nil
+    /// 保存成功后 sheet 退场期间不能再次提交。
+    @State private var hasCommitted = false
     @FocusState private var isNameFocused: Bool
 
     init(
@@ -138,19 +140,17 @@ struct TimetableAddPerformanceSheet: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .bsClearNavigationContainer()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(BSLocalization.text("取消")) {
-                        dismiss()
-                    }
-                    .font(.system(size: 15))
-                    .foregroundStyle(TimetableStyle.muted)
+                BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("取消")) {
+                    dismiss()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(BSLocalization.text("添加"), action: add)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(TimetableStyle.mine)
-                        .disabled(trimmedName.isEmpty)
-                        .opacity(trimmedName.isEmpty ? 0.35 : 1)
+                    Button(action: add) {
+                        Image(systemName: "checkmark")
+                    }
+                    .accessibilityLabel(BSLocalization.text("添加"))
+                    .foregroundStyle(TimetableStyle.foreground)
+                    .disabled(trimmedName.isEmpty || hasCommitted)
+                    .opacity(trimmedName.isEmpty ? 0.35 : 1)
                 }
             }
         }
@@ -433,6 +433,7 @@ struct TimetableAddPerformanceSheet: View {
     }
 
     private func add() {
+        guard !hasCommitted else { return }
         guard !trimmedName.isEmpty else {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -466,6 +467,7 @@ struct TimetableAddPerformanceSheet: View {
             }
             day.timetable?.show?.updatedAt = Date()
             try modelContext.save()
+            hasCommitted = true
             saveErrorMessage = nil
             onPerformanceAdded?()
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()

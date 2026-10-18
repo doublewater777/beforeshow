@@ -141,14 +141,12 @@ struct TimetablePerformanceInspectorSheet: View {
             .toolbar {
                 if isEditing {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(BSLocalization.text("取消")) {
+                        Button(BSLocalization.text("取消"), systemImage: "arrow.uturn.backward") {
                             resetDraft()
-                            withAnimation(TimetableStyle.pressSpring) {
-                                isEditing = false
-                            }
+                            withAnimation(TimetableStyle.pressSpring) { isEditing = false }
                         }
-                        .font(.system(size: 15))
-                        .foregroundStyle(TimetableStyle.muted)
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(TimetableStyle.foreground)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         let isNameEmpty = draftArtistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -163,20 +161,16 @@ struct TimetablePerformanceInspectorSheet: View {
                     }
                 } else {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(BSLocalization.text("完成")) {
-                            dismiss()
-                        }
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(TimetableStyle.foreground)
+                        Button(BSLocalization.text("完成"), systemImage: "checkmark") { dismiss() }
+                            .labelStyle(.iconOnly)
+                            .foregroundStyle(TimetableStyle.foreground)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(BSLocalization.text("编辑")) {
-                            withAnimation(TimetableStyle.pressSpring) {
-                                isEditing = true
-                            }
+                        Button(BSLocalization.text("编辑"), systemImage: "pencil") {
+                            withAnimation(TimetableStyle.pressSpring) { isEditing = true }
                         }
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(TimetableStyle.mine)
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(TimetableStyle.foreground)
                     }
                 }
             }
