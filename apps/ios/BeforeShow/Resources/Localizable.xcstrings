@@ -3410,22 +3410,6 @@
         }
       }
     },
-    "从历史记录中快速找到某位艺人、城市、场馆或年份。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quickly find an artist, city, venue or year from history."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從歷史記錄中快速找到某位藝人、城市、場館或年份。"
-          }
-        }
-      }
-    },
     "从唱片柜选一张 CD，把演出的歌提前听熟。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10587,22 +10571,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋「開場前」"
-          }
-        }
-      }
-    },
-    "搜索与筛选" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search & Filter"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋與篩選"
           }
         }
       }
