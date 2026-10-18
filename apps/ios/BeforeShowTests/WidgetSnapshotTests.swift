@@ -425,6 +425,52 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertFalse(state.hasEnded(isStale: false, now: start.addingTimeInterval(3_600)))
     }
 
+    func testStandardLiveActivityPhaseShowsCountdownThenElapsedUntilEnd() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let end = start.addingTimeInterval(2 * 3_600)
+        var state = ShowLiveActivityAttributes.ContentState(
+            showName: "夜航西飞", startDate: start, endDate: end,
+            coverImageFilename: nil
+        )
+
+        XCTAssertEqual(state.standardPhase(at: start.addingTimeInterval(-1)), .untilStart)
+        XCTAssertEqual(state.standardPhase(at: start), .live)
+        XCTAssertEqual(state.standardPhase(at: end.addingTimeInterval(-1)), .live)
+        XCTAssertEqual(state.standardPhase(at: end), .ended)
+        XCTAssertEqual(state.standardPhase(at: end.addingTimeInterval(1)), .ended)
+        XCTAssertEqual(state.timerInterval, start...end)
+
+        // 兼容旧 ContentState.hasStarted：渲染阶段必须遵循时钟而不是存储标记。
+        state.hasStarted = true
+        XCTAssertEqual(state.standardPhase(at: start.addingTimeInterval(-1)), .untilStart)
+        state.hasStarted = false
+        XCTAssertEqual(state.standardPhase(at: start), .live)
+
+        // ActivityKit 标记过期时仍走现有散场语义。
+        XCTAssertEqual(state.standardPhase(at: start, isStale: true), .ended)
+    }
+
+    func testStandardLiveActivityPhaseWithoutExplicitEndUsesLifecycleBoundary() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let fallback = start.addingTimeInterval(4 * 3_600)
+        let state = ShowLiveActivityAttributes.ContentState(
+            showName: "夜航西飞", startDate: start, endDate: nil,
+            coverImageFilename: nil
+        )
+
+        XCTAssertEqual(state.standardPhase(at: start.addingTimeInterval(-60)), .untilStart)
+        XCTAssertEqual(state.standardPhase(at: fallback.addingTimeInterval(-1)), .live)
+        XCTAssertEqual(state.standardPhase(at: fallback), .ended)
+        XCTAssertEqual(state.timerInterval, start...fallback)
+
+        // 已保存的生命周期边界变化后，三阶段也要跟随最新时间。
+        var extended = state
+        extended.lifecycleEnd = fallback.addingTimeInterval(3_600)
+        XCTAssertEqual(extended.standardPhase(at: fallback), .live)
+        XCTAssertEqual(extended.standardPhase(at: fallback.addingTimeInterval(3_600)), .ended)
+        XCTAssertEqual(extended.timerInterval, start...fallback.addingTimeInterval(3_600))
+    }
+
     func testLiveActivityContentStateCarriesEditableFields() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         let state = ShowLiveActivityAttributes.ContentState(
