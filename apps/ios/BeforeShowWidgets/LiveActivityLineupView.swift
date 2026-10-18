@@ -13,7 +13,8 @@ private struct LiveActivityAvatar: View {
 
     var body: some View {
         Group {
-            if let filename, let image = LiveActivityArtwork.containerImage(filename: filename) {
+            if let filename,
+               let image = WidgetCoverCache.liveActivityImage(filename: filename, filling: CGSize(width: size, height: size)) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()

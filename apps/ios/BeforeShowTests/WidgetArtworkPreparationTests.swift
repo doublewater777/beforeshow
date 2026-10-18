@@ -23,7 +23,7 @@ final class WidgetArtworkPreparationTests: XCTestCase {
         let filename = try XCTUnwrap(WidgetCoverCache.freshLiveActivityCoverFilename(for: source.absoluteString))
         let live = try XCTUnwrap(UIImage(contentsOfFile: container.appendingPathComponent(filename).path)?.cgImage)
         XCTAssertEqual(max(widget.width, widget.height), 400)
-        XCTAssertEqual(max(live.width, live.height), 120)
+        XCTAssertEqual(CGFloat(max(live.width, live.height)), WidgetCoverCache.liveActivityMaxPixelDimension)
     }
 
     func testReadyArtworkIsPublishedWhileAnotherDownloadIsStillWaiting() async throws {

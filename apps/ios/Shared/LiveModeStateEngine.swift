@@ -22,8 +22,10 @@ struct LivePerformanceSnapshot: Equatable, Identifiable, Sendable {
     let secondsUntilStart: TimeInterval
     let secondsUntilEnd: TimeInterval
 
+    static let startingSoonLead: TimeInterval = 1800
+
     var isStartingSoon: Bool {
-        secondsUntilStart > 0 && secondsUntilStart <= 1800
+        secondsUntilStart > 0 && secondsUntilStart <= Self.startingSoonLead
     }
 }
 
