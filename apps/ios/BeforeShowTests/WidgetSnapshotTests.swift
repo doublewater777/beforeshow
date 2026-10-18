@@ -462,6 +462,13 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(state.standardPhase(at: fallback.addingTimeInterval(-1)), .live)
         XCTAssertEqual(state.standardPhase(at: fallback), .ended)
         XCTAssertEqual(state.timerInterval, start...fallback)
+
+        // 已保存的生命周期边界变化后，三阶段也要跟随最新时间。
+        var extended = state
+        extended.lifecycleEnd = fallback.addingTimeInterval(3_600)
+        XCTAssertEqual(extended.standardPhase(at: fallback), .live)
+        XCTAssertEqual(extended.standardPhase(at: fallback.addingTimeInterval(3_600)), .ended)
+        XCTAssertEqual(extended.timerInterval, start...fallback.addingTimeInterval(3_600))
     }
 
     func testLiveActivityContentStateCarriesEditableFields() {
