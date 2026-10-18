@@ -17,7 +17,7 @@ struct ListeningDiscArtistCredits: View {
                     HStack(spacing: BSSpacing.xs) {
                         ForEach(Array(links.enumerated()), id: \.element.id) { index, link in
                             if index > 0 {
-                                Text("/")
+                                Text(verbatim: "/")
                                     .foregroundStyle(BSColor.Stage.muted)
                                     .accessibilityHidden(true)
                             }

@@ -29,7 +29,7 @@ struct OnboardingWidgetFeatureVisual: View {
                 Spacer(minLength: 4)
 
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("3")
+                    Text(verbatim: "3")
                         .font(.system(size: 44, weight: .semibold))
                         .tracking(-0.5)
                         .foregroundStyle(BSColor.Stage.heroIvory)
@@ -287,7 +287,7 @@ struct OnboardingTimetableFeatureVisual: View {
 
     private func nowLine(width: CGFloat) -> some View {
         HStack(spacing: 0) {
-            Text("20:36")
+            Text(verbatim: "20:36")
                 .font(TimetableStyle.mono(8.5, weight: .bold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 4)

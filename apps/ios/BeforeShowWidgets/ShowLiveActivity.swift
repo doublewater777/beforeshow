@@ -238,14 +238,14 @@ private struct LiveActivityMetadataLine: View {
                 if hasVenue {
                     Text(venue!)
                         .truncationMode(.tail)
-                    Text("·")
+                    Text(verbatim: "·")
                         .foregroundStyle(WidgetTheme.dim)
                 }
                 Text(openingText)
                     .monospacedDigit()
                     .layoutPriority(1)
                 if let endText {
-                    Text("·")
+                    Text(verbatim: "·")
                         .foregroundStyle(WidgetTheme.dim)
                     Text(endText)
                         .monospacedDigit()
@@ -259,7 +259,7 @@ private struct LiveActivityMetadataLine: View {
                     if hasVenue {
                         Text(venue!)
                             .truncationMode(.tail)
-                        Text("·")
+                        Text(verbatim: "·")
                             .foregroundStyle(WidgetTheme.dim)
                     }
                     Text(endText)
@@ -273,7 +273,7 @@ private struct LiveActivityMetadataLine: View {
                 if hasVenue {
                     Text(venue!)
                         .truncationMode(.tail)
-                    Text("·")
+                    Text(verbatim: "·")
                         .foregroundStyle(WidgetTheme.dim)
                 }
                 Text(openingText)
@@ -365,7 +365,7 @@ private struct LiveActivityExpandedDetails: View {
                         .lineLimit(1)
 
                     if content.mode != .ended {
-                        Text("·")
+                        Text(verbatim: "·")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(WidgetTheme.dim)
 
@@ -468,7 +468,7 @@ private struct LiveActivityBannerView: View {
                         .lineLimit(1)
 
                     if content.mode != .ended {
-                        Text("·")
+                        Text(verbatim: "·")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(WidgetTheme.dim)
 
