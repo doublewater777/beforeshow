@@ -59,6 +59,7 @@ struct ListeningEmptyView: View {
                 }
                 .scrollDisabled(true)
             }
+            .bsAdaptiveContentWidth()
         }
         .foregroundStyle(BSColor.Stage.foreground)
         .background(BSColor.Stage.background.ignoresSafeArea())

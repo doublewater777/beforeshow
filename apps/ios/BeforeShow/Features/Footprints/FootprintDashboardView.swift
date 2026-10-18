@@ -30,7 +30,7 @@ struct FootprintDashboardView: View {
                 FootprintDashboardVenueSection(sections: sections)
                 FootprintDashboardTimelineSection(sections: sections)
             }
-            .bsAdaptiveContentWidth(640)
+            .bsAdaptiveContentWidth()
             .padding(.bottom, BSLayout.tabBarContentInset)
         }
         .scrollIndicators(.hidden)

@@ -228,6 +228,7 @@ struct ListeningRoomView: View {
                 }
                 .scrollClipDisabled()
             }
+            .bsAdaptiveContentWidth()
         }
         .onPreferenceChange(ListeningFramesKey.self) { room.applyListeningFrames($0) }
         .foregroundStyle(BSColor.Stage.foreground)
