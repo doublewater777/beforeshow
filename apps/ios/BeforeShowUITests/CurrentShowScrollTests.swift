@@ -28,12 +28,15 @@ import XCTest
         let pin = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "设为当前")).firstMatch
         row.swipeLeft()
         XCTAssertTrue(pin.waitForExistence(timeout: 3), "Horizontal swipes must still reveal the pin action")
-        // A tap outside either row dismisses actions without navigating or selecting.
-        app.staticTexts["还有"].tap()
-        XCTAssertFalse(pin.isHittable)
-        XCTAssertFalse(app.navigationBars["现场详情"].exists)
-        row.swipeLeft()
-        XCTAssertTrue(pin.waitForExistence(timeout: 3))
+        // iOS 27 native swipe actions: a tap outside the row dismisses without navigating.
+        // The iOS 17 fallback row only closes on its own tap or a right swipe (unchanged behaviour).
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
+            app.staticTexts["还有"].tap()
+            XCTAssertFalse(pin.isHittable)
+            XCTAssertFalse(app.navigationBars["现场详情"].exists)
+            row.swipeLeft()
+            XCTAssertTrue(pin.waitForExistence(timeout: 3))
+        }
         row.swipeRight()
         XCTAssertFalse(pin.isHittable)
 
