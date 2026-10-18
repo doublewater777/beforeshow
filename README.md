@@ -4,7 +4,7 @@ iOS concert companion: count down to a show, get familiar with its songs, and ke
 
 ## Structure
 
-- `apps/ios`: the app (SwiftUI, SwiftData, iOS 26+). `BeforeShow/` app, `BeforeShowWidgets/` widgets and Live Activity, `Shared/` code both need. Architecture: `apps/ios/ARCHITECTURE.md`.
+- `apps/ios`: the app (SwiftUI, SwiftData, iOS 17+). `BeforeShow/` app, `BeforeShowWidgets/` widgets and Live Activity, `Shared/` code both need. Architecture: `apps/ios/ARCHITECTURE.md`.
 - `apps/web`: website, legal pages and invitation landing (Next.js on Cloudflare Pages).
 - `apps/cloudbase-functions`: feedback backend (Tencent CloudBase).
 - `docs/adr/`: decisions. `GLOSSARY.md`: product language. `docs/archive/`: delivered plans, historical only.

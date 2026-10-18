@@ -17,8 +17,6 @@ enum TimetableDebugSeeder {
         let now = Date()
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-        // Anchored 6h back so seeding just after midnight still lands on the same festival day.
-        let today = calendar.startOfDay(for: now.addingTimeInterval(-6 * 3600))
 
         // Day 1 (Today). `--seed-timetable-phase=between|upcoming|dayEnded` shifts
         // the sets so the home card can be captured in each live-mode state.
@@ -117,7 +115,8 @@ enum TimetableDebugSeeder {
 
         let draft = ShowDraft(
             name: name,
-            date: today,
+            // Same day as the timetable's day 1 so seeding just after Shanghai midnight still validates.
+            date: day1Date,
             startTime: now.addingTimeInterval(-30 * 60),
             city: "上海",
             venueName: n("世博公园", "滨江草坪"),

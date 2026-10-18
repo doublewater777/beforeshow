@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -28,7 +29,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/AddShow/AddShowFlowView.swift": 839,
     "BeforeShow/Features/Shows/ShowDetailView.swift": 875,
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 829,
-    "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 808,
+    "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 802,
     "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 799,
     "BeforeShow/Features/Companion/CompanionJoinConfirmationView.swift": 751,
     "BeforeShowWidgets/CountdownWidgetViews.swift": 728,
@@ -537,6 +538,32 @@ APP_AUDIO_SESSION_FORBIDDEN_TOKENS = (
 )
 
 
+# ADR 0043: iOS 17 is the minimum for the app, widget, and tests. project.yml
+# is the source of truth; the generated pbxproj must not drift from it and no
+# target may raise its own floor.
+MINIMUM_IOS_DEPLOYMENT_TARGET = "17.0"
+
+
+def check_deployment_target(errors: list[str]) -> None:
+    project_yml = (IOS_ROOT / "project.yml").read_text(encoding="utf-8")
+    declared = re.findall(r'^\s+iOS:\s*"?([0-9.]+)"?\s*$', project_yml, re.MULTILINE)
+    if declared != [MINIMUM_IOS_DEPLOYMENT_TARGET]:
+        errors.append(
+            f"project.yml must declare exactly one deploymentTarget iOS {MINIMUM_IOS_DEPLOYMENT_TARGET} "
+            f"(found {declared or 'none'}); see ADR 0043."
+        )
+    if "IPHONEOS_DEPLOYMENT_TARGET" in project_yml:
+        errors.append("project.yml must not override IPHONEOS_DEPLOYMENT_TARGET per target; see ADR 0043.")
+
+    pbxproj = (IOS_ROOT / "BeforeShow.xcodeproj" / "project.pbxproj").read_text(encoding="utf-8")
+    generated = set(re.findall(r"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);", pbxproj))
+    if generated != {MINIMUM_IOS_DEPLOYMENT_TARGET}:
+        errors.append(
+            f"project.pbxproj deployment targets {sorted(generated) or 'none'} differ from "
+            f"{MINIMUM_IOS_DEPLOYMENT_TARGET}; rerun xcodegen generate."
+        )
+
+
 def git(*args: str) -> str:
     return subprocess.check_output(
         ["git", *args],
@@ -1021,6 +1048,7 @@ def main() -> int:
 
     errors: list[str] = []
     base_ref = resolve_base_ref(args.base_ref)
+    check_deployment_target(errors)
     check_file_sizes(errors)
     check_retired_legacy_files(errors)
     check_root_swift_layout(errors)

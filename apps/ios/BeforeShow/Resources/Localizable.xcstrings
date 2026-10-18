@@ -1434,9 +1434,6 @@
         }
       }
     },
-    "/" : {
-
-    },
     "/ 年" : {
       "localizations" : {
         "en" : {
@@ -1540,9 +1537,6 @@
         }
       }
     },
-    "20:36" : {
-
-    },
     "2月" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1559,9 +1553,6 @@
           }
         }
       }
-    },
-    "3" : {
-
     },
     "30 秒试听" : {
       "localizations" : {
@@ -2970,6 +2961,118 @@
         }
       }
     },
+    "唱片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唱片"
+          }
+        }
+      }
+    },
+    "唱片、艺人或歌名" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discs, artists, or songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唱片、藝人或歌名"
+          }
+        }
+      }
+    },
+    "在当前现场的唱片柜里找唱片名、艺人或歌名。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a disc, artist, or song in this show’s rack."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在目前現場的唱片櫃裡找唱片名、藝人或歌名。"
+          }
+        }
+      }
+    },
+    "换个关键词试试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try a different keyword"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "換個關鍵字試試"
+          }
+        }
+      }
+    },
+    "搜索唱片与歌曲" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Discs & Songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋唱片與歌曲"
+          }
+        }
+      }
+    },
+    "歌曲" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌曲"
+          }
+        }
+      }
+    },
+    "没有找到匹配的唱片或歌曲" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Matching Discs or Songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有找到符合的唱片或歌曲"
+          }
+        }
+      }
+    },
     "还有" : {
       "localizations" : {
         "en" : {
@@ -3415,22 +3518,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從你的現場中選擇一個，設為目前"
-          }
-        }
-      }
-    },
-    "从历史记录中快速找到某位艺人、城市、场馆或年份。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quickly find an artist, city, venue or year from history."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從歷史記錄中快速找到某位藝人、城市、場館或年份。"
           }
         }
       }
@@ -10596,22 +10683,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋「開場前」"
-          }
-        }
-      }
-    },
-    "搜索与筛选" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search & Filter"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋與篩選"
           }
         }
       }

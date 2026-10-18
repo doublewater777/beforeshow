@@ -45,7 +45,30 @@ struct BSSwipeRevealActionRow<Content: View>: View {
     }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
+        if #available(iOS 27, *) {
+            // 系统负责揭示、收起、点外部关闭与纵向滚动让渡；需在父容器上 bsSwipeActionsContainer()。
+            card(content)
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(actionTitle, systemImage: actionIcon, action: onAction)
+                        .tint(tint)
+                }
+        } else {
+            customRevealRow
+        }
+    }
+
+    private func card(_ row: some View) -> some View {
+        row
+            .background(BSColor.Stage.surface.opacity(0.92))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.09), lineWidth: 1)
+            )
+    }
+
+    private var customRevealRow: some View {
+        card(ZStack(alignment: .trailing) {
             Button {
                 onReveal(false)
                 onAction()
@@ -91,13 +114,7 @@ struct BSSwipeRevealActionRow<Content: View>: View {
             .contentShape(Rectangle())
             .offset(x: rowOffset)
             .modifier(dragGesture)
-        }
-        .background(BSColor.Stage.surface.opacity(0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
-        )
+        })
         .onDisappear {
             tapReleaseTask?.cancel()
         }

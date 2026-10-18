@@ -68,13 +68,7 @@ struct FootprintsView: View {
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .search:
-                    FootprintSearchSheet(archive: archive, covers: covers) { show in
-                        activeSheet = nil
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(280))
-                            detailTarget = .init(show: show)
-                        }
-                    }
+                    FootprintSearchSheet(archive: archive, covers: covers)
                     .presentationDetents([.large])
                     .presentationCornerRadius(26)
                     .presentationDragIndicator(.visible)

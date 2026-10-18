@@ -87,6 +87,7 @@ final class OnboardingTests: XCTestCase {
     }
 
     func testOnboardingPageCopyCustomizedForInvitedSnapshot() {
+        let now = Date(timeIntervalSince1970: 1_790_000_000) // 2026-09, before the future invite
         let futureSnapshot = CompanionInviteSnapshot(
             token: "test-token-future",
             shareURL: URL(string: "https://www.icloud.com/share/test")!,
@@ -99,10 +100,10 @@ final class OnboardingTests: XCTestCase {
             coverImageURL: URL(string: "https://images.example.com/poster.jpg")
         )
 
-        XCTAssertEqual(OnboardingPage.start.phaseText(for: futureSnapshot), "同行约定")
-        XCTAssertEqual(OnboardingPage.start.title(for: futureSnapshot), "一起去现场")
-        XCTAssertTrue(OnboardingPage.start.bodyText(for: futureSnapshot).contains("Alex"))
-        XCTAssertTrue(OnboardingPage.start.bodyText(for: futureSnapshot).contains("倒数"))
+        XCTAssertEqual(OnboardingPage.start.phaseText(for: futureSnapshot, now: now), "同行约定")
+        XCTAssertEqual(OnboardingPage.start.title(for: futureSnapshot, now: now), "一起去现场")
+        XCTAssertTrue(OnboardingPage.start.bodyText(for: futureSnapshot, now: now).contains("Alex"))
+        XCTAssertTrue(OnboardingPage.start.bodyText(for: futureSnapshot, now: now).contains("倒数"))
 
         let pastSnapshot = CompanionInviteSnapshot(
             token: "test-token-past",
@@ -116,10 +117,10 @@ final class OnboardingTests: XCTestCase {
             coverImageURL: nil
         )
 
-        XCTAssertEqual(OnboardingPage.start.phaseText(for: pastSnapshot), "共同记忆")
-        XCTAssertEqual(OnboardingPage.start.title(for: pastSnapshot), "记录这场共同回忆")
-        XCTAssertTrue(OnboardingPage.start.bodyText(for: pastSnapshot).contains("yy"))
-        XCTAssertFalse(OnboardingPage.start.bodyText(for: pastSnapshot).contains("倒数"))
+        XCTAssertEqual(OnboardingPage.start.phaseText(for: pastSnapshot, now: now), "共同记忆")
+        XCTAssertEqual(OnboardingPage.start.title(for: pastSnapshot, now: now), "记录这场共同回忆")
+        XCTAssertTrue(OnboardingPage.start.bodyText(for: pastSnapshot, now: now).contains("yy"))
+        XCTAssertFalse(OnboardingPage.start.bodyText(for: pastSnapshot, now: now).contains("倒数"))
 
         // Standard copy when snapshot is nil
         XCTAssertEqual(OnboardingPage.start.phaseText(for: nil), "现在开始")

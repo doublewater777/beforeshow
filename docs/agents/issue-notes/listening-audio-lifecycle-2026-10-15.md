@@ -34,4 +34,4 @@
 - [MusicPlayer.PlaybackStatus.interrupted](https://developer.apple.com/documentation/musickit/musicplayer/playbackstatus/interrupted)
 - [Responding to audio route changes](https://developer.apple.com/documentation/avfaudio/responding-to-audio-route-changes)
 
-项目最低版本为 iOS 26.4，因此试听使用该版本支持的音频会话中断通知。
+项目最低版本为 iOS 17.0（ADR 0043），因此试听使用该版本支持的音频会话中断通知。

@@ -80,7 +80,7 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
 
     // MARK: - Upcoming shows must use the first confirmed timetable opening
 
-    func testFollowUpExcludesStartedTimetableEvenIfDeclaredStartIsLater() throws {
+    func testFollowUpTreatsStartedTimetableAsLiveEvenIfDeclaredStartIsLater() throws {
         let show = try Show(
             name: "Earlier timetable opening",
             date: date(0),
@@ -112,12 +112,20 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
             30 * 60
         )
 
-        // At / after the real opening, 19:30 in basic details cannot keep it listed.
+        // At / after the real opening it stays listed only as live (#334), never as not-yet-started
+        // because of the later 19:30 in basic details.
         for now in [date(15), date(16, 30), date(19), date(20)] {
-            XCTAssertTrue(CurrentShowFollowUpPolicy.laterShows(
+            XCTAssertLessThanOrEqual(CurrentShowFollowUpPolicy.firstStart(for: show), now)
+            XCTAssertTrue(CurrentShowFollowUpPolicy.isLive(show, now: now), "Started show must read as live at \(now)")
+            XCTAssertEqual(CurrentShowFollowUpPolicy.laterShows(
                 from: [show], excluding: nil, now: now
-            ).isEmpty, "Started show must not reappear at \(now)")
+            ).map(\.id), [show.id])
         }
+
+        // After the final set it must not reappear.
+        XCTAssertTrue(CurrentShowFollowUpPolicy.laterShows(
+            from: [show], excluding: nil, now: date(21, 30)
+        ).isEmpty)
     }
 
     func testFollowUpDoesNotReappearInMultiDaySessionBreak() throws {

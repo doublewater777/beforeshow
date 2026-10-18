@@ -2,8 +2,8 @@ import XCTest
 
 @MainActor
 final class TextInputFocusTests: XCTestCase {
-    /// 摇一摇反馈默认开启时，第一次点击输入框就必须拿到键盘焦点。
-    func testFirstTapFocusesTextFieldWithShakeFeedbackEnabled() throws {
+    /// 摇一摇反馈默认开启时，打开搜索后最多点击一次就必须拿到键盘焦点。
+    func testSearchFieldTakesFocusWithShakeFeedbackEnabled() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = [
@@ -17,14 +17,15 @@ final class TextInputFocusTests: XCTestCase {
         tab.tap()
         app.buttons["Search Footprints"].tap()
 
-        let field = app.textFields.firstMatch
+        let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: field)
         XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 5), .completed)
-        sleep(1)
-        field.tap()
+        if !app.keyboards.firstMatch.waitForExistence(timeout: 2) {
+            field.tap()
+        }
 
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Keyboard must appear on the first tap")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Keyboard must appear by the first tap")
         field.typeText("落日")
         XCTAssertEqual(field.value as? String, "落日")
     }

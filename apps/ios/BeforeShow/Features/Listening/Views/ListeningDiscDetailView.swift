@@ -10,6 +10,9 @@ struct ListeningDiscDetailView: View {
     @Bindable var room: ListeningRoomCoordinator
     let disc: ListeningDisc
     var onLoad: () -> Void = {}
+    /// 听搜索里 push 进来时由外层关闭整张 sheet，并定位到搜到的曲目。
+    var dismissPresentation: (() -> Void)?
+    var focusTrackID: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var tone: Color?
@@ -20,10 +23,13 @@ struct ListeningDiscDetailView: View {
     private let metadataSummary: String
     private let indexedTracks: [IndexedTrack]
 
-    init(room: ListeningRoomCoordinator, disc: ListeningDisc, onLoad: @escaping () -> Void = {}) {
+    init(room: ListeningRoomCoordinator, disc: ListeningDisc, onLoad: @escaping () -> Void = {},
+         focusTrackID: String? = nil, dismissPresentation: (() -> Void)? = nil) {
         self.room = room
         self.disc = disc
         self.onLoad = onLoad
+        self.focusTrackID = focusTrackID
+        self.dismissPresentation = dismissPresentation
         self.indexedTracks = disc.tracks.enumerated().map { IndexedTrack(index: $0.offset, track: $0.element) }
 
         let multi: Bool
@@ -74,7 +80,11 @@ struct ListeningDiscDetailView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        if dismissPresentation != nil { content } else { NavigationStack { content } }
+    }
+
+    private var content: some View {
+        ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
                     ListeningDiscDetailHero(
@@ -113,6 +123,10 @@ struct ListeningDiscDetailView: View {
                 )
                 .animation(.easeInOut(duration: 0.5), value: tone)
             )
+            .task(id: focusTrackID) {
+                guard let focusTrackID else { return }
+                withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(focusTrackID, anchor: .center) }
+            }
             .task(id: disc.artworkURL) {
                 guard let url = disc.artworkURL else { return }
                 tone = await ListeningArtworkTone.tone(for: url).map(Color.init(uiColor:))
@@ -148,7 +162,7 @@ struct ListeningDiscDetailView: View {
                         .lineLimit(1)
                         .opacity(showsNavigationTitle ? 1 : 0)
                 }
-                BSChromeToolbarCloseButton { dismiss() }
+                BSChromeToolbarCloseButton(placement: dismissPresentation == nil ? .topBarLeading : .topBarTrailing) { close() }
             }
         }
         // Navigation chrome stays neutral; playback/selection accents inside
@@ -284,6 +298,8 @@ struct ListeningDiscDetailView: View {
                         isBusy: isBusy,
                         isAuto: isAuto
                     )
+                    .id(item.track.id)
+                    .background(item.track.id == focusTrackID ? BSColor.Stage.accent.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 10))
 
                     if item.index < indexedTracks.count - 1 {
                         Rectangle()
@@ -413,7 +429,7 @@ struct ListeningDiscDetailView: View {
         room.playFromSleeve(disc, songID: track.id)
 
         if !sameDisc {
-            dismiss()
+            close()
             onLoad()
         }
     }
@@ -565,7 +581,11 @@ struct ListeningDiscDetailView: View {
 
     private func load() {
         room.loadPlayableDisc(disc)
-        dismiss()
+        close()
         onLoad()
+    }
+
+    private func close() {
+        if let dismissPresentation { dismissPresentation() } else { dismiss() }
     }
 }

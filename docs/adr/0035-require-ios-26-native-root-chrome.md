@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — 2026-09-19
+Accepted — 2026-09-19. Minimum-version decision superseded by ADR 0043 — 2026-10-17; the root Bottom Chrome decisions remain in force.
 
 ## Context
 

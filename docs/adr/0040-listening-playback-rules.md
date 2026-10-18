@@ -41,7 +41,7 @@
 
 ## 迁移
 
-iOS 27 SDK 将 `AVAudioSession.interruptionNotification` 的 type、option、reason 键标为弃用，改用 `didBecomeInactiveNotification` 与 `resumptionRecommendationNotification`。部署目标仍为 iOS 26.4，暂用旧 API，不写两套并存的实现；最低版本升到 iOS 27 时整体迁移试听服务的中断处理。
+iOS 27 SDK 将 `AVAudioSession.interruptionNotification` 的 type、option、reason 键标为弃用，改用 `didBecomeInactiveNotification` 与 `resumptionRecommendationNotification`。部署目标为 iOS 17.0（ADR 0043），暂用旧 API，不写两套并存的实现；最低版本升到 iOS 27 时整体迁移试听服务的中断处理。
 
 ## 验证
 

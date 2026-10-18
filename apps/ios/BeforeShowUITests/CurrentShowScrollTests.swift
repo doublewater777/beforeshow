@@ -24,9 +24,40 @@ import XCTest
             if row.isHittable && row.frame.midY < app.windows.firstMatch.frame.height - 130 { break }
             scroll.swipeUp()
         }
+        // iOS 27 native swipe actions label the button "设为当前、设为当前" (icon + title).
+        let pin = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "设为当前")).firstMatch
         row.swipeLeft()
-        XCTAssertTrue(app.buttons["设为当前"].waitForExistence(timeout: 3), "Horizontal swipes must still reveal the pin action")
+        XCTAssertTrue(pin.waitForExistence(timeout: 3), "Horizontal swipes must still reveal the pin action")
+        // iOS 27 native swipe actions: a tap outside the row dismisses without navigating.
+        // The iOS 17 fallback row only closes on a tap of the row (unchanged behaviour).
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
+            app.staticTexts["还有"].tap()
+            XCTAssertFalse(pin.isHittable)
+            XCTAssertFalse(app.navigationBars["现场详情"].exists)
+            row.swipeLeft()
+            XCTAssertTrue(pin.waitForExistence(timeout: 3))
+        }
         row.swipeRight()
-        XCTAssertFalse(app.buttons["设为当前"].isHittable)
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
+            XCTAssertFalse(pin.isHittable) // iOS 17 fallback ignores a right swipe: #350
+        } else {
+            row.tap() // the iOS 17 fallback closes on a tap of the row
+        }
+
+        // A plain tap still opens the show's detail.
+        row.tap()
+        XCTAssertTrue(app.navigationBars["现场详情"].waitForExistence(timeout: 5))
+        app.navigationBars["现场详情"].buttons.firstMatch.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+
+        // Setting it current moves it out of the follow-up list.
+        row.swipeLeft()
+        XCTAssertTrue(pin.waitForExistence(timeout: 3))
+        pin.tap()
+        let followUpRow = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS %@ AND label CONTAINS %@", "潮汐 Livehouse · 杭州站", "天后"
+        )).firstMatch
+        XCTAssertTrue(followUpRow.waitForNonExistence(timeout: 5), "The new current show must leave the follow-up list")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "现场封面，潮汐 Livehouse · 杭州站")).firstMatch.exists)
     }
 }
