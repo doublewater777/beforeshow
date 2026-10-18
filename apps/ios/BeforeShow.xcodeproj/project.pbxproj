@@ -2119,11 +2119,8 @@
 				6DDF8AFDAC95CE22FF4F4B64 /* FootprintSearchFlowTests.swift */,
 				A46DD5DFB63D594774D5F480 /* ListeningDragTests.swift */,
 				58DC5CECDDC6B06B27A5F2BD /* PlatformCompatibilityTests.swift */,
-<<<<<<< Updated upstream
 				CD3F8E3DF353D0F8F1BB9574 /* TextInputFocusTests.swift */,
-=======
 				A0313E467E558636F7E6A388 /* TimetableSheetFlowTests.swift */,
->>>>>>> Stashed changes
 			);
 			path = BeforeShowUITests;
 			sourceTree = "<group>";
@@ -2921,11 +2918,8 @@
 				E77493FB1EA986582E9FA706 /* FootprintSearchFlowTests.swift in Sources */,
 				F745C2025BC181E2446AD5EF /* ListeningDragTests.swift in Sources */,
 				07695A8860BC8ABB0F7A2B4D /* PlatformCompatibilityTests.swift in Sources */,
-<<<<<<< Updated upstream
 				5E65A7B652517D43B54BB900 /* TextInputFocusTests.swift in Sources */,
-=======
 				4850176ABFB54EC3A5DA0665 /* TimetableSheetFlowTests.swift in Sources */,
->>>>>>> Stashed changes
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
