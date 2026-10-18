@@ -9,6 +9,9 @@ final class TimetableSheetFlowTests: XCTestCase {
             "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"
         ]
         app.launch()
+        // The app restores the last tab; the timetable entry lives on Current.
+        let current = app.buttons.matching(identifier: "root.tab.current").firstMatch
+        if current.waitForExistence(timeout: 20) { current.tap() }
         let open = app.buttons["完整时刻表"]
         XCTAssertTrue(open.waitForExistence(timeout: 20))
         for _ in 0..<4 where !open.isHittable { app.swipeUp() }
