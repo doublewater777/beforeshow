@@ -92,23 +92,18 @@ struct CDContinuousRotationLayer<Content: View>: UIViewControllerRepresentable {
         Coordinator()
     }
 
-    func makeUIViewController(context: Context) -> UIHostingController<Content> {
-        let controller = UIHostingController(rootView: content)
-        controller.view.backgroundColor = .clear
-        controller.view.layer.allowsEdgeAntialiasing = true
+    func makeUIViewController(context: Context) -> ContainerViewController {
+        let controller = ContainerViewController(rootView: content)
         controller.view.insetsLayoutMarginsFromSafeArea = false
-        if #available(iOS 16.4, *) {
-            controller.safeAreaRegions = []
-        }
         return controller
     }
 
-    func updateUIViewController(_ controller: UIHostingController<Content>, context: Context) {
-        controller.rootView = content
+    func updateUIViewController(_ controller: ContainerViewController, context: Context) {
+        controller.hostingController.rootView = content
         let shouldSpin = isRotating && scenePhase != .background
         let isLayerActive = shouldSpin && isRootTabActive
         context.coordinator.update(
-            layer: controller.view.layer,
+            controller: controller,
             identity: identity,
             isRotating: shouldSpin,
             isLayerActive: isLayerActive,
@@ -116,8 +111,52 @@ struct CDContinuousRotationLayer<Content: View>: UIViewControllerRepresentable {
         )
     }
 
-    static func dismantleUIViewController(_ controller: UIHostingController<Content>, coordinator: Coordinator) {
-        coordinator.reset(layer: controller.view.layer)
+    static func dismantleUIViewController(_ controller: ContainerViewController, coordinator: Coordinator) {
+        coordinator.reset(controller: controller)
+    }
+
+    @MainActor
+    final class ContainerViewController: UIViewController {
+        let hostingController: UIHostingController<Content>
+
+        init(rootView: Content) {
+            self.hostingController = UIHostingController(rootView: rootView)
+            super.init(nibName: nil, bundle: nil)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            view.backgroundColor = .clear
+            view.insetsLayoutMarginsFromSafeArea = false
+
+            hostingController.view.backgroundColor = .clear
+            hostingController.view.layer.allowsEdgeAntialiasing = true
+            hostingController.view.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            hostingController.view.insetsLayoutMarginsFromSafeArea = false
+            if #available(iOS 16.4, *) {
+                hostingController.safeAreaRegions = []
+            }
+            hostingController.view.autoresizingMask = []
+
+            addChild(hostingController)
+            view.addSubview(hostingController.view)
+            hostingController.didMove(toParent: self)
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            let size = view.bounds.size
+            guard size.width > 0, size.height > 0 else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            hostingController.view.bounds = CGRect(origin: .zero, size: size)
+            hostingController.view.center = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+            CATransaction.commit()
+        }
     }
 
     @MainActor final class Coordinator {
@@ -127,12 +166,13 @@ struct CDContinuousRotationLayer<Content: View>: UIViewControllerRepresentable {
         private var isLayerActive = false
 
         func update(
-            layer: CALayer,
+            controller: ContainerViewController,
             identity: String,
             isRotating: Bool,
             isLayerActive: Bool,
             revolutionsPerMinute: Double
         ) {
+            let layer = controller.hostingController.view.layer
             let rpm = max(revolutionsPerMinute, 0.01)
             let identityChanged = self.identity != identity
             if identityChanged || self.revolutionsPerMinute != rpm {
@@ -149,11 +189,14 @@ struct CDContinuousRotationLayer<Content: View>: UIViewControllerRepresentable {
             )
 
             if !isLayerActive {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
                 layer.removeAnimation(forKey: animationKey)
                 layer.speed = 1
                 layer.timeOffset = 0
                 layer.beginTime = 0
                 layer.transform = CATransform3DMakeRotation(currentAngle, 0, 0, 1)
+                CATransaction.commit()
                 self.isLayerActive = false
                 return
             }
@@ -164,20 +207,28 @@ struct CDContinuousRotationLayer<Content: View>: UIViewControllerRepresentable {
             self.isLayerActive = true
         }
 
-        func reset(layer: CALayer) {
+        func reset(controller: ContainerViewController) {
+            let layer = controller.hostingController.view.layer
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             layer.speed = 1
             layer.timeOffset = 0
             layer.beginTime = 0
             layer.removeAnimation(forKey: animationKey)
+            layer.transform = CATransform3DIdentity
+            CATransaction.commit()
             isLayerActive = false
         }
 
         private func installRotation(on layer: CALayer, rpm: Double, startAngle: Double) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             layer.removeAnimation(forKey: animationKey)
             layer.speed = 1
             layer.timeOffset = 0
             layer.beginTime = 0
             layer.transform = CATransform3DIdentity
+            CATransaction.commit()
 
             let animation = CABasicAnimation(keyPath: "transform.rotation.z")
             animation.fromValue = startAngle
