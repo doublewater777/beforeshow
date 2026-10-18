@@ -298,6 +298,43 @@ final class ArchitectureModuleTests: XCTestCase {
         XCTAssertEqual(result.map(\.name), ["之后"])
     }
 
+    func testFollowUpPolicyIncludesOtherLiveShowsButNotEndedOrCanceledShows() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let currentStart = now.addingTimeInterval(-1_800)
+        let liveStart = now.addingTimeInterval(-3_600)
+        let endedStart = now.addingTimeInterval(-86_400)
+        let futureStart = now.addingTimeInterval(86_400)
+
+        let current = try Show(name: "当前", date: currentStart, startTime: currentStart)
+        let live = try Show(name: "其他正在进行", date: liveStart, startTime: liveStart)
+        let ended = try Show(name: "已经结束", date: endedStart, startTime: endedStart)
+        let future = try Show(name: "未来", date: futureStart, startTime: futureStart)
+        let canceled = try Show(name: "已取消", date: futureStart, startTime: futureStart)
+        canceled.markCanceled()
+
+        let result = CurrentShowFollowUpPolicy.laterShows(
+            from: [future, ended, live, current, canceled],
+            excluding: current.id,
+            now: now
+        )
+
+        XCTAssertEqual(result.map(\.name), ["其他正在进行", "未来"])
+        XCTAssertTrue(CurrentShowFollowUpPolicy.isLive(live, now: now))
+        XCTAssertFalse(CurrentShowFollowUpPolicy.isLive(ended, now: now))
+        XCTAssertFalse(CurrentShowFollowUpPolicy.isLive(future, now: now))
+    }
+
+    func testFollowUpPolicyStopsCallingShowLiveAtItsEndBoundary() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let end = start.addingTimeInterval(2 * 3_600)
+        let show = try Show(name: "短场", date: start, startTime: start, endTime: end)
+
+        XCTAssertTrue(CurrentShowFollowUpPolicy.isLive(show, now: start))
+        XCTAssertTrue(CurrentShowFollowUpPolicy.isLive(show, now: end.addingTimeInterval(-1)))
+        XCTAssertFalse(CurrentShowFollowUpPolicy.isLive(show, now: end))
+        XCTAssertTrue(CurrentShowFollowUpPolicy.laterShows(from: [show], excluding: nil, now: end).isEmpty)
+    }
+
     func testImportedDraftWithoutStartTimeStaysUnconfirmed() throws {
         // Import path must not auto-commit a fallback clock merely because a form appears.
         var draft = ShowDraft(

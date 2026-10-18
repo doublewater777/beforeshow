@@ -14,7 +14,7 @@ struct CurrentShowFollowUpSummary: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .firstTextBaseline) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(BSLocalization.text("之后还有"))
+                    Text(BSLocalization.text("还有"))
                         .font(.system(size: 11, weight: .semibold))
                         .tracking(1.3)
                         .foregroundStyle(BSColor.Stage.muted)
@@ -130,6 +130,9 @@ struct CurrentShowFollowUpSummary: View {
     }
 
     private func distanceText(to show: Show) -> String {
+        if CurrentShowFollowUpPolicy.isLive(show, now: now) {
+            return BSLocalization.text("正在进行")
+        }
         let start = CurrentShowFollowUpPolicy.firstStart(for: show)
         let calendar = show.timingFields.eventCalendar(fallback: .current)
         return CountdownCopy.until(
