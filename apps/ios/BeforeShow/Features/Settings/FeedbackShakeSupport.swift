@@ -29,85 +29,17 @@ enum FeedbackShakePresentationState {
     }
 }
 
-struct FeedbackShakeResponder: UIViewRepresentable {
-    let isArmed: Bool
-    let onShake: @MainActor () -> Void
-
-    func makeUIView(context: Context) -> FeedbackShakeResponderView {
-        let view = FeedbackShakeResponderView()
-        view.onShake = onShake
-        view.setArmed(isArmed)
-        return view
-    }
-
-    func updateUIView(_ uiView: FeedbackShakeResponderView, context: Context) {
-        uiView.onShake = onShake
-        uiView.setArmed(isArmed)
-    }
+extension Notification.Name {
+    static let bsDeviceDidShake = Notification.Name("BeforeShow.deviceDidShake")
 }
 
-@MainActor
-final class FeedbackShakeResponderView: UIView {
-    var onShake: @MainActor () -> Void = {}
-    private var isArmed = false
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        observeKeyboard()
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        observeKeyboard()
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    override var canBecomeFirstResponder: Bool { isArmed }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        rearmIfNeeded()
-    }
-
-    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+// 摇一摇沿 responder 链传到 window；在这里接收，不占用 first responder，
+// 否则会抢走输入框焦点（第一次点击不弹键盘、原生搜索框无法聚焦）。
+extension UIWindow {
+    override open func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
         super.motionEnded(motion, with: event)
-        guard isArmed, motion == .motionShake else { return }
-        onShake()
-    }
-
-    func setArmed(_ armed: Bool) {
-        guard isArmed != armed else { return }
-        isArmed = armed
-        if armed {
-            rearmIfNeeded()
-        } else if isFirstResponder {
-            resignFirstResponder()
-        }
-    }
-
-    private func observeKeyboard() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(keyboardDidHide),
-            name: UIResponder.keyboardDidHideNotification,
-            object: nil
-        )
-    }
-
-    @objc
-    private func keyboardDidHide() {
-        rearmIfNeeded()
-    }
-
-    private func rearmIfNeeded() {
-        guard isArmed, window != nil, !isFirstResponder else { return }
-        Task { @MainActor [weak self] in
-            guard let self, self.isArmed, self.window != nil, !self.isFirstResponder else { return }
-            self.becomeFirstResponder()
-        }
+        guard motion == .motionShake else { return }
+        NotificationCenter.default.post(name: .bsDeviceDidShake, object: self)
     }
 }
 
@@ -118,12 +50,8 @@ struct FeedbackShakeShortcutModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background {
-                FeedbackShakeResponder(
-                    isArmed: isShakeEnabled && !isShowingFeedback,
-                    onShake: handleShake
-                )
-                .frame(width: 0, height: 0)
+            .onReceive(NotificationCenter.default.publisher(for: .bsDeviceDidShake)) { _ in
+                handleShake()
             }
             .sheet(isPresented: $isShowingFeedback) {
                 FeedbackShakeSheet {
