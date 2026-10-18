@@ -84,8 +84,7 @@ private struct LiveActivityAppIconMark: View {
     }
 }
 
-/// 灵动岛 compact 的头像:系统要求图片像素不超过展示区域，否则渲染成灰色占位，
-/// 所以先缩到 3x 尺寸再交给归档。
+/// 灵动岛 compact 的头像:图片超过展示区域会渲染成灰色占位，按展示尺寸出图。
 private struct LiveActivityCompactAvatar: View {
     let filename: String?
     let name: String
@@ -94,8 +93,7 @@ private struct LiveActivityCompactAvatar: View {
     var body: some View {
         Group {
             if let filename,
-               let image = LiveActivityArtwork.containerImage(filename: filename)
-                .map({ LiveActivityArtwork.downscaled($0, maxPixels: size * 3) }) {
+               let image = WidgetCoverCache.liveActivityImage(filename: filename, filling: CGSize(width: size, height: size)) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -120,7 +118,7 @@ private struct LiveActivityExpandedArtwork: View {
 
     var body: some View {
         Group {
-            if let image = LiveActivityArtwork.image(filename: filename) {
+            if let image = LiveActivityArtwork.image(filename: filename, filling: size) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -135,54 +133,30 @@ private struct LiveActivityExpandedArtwork: View {
 }
 
 enum LiveActivityArtwork {
-    /// App Group 内的小图(封面或艺人头像);不做 App 图标兜底。
-    static func containerImage(filename: String) -> UIImage? {
-        guard !filename.isEmpty, let container = WidgetSnapshotStore.containerURL else { return nil }
-        return UIImage(contentsOfFile: container.appendingPathComponent(filename).path)
-    }
-
-    static func image(filename: String?) -> UIImage? {
+    /// App Group 内的封面或艺人头像，按展示区域出图；缺图时用 App 图标兜底。
+    static func image(filename: String?, filling size: CGSize) -> UIImage? {
         if let filename, !filename.isEmpty,
-           let container = WidgetSnapshotStore.containerURL {
-            let cover = UIImage(contentsOfFile: container.appendingPathComponent(filename).path)
-            if let cover { return cover }
+           let image = WidgetCoverCache.liveActivityImage(filename: filename, filling: size) {
+            return image
         }
-        return appIcon()
+        return appIcon(filling: size)
     }
 
     /// 小组件包里没有 App Icon;从宿主 `.app` 根上的系统导出文件读。
-    /// 仅作封面缺失时的兜底(锁屏/expanded 的 UIImage 路径可用),
-    /// 灵动岛图标不走这里(见 LiveActivityAppIconMark)。
-    static func appIcon() -> UIImage? {
-        if let url = Bundle.main.url(forResource: "LiveActivityAppIcon", withExtension: "png"),
-           let image = UIImage(contentsOfFile: url.path) {
-            return downscaled(image)
-        }
-
+    /// 仅作封面缺失时的兜底,灵动岛图标不走这里(见 LiveActivityAppIconMark)。
+    static func appIcon(filling size: CGSize) -> UIImage? {
         let app = Bundle.main.bundleURL
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let names = [
-            "AppIcon60x60@3x.png",
-            "AppIcon60x60@2x.png",
-            "AppIcon76x76@2x~ipad.png",
-        ]
-        for name in names {
-            if let image = UIImage(contentsOfFile: app.appendingPathComponent(name).path) {
+        let candidates = [Bundle.main.url(forResource: "LiveActivityAppIcon", withExtension: "png")]
+            + ["AppIcon60x60@3x.png", "AppIcon60x60@2x.png", "AppIcon76x76@2x~ipad.png"]
+                .map { app.appendingPathComponent($0) }
+        for url in candidates.compactMap({ $0 }) {
+            if let image = WidgetCoverCache.liveActivityImage(contentsOf: url, filling: size) {
                 return image
             }
         }
         return nil
-    }
-
-    /// Live Activity 视图要序列化给系统渲染进程,1024px/1MB 的原图会超预算;
-    /// 显示尺寸只有 20-48pt,缩到 128px 足够。
-    static func downscaled(_ image: UIImage, maxPixels: CGFloat = 128) -> UIImage {
-        guard max(image.size.width, image.size.height) > maxPixels else { return image }
-        let size = CGSize(width: maxPixels, height: maxPixels)
-        return UIGraphicsImageRenderer(size: size).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
     }
 }
 

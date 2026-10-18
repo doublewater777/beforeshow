@@ -1,5 +1,6 @@
 import Foundation
 import ImageIO
+import UIKit
 import UniformTypeIdentifiers
 
 // MARK: - Widget Cover Cache
@@ -9,7 +10,8 @@ import UniformTypeIdentifiers
 
 enum WidgetCoverCache {
     fileprivate static let maxPixelDimension: CGFloat = 400
-    fileprivate static let liveActivityMaxPixelDimension: CGFloat = 120
+    /// Covers the largest Live Activity presentation (lock screen cover 72×96pt @3x).
+    static let liveActivityMaxPixelDimension: CGFloat = 288
     fileprivate static let maxDownloadBytes = 100 * 1_024 * 1_024
 
     private static let mutator = CoverCacheMutator()
@@ -107,7 +109,8 @@ enum WidgetCoverCache {
 
     static func liveActivityFilename(for source: String) -> String {
         let digest = stableHash(source.trimmingCharacters(in: .whitespacesAndNewlines))
-        return "cover-\(digest)-la.jpg"
+        // Suffix tracks liveActivityMaxPixelDimension so older, smaller files are rebuilt and pruned.
+        return "cover-\(digest)-la288.jpg"
     }
 
     private static func stableHash(_ string: String) -> String {
@@ -150,6 +153,38 @@ enum WidgetCoverCache {
         for file in files where file.hasPrefix("cover-") && !keep.contains(file) {
             try? FileManager.default.removeItem(at: base.appendingPathComponent(file, isDirectory: false))
         }
+    }
+
+    // MARK: - Live Activity presentation
+
+    /// Live Activity / Dynamic Island show a gray placeholder (or nothing) when an image is
+    /// larger than its presentation. Render exactly the presented point size at @3x,
+    /// aspect-filling (cropping, never stretching) the source.
+    static func liveActivityImage(contentsOf url: URL, filling pointSize: CGSize) -> UIImage? {
+        guard pointSize.width > 0, pointSize.height > 0,
+              let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let decoded = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: liveActivityMaxPixelDimension
+              ] as CFDictionary) else {
+            return nil
+        }
+        let sourceSize = CGSize(width: decoded.width, height: decoded.height)
+        let fill = max(pointSize.width / sourceSize.width, pointSize.height / sourceSize.height)
+        let drawn = CGSize(width: sourceSize.width * fill, height: sourceSize.height * fill)
+        let origin = CGPoint(x: (pointSize.width - drawn.width) / 2, y: (pointSize.height - drawn.height) / 2)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: pointSize, format: format).image { _ in
+            UIImage(cgImage: decoded).draw(in: CGRect(origin: origin, size: drawn))
+        }
+    }
+
+    static func liveActivityImage(filename: String, filling pointSize: CGSize) -> UIImage? {
+        guard let url = coverFileURL(filename: filename) else { return nil }
+        return liveActivityImage(contentsOf: url, filling: pointSize)
     }
 
     // MARK: - Image processing
