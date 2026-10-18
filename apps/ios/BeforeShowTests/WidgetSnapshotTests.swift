@@ -4,6 +4,7 @@ import UIKit
 import XCTest
 @testable import BeforeShow
 
+@MainActor
 final class WidgetSnapshotTests: XCTestCase {
     // MARK: - 组件语言覆盖（进程存活跨语言切换）
 

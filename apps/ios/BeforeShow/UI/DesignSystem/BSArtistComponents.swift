@@ -85,8 +85,7 @@ struct ArtistLineupStrip: View {
     }
 
     private func avatar(_ artist: ArtistSlot) -> some View {
-        if let urlString = artist.avatarURL,
-           let url = URL(string: urlString) {
+        if let url = ArtistAvatarResolver.shared.displayURL(for: artist) {
             return AnyView(ArtistAvatarThumb(url: url, size: 48))
         }
         let initial = String(artist.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1))

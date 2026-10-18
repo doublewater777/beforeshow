@@ -102,7 +102,8 @@ struct CurrentShowHomeView: View {
             .map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSince1970)" }
             .joined(separator: "|")
         let selectionPart = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID?.uuidString ?? "-"
-        return "\(selectionPart)#\(showsPart)"
+        // Unified artist avatars can change without a Show edit; widgets and Live Activity follow them.
+        return "\(selectionPart)#\(showsPart)#\(ArtistAvatarResolver.shared.revision)"
     }
 
     var body: some View {

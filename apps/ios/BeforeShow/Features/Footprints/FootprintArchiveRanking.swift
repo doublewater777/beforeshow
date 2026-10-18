@@ -53,6 +53,8 @@ struct FootprintArtistArchiveItem: Identifiable, Equatable, Hashable {
     let latestShowDate: Date
     let yearSpan: FootprintYearSpan
     let artworkURL: URL?
+    /// 已确认的 Apple Music Artist ID；有则头像走统一艺人头像。
+    var artistID: String? = nil
     /// 已持久化的代表专辑封面;nil 时由视图层触发解析并写回 ArtistSlot。
     let albumArtworkURL: URL?
 
@@ -321,6 +323,7 @@ enum FootprintArchiveRankingBuilder {
             latestShowDate: ordered.last.map(effectiveStart(for:)) ?? .distantPast,
             yearSpan: span(for: ordered),
             artworkURL: artworkURL,
+            artistID: matchingSlots.compactMap(\.appleMusicArtistID).first,
             albumArtworkURL: albumArtworkURL
         )
     }

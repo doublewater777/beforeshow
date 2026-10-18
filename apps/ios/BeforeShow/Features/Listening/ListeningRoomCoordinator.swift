@@ -966,7 +966,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                     slotIndex: index,
                     id: id,
                     name: slot.name,
-                    artworkURL: slot.avatarURL.flatMap(URL.init(string:)) ?? artist?.artworkURL,
+                    artworkURL: ArtistAvatarResolver.shared.displayURL(for: slot) ?? artist?.artworkURL,
                     appleMusicArtistID: id,
                     albums: artist?.albums ?? []
                 )
@@ -975,7 +975,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                     slotIndex: index,
                     id: "unconnected-\(index)",
                     name: slot.name,
-                    artworkURL: slot.avatarURL.flatMap(URL.init(string:)),
+                    artworkURL: ArtistAvatarResolver.shared.displayURL(for: slot),
                     appleMusicArtistID: nil,
                     albums: []
                 )
