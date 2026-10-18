@@ -2,7 +2,7 @@ import XCTest
 
 @MainActor
 final class FootprintSearchFlowTests: XCTestCase {
-    func testSearchResultClosesSearchAndOpensDetailOnce() throws {
+    func testSearchResultPushesDetailAndBackKeepsTheQuery() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = [
@@ -25,11 +25,16 @@ final class FootprintSearchFlowTests: XCTestCase {
         attachScreenshot(named: "search-filtered", app: app)
         result.tap()
 
-        XCTAssertTrue(field.waitForNonExistence(timeout: 5), "Search must close after picking a result")
+        let back = app.navigationBars.buttons["BackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "The detail is pushed inside search, not a new surface")
         let detailTitle = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "夏夜回忆现场")).firstMatch
         XCTAssertTrue(detailTitle.waitForExistence(timeout: 5), "Detail must open for the picked show")
-        XCTAssertFalse(app.searchFields.firstMatch.exists)
         attachScreenshot(named: "detail-opened", app: app)
+
+        back.tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "落日", "Going back keeps the query")
+        XCTAssertTrue(unrelated.waitForNonExistence(timeout: 2), "…and the filtered results")
     }
 
     func testClearingQueryRestoresAllResults() throws {

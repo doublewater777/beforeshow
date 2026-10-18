@@ -75,12 +75,10 @@ enum FootprintSearchMatcher {
 struct FootprintSearchSheet: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    let onSelect: (Show) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var filter: FootprintSearchFilter = .all
-    @State private var isSelecting = false
     @FocusState private var isSearchFocused: Bool
 
     private var chips: [FootprintSearchFilter] {
@@ -116,6 +114,10 @@ struct FootprintSearchSheet: View {
             )
             .bsSearchFocused($isSearchFocused)
             .onAppear { isSearchFocused = true }
+            // 结果 push 进足迹详情，返回时保留关键词（系统搜索模式）。
+            .navigationDestination(for: Show.self) { show in
+                FootprintDetailView(show: show, archive: archive)
+            }
         }
         .tint(BSColor.Stage.foreground)
     }
@@ -167,11 +169,7 @@ struct FootprintSearchSheet: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(results) { show in
-                    Button {
-                        guard !isSelecting else { return }
-                        isSelecting = true
-                        onSelect(show)
-                    } label: {
+                    NavigationLink(value: show) {
                         HStack(spacing: 10) {
                             FootprintResolvedCoverImage(show: show, cover: covers[show.id])
                                 .frame(width: 40, height: 52)

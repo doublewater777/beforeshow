@@ -48,21 +48,33 @@ struct ListeningRoomHeader: View {
     let mode: ListeningRoomPlaybackMode
     let notice: ListeningHeaderNotice?
     let onRecovery: (ListeningRecoveryAction) -> Void
+    var onSearch: (() -> Void)?
     @State private var showsExplanation = false
 
     init(
         mode: ListeningRoomPlaybackMode,
         notice: ListeningHeaderNotice? = nil,
-        onRecovery: @escaping (ListeningRecoveryAction) -> Void = { _ in }
+        onRecovery: @escaping (ListeningRecoveryAction) -> Void = { _ in },
+        onSearch: (() -> Void)? = nil
     ) {
         self.mode = mode
         self.notice = notice
         self.onRecovery = onRecovery
+        self.onSearch = onSearch
     }
 
     var body: some View {
         ListeningPageHeader {
-            headerStatus
+            HStack(spacing: BSSpacing.sm) {
+                headerStatus
+                if let onSearch {
+                    ListeningHeaderActionButton(
+                        icon: "magnifyingglass",
+                        accessibilityLabel: BSLocalization.text("搜索唱片与歌曲"),
+                        action: onSearch
+                    )
+                }
+            }
         }
         .zIndex(1)
         .sheet(isPresented: $showsExplanation) {

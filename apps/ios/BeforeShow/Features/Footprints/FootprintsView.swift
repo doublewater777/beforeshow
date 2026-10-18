@@ -9,7 +9,6 @@ struct FootprintsView: View {
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
     @State private var isAddingShow = false
-    @State private var pendingDetailTarget: FootprintDetailDestination?
     @State private var detailTarget: FootprintDetailDestination?
     @State private var activeSheet: FootprintSheet?
     @State private var toast: BSToastPayload?
@@ -66,18 +65,10 @@ struct FootprintsView: View {
                 .presentationCornerRadius(26)
                 .presentationDragIndicator(.visible)
             }
-            .sheet(item: $activeSheet, onDismiss: {
-                if let target = pendingDetailTarget {
-                    pendingDetailTarget = nil
-                    detailTarget = target
-                }
-            }) { sheet in
+            .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .search:
-                    FootprintSearchSheet(archive: archive, covers: covers) { show in
-                        pendingDetailTarget = .init(show: show)
-                        activeSheet = nil
-                    }
+                    FootprintSearchSheet(archive: archive, covers: covers)
                     .presentationDetents([.large])
                     .presentationCornerRadius(26)
                     .presentationDragIndicator(.visible)

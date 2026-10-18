@@ -170,6 +170,7 @@ struct ListeningRoomView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var matchingSlotIndex: Int?
     @State private var matchingArtistName: String = ""
+    @State private var isSearching = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -177,7 +178,8 @@ struct ListeningRoomView: View {
                 ListeningRoomHeader(
                     mode: room.display.roomMode,
                     notice: room.display.headerNotice,
-                    onRecovery: { room.performListeningRecovery($0) }
+                    onRecovery: { room.performListeningRecovery($0) },
+                    onSearch: room.discs.isEmpty ? nil : { isSearching = true }
                 )
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -235,6 +237,11 @@ struct ListeningRoomView: View {
         .sheet(item: $room.browser.detail) { disc in
             ListeningDiscDetailView(room: room, disc: disc)
                 .presentationDetents([.large])
+        }
+        .sheet(isPresented: $isSearching) {
+            ListeningSearchSheet(room: room)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: Binding(
             get: { matchingSlotIndex != nil },
