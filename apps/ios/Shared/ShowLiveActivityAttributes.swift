@@ -10,6 +10,13 @@ import Foundation
 // 渲染侧以 context.isStale 显示散场；计时使用有边界的系统 timerInterval。
 // hasStarted 仅为兼容保留，不驱动渲染。
 
+/// 普通现场的可见阶段；以实时边界判定，不依赖已缓存的 hasStarted。
+enum StandardLiveActivityPhase: Equatable {
+    case untilStart
+    case live
+    case ended
+}
+
 struct ShowLiveActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         var showName: String
@@ -63,6 +70,12 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
 
         func hasEnded(isStale: Bool, now: Date) -> Bool {
             isStale || now >= endBoundary
+        }
+
+        /// 普通现场的锁屏/灵动岛显示阶段，沿用结束边界和 ActivityKit 的 stale 语义。
+        func standardPhase(at now: Date, isStale: Bool = false) -> StandardLiveActivityPhase {
+            if hasEnded(isStale: isStale, now: now) { return .ended }
+            return now < startDate ? .untilStart : .live
         }
 
         var startCalendar: Calendar {
