@@ -36,6 +36,10 @@ enum AnalyticsEvent {
     case featureRecommendationShown(showID: UUID, feature: RecommendedFeature)
     case featureRecommendationTapped(showID: UUID, feature: RecommendedFeature, surface: RecommendationSurface)
     case proPaywallViewed
+    case purchaseTapped(plan: String, price: String)
+    case purchaseCancelled(plan: String)
+    case purchaseFailed(plan: String, errorCode: Int)
+    case paywallClosed(durationSeconds: Int)
     case proPurchaseCompleted(plan: String)
     case proPurchaseFailed(plan: String)
     case proRestored
@@ -66,6 +70,10 @@ enum AnalyticsEvent {
         case .featureRecommendationShown: "feature_recommendation_shown"
         case .featureRecommendationTapped: "feature_recommendation_tapped"
         case .proPaywallViewed: "pro_paywall_viewed"
+        case .purchaseTapped: "purchase_tapped"
+        case .purchaseCancelled: "purchase_cancelled"
+        case .purchaseFailed: "purchase_failed"
+        case .paywallClosed: "paywall_closed"
         case .proPurchaseCompleted: "pro_purchase_completed"
         case .proPurchaseFailed: "pro_purchase_failed"
         case .proRestored: "pro_restored"
@@ -99,6 +107,14 @@ enum AnalyticsEvent {
              .screenshotRecognized, .showLinkParsed, .proLimitReached,
              .proPaywallViewed, .proRestored:
             return [:]
+        case .purchaseTapped(let plan, let price):
+            return ["plan": plan, "price": price]
+        case .purchaseCancelled(let plan):
+            return ["plan": plan]
+        case .purchaseFailed(let plan, let errorCode):
+            return ["plan": plan, "error_code": errorCode]
+        case .paywallClosed(let durationSeconds):
+            return ["duration_seconds": durationSeconds]
         case .onboardingPageViewed(let page):
             return ["page": page]
         case .onboardingSkipped(let fromPage):

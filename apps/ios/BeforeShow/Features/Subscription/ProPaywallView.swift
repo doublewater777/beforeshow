@@ -16,6 +16,8 @@ struct ProPaywallView: View {
     @State private var winbackDeclined = false
     @State private var legalPage: BSInAppBrowserPage?
     @State private var isShowingOfferCodeRedemption = false
+    @State private var paywallPresentedAt = Date()
+    @State private var didTrackPaywallClosed = false
 
     private let store: any ProSubscriptionStore
     private let showsCloseButton: Bool
@@ -91,8 +93,15 @@ struct ProPaywallView: View {
         .preferredColorScheme(.dark)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            paywallPresentedAt = Date()
             ProductAnalytics.capture(.proPaywallViewed)
             await loadProducts()
+        }
+        .onDisappear {
+            guard !didTrackPaywallClosed else { return }
+            didTrackPaywallClosed = true
+            let duration = max(0, Int(Date().timeIntervalSince(paywallPresentedAt)))
+            ProductAnalytics.capture(.paywallClosed(durationSeconds: duration))
         }
         .sheet(item: $legalPage) { page in
             BSInAppBrowser(page: page)
@@ -317,6 +326,7 @@ struct ProPaywallView: View {
     @MainActor
     private func purchase(_ plan: ProSubscriptionPlan) async {
         guard let product = product(for: plan) else { return }
+        ProductAnalytics.capture(.purchaseTapped(plan: plan.rawValue, price: product.priceText))
         purchasingProductID = product.id
         defer { purchasingProductID = nil }
 
@@ -330,12 +340,14 @@ struct ProPaywallView: View {
                 showsWinback = false
             }
         } catch ProSubscriptionError.purchaseCancelled {
+            ProductAnalytics.capture(.purchaseCancelled(plan: plan.rawValue))
             message = nil
         } catch ProSubscriptionError.winbackNotAvailableWhileActive {
             // 模型层拒绝：当前已是 Pro，挽留方案会与已有订阅重叠，直接关闭挽留态。
             showsWinback = false
             message = BSLocalization.text("当前已是 Pro，挽留方案不适用。")
         } catch {
+            ProductAnalytics.capture(.purchaseFailed(plan: plan.rawValue, errorCode: (error as NSError).code))
             ProductAnalytics.capture(.proPurchaseFailed(plan: plan.rawValue))
             message = BSLocalization.text("购买暂时没有完成。")
         }

@@ -107,6 +107,10 @@ SQL、查询定义与 insight ID 存在 [product-analytics-posthog.json](product
 | `feature_recommendation_shown` | `show_id`, `feature`, `surface`（`card`） | 主卡推荐当日首次露出 |
 | `feature_recommendation_tapped` | `show_id`, `feature`, `surface`（`card` / `notification`） | 点推荐 |
 | `pro_paywall_viewed` | — | 付费墙出现 |
+| `purchase_tapped` | `plan`, `price` | 点购买；价格为商店本地化展示字符串 |
+| `purchase_cancelled` | `plan` | 用户取消系统购买确认 |
+| `purchase_failed` | `plan`, `error_code` | 购买失败；仅记录系统错误码，不记录错误文案 |
+| `paywall_closed` | `duration_seconds` | 付费墙离开屏幕时记录停留秒数 |
 | `pro_purchase_completed` / `pro_purchase_failed` | `plan` | 购买结果 |
 | `pro_restored` | — | 恢复购买成功 |
 | `app_review_prompt_requested` / `app_review_store_opened` | `moment` | 评分 |
