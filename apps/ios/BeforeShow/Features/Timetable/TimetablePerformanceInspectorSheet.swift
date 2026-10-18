@@ -78,7 +78,7 @@ struct TimetablePerformanceInspectorSheet: View {
     }
 
     private var currentAvatarURL: URL? {
-        if let draftArtistAvatarURL, let url = URL(string: draftArtistAvatarURL) {
+        if draftAppleMusicArtistID != performance.appleMusicArtistID, let draftArtistAvatarURL, let url = URL(string: draftArtistAvatarURL) {
             return url
         }
         if ArtistNameMatching.normalized(draftArtistName) == ArtistNameMatching.normalized(performance.artistName) {

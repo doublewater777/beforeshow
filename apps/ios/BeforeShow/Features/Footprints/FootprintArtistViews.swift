@@ -101,10 +101,14 @@ private struct FootprintArtistCoverView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var resolvedAlbumArtworkURL: URL?
 
+    private var avatarURL: URL? {
+        ArtistAvatarResolver.shared.displayURL(artistID: item.artistID, stored: item.artworkURL?.absoluteString)
+    }
+
     var body: some View {
         FootprintArtistAvatarView(
             url: FootprintArtistArtworkPolicy.displayURL(
-                avatarURL: item.artworkURL,
+                avatarURL: avatarURL,
                 persistedAlbumURL: item.albumArtworkURL,
                 resolvedAlbumURL: resolvedAlbumArtworkURL
             ),
@@ -113,7 +117,7 @@ private struct FootprintArtistCoverView: View {
         )
         .task(id: item.id) {
             guard FootprintArtistArtworkPolicy.shouldResolveAlbumArtwork(
-                avatarURL: item.artworkURL,
+                avatarURL: avatarURL,
                 persistedAlbumURL: item.albumArtworkURL
             ) else {
                 resolvedAlbumArtworkURL = nil

@@ -608,7 +608,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                       artists[index].appleMusicArtistID == nil else { continue }
                 artists[index].appleMusicArtistID = candidate.id
                 artists[index].appleMusicURL = candidate.appleMusicURL?.absoluteString
-                if artists[index].avatarURL == nil { artists[index].avatarURL = candidate.avatarURL?.absoluteString }
+                if candidate.isOfficialArtistPhoto, let official = candidate.avatarURL { artists[index].avatarURL = official.absoluteString }
                 changed = true
                 matchedIndices.append(index)
             }
@@ -966,7 +966,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                     slotIndex: index,
                     id: id,
                     name: slot.name,
-                    artworkURL: slot.avatarURL.flatMap(URL.init(string:)) ?? artist?.artworkURL,
+                    artworkURL: ArtistAvatarResolver.shared.displayURL(for: slot) ?? artist?.artworkURL,
                     appleMusicArtistID: id,
                     albums: artist?.albums ?? []
                 )
@@ -975,7 +975,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                     slotIndex: index,
                     id: "unconnected-\(index)",
                     name: slot.name,
-                    artworkURL: slot.avatarURL.flatMap(URL.init(string:)),
+                    artworkURL: ArtistAvatarResolver.shared.displayURL(for: slot),
                     appleMusicArtistID: nil,
                     albums: []
                 )
