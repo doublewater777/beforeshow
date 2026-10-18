@@ -29,7 +29,7 @@ import XCTest
         row.swipeLeft()
         XCTAssertTrue(pin.waitForExistence(timeout: 3), "Horizontal swipes must still reveal the pin action")
         // iOS 27 native swipe actions: a tap outside the row dismisses without navigating.
-        // The iOS 17 fallback row only closes on its own tap or a right swipe (unchanged behaviour).
+        // The iOS 17 fallback row only closes on a tap of the row (unchanged behaviour).
         if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
             app.staticTexts["还有"].tap()
             XCTAssertFalse(pin.isHittable)
@@ -39,7 +39,7 @@ import XCTest
         }
         row.swipeRight()
         if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
-            XCTAssertFalse(pin.isHittable) // iOS 17 fallback: could not add label: 'needs-triage' not found
+            XCTAssertFalse(pin.isHittable) // iOS 17 fallback ignores a right swipe: #350
         } else {
             row.tap() // the iOS 17 fallback closes on a tap of the row
         }
