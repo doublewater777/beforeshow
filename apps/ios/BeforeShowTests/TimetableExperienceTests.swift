@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftData
 import SwiftUI
 import UIKit
@@ -87,6 +88,66 @@ final class TimetableExperienceTests: XCTestCase {
         visiblePerformance.isInterested = true
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertTrue(resolvedNames.contains("Updated Artist"), "Viewport rendering must still observe performance edits")
+    }
+
+    func testMatrixInitialPositionAndRepeatedReturnToNowPreserveHorizontalLane() async throws {
+        let start = date(2026, 10, 18, 14, 0)
+        let stages = try (0..<6).map { lane in
+            try TimetableStage(name: "Stage \(lane)", sortOrder: lane, performances: [
+                TimetablePerformance(artistName: "Artist \(lane)", startsAt: start,
+                                     endsAt: start.addingTimeInterval(10 * 3600))
+            ])
+        }
+        let day = try TimetableDay(date: start, stages: stages)
+        context.insert(day)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousWindow = scene.keyWindow
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 393, height: 700)
+        let now = start.addingTimeInterval(5 * 3600)
+        let inputs = MatrixPositionInputs(day: day, now: now)
+        let host = UIHostingController(rootView: MatrixPositionHarness(inputs: inputs).modelContainer(container))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousWindow?.makeKey()
+        }
+        host.view.layoutIfNeeded()
+        func scrollViews(in view: UIView) -> [UIScrollView] {
+            ((view as? UIScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
+        }
+        try await waitUntil({ scrollViews(in: host.view).contains { $0.contentSize.height > 1_000 } }, timeout: .seconds(5))
+        let vertical = try XCTUnwrap(scrollViews(in: host.view).first { $0.contentSize.height > 1_000 })
+        let horizontal = try XCTUnwrap(scrollViews(in: host.view).first { $0.contentSize.width > $0.bounds.width + 100 })
+        // Five hours at 2.2 pt/min + 18 pt top inset, with now 35% down the viewport.
+        let expected = 678 - vertical.bounds.height * 0.35
+        try await waitUntil({ abs(vertical.contentOffset.y - expected) < 1 }, timeout: .seconds(5))
+        horizontal.setContentOffset(CGPoint(x: 240, y: 0), animated: false)
+        for request in 1...2 {
+            vertical.setContentOffset(CGPoint(x: 0, y: 900), animated: false)
+            inputs.request = request
+            try await waitUntil({ abs(vertical.contentOffset.y - expected) < 1 }, timeout: .seconds(5))
+            XCTAssertEqual(horizontal.contentOffset.x, 240, accuracy: 1)
+        }
+        let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: host.view.bounds).image { _ in
+            host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+        })
+        attachment.name = "Six-stage matrix after repeated return-to-now"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        inputs.now = start
+        inputs.request = 3
+        try await waitUntil({ abs(vertical.contentOffset.y) < 1 }, timeout: .seconds(5))
+        inputs.now = start.addingTimeInterval(10 * 3600)
+        inputs.request = 4
+        let bottom = vertical.contentSize.height - vertical.bounds.height
+        try await waitUntil({ abs(vertical.contentOffset.y - bottom) < 1 }, timeout: .seconds(5))
+        // A request outside this day's time range resets to the beginning.
+        inputs.now = start.addingTimeInterval(-3600)
+        inputs.request = 5
+        try await waitUntil({ abs(vertical.contentOffset.y) < 1 }, timeout: .seconds(5))
     }
 
     func testFortyMinuteLongNameCardKeepsPreviewControlVisible() throws {
@@ -308,6 +369,30 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertEqual(mappedHour.timeIntervalSince(oneHourLater), 0, accuracy: 1)
     }
 
+    func testOvernightMatrixNowCoordinatesUseFestivalTimeZoneAndInclusiveBounds() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let start = date(2026, 10, 18, 22, 0)
+        let end = date(2026, 10, 19, 2, 0)
+        let stage = TimetableMatrixLayout.Stage(id: UUID(), name: "Night", performances: [
+            .init(id: UUID(), artistName: "Overnight", startsAt: start, endsAt: end, isInterested: false)
+        ])
+        for (now, expected) in [
+            (start.addingTimeInterval(-1), Optional<CGFloat>.none), (start, 18),
+            (date(2026, 10, 19, 0, 30), 348), (end, 546), (end.addingTimeInterval(1), nil)
+        ] {
+            let layout = TimetableMatrixLayout(stages: [stage], now: now, calendar: calendar)
+            XCTAssertEqual(layout.nowY, expected)
+            XCTAssertEqual(layout.midnightY, 282)
+            XCTAssertEqual(layout.date(for: 348), date(2026, 10, 19, 0, 30))
+        }
+        let empty = TimetableMatrixLayout(stages: [], now: start, calendar: calendar,
+                                          emptyDayStart: date(2026, 10, 20, 14, 0))
+        XCTAssertEqual(empty.start, date(2026, 10, 20, 14, 0))
+        XCTAssertEqual(empty.end, date(2026, 10, 20, 22, 0))
+        XCTAssertNil(empty.nowY, "An empty future day must not offer return-to-now for today's clock")
+    }
+
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
         var components = DateComponents()
         components.year = year
@@ -318,5 +403,31 @@ final class TimetableExperienceTests: XCTestCase {
         components.timeZone = TimeZone(identifier: "Asia/Tokyo")
         let calendar = Calendar(identifier: .gregorian)
         return calendar.date(from: components)!
+    }
+}
+
+@MainActor
+@Observable
+private final class MatrixPositionInputs {
+    var day: TimetableDay
+    var now: Date
+    var request = 0
+
+    init(day: TimetableDay, now: Date) {
+        self.day = day
+        self.now = now
+    }
+}
+
+private struct MatrixPositionHarness: View {
+    let inputs: MatrixPositionInputs
+
+    var body: some View {
+        TimetableStageMatrixView(
+            day: inputs.day, now: inputs.now, timeZone: TimeZone(identifier: "Asia/Tokyo")!,
+            wantOnly: false, canReturnToNow: .constant(false), returnToNowRequest: inputs.request,
+            avatarURL: { _ in nil }, onSelectPerformance: { _ in }, onToggleInterested: { _ in },
+            onAddPerformance: { _, _ in }, onManage: {}
+        )
     }
 }
