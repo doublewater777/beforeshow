@@ -204,6 +204,23 @@ enum LiveActivityPlanner {
         )
     }
 
+    /// 下一个会改变实时活动内容的时刻(场次开演/结束、「即将开始」阈值、普通现场开场)。
+    /// ActivityKit 不会自己换内容:App 存活时到点用同一快照重新发布。
+    static func nextRefreshDate(snapshot: WidgetShowSnapshot?, now: Date) -> Date? {
+        guard let snapshot else { return nil }
+        var boundaries: [Date] = []
+        if let timetable = snapshot.timetable, !timetable.days.isEmpty {
+            for performance in timetable.days.flatMap(\.performances) {
+                boundaries.append(performance.startsAt.addingTimeInterval(-LivePerformanceSnapshot.startingSoonLead))
+                boundaries.append(performance.startsAt)
+                boundaries.append(performance.endsAt)
+            }
+        } else if let start = CurrentShowTimeState(timing: snapshot.timing, now: now).effectiveStartTime {
+            boundaries.append(start)
+        }
+        return boundaries.filter { $0 > now }.min()
+    }
+
     static func earliestStart(activityStart: Date, activityEnd: Date) -> Date {
         min(activityStart, activityEnd.addingTimeInterval(-maxActiveDuration))
     }
