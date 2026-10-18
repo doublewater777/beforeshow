@@ -252,6 +252,7 @@ actor ShowLiveActivityController {
     private var isProcessing = false
     private var lastWidgetReloadGeneration: UInt64 = 0
     private var artworkTask: Task<Void, Never>?
+    private var boundaryTask: Task<Void, Never>?
 
     func sync(
         snapshot: WidgetShowSnapshot?,
@@ -317,6 +318,23 @@ actor ShowLiveActivityController {
         guard request.generation == latestGeneration else { return }
         await WidgetCoverCache.pruneCovers(keeping: retained)
         guard request.generation == latestGeneration else { return }
+
+        // 到下一个场次边界用同一快照重新发布,实时活动才会换到下一位艺人。
+        boundaryTask?.cancel()
+        if let boundary = LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: now) {
+            boundaryTask = Task {
+                try? await Task.sleep(for: .seconds(max(0, boundary.timeIntervalSinceNow) + 1))
+                guard !Task.isCancelled else { return }
+                await self.sync(
+                    snapshot: request.snapshot,
+                    widgetCoverSource: request.widgetCoverSource,
+                    retainedCoverSources: request.retainedCoverSources,
+                    now: Date(),
+                    generation: request.generation,
+                    widgetReloadGeneration: request.widgetReloadGeneration
+                )
+            }
+        }
 
         // Downloads do not hold the sync queue: a new show/focus can publish immediately.
         artworkTask = Task {

@@ -282,7 +282,60 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertEqual(updatedInterested.first?.performanceID, p3.id)
     }
 
+    // MARK: - Boundary Refresh
+
+    func testLiveActivityAdvancesToNextArtistAtSetBoundaries() throws {
+        let (snapshot, _, _) = makeTwoSetFestival()
+
+        let between = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(15, 31), coverFilename: nil)).state
+        XCTAssertNil(between.currentArtistName)
+        XCTAssertEqual(between.nextArtistName, "Yeah Yeah Yeahs")
+
+        let second = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(16, 0), coverFilename: nil)).state
+        XCTAssertEqual(second.currentArtistName, "Yeah Yeah Yeahs")
+    }
+
+    func testNextRefreshDateLandsOnEachTimetableBoundary() {
+        let (snapshot, _, _) = makeTwoSetFestival()
+
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(14, 30)), date(15, 30))
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(15, 30)), date(16, 0))
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(16, 30)), date(17, 30))
+        XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(17, 30)))
+    }
+
+    func testNextRefreshDateIncludesStartingSoonThreshold() {
+        let (snapshot, _, _) = makeTwoSetFestival(secondStartsAt: date(17, 0), secondEndsAt: date(18, 0))
+
+        // 下一场开演前 30 分钟,「即将开始」标记会翻转。
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(15, 31)), date(16, 30))
+    }
+
+    func testNextRefreshDateFlipsStandardShowAtStart() {
+        let snapshot = makeSnapshot(timetableDays: [])
+
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(9, 0)), date(10, 0))
+        XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(10, 0)))
+        XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: nil, now: date(9, 0)))
+    }
+
     // MARK: - Helpers
+
+    private func makeTwoSetFestival(
+        secondStartsAt: Date? = nil,
+        secondEndsAt: Date? = nil
+    ) -> (WidgetShowSnapshot, WidgetTimetablePerformance, WidgetTimetablePerformance) {
+        let first = WidgetTimetablePerformance(
+            id: UUID(), artistName: "The Strokes", stageID: UUID(), stageName: "Main Stage",
+            startsAt: date(14, 0), endsAt: date(15, 30), isInterested: false
+        )
+        let second = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Yeah Yeah Yeahs", stageID: UUID(), stageName: "Sub Stage",
+            startsAt: secondStartsAt ?? date(16, 0), endsAt: secondEndsAt ?? date(17, 30), isInterested: false
+        )
+        let day = WidgetTimetableDay(id: UUID(), date: date(0, 0), performances: [first, second])
+        return (makeSnapshot(timetableDays: [day]), first, second)
+    }
 
     private func makeSnapshot(timetableDays: [WidgetTimetableDay]) -> WidgetShowSnapshot {
         WidgetShowSnapshot(
