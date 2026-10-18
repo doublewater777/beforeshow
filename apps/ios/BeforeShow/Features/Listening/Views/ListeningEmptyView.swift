@@ -40,11 +40,12 @@ struct ListeningEmptyView: View {
                             .onTapGesture(perform: action)
 
                         let geometry = CDPlayerConfiguration.standard.geometry
-                        let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
+                        let availableWidth = min(proxy.size.width - BSSpacing.roomy * 2, BSLayout.maxPlayerWidth)
+                        let scale = availableWidth * BSListeningTokens.playerWidthFraction / geometry.body.width
 
                         ListeningPreparingMachineView(scale: scale)
                             .listeningFrame("stage")
-                            .frame(width: proxy.size.width - BSSpacing.roomy * 2)
+                            .frame(width: availableWidth)
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
                             .contentShape(Rectangle())
                             .onTapGesture(perform: action)
@@ -58,6 +59,7 @@ struct ListeningEmptyView: View {
                 }
                 .scrollDisabled(true)
             }
+            .bsAdaptiveContentWidth()
         }
         .foregroundStyle(BSColor.Stage.foreground)
         .background(BSColor.Stage.background.ignoresSafeArea())

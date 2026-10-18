@@ -162,6 +162,10 @@ enum BSLayout {
     /// Visible circle for sheet/page chrome (close, back). Hit target stays `minTouchTarget`.
     static let chromeButtonSize: CGFloat = 32
     static let chromeIconSize: CGFloat = 13
+    /// Maximum content width for comfortable reading on large displays (e.g. iPad).
+    static let maxContentWidth: CGFloat = 600
+    /// Maximum player stage width for the vinyl player on large displays.
+    static let maxPlayerWidth: CGFloat = 480
 }
 
 // MARK: - Reusable View Modifiers

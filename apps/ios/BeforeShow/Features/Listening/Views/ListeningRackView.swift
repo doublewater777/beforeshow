@@ -160,7 +160,7 @@ struct ListeningRackView: View {
                 .frame(width: width, height: proxy.size.height, alignment: .topLeading)
                 .contentShape(Rectangle())
                 .gesture(swipeGesture(row: row, focus: c))
-                .gesture(carryGesture(width: width, focused: focused,
+                .modifier(carryGesture(width: width, focused: focused,
                                       pose: focused.map { pose($0, row: row, focus: c, discOut: out) }))
                 .simultaneousGesture(
                     SpatialTapGesture(coordinateSpace: .local).onEnded { value in
@@ -445,7 +445,8 @@ private struct ListeningRackBreathing: ViewModifier {
 }
 
 /// A UIKit long press keeps taps and horizontal swipes on the row responsive.
-struct ListeningRackCarryRecognizer: UIGestureRecognizerRepresentable {
+@available(iOS 18, *)
+private struct ListeningRackNativeCarryRecognizer: UIGestureRecognizerRepresentable {
     let onBegan: (CGPoint) -> Void
     let onChanged: (CGSize) -> Void
     let onEnded: (Bool) -> Void
@@ -480,6 +481,55 @@ struct ListeningRackCarryRecognizer: UIGestureRecognizerRepresentable {
             onEnded(true)
         default:
             break
+        }
+    }
+}
+
+private struct ListeningRackCarryRecognizer: ViewModifier {
+    let onBegan: (CGPoint) -> Void
+    let onChanged: (CGSize) -> Void
+    let onEnded: (Bool) -> Void
+    @State private var carrying = false
+    @GestureState private var gestureActive = false
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18, *) {
+            content.gesture(ListeningRackNativeCarryRecognizer(
+                onBegan: onBegan, onChanged: onChanged, onEnded: onEnded
+            ))
+        } else {
+            content.simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.3, maximumDistance: 10)
+                    .sequenced(before: DragGesture(minimumDistance: 0))
+                    .updating($gestureActive) { _, active, _ in active = true }
+                    .onChanged { value in
+                        guard case .second(true, let drag) = value, let drag else { return }
+                        if !carrying {
+                            carrying = true
+                            onBegan(drag.startLocation)
+                        }
+                        onChanged(drag.translation)
+                    }
+                    .onEnded { value in
+                        guard carrying else { return }
+                        if case .second(true, let drag) = value {
+                            if let drag { onChanged(drag.translation) }
+                            onEnded(false)
+                        } else {
+                            onEnded(true)
+                        }
+                        carrying = false
+                    }
+            )
+            .onChange(of: gestureActive) { _, active in
+                guard !active, carrying else { return }
+                onEnded(true)
+                carrying = false
+            }
+            .onDisappear {
+                if carrying { onEnded(true) }
+                carrying = false
+            }
         }
     }
 }

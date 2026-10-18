@@ -55,7 +55,9 @@ final class DynamicCoverTests: XCTestCase {
         cover.configure(url: url, isPlaying: false)
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(CMTimebaseGetRate(timebase), 0)
-        XCTAssertNotNil(layer.sampleBufferRenderer.displayedPixelBuffer())
+        if #available(iOS 17.4, *) {
+            XCTAssertNotNil(layer.sampleBufferRenderer.displayedPixelBuffer())
+        }
         cover.configure(url: url, isPlaying: true)
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(CMTimebaseGetRate(timebase), 1)

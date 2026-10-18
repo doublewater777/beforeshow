@@ -90,7 +90,7 @@ struct BSSwipeRevealActionRow<Content: View>: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .offset(x: rowOffset)
-            .gesture(dragGesture)
+            .modifier(dragGesture)
         }
         .background(BSColor.Stage.surface.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -106,8 +106,8 @@ struct BSSwipeRevealActionRow<Content: View>: View {
         }
     }
 
-    private var dragGesture: some UIGestureRecognizerRepresentable {
-        BSHorizontalSwipeGesture(
+    private var dragGesture: some ViewModifier {
+        BSHorizontalSwipeModifier(
             onChanged: { translation in
                 tapReleaseTask?.cancel()
                 suppressContentTap = true
@@ -134,6 +134,7 @@ struct BSSwipeRevealActionRow<Content: View>: View {
 }
 
 /// Reject vertical pans before recognition so the parent scroll view keeps them.
+@available(iOS 18, *)
 private struct BSHorizontalSwipeGesture: UIGestureRecognizerRepresentable {
     let onChanged: (CGFloat) -> Void
     let onEnded: (CGFloat, CGFloat, Bool) -> Void
@@ -168,6 +169,45 @@ private struct BSHorizontalSwipeGesture: UIGestureRecognizerRepresentable {
             onEnded(translation, 0, true)
         default:
             break
+        }
+    }
+}
+
+private struct BSHorizontalSwipeModifier: ViewModifier {
+    let onChanged: (CGFloat) -> Void
+    let onEnded: (CGFloat, CGFloat, Bool) -> Void
+    @State private var horizontal: Bool?
+    @GestureState private var gestureActive = false
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18, *) {
+            content.gesture(BSHorizontalSwipeGesture(onChanged: onChanged, onEnded: onEnded))
+        } else {
+            content.simultaneousGesture(
+                DragGesture(minimumDistance: 15)
+                    .updating($gestureActive) { _, active, _ in active = true }
+                    .onChanged { value in
+                        if horizontal == nil {
+                            horizontal = abs(value.translation.width) > abs(value.translation.height)
+                        }
+                        if horizontal == true { onChanged(value.translation.width) }
+                    }
+                    .onEnded { value in
+                        if horizontal == true {
+                            onEnded(value.translation.width, value.velocity.width, false)
+                        }
+                        horizontal = nil
+                    }
+            )
+            .onChange(of: gestureActive) { _, active in
+                guard !active, horizontal != nil else { return }
+                if horizontal == true { onEnded(0, 0, true) }
+                horizontal = nil
+            }
+            .onDisappear {
+                if horizontal == true { onEnded(0, 0, true) }
+                horizontal = nil
+            }
         }
     }
 }

@@ -49,6 +49,7 @@ struct FootprintsView: View {
                 content(prepared)
             }
         }
+        .bsAdaptiveContentWidth()
         .background { FootprintBackground().ignoresSafeArea() }
         .bsRootBottomChrome()
             .toolbar(.hidden, for: .navigationBar)

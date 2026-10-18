@@ -163,7 +163,7 @@ struct TimetableExperienceView: View {
             }
             .font(.system(size: 14, weight: .bold))
             .padding(4)
-            .glassEffect(.clear, in: Capsule())
+            .bsGlass(clear: true, in: Capsule())
 
             if canReturnToNow {
                 Button {
@@ -175,7 +175,7 @@ struct TimetableExperienceView: View {
                         .frame(width: TimetableStyle.dockActionSize, height: TimetableStyle.dockActionSize)
                 }
                 .buttonStyle(TimetablePressStyle())
-                .glassEffect(.clear, in: Circle())
+                .bsGlass(clear: true, in: Circle())
                 .accessibilityLabel(BSLocalization.text("回到现在"))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, BSSpacing.roomy)
@@ -191,7 +191,7 @@ struct TimetableExperienceView: View {
                         .frame(width: TimetableStyle.dockActionSize, height: TimetableStyle.dockActionSize)
                 }
                 .buttonStyle(TimetablePressStyle())
-                .glassEffect(.clear, in: Circle())
+                .bsGlass(clear: true, in: Circle())
                 .accessibilityLabel(BSLocalization.text("分享"))
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.trailing, 20)

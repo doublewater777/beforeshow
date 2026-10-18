@@ -107,7 +107,11 @@ struct SettingsView: View {
 
             // 系统与关于
             Section {
-                Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
                     BSSettingsRow(
                         icon: "globe",
                         tint: BSColor.Stage.glowBlue,

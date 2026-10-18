@@ -364,7 +364,8 @@ actor ShowLiveActivityController {
                 existing: existing,
                 coverFilename: coverFilename,
                 focusedPerformanceID: focusedPerformanceID,
-                artistImageFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for:)
+                artistImageFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for:),
+                supportsScheduling: Self.supportsScheduling
             )
         } else {
             action = .endAll
@@ -431,7 +432,7 @@ actor ShowLiveActivityController {
 
         case .schedule(let state, let start):
             await endAll(generation: generation)
-            guard isCurrent() else { return }
+            guard isCurrent(), #available(iOS 26, *) else { return }
             let content = ActivityContent(state: state, staleDate: state.endBoundary)
             do {
                 let alert = AlertConfiguration(
@@ -475,8 +476,14 @@ actor ShowLiveActivityController {
         }
     }
 
+    private static var supportsScheduling: Bool {
+        if #available(iOS 26, *) { return true }
+        return false
+    }
+
     private static func isPending(_ activity: Activity<ShowLiveActivityAttributes>) -> Bool {
-        activity.activityState == .pending
+        if #available(iOS 26, *) { return activity.activityState == .pending }
+        return false
     }
 
     private static func runtimeRecords(

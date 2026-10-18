@@ -20,6 +20,29 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testSystemsWithoutSchedulingWaitForTheActiveWindow() throws {
+        let snapshot = makeSnapshot(timetableDays: [])
+        let state = try XCTUnwrap(LiveActivityPlanner.desiredState(
+            snapshot: snapshot, now: date(-24), coverFilename: nil
+        )).state
+        let existing = [LiveActivityExisting(showID: snapshot.showID.uuidString, isPending: false, state: state)]
+        for activities in [[], existing] {
+            let action = LiveActivityPlanner.action(
+                snapshot: snapshot, now: date(-24), existing: activities,
+                coverFilename: nil, supportsScheduling: false
+            )
+            switch action {
+            case .none where activities.isEmpty, .endAll where !activities.isEmpty: break
+            default: XCTFail("Old systems must not start or retain an activity before its window")
+            }
+        }
+        let active = LiveActivityPlanner.action(
+            snapshot: snapshot, now: date(10), existing: [],
+            coverFilename: nil, supportsScheduling: false
+        )
+        guard case .request = active else { return XCTFail("Foreground start must remain available") }
+    }
+
     // MARK: - 1. Live Activity Without Interested Shows (Objective Overview)
 
     func testLiveActivityStartsAndProvidesObjectiveOverviewWithoutInterested() {

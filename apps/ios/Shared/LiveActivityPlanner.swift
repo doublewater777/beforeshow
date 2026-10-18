@@ -214,7 +214,8 @@ enum LiveActivityPlanner {
         existing: [LiveActivityExisting],
         coverFilename: String?,
         focusedPerformanceID: UUID? = nil,
-        artistImageFilename: (String) -> String? = { _ in nil }
+        artistImageFilename: (String) -> String? = { _ in nil },
+        supportsScheduling: Bool = true
     ) -> LiveActivityAction {
         guard let desired = desiredState(
             snapshot: snapshot, now: now, coverFilename: coverFilename,
@@ -238,6 +239,8 @@ enum LiveActivityPlanner {
             }
             return .update(desired.state)
         }
+
+        guard supportsScheduling else { return existing.isEmpty ? .none : .endAll }
 
         if hasUnchangedPending {
             return .keep(desired.state)

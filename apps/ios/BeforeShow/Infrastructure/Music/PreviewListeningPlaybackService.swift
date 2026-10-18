@@ -4,7 +4,7 @@ import UIKit
 
 /// 30-second previews are DRM-free, so they play on AVFoundation directly.
 /// `MPNowPlayingSession` publishes Now Playing for this player and owns its
-/// remote commands; transport state comes from AVFoundation Observation.
+/// remote commands; transport state is bridged from AVFoundation KVO.
 @MainActor
 @Observable
 final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
@@ -17,6 +17,8 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     private var isInterrupted = false
     // User intent is needed while AVPlayer is paused by an interruption.
     private var playbackRequested = false
+    private var playerRevision = 0
+    @ObservationIgnored private var playerObservers: [NSKeyValueObservation] = []
     @ObservationIgnored private var ownsAudioSession = false
     @ObservationIgnored private var audioObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var resumeTask: Task<Void, Never>?
@@ -29,6 +31,11 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         self.owner = owner
         nowPlaying = MPNowPlayingSession(players: [player])
         nowPlaying.automaticallyPublishesNowPlayingInfo = true
+        playerObservers = [
+            player.observe(\.timeControlStatus) { [weak self] _, _ in self?.playerDidChange() },
+            player.observe(\.currentItem) { [weak self] _, _ in self?.playerDidChange() },
+            player.observe(\.currentItem?.status) { [weak self] _, _ in self?.playerDidChange() }
+        ]
         registerRemoteCommands()
         observeCommandAvailability()
         observeAudioSession()
@@ -38,6 +45,8 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     isolated deinit {
+        for observation in playerObservers { observation.invalidate() }
+        playerObservers.removeAll()
         resumeTask?.cancel()
         commandAvailabilityTask?.cancel()
         artworkTask?.cancel()
@@ -45,6 +54,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     var phase: ListeningPlaybackTransportPhase {
+        _ = playerRevision
         guard let item = player.currentItem, item.status != .failed else { return .stopped }
         switch player.timeControlStatus {
         case .playing: return .playing
@@ -61,10 +71,12 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     /// AVQueuePlayer drops each item as it finishes; an empty player with a
     /// loaded queue has played through the last preview.
     var hasEnded: Bool {
-        !queue.isEmpty && player.currentItem == nil
+        _ = playerRevision
+        return !queue.isEmpty && player.currentItem == nil
     }
 
     var failure: ListeningPlaybackError? {
+        _ = playerRevision
         guard player.currentItem?.status == .failed, let songID = currentSongID else { return nil }
         return .songUnavailable(songID)
     }
@@ -162,9 +174,14 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     private var currentIndex: Int? {
+        _ = playerRevision
         guard !queue.isEmpty else { return nil }
         guard let item = player.currentItem else { return queue.count - 1 }
         return itemIndexes[ObjectIdentifier(item)]
+    }
+
+    nonisolated private func playerDidChange() {
+        Task { @MainActor [weak self] in self?.playerRevision &+= 1 }
     }
 
     private func move(to index: Int) {
@@ -230,7 +247,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     /// Greys out Previous/Next on the Lock Screen at either end of the queue.
     private func observeCommandAvailability() {
         commandAvailabilityTask = Task { [weak self] in
-            let positions = Observations { [weak self] () -> (index: Int?, count: Int)? in
+            let positions = BSObservationValues { [weak self] () -> (index: Int?, count: Int)? in
                 guard let self else { return nil }
                 return (self.currentIndex, self.queue.count)
             }

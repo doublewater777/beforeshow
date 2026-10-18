@@ -101,9 +101,9 @@ struct ListeningDiscDetailView: View {
                 .padding(.top, BSSpacing.sm)
                 .padding(.bottom, BSSpacing.xl)
             }
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top > Self.titleRevealOffset
-            } action: { _, shows in
+            .bsOnScrollOffset { offset in
+                let shows = offset.y > Self.titleRevealOffset
+                guard shows != showsNavigationTitle else { return }
                 withAnimation(.easeInOut(duration: 0.2)) { showsNavigationTitle = shows }
             }
             .background(

@@ -125,7 +125,7 @@ struct ProPaywallHero: View {
 
 struct ProPaywallBenefitCard: View {
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             benefitRow(
                 icon: "infinity",
                 title: BSLocalization.text("无限添加现场"),
@@ -168,7 +168,9 @@ struct ProPaywallBenefitCard: View {
                     .foregroundStyle(BSColor.Stage.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

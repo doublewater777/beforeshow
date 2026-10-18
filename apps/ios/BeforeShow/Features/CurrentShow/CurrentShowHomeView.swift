@@ -14,6 +14,17 @@ enum CurrentShowPlaybackPolicy {
     }
 }
 
+private enum CurrentShowHomeSheet: String, Identifiable {
+    case addCoordinator
+    #if DEBUG
+    case addReview
+    #endif
+    case settings
+    case showLibrary
+
+    var id: String { rawValue }
+}
+
 struct CurrentShowHomeView: View {
     var isPlaybackActive = true
     var isFeaturePresentationActive = false
@@ -24,12 +35,11 @@ struct CurrentShowHomeView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(LiveModeFocusStore.key, store: LiveModeFocusStore.defaults) private var focusedPerformanceID: String?
-    @State private var isShowingAddShowCoordinator = false
-    @State private var isShowingAddShowReview = false
+    @State private var presentedSheet: CurrentShowHomeSheet?
+    #if DEBUG
     @State private var isShowingWidgetPreview = false
+    #endif
     @State private var toast: BSToastPayload?
-    @State private var isShowingSettings = false
-    @State private var isShowingShowLibrary = false
     @State private var isShowingDynamicCoverPicker = false
     @State private var selectedDynamicCoverItem: PhotosPickerItem?
     /// 刚刚散场确认成功后由 `ceremonyLightsOutShowID` 拉起独立 fullScreen 熄灯；
@@ -63,17 +73,15 @@ struct CurrentShowHomeView: View {
 
     private var isHomePresentationActive: Bool {
         #if DEBUG
-        let debugPresentationActive = isShowingAddShowReview || isShowingWidgetPreview
+        let debugPresentationActive = isShowingWidgetPreview
         #else
         let debugPresentationActive = false
         #endif
 
         return isDetailVisible
-            || isShowingSettings
-            || isShowingShowLibrary
+            || presentedSheet != nil
             || isShowingDynamicCoverPicker
             || isImportingDynamicCover
-            || isShowingAddShowCoordinator
             || dynamicCoverErrorMessage != nil
             || debugPresentationActive
     }
@@ -115,9 +123,9 @@ struct CurrentShowHomeView: View {
                         onPresentationVisibilityChange: { isVisible in
                             isManagementPresentationActive = isVisible
                         },
-                        onAddShow: { isShowingAddShowCoordinator = true },
-                        onOpenSettings: { isShowingSettings = true },
-                        onOpenShowLibrary: { isShowingShowLibrary = true },
+                        onAddShow: { presentedSheet = .addCoordinator },
+                        onOpenSettings: { presentedSheet = .settings },
+                        onOpenShowLibrary: { presentedSheet = .showLibrary },
                         onSetCurrentShow: selectCurrentShow,
                         onChooseDynamicCover: presentDynamicCoverPicker,
                         isImportingDynamicCover: isImportingDynamicCover,
@@ -144,12 +152,13 @@ struct CurrentShowHomeView: View {
                 } else {
                     CurrentShowEmptyStateView(
                         hasShows: !shows.isEmpty,
-                        onAddShow: { isShowingAddShowCoordinator = true },
-                        onOpenSettings: { isShowingSettings = true },
-                        onOpenShowLibrary: { isShowingShowLibrary = true }
+                        onAddShow: { presentedSheet = .addCoordinator },
+                        onOpenSettings: { presentedSheet = .settings },
+                        onOpenShowLibrary: { presentedSheet = .showLibrary }
                     )
                 }
             }
+            .bsAdaptiveContentWidth()
             .background {
                 CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
                     .opacity(
@@ -189,19 +198,7 @@ struct CurrentShowHomeView: View {
             } message: {
                 Text(dynamicCoverErrorMessage ?? BSLocalization.text("请重试"))
             }
-            .sheet(isPresented: $isShowingAddShowCoordinator) {
-                AddShowCoordinatorSheet()
-            }
             #if DEBUG
-            .sheet(isPresented: $isShowingAddShowReview) {
-                NavigationStack {
-                    AddShowFlowView(
-                        sheet: .link,
-                        prefilledDraft: DebugSampleShowSeeder.appStoreReviewDraft()
-                    )
-                }
-                .preferredColorScheme(.dark)
-            }
             .fullScreenCover(isPresented: $isShowingWidgetPreview) {
                 LiveAndWidgetShowcaseView()
             }
@@ -250,32 +247,46 @@ struct CurrentShowHomeView: View {
                 // 通知节点会随时间过期、容量也会释放；页面首次出现时补一次 portfolio 对账。
                 await reconcileNotificationPortfolio()
             }
-            .sheet(isPresented: $isShowingSettings) {
-                NavigationStack {
-                    SettingsView()
-                }
-            }
-            .sheet(isPresented: $isShowingShowLibrary) {
-                NavigationStack {
-                    CurrentShowLibraryManagementView(
-                        onDetailVisibilityChange: { isVisible in
-                            isDetailVisible = isVisible
-                        }
-                    )
+            .sheet(item: $presentedSheet) { sheet in
+                switch sheet {
+                case .addCoordinator:
+                    AddShowCoordinatorSheet()
+                #if DEBUG
+                case .addReview:
+                    NavigationStack {
+                        AddShowFlowView(
+                            sheet: .link,
+                            prefilledDraft: DebugSampleShowSeeder.appStoreReviewDraft()
+                        )
+                    }
+                    .preferredColorScheme(.dark)
+                #endif
+                case .settings:
+                    NavigationStack {
+                        SettingsView()
+                    }
+                case .showLibrary:
+                    NavigationStack {
+                        CurrentShowLibraryManagementView(
+                            onDetailVisibilityChange: { isVisible in
+                                isDetailVisible = isVisible
+                            }
+                        )
+                    }
                 }
             }
             #if DEBUG
             .task {
                 if ProcessInfo.processInfo.arguments.contains("--open-settings") {
-                    isShowingSettings = true
+                    presentedSheet = .settings
                 }
                 if ProcessInfo.processInfo.arguments.contains("--open-show-library") {
                     try? await Task.sleep(for: .milliseconds(900))
-                    isShowingShowLibrary = true
+                    presentedSheet = .showLibrary
                 }
                 if ProcessInfo.processInfo.arguments.contains("--open-add-show-review") {
                     try? await Task.sleep(for: .milliseconds(900))
-                    isShowingAddShowReview = true
+                    presentedSheet = .addReview
                 }
                 if ProcessInfo.processInfo.arguments.contains("--open-widget-preview") {
                     try? await Task.sleep(for: .milliseconds(900))
