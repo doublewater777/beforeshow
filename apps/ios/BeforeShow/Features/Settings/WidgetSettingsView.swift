@@ -91,6 +91,7 @@ struct WidgetSettingsView: View {
                     }
                 }
         }
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
@@ -209,6 +210,7 @@ struct WidgetSettingsView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(BSColor.Stage.border, lineWidth: 1)
         )
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 

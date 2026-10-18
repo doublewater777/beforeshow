@@ -9,7 +9,6 @@ import UserNotifications
 struct SettingsView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeFeedbackEnabled = true
-    @Environment(\.dismiss) private var dismiss
     @State private var isShowingProPaywall = false
     @State private var toast: BSToastPayload?
 
@@ -159,7 +158,7 @@ struct SettingsView: View {
         .navigationTitle(BSLocalization.text("设置"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            BSChromeToolbarCloseButton { dismiss() }
+            SettingsDismissToolbar()
         }
         .sheet(isPresented: $isShowingProPaywall) {
             ProPaywallSheetView()
@@ -207,6 +206,15 @@ struct SettingsView: View {
         case .free, .expired:
             return BSLocalization.text("升级 Pro")
         }
+    }
+}
+
+// Keep dismiss out of the list captured by navigation destinations on iOS 17.
+private struct SettingsDismissToolbar: ToolbarContent {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some ToolbarContent {
+        BSChromeToolbarCloseButton { dismiss() }
     }
 }
 
