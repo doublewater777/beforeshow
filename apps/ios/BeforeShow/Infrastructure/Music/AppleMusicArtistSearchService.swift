@@ -348,7 +348,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             artists.append(RecognizedArtist(
                 id: String(song.artistId),
                 canonicalName: song.artistName,
-                avatarURL: upgradedArtworkURL(song.artworkUrl100, size: 240),
+                avatarURL: nil,
                 appleMusicURL: song.artistViewUrl.flatMap(URL.init(string:))
             ))
             if artists.count == limit { break }
