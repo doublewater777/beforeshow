@@ -59,4 +59,11 @@ extension View {
             safeAreaInset(edge: .bottom, spacing: 0, content: content)
         }
     }
+
+    /// Centers content within a comfortable maximum reading width on large screens (e.g. iPad)
+    /// without constraining narrow phone widths.
+    func bsAdaptiveContentWidth(_ maxWidth: CGFloat = BSLayout.maxContentWidth) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
+    }
 }

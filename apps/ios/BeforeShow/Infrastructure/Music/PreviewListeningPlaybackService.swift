@@ -45,6 +45,8 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     isolated deinit {
+        for observation in playerObservers { observation.invalidate() }
+        playerObservers.removeAll()
         resumeTask?.cancel()
         commandAvailabilityTask?.cancel()
         artworkTask?.cancel()

@@ -15,10 +15,11 @@ struct ListeningPreparingView: View {
                             .listeningFrame("cabinet")
                             .padding(.top, BSSpacing.sm)
                         let geometry = CDPlayerConfiguration.standard.geometry
-                        let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
+                        let availableWidth = min(proxy.size.width - BSSpacing.roomy * 2, BSLayout.maxPlayerWidth)
+                        let scale = availableWidth * BSListeningTokens.playerWidthFraction / geometry.body.width
                        ListeningPreparingMachineView(scale: scale)
                            .listeningFrame("stage")
-                           .frame(width: proxy.size.width - BSSpacing.roomy * 2)
+                           .frame(width: availableWidth)
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
                         Color.clear.frame(height: BSLayout.minTouchTarget)
                             .padding(.top, -BSSpacing.lg)

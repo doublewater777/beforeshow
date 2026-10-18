@@ -237,6 +237,7 @@ final class TimetableDay {
         }
         self.id = id
         self.date = date
+        self.stages = []
         self.stages = stages
     }
 

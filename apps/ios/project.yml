@@ -43,6 +43,10 @@ targets:
         embed: true
       - package: PostHog
       - package: RevenueCat
+      # The SDK marks ActivityStyle as iOS 16.1, but it is absent on iOS 17.
+      # Keep guarded iOS 26 scheduling symbols weak so iOS 17 can launch.
+      - sdk: ActivityKit.framework
+        weak: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.doublewaterapps.beforeshow
@@ -51,7 +55,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        TARGETED_DEVICE_FAMILY: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: false
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
         UILAUNCHSTORYBOARDNAME: LaunchScreen
@@ -103,7 +107,7 @@ targets:
         PRODUCT_NAME: BeforeShowWidgets
         INFOPLIST_FILE: BeforeShowWidgets/Supporting/Info.plist
         CODE_SIGN_ENTITLEMENTS: BeforeShowWidgets/BeforeShowWidgets.entitlements
-        TARGETED_DEVICE_FAMILY: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_USER_SCRIPT_SANDBOXING: true
   BeforeShowTests:
     type: bundle.unit-test

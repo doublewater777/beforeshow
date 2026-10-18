@@ -182,7 +182,8 @@ struct ListeningRoomView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         let geometry = room.hardwareGeometry
-                        let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
+                        let availableWidth = min(proxy.size.width - BSSpacing.roomy * 2, BSLayout.maxPlayerWidth)
+                        let scale = availableWidth * BSListeningTokens.playerWidthFraction / geometry.body.width
                         let groups = room.rackGroups
                         Group {
                             if showsRack(groups) {
@@ -207,7 +208,7 @@ struct ListeningRoomView: View {
                         ListeningMachineView(room: room, scale: scale, showDetails: { room.browser.open($0) })
                             .coordinateSpace(name: "playerStage")
                             .listeningFrame("stage")
-                            .frame(width: proxy.size.width - BSSpacing.roomy * 2)
+                            .frame(width: availableWidth)
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
 
                         ListeningCurrentSong(room: room)

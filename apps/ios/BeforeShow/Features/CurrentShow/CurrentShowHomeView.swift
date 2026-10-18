@@ -150,6 +150,7 @@ struct CurrentShowHomeView: View {
                     )
                 }
             }
+            .bsAdaptiveContentWidth()
             .background {
                 CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
                     .opacity(

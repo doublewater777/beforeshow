@@ -9,12 +9,9 @@ enum ListeningMiniPlayerPlaybackAppearance {
 
     static func statusText(for player: ListeningPlayerPresentation) -> String {
         switch player.phase {
-        case .preparing, .waiting, .playing, .seeking:
-            return BSLocalization.text("播放中")
-        case .paused, .interrupted:
-            return BSLocalization.text("暂停")
-        case .noDisc, .stopped, .failed:
-            return player.statusText
+        case .preparing, .waiting, .playing, .seeking: return BSLocalization.text("播放中")
+        case .paused, .interrupted: return BSLocalization.text("暂停")
+        case .noDisc, .stopped, .failed: return player.statusText
         }
     }
 }
@@ -26,8 +23,7 @@ enum ListeningMiniPlayerArtworkSource {
 }
 
 enum ListeningMiniPlayerSwipeAction: Equatable {
-    case previous
-    case next
+    case previous, next
 }
 
 enum ListeningMiniPlayerSwipeIntent {
@@ -76,7 +72,7 @@ enum ListeningMiniPlayerArtworkImage {
     static func displayed(
         loaded: UIImage?,
         url: URL?,
-        memoryImage: (URL) -> UIImage? = { ShowCoverImageCache.shared.memoryImage(for: $0) }
+        memoryImage: (URL) -> UIImage? = { ShowCoverImageCache.shared.persistedImage(for: $0) }
     ) -> UIImage? {
         if let loaded { return loaded }
         guard let url else { return nil }
@@ -143,18 +139,12 @@ private enum ListeningBottomBarGeometry {
         let middleWidth = showsMiniPlayer
             ? ListeningBottomBarLayout.miniPlayerWidth
             : ListeningBottomBarLayout.tabSize
-        let sideDistance =
-            middleWidth / 2
-            + ListeningBottomBarLayout.gap
-            + ListeningBottomBarLayout.tabSize / 2
+        let sideDistance = middleWidth / 2 + ListeningBottomBarLayout.gap + ListeningBottomBarLayout.tabSize / 2
 
         switch tab {
-        case .current:
-            return -sideDistance
-        case .listen:
-            return 0
-        case .footprints:
-            return sideDistance
+        case .current: return -sideDistance
+        case .listen: return 0
+        case .footprints: return sideDistance
         }
     }
 }
@@ -327,6 +317,25 @@ private struct ListeningCompactPlaybackControl: View {
     @State private var isCompletingSwipe = false
     @State private var swipeFeedbackCount = 0
 
+    init(
+        room: ListeningRoomCoordinator,
+        track: ListeningDiscTrack,
+        onSelectListen: @escaping () -> Void
+    ) {
+        self.room = room
+        self.track = track
+        self.onSelectListen = onSelectListen
+        let initialURL = ListeningMiniPlayerArtworkSource.resolve(
+            trackArtworkURL: track.artworkURL,
+            discArtworkURL: room.display.hardware.artworkURL
+        )
+        _artworkImage = State(
+            initialValue: initialURL.flatMap {
+                ShowCoverImageCache.shared.persistedImage(for: $0)
+            }
+        )
+    }
+
     private var showsPlayingState: Bool {
         ListeningMiniPlayerPlaybackAppearance.showsPlayingState(
             for: room.display.player.phase
@@ -412,7 +421,7 @@ private struct ListeningCompactPlaybackControl: View {
                 artworkImage = nil
                 return
             }
-            if let cached = ShowCoverImageCache.shared.memoryImage(for: artworkURL) {
+            if let cached = ShowCoverImageCache.shared.persistedImage(for: artworkURL) {
                 artworkImage = cached
                 return
             }
@@ -534,12 +543,9 @@ private struct ListeningCompactPlaybackControl: View {
     }
 
     private func destinationTrack(for action: ListeningMiniPlayerSwipeAction) -> ListeningDiscTrack? {
-        switch action {
-        case .previous:
-            return swipeSourceTrack == nil ? adjacentTrack(for: .previous) : swipePreviousTrack
-        case .next:
-            return swipeSourceTrack == nil ? adjacentTrack(for: .next) : swipeNextTrack
-        }
+        action == .previous
+            ? (swipeSourceTrack == nil ? adjacentTrack(for: .previous) : swipePreviousTrack)
+            : (swipeSourceTrack == nil ? adjacentTrack(for: .next) : swipeNextTrack)
     }
 
     private func completeSwipe(
@@ -552,22 +558,19 @@ private struct ListeningCompactPlaybackControl: View {
         swipeFeedbackCount += 1
         room.skip(action == .next ? 1 : -1)
 
+        let targetOffset = (action == .next ? -1.0 : 1.0) * ListeningMiniPlayerSwipeIntent.pageTravel
         if reduceMotion {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                swipeOffset = action == .next
-                    ? -ListeningMiniPlayerSwipeIntent.pageTravel
-                    : ListeningMiniPlayerSwipeIntent.pageTravel
+                swipeOffset = targetOffset
             }
             waitForTrackChange(to: destination.id)
             return
         }
 
         withAnimation(.snappy(duration: 0.22, extraBounce: 0.04), completionCriteria: .logicallyComplete) {
-            swipeOffset = action == .next
-                ? -ListeningMiniPlayerSwipeIntent.pageTravel
-                : ListeningMiniPlayerSwipeIntent.pageTravel
+            swipeOffset = targetOffset
         } completion: {
             waitForTrackChange(to: destination.id)
         }
@@ -618,8 +621,6 @@ private struct ListeningCompactPlaybackControl: View {
             isCompletingSwipe = false
         }
     }
-
-
 }
 
 private struct ListeningArtworkDisc: View {
@@ -661,7 +662,6 @@ private struct ListeningArtworkDisc: View {
                 center: .center
             )
             .blendMode(.screen)
-
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
