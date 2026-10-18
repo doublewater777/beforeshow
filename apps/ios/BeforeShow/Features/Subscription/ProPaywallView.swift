@@ -74,6 +74,7 @@ struct ProPaywallView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, showsCloseButton ? 8 : BSSpacing.lg)
                 .padding(.bottom, 26)
+                .bsAdaptiveContentWidth()
             }
             .scrollIndicators(.hidden)
 
