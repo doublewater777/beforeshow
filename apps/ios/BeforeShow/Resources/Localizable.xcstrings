@@ -2972,18 +2972,18 @@
         }
       }
     },
-    "之后还有" : {
+    "还有" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "There will be more after that"
+            "value" : "You have"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "之后还有"
+            "value" : "還有"
           }
         }
       }
