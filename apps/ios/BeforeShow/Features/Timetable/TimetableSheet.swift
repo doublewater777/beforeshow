@@ -541,7 +541,7 @@ struct TimetableSheet: View {
 
     private func avatarURL(for performance: TimetablePerformance) -> URL? {
         if performance.appleMusicArtistID != nil {
-            return performance.artistAvatarURL.flatMap(URL.init(string:))
+            return ArtistAvatarResolver.shared.displayURL(for: performance)
         }
         return avatars.url(for: performance.artistName)
     }

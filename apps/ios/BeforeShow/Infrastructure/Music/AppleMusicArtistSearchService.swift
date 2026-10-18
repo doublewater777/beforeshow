@@ -179,6 +179,10 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         do {
             if !hasCountryOverride {
                 catalogResults = try await catalogSearch(trimmed, limit, exactMatchRequired)
+                let officialPhotos = catalogResults.filter(\.isOfficialArtistPhoto)
+                if !officialPhotos.isEmpty {
+                    await MainActor.run { officialPhotos.forEach(ArtistAvatarResolver.shared.record) }
+                }
             }
             try Task.checkCancellation()
             if Self.containsMatch(catalogResults, query: trimmed, exactMatchRequired: exactMatchRequired) {
@@ -269,7 +273,8 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             id: artist.id.rawValue,
             canonicalName: artist.name,
             avatarURL: artist.artwork?.url(width: 240, height: 240),
-            appleMusicURL: artist.url
+            appleMusicURL: artist.url,
+            isOfficialArtistPhoto: artist.artwork != nil
         )
     }
 
@@ -348,7 +353,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             artists.append(RecognizedArtist(
                 id: String(song.artistId),
                 canonicalName: song.artistName,
-                avatarURL: upgradedArtworkURL(song.artworkUrl100, size: 240),
+                avatarURL: nil,
                 appleMusicURL: song.artistViewUrl.flatMap(URL.init(string:))
             ))
             if artists.count == limit { break }

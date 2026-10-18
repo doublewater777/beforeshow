@@ -149,6 +149,7 @@ struct LiveActivityShowResolver {
 }
 
 extension WidgetShowSnapshot {
+    @MainActor
     init(show: Show, generatedAt: Date) {
         let timetableSnapshot: WidgetTimetableSnapshot?
         if let timetable = show.lifecycleTimetable {
@@ -163,7 +164,7 @@ extension WidgetShowSnapshot {
                             startsAt: p.startsAt,
                             endsAt: p.endsAt,
                             isInterested: p.isInterested,
-                            artistImageURL: p.artistAvatarURL
+                            artistImageURL: ArtistAvatarResolver.shared.displayURL(for: p)?.absoluteString
                         )
                     }
                 }

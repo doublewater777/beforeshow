@@ -114,7 +114,7 @@ struct HomeLiveModeView: View {
                         .stroke(BSColor.Stage.live, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .shadow(color: BSColor.Stage.live.opacity(0.7), radius: 6)
-                    TimetableArtistAvatar(name: lead.artistName, url: avatars.url(for: lead.artistName), size: 76)
+                    TimetableArtistAvatar(name: lead.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: lead.id, in: timetable, unlinked: avatars.url(for: lead.artistName)), size: 76)
                 }
                 .frame(width: 92, height: 92)
                 VStack(alignment: .leading, spacing: 8) {
@@ -183,7 +183,7 @@ struct HomeLiveModeView: View {
         let color = HomeLiveStyle.stageColor(stageOrder[perf.stageID] ?? 0)
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
-                TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 40)
+                TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 40)
                 Spacer()
                 TimetableEqualizer()
             }
@@ -237,7 +237,7 @@ struct HomeLiveModeView: View {
                             Rectangle().fill(BSColor.Stage.accent.opacity(0.25)).frame(width: 1)
                         }
                         VStack(alignment: .leading, spacing: 8) {
-                            TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 48)
+                            TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 48)
                             Text(perf.artistName)
                                 .font(.system(size: 19, weight: .heavy))
                                 .foregroundStyle(BSColor.Stage.foreground)
@@ -271,7 +271,7 @@ struct HomeLiveModeView: View {
             }
             if let opener {
                 HStack(spacing: 10) {
-                    TimetableArtistAvatar(name: opener.artistName, url: avatars.url(for: opener.artistName), size: 34)
+                    TimetableArtistAvatar(name: opener.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: opener.id, in: timetable, unlinked: avatars.url(for: opener.artistName)), size: 34)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(opener.artistName)
                             .font(.system(size: 15, weight: .bold))
@@ -367,7 +367,7 @@ struct HomeLiveModeView: View {
                 .font(.system(size: 13, design: .monospaced))
                 .foregroundStyle(BSColor.Stage.foreground.opacity(0.8))
                 .frame(width: 46, alignment: .leading)
-            TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 32)
+            TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 32)
             Text(perf.artistName)
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(BSColor.Stage.foreground)
@@ -481,7 +481,7 @@ struct HomeLiveModeView: View {
             Spacer(minLength: 0)
             HStack(spacing: 6) {
                 ForEach(picks.prefix(shown)) { perf in
-                    TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 34)
+                    TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 34)
                 }
                 if picks.count > shown {
                     Text("+\(picks.count - shown)")
@@ -532,7 +532,7 @@ struct HomeLiveModeView: View {
                             .font(.system(size: 13, design: .monospaced))
                             .foregroundStyle(BSColor.Stage.foreground.opacity(0.8))
                             .frame(width: 46, alignment: .leading)
-                        TimetableArtistAvatar(name: perf.artistName, url: avatars.url(for: perf.artistName), size: 32)
+                        TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 32)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(perf.artistName)
                                 .font(.system(size: 15, weight: .bold))
