@@ -42,7 +42,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
         }
     }
 
-    func phaseText(for snapshot: CompanionInviteSnapshot? = nil) -> String {
+    func phaseText(for snapshot: CompanionInviteSnapshot? = nil, now: Date = Date()) -> String {
         switch self {
         case .beforeShow: return BSLocalization.text("倒数")
         case .listening: return BSLocalization.text("听")
@@ -50,7 +50,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
         case .afterShow: return BSLocalization.text("散场以后")
         case .start:
             if let snapshot {
-                let isPast = snapshot.showStartTime < Date()
+                let isPast = snapshot.showStartTime < now
                 return isPast
                     ? BSLocalization.text("共同记忆")
                     : BSLocalization.text("同行约定")
@@ -61,7 +61,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
 
     var phaseText: String { phaseText(for: nil) }
 
-    func title(for snapshot: CompanionInviteSnapshot? = nil) -> String {
+    func title(for snapshot: CompanionInviteSnapshot? = nil, now: Date = Date()) -> String {
         switch self {
         case .beforeShow: return BSLocalization.text("不用打开，也在靠近")
         case .listening: return BSLocalization.text("把歌听熟，把期待留给现场")
@@ -69,7 +69,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
         case .afterShow: return BSLocalization.text("把这一晚，轻轻留住")
         case .start:
             if let snapshot {
-                let isPast = snapshot.showStartTime < Date()
+                let isPast = snapshot.showStartTime < now
                 return isPast
                     ? BSLocalization.text("记录这场共同回忆")
                     : BSLocalization.text("一起去现场")
@@ -80,7 +80,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
 
     var title: String { title(for: nil) }
 
-    func bodyText(for snapshot: CompanionInviteSnapshot? = nil) -> String {
+    func bodyText(for snapshot: CompanionInviteSnapshot? = nil, now: Date = Date()) -> String {
         switch self {
         case .listening:
             return BSLocalization.text("从唱片柜选一张 CD，把演出的歌提前听熟。")
@@ -92,7 +92,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
             return BSLocalization.text("照片、视频和小记收在一起，散场时用一个表情收尾。")
         case .start:
             if let snapshot {
-                let isPast = snapshot.showStartTime < Date()
+                let isPast = snapshot.showStartTime < now
                 if isPast {
                     return BSLocalization.format(
                         "加入这场现场，和 %@ 一起收录当晚的照片、视频和小记，留住共同的现场记忆。",
