@@ -63,9 +63,9 @@ struct LiveActivityContent {
             )
         }
 
-        let isEnded = state.hasEnded(isStale: isStale, now: now)
+        let standardPhase = state.standardPhase(at: now, isStale: isStale)
 
-        if isEnded {
+        if standardPhase == .ended {
             mode = .ended
             kicker = BSLocalization.text("已散场")
             caption = nil
@@ -106,9 +106,9 @@ struct LiveActivityContent {
             progress = nil
             next = nil
             lineup = (state.nextArtistImageFilename, state.nextStageName, nil)
-        } else if isLive {
+        } else if standardPhase == .live {
             mode = .started
-            kicker = BSLocalization.text("现场计时")
+            kicker = BSLocalization.text("正在现场")
             caption = BSLocalization.text("已开场")
             title = state.showName
             subtitle = state.endDate.map { BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar)) }
@@ -119,7 +119,7 @@ struct LiveActivityContent {
             next = nil
         } else {
             mode = .pre
-            kicker = BSLocalization.text("现场计时")
+            kicker = BSLocalization.text("距离开场")
             caption = nil
             title = state.showName
             let opening = BSLocalization.format("%@ 开场", clock(state.startDate))
@@ -134,7 +134,7 @@ struct LiveActivityContent {
         }
     }
 
-    var showsWave: Bool { mode == .set }
+    var showsWave: Bool { mode == .set || mode == .started }
 
     var nextStartText: String?
 
@@ -152,9 +152,9 @@ struct LiveActivityContent {
 
     var kickerColor: Color {
         switch mode {
-        case .set: WidgetTheme.liveTitle
+        case .set, .started: WidgetTheme.liveTitle
         case .between: WidgetTheme.accent
-        case .pre, .started, .ended: WidgetTheme.muted
+        case .pre, .ended: WidgetTheme.muted
         }
     }
 
@@ -178,7 +178,8 @@ enum LiveActivityCopy {
 }
 
 // MARK: - 计时文本
-// Text(timerInterval:) 由系统时间驱动，在开场前保持零，散场后停止累计。
+// 等待开场时按目标日期倒计时；开场后用有结束边界的系统正计时。
+// 数字由系统驱动；完整状态文案的跨边界切换仍取决于 ActivityKit 重新渲染。
 
 struct LiveActivityTimerText: View {
     let content: LiveActivityContent
@@ -186,7 +187,13 @@ struct LiveActivityTimerText: View {
     var alignment: TextAlignment = .trailing
 
     var body: some View {
-        Text(timerInterval: content.timerInterval, countsDown: false)
+        Group {
+            if content.mode == .pre || content.mode == .between {
+                Text(content.timerInterval.lowerBound, style: .timer)
+            } else {
+                Text(timerInterval: content.timerInterval, countsDown: false)
+            }
+        }
             .font(.system(size: fontSize, weight: .semibold))
             .foregroundStyle(content.timerColor)
             .monospacedDigit()
