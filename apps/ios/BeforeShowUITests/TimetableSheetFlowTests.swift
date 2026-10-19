@@ -2,9 +2,9 @@ import XCTest
 
 @MainActor
 final class TimetableSheetFlowTests: XCTestCase {
-    private func launchTimetable() -> XCUIApplication {
+    private func launchTimetable(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [
+        app.launchArguments = extraArguments + [
             "--seed-timetable-live", "-has_completed_feature_onboarding_v1", "YES",
             "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"
         ]
@@ -71,6 +71,33 @@ final class TimetableSheetFlowTests: XCTestCase {
         // One card exposes several buttons (card, preview, want); compare with an existing single card.
         let reference = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "NewJeans")).count
         XCTAssertEqual(cards.count, reference, "A double tap must not insert two performances")
+    }
+
+    func testCardControlsStayInsideNarrowThreeStageLanes() throws {
+        continueAfterFailure = false
+        let app = launchTimetable(extraArguments: ["--seed-timetable-stages=3"])
+        attachScreenshot("three-stages", app)
+
+        for artist in ["惘闻", "NewJeans", "万能青年旅店"] {
+            // A card exposes the card button plus its preview and want controls under the artist's label.
+            let buttons = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", artist)).allElementsBoundByIndex
+            let card = try XCTUnwrap(buttons.max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
+            let controls = buttons.filter { $0.frame != card.frame }
+            XCTAssertFalse(controls.isEmpty, "\(artist) shows its controls")
+            for control in controls {
+                XCTAssertGreaterThanOrEqual(control.frame.minX, card.frame.minX - 0.5, "\(artist) control starts inside its card")
+                XCTAssertLessThanOrEqual(control.frame.maxX, card.frame.maxX + 0.5, "\(artist) control ends inside its card")
+            }
+        }
+
+        // The want control on the narrow lane still toggles.
+        let buttons = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "惘闻")).allElementsBoundByIndex
+        let card = try XCTUnwrap(buttons.max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
+        let heart = try XCTUnwrap(buttons.filter { $0.frame != card.frame }.max { $0.frame.maxX < $1.frame.maxX })
+        XCTAssertFalse(card.isSelected)
+        heart.tap()
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: card)
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 3), .completed, "Tapping the narrow-lane heart adds it to want")
     }
 
     private func attachScreenshot(_ name: String, _ app: XCUIApplication) {

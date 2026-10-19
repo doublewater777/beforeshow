@@ -203,16 +203,10 @@ struct TimetableMatrixCard: View, Equatable {
         let controlSize = compactControls ? TimetableStyle.MatrixCard.compactControlSize : TimetableStyle.MatrixCard.controlSize
         return VStack(alignment: .leading, spacing: 0) {
             // 顶部操作区：左侧头像 + 紧跟播放按钮，右侧固定贴齐爱心，整体垂直居中
-            HStack(alignment: .center, spacing: 0) {
-                HStack(alignment: .center, spacing: compactControls ? TimetableStyle.MatrixCard.compactActionSpacing : TimetableStyle.MatrixCard.actionSpacing) {
-                    TimetableArtistAvatar(name: card.artistName, url: avatarURL, size: avatarSize)
-                        .allowsHitTesting(false)
-                    playPreviewButton(size: controlSize)
-                }
-
-                Spacer(minLength: 4)
-
-                heartButton(size: controlSize)
+            // 窄舞台列放不下时先让出头像，爱心始终留在卡片内。
+            ViewThatFits(in: .horizontal) {
+                controlsRow(avatarSize: avatarSize, controlSize: controlSize, compact: compactControls, showsAvatar: true)
+                controlsRow(avatarSize: avatarSize, controlSize: controlSize, compact: compactControls, showsAvatar: false)
             }
             .frame(height: max(avatarSize, controlSize))
 
@@ -230,13 +224,27 @@ struct TimetableMatrixCard: View, Equatable {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+    private func controlsRow(avatarSize: CGFloat, controlSize: CGFloat, compact: Bool, showsAvatar: Bool) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: compact ? TimetableStyle.MatrixCard.compactActionSpacing : TimetableStyle.MatrixCard.actionSpacing) {
+                if showsAvatar {
+                    TimetableArtistAvatar(name: card.artistName, url: avatarURL, size: avatarSize)
+                        .allowsHitTesting(false)
+                }
+                playPreviewButton(size: controlSize)
+            }
+
+            Spacer(minLength: 4)
+
+            heartButton(size: controlSize)
+        }
+    }
+
     private func heartButton(size: CGFloat) -> some View {
-        let hitTarget = max(36.0, size + 10)
-        return Button(action: onToggle) {
+        Button(action: onToggle) {
             heartIcon
                 .frame(width: size, height: size, alignment: .trailing)
-                .frame(width: hitTarget, height: hitTarget, alignment: .trailing)
-                .contentShape(Rectangle())
+                .timetableHitTarget(visualSize: size, minimum: max(36.0, size + 10))
         }
         .buttonStyle(TimetableHeartButtonStyle())
         .accessibilityLabel(BSLocalization.text(card.isInterested ? "取消想看" : "想看"))
@@ -302,6 +310,17 @@ struct TimetableMatrixCard: View, Equatable {
             .font(TimetableStyle.mono(11, weight: .medium))
             .lineLimit(1)
             .minimumScaleFactor(0.85)
+    }
+}
+
+extension View {
+    /// Grows the tappable area to `minimum` without taking layout space, so narrow
+    /// stage lanes size the row by what is drawn.
+    func timetableHitTarget(visualSize: CGFloat, minimum: CGFloat) -> some View {
+        let outset = max(0, (minimum - visualSize) / 2)
+        return padding(outset)
+            .contentShape(Rectangle())
+            .padding(-outset)
     }
 }
 
@@ -442,8 +461,8 @@ private struct TimetablePreviewPlayButton: View {
                         .offset(x: 0.5)
                 }
             }
-            .frame(width: hitTarget, height: hitTarget)
-            .contentShape(Rectangle())
+            .frame(width: size, height: size)
+            .timetableHitTarget(visualSize: size, minimum: hitTarget)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(BSLocalization.text(isPlaying ? "暂停试听" : "试听"))
