@@ -51,15 +51,6 @@ extension View {
     }
 
     @ViewBuilder
-    func bsSearchFocused(_ isFocused: FocusState<Bool>.Binding) -> some View {
-        if #available(iOS 18, *) {
-            searchFocused(isFocused)
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
     func bsBottomBar<Bar: View>(@ViewBuilder content: () -> Bar) -> some View {
         if #available(iOS 26, *) {
             safeAreaBar(edge: .bottom, spacing: 0, content: content)

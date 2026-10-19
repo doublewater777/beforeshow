@@ -21,9 +21,8 @@ final class TextInputFocusTests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: field)
         XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 5), .completed)
-        if !app.keyboards.firstMatch.waitForExistence(timeout: 2) {
-            field.tap()
-        }
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2), "Search opens on the list, not the keyboard")
+        field.tap()
 
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Keyboard must appear by the first tap")
         field.typeText("落日")

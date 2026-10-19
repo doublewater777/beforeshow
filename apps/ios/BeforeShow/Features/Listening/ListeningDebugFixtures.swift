@@ -4,7 +4,7 @@ import SwiftData
 
 enum ListeningFixtureScenario: String, CaseIterable {
     case artistLibrary = "artist-library", artistSearchFailure = "artist-search-failure"
-    case noCurrent = "no-current", singleFull = "single-full", multiFull = "multi-full"
+    case noCurrent = "no-current", singleFull = "single-full", multiFull = "multi-full", unmatchedArtist = "unmatched-artist"
     case festival = "festival", fifteen = "fifteen", manyDiscs = "many-discs", emptyAlbums = "empty-albums"
     case previewOnly = "preview-only", metadataOnly = "metadata-only", cachedError = "cached-error", endedCurrent = "ended-current"
     case coldLoading = "cold-loading", authorizationFlow = "authorization-flow"
@@ -110,10 +110,11 @@ enum ListeningFixtureScenario: String, CaseIterable {
             show.coverImageURL = seedArgs[seedIndex + 1]
         }
         let names = ["Aimer", "YOASOBI", "宇多田ヒカル", "RADWIMPS", "米津玄師", "椎名林檎", "King Gnu", "藤井風", "Official髭男dism", "Vaundy", "あいみょん", "Mrs. GREEN APPLE", "ずっと真夜中でいいのに。", "羊文学", "ヨルシカ"]
-        let count = scenario == .fifteen || scenario == .manyDiscs ? 15 : scenario == .festival ? 8 : scenario == .multiFull || scenario == .coldProgressive ? 2 : 1
-        let artistNames = scenario == .multiFull ? ["夜航", "海岸"] : Array(names.prefix(count))
+        let count = scenario == .fifteen || scenario == .manyDiscs ? 15 : scenario == .festival ? 8 : scenario == .multiFull || scenario == .unmatchedArtist || scenario == .coldProgressive ? 2 : 1
+        let artistNames = scenario == .multiFull ? ["夜航", "海岸"] : scenario == .unmatchedArtist ? ["夜航", "Coast"] : Array(names.prefix(count))
         show.artists = artistNames.enumerated().map { index, name in
-            ArtistSlot(name: name, avatarURL: nil, appleMusicArtistID: scenario == .multiFull ? nil : "fixture-artist-\(index)")
+            let unlinked = scenario == .multiFull || (scenario == .unmatchedArtist && index == 1)
+            return ArtistSlot(name: name, avatarURL: nil, appleMusicArtistID: unlinked ? nil : "fixture-artist-\(index)")
         }
         context.insert(show)
         context.insert(CurrentShowSelection(selectedShowID: show.id))
@@ -152,8 +153,10 @@ struct ListeningFixtureArtistSearch: ArtistSearchServicing {
     var fails = false
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         if fails { throw URLError(.notConnectedToInternet) }
-        guard let index = ["夜航", "海岸"].firstIndex(of: query) else { return [] }
-        return [RecognizedArtist(id: "fixture-artist-\(index)", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+        // "Coast" finds 海岸 only by manual search: the names differ, so automatic matching leaves it unlinked.
+        let names = ["夜航", "海岸"]
+        guard let index = names.firstIndex(of: query) ?? (query == "Coast" ? 1 : nil) else { return [] }
+        return [RecognizedArtist(id: "fixture-artist-\(index)", canonicalName: names[index], avatarURL: nil, appleMusicURL: nil)]
     }
 }
 
