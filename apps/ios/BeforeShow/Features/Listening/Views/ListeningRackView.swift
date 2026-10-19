@@ -39,8 +39,14 @@ struct ListeningRackView: View {
         groups.firstIndex { $0.id == expandedGroupID }
     }
 
+    /// A single-artist show lays every disc on the row; there is nothing to unfold.
+    private var flatArtist: ListeningRackGroup? {
+        let artists = groups.filter { if case .artist = $0.kind { true } else { false } }
+        return artists.count == 1 ? artists[0] : nil
+    }
+
     private func showsPlaceholders(_ group: ListeningRackGroup) -> Bool {
-        group.id == expandedGroupID && group.catalogStatus == .loading && group.discs.count <= 1
+        (group.id == expandedGroupID || group.id == flatArtist?.id) && group.catalogStatus == .loading && group.discs.count <= 1
     }
 
     /// Every case that could be on screen; ids are positional so a blank case turns into the album that fills it.
@@ -57,6 +63,9 @@ struct ListeningRackView: View {
 
     /// The row in view: one head per group, or the open group's discs.
     private func row(_ entries: [Entry]) -> [Entry] {
+        if flatArtist != nil {
+            return entries.filter { !$0.isPlaceholder || placeholderGroupID == $0.group.id }
+        }
         guard let open = openIndex else { return entries.filter { $0.index == 0 } }
         return entries.filter { $0.groupIndex == open && (!$0.isPlaceholder || placeholderGroupID == expandedGroupID) }
     }
@@ -82,7 +91,7 @@ struct ListeningRackView: View {
 
     private func title(_ entry: Entry) -> String {
         guard !entry.isPlaceholder else { return "" }
-        return openIndex == nil ? entry.group.name : entry.disc?.title ?? entry.group.name
+        return openIndex == nil && flatArtist == nil ? entry.group.name : entry.disc?.title ?? entry.group.name
     }
 
     private func pose(_ entry: Entry, row: [Entry], focus c: Int, discOut: Bool) -> ListeningRackPose {
@@ -214,9 +223,12 @@ struct ListeningRackView: View {
             withAnimation(reduceMotion ? nil : L.motion.delay(L.discDelay)) { revealedID = id }
         }
         .task(id: focusedID) { await prefetch(focused) }
-        .task(id: expandedGroupID) {
+        .task(id: expandedGroupID ?? flatArtist?.id) {
             placeholderGroupID = nil
-            guard let id = expandedGroupID else { return }
+            if let flatArtist, flatArtist.isConnectedArtist, case let .artist(id, _, _) = flatArtist.kind {
+                room.loadArtistCatalogIfNeeded(id)
+            }
+            guard let id = expandedGroupID ?? flatArtist?.id else { return }
             try? await Task.sleep(for: L.placeholderDelay)
             guard !Task.isCancelled else { return }
             withAnimation(reduceMotion ? nil : L.motion) { placeholderGroupID = id }
@@ -242,16 +254,17 @@ struct ListeningRackView: View {
     private func plate(for entry: Entry, row: [Entry], focus c: Int) -> some View {
         let group = entry.group
         let expanded = openIndex != nil
+        let showsCatalogStatus = expanded || group.id == flatArtist?.id
         let scrubbing = scrubOrigin != nil
         return HStack(spacing: 6) {
             if expanded { chevron("chevron.left") }
             Text(group.name).lineLimit(1)
-            if !expanded, group.canExpand { chevron("chevron.right") }
+            if !expanded, flatArtist == nil, group.canExpand { chevron("chevron.right") }
             if case .artist(_, _, false) = group.kind { chevron("link") }
-            if expanded, group.catalogStatus == .loading {
+            if showsCatalogStatus, group.catalogStatus == .loading {
                 ProgressView().controlSize(.mini).tint(BSColor.Stage.accent)
             }
-            if expanded, group.catalogStatus == .failed, case let .artist(id, _, _) = group.kind {
+            if showsCatalogStatus, group.catalogStatus == .failed, case let .artist(id, _, _) = group.kind {
                 Button {
                     room.retryArtistCatalog(id)
                 } label: {
@@ -309,7 +322,7 @@ struct ListeningRackView: View {
             onConnect(slotIndex, group.name)
             return
         }
-        guard group.canExpand else { return }
+        guard flatArtist == nil, group.canExpand else { return }
         withAnimation(reduceMotion ? nil : L.motion) {
             expandedGroupID = group.id
             focusedID = "\(group.id)#0"

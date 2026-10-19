@@ -107,3 +107,22 @@ import UIKit
         add(attachment)
     }
 }
+
+@MainActor
+final class ListeningRackFlatTests: XCTestCase {
+    func testSingleArtistShowLaysEveryDiscOnTheRow() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--listen-fixture", "artist-library", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let rack = app.staticTexts.matching(identifier: "listening.rack")
+        XCTAssertTrue(rack.firstMatch.waitForExistence(timeout: 20))
+        let album = rack.matching(NSPredicate(format: "label CONTAINS %@", "Album")).firstMatch
+        XCTAssertTrue(album.waitForExistence(timeout: 10), "One artist's albums stand on the row without unfolding the plate")
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "listening-rack-flat"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
