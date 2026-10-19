@@ -79,7 +79,6 @@ struct FootprintSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var filter: FootprintSearchFilter = .all
-    @FocusState private var isSearchFocused: Bool
 
     private var chips: [FootprintSearchFilter] {
         FootprintSearchMatcher.filterChips(for: archive)
@@ -112,8 +111,6 @@ struct FootprintSearchSheet: View {
                 text: $query,
                 prompt: Text(BSLocalization.text("搜索足迹"))
             )
-            .bsSearchFocused($isSearchFocused)
-            .onAppear { isSearchFocused = true }
             // 结果 push 进足迹详情，返回时保留关键词（系统搜索模式）。
             .navigationDestination(for: Show.self) { show in
                 FootprintDetailView(show: show, archive: archive)

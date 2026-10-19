@@ -4,6 +4,8 @@ struct ListeningArtistMatchSheet: View {
     @Bindable var room: ListeningRoomCoordinator
     let slotIndex: Int
     @State var query: String
+    /// 从听搜索 push 进来时沿用外层导航栈，返回键代替取消。
+    var isPushed = false
     @State private var candidates: [RecognizedArtist] = []
     @State private var selected: RecognizedArtist?
     @State private var searching = true
@@ -19,55 +21,61 @@ struct ListeningArtistMatchSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                    VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                        Text(sourceName)
-                            .font(BSListeningTokens.detailTitle)
-                            .foregroundStyle(BSColor.Stage.foreground)
-                        Text(ListeningCopy.text("选择对应的 Apple Music 艺人"))
-                            .font(BSListeningTokens.caption)
-                            .foregroundStyle(BSColor.Stage.muted)
-                    }
-                    .padding(.top, BSSpacing.md)
-                    searchBar
-                    if let error = room.errorText {
-                        Text(error)
-                            .font(BSListeningTokens.caption)
-                            .foregroundStyle(BSColor.Stage.danger)
-                    }
-                    results
-                }
-                .padding(.horizontal, BSSpacing.roomy)
-                .padding(.bottom, BSSpacing.xl)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .disabled(confirming)
-            .background(ListeningSheetBackground())
-            .safeAreaInset(edge: .bottom) {
-                Button(action: confirmSelection) {
-                    if confirming {
-                        ProgressView().tint(BSListeningTokens.ink)
-                    } else {
-                        Label(BSLocalization.text("连接艺人"), systemImage: "link")
-                            .lineLimit(1)
-                    }
-                }
-                .buttonStyle(BSListeningActionStyle())
-                .disabled(selected == nil || confirming || searching)
-                .accessibilityIdentifier("listening.confirmArtist")
-                .padding(BSSpacing.roomy)
-                .background(BSColor.Stage.background)
-            }
-            .navigationTitle(BSLocalization.text("连接艺人"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("取消")) { dismiss() }
-            }
-            .task(id: "\(ArtistNameMatching.normalized(query))|\(searchAttempt)") { await search() }
+        Group {
+            if isPushed { content } else { NavigationStack { content } }
         }
         .tint(BSColor.Stage.foreground)
+    }
+
+    private var content: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                    Text(sourceName)
+                        .font(BSListeningTokens.detailTitle)
+                        .foregroundStyle(BSColor.Stage.foreground)
+                    Text(ListeningCopy.text("选择对应的 Apple Music 艺人"))
+                        .font(BSListeningTokens.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                }
+                .padding(.top, BSSpacing.md)
+                searchBar
+                if let error = room.errorText {
+                    Text(error)
+                        .font(BSListeningTokens.caption)
+                        .foregroundStyle(BSColor.Stage.danger)
+                }
+                results
+            }
+            .padding(.horizontal, BSSpacing.roomy)
+            .padding(.bottom, BSSpacing.xl)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .disabled(confirming)
+        .background(ListeningSheetBackground())
+        .safeAreaInset(edge: .bottom) {
+            Button(action: confirmSelection) {
+                if confirming {
+                    ProgressView().tint(BSListeningTokens.ink)
+                } else {
+                    Label(BSLocalization.text("连接艺人"), systemImage: "link")
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(BSListeningActionStyle())
+            .disabled(selected == nil || confirming || searching)
+            .accessibilityIdentifier("listening.confirmArtist")
+            .padding(BSSpacing.roomy)
+            .background(BSColor.Stage.background)
+        }
+        .navigationTitle(BSLocalization.text("连接艺人"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !isPushed {
+                BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("取消")) { dismiss() }
+            }
+        }
+        .task(id: "\(ArtistNameMatching.normalized(query))|\(searchAttempt)") { await search() }
     }
 
     @ViewBuilder
