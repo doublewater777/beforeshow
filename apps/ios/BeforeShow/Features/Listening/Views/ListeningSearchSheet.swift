@@ -6,7 +6,6 @@ struct ListeningSearchSheet: View {
     @Bindable var room: ListeningRoomCoordinator
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
-    @FocusState private var isSearchFocused: Bool
 
     private var results: (discs: [ListeningSearchResult], tracks: [ListeningSearchResult]) {
         ListeningSearch.results(for: query, in: room.discs)
@@ -43,8 +42,6 @@ struct ListeningSearchSheet: View {
                 BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("关闭")) { dismiss() }
             }
             .searchable(text: $query, prompt: Text(BSLocalization.text("唱片、艺人或歌名")))
-            .bsSearchFocused($isSearchFocused)
-            .onAppear { isSearchFocused = true }
             .navigationDestination(for: String.self) { resultID in
                 if let result = destination(for: resultID) {
                     ListeningDiscDetailView(

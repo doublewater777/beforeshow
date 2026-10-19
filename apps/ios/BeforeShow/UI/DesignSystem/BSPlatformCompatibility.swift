@@ -51,15 +51,6 @@ extension View {
     }
 
     @ViewBuilder
-    func bsSearchFocused(_ isFocused: FocusState<Bool>.Binding) -> some View {
-        if #available(iOS 18, *) {
-            searchFocused(isFocused)
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
     func bsSwipeActionsContainer() -> some View {
         if #available(iOS 27, *) {
             swipeActionsContainer()

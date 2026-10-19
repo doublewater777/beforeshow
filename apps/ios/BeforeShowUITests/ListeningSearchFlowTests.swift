@@ -14,8 +14,9 @@ final class ListeningSearchFlowTests: XCTestCase {
 
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
-        if !app.keyboards.firstMatch.waitForExistence(timeout: 2) { field.tap() }
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Search opens focused")
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2), "Search opens on the list, not the keyboard")
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         field.typeText("最后一班车")
 
         let result = app.buttons.matching(identifier: "listening.search.result").firstMatch
