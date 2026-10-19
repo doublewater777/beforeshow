@@ -69,7 +69,14 @@ enum TimetableDebugSeeder {
         let stage2 = try! TimetableStage(name: n("爱舞台", "星光舞台"), sortOrder: 1, performances: [p2, p4])
         // Day 1 is the date its earliest set starts on, so seeding after midnight still validates.
         let day1Date = calendar.startOfDay(for: [p1, p2, p3, p4, p5].map(\.startsAt).min()!)
-        let day1 = try! TimetableDay(date: day1Date, stages: [stage1, stage2])
+        // `--seed-timetable-stages=3` adds a third stage, where lanes are narrowest.
+        var day1Stages = [stage1, stage2]
+        if intArgument("--seed-timetable-stages") == 3 {
+            let p6 = try! TimetablePerformance(artistName: n("惘闻 Wang Wen", "回声 Echo"),
+                                               startsAt: now.addingTimeInterval(-20 * 60), endsAt: now.addingTimeInterval(60 * 60))
+            day1Stages.append(try! TimetableStage(name: n("森林舞台", "森林舞台"), sortOrder: 2, performances: [p6]))
+        }
+        let day1 = try! TimetableDay(date: day1Date, stages: day1Stages)
 
         // Day 2 (Tomorrow)
         let tomorrow = calendar.date(byAdding: .day, value: 1 + gap, to: day1Date)!
