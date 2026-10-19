@@ -52,7 +52,12 @@ struct CurrentShowFollowUpSummary: View {
                         onSetCurrent(show)
                     }
                 ) {
-                    followUpLink(show)
+                    NavigationLink {
+                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                    } label: {
+                        followUpRow(show)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -77,16 +82,6 @@ struct CurrentShowFollowUpSummary: View {
                 .buttonStyle(.plain)
             }
         }
-        .bsSwipeActionsContainer()
-    }
-
-    private func followUpLink(_ show: Show) -> some View {
-        NavigationLink {
-            ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-        } label: {
-            followUpRow(show)
-        }
-        .buttonStyle(.plain)
     }
 
     private func followUpRow(_ show: Show) -> some View {

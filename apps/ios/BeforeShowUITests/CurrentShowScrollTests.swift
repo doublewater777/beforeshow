@@ -1,7 +1,7 @@
 import XCTest
 
 @MainActor final class CurrentShowScrollTests: XCTestCase {
-    func testFollowUpRowAllowsVerticalScrollingAndHorizontalReveal() {
+    func testFollowUpRowAllowsVerticalScrollingAndHorizontalReveal() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--seed-app-store-screenshots", "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
@@ -24,25 +24,13 @@ import XCTest
             if row.isHittable && row.frame.midY < app.windows.firstMatch.frame.height - 130 { break }
             scroll.swipeUp()
         }
-        // iOS 27 native swipe actions label the button "设为当前、设为当前" (icon + title).
-        let pin = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "设为当前")).firstMatch
+        let pin = app.buttons["设为当前"]
         row.swipeLeft()
         XCTAssertTrue(pin.waitForExistence(timeout: 3), "Horizontal swipes must still reveal the pin action")
-        // iOS 27 native swipe actions: a tap outside the row dismisses without navigating.
-        // The iOS 17 fallback row only closes on a tap of the row (unchanged behaviour).
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
-            app.staticTexts["还有"].tap()
-            XCTAssertFalse(pin.isHittable)
-            XCTAssertFalse(app.navigationBars["现场详情"].exists)
-            row.swipeLeft()
-            XCTAssertTrue(pin.waitForExistence(timeout: 3))
-        }
-        row.swipeRight()
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
-            XCTAssertFalse(pin.isHittable) // iOS 17 fallback ignores a right swipe: #350
-        } else {
-            row.tap() // the iOS 17 fallback closes on a tap of the row
-        }
+        // A tap on the open row closes it without navigating.
+        row.tap()
+        XCTAssertFalse(pin.isHittable)
+        XCTAssertFalse(app.navigationBars["现场详情"].exists)
 
         // A plain tap still opens the show's detail.
         row.tap()
@@ -53,7 +41,9 @@ import XCTest
         // Setting it current moves it out of the follow-up list.
         row.swipeLeft()
         XCTAssertTrue(pin.waitForExistence(timeout: 3))
-        pin.tap()
+        // Every follow-up row carries its own pin button; tap the revealed one.
+        let pins = app.buttons.matching(NSPredicate(format: "label == %@", "设为当前")).allElementsBoundByIndex
+        try XCTUnwrap(pins.first { abs($0.frame.midY - row.frame.midY) < row.frame.height / 2 }).tap()
         let followUpRow = app.buttons.matching(NSPredicate(
             format: "label CONTAINS %@ AND label CONTAINS %@", "潮汐 Livehouse · 杭州站", "天后"
         )).firstMatch
