@@ -40,13 +40,13 @@ final class ProSubscriptionTests: XCTestCase {
         let store = MockProSubscriptionStore()
 
         let products = try await store.loadProducts()
-        let entitlement = try await store.purchase(productID: products[0].id)
+        let purchased = try await store.purchase(productID: products[0].id)
 
         XCTAssertEqual(
-            entitlement,
+            purchased.entitlement,
             .active(productID: ProSubscriptionCatalog.yearlyProductID, expirationDate: nil)
         )
-        XCTAssertTrue(entitlement.isProActive)
+        XCTAssertTrue(purchased.isProActive)
     }
 
     func testRestoreUsesAppStoreEntitlementWithoutBeforeShowAccount() async throws {
@@ -994,7 +994,7 @@ final class ProSubscriptionTests: XCTestCase {
         let purchased = try await store.purchase(productID: ProSubscriptionCatalog.lifetimeProductID)
 
         XCTAssertEqual(
-            purchased,
+            purchased.entitlement,
             .active(productID: ProSubscriptionCatalog.lifetimeProductID, expirationDate: nil)
         )
     }
@@ -1007,7 +1007,7 @@ final class ProSubscriptionTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            purchased,
+            purchased.entitlement,
             .active(productID: ProSubscriptionCatalog.lifetimeDiscountProductID, expirationDate: nil)
         )
         XCTAssertTrue(purchased.isProActive)
@@ -1025,7 +1025,7 @@ final class ProSubscriptionTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            purchased,
+            purchased.entitlement,
             .active(productID: ProSubscriptionCatalog.yearlyDiscountProductID, expirationDate: nil)
         )
     }

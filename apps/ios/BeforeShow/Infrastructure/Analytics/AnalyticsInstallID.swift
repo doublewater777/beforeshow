@@ -13,11 +13,18 @@ enum AnalyticsInstallID {
     private static let keychainAccount = "analytics-install-id"
 
     /// 读取；不存在时生成并持久化。返回值稳定。
-    static func current() -> String {
+    ///
+    /// 写入失败时返回 nil：宁可本次不 identify，也不把无法持久化的随机 UUID
+    /// 上报成 Person 身份——那会让同一装在不同启动周期被切成多个 Person，
+    /// 污染留存和漏斗。
+    static func current() -> String? {
         if let existing = read() { return existing }
         let generated = UUID().uuidString
-        write(generated)
-        return generated
+        let outcome = AnalyticsInstallIDResolution.resolve(
+            existing: nil,
+            writeStatus: write(generated) ? .succeeded(generated) : .failed
+        )
+        return outcome.identifiedID
     }
 
     private static func read() -> String? {
@@ -38,8 +45,9 @@ enum AnalyticsInstallID {
         return value
     }
 
-    private static func write(_ value: String) {
-        guard let data = value.data(using: .utf8) else { return }
+    /// 写入是否成功。并发竞争（已存在）按更新分支处理。
+    private static func write(_ value: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keychainAccount
@@ -52,7 +60,43 @@ enum AnalyticsInstallID {
             query.merging(attributes, uniquingKeysWith: { _, new in new }) as CFDictionary,
             nil
         )
-        guard status == errSecDuplicateItem else { return }
-        SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        switch status {
+        case errSecSuccess:
+            return true
+        case errSecDuplicateItem:
+            // 并发写入竞争：已有条目，转成更新即可。
+            return SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecSuccess
+        default:
+            return false
+        }
+    }
+}
+
+/// 匿名安装 ID 的一次性决策：读取 → 写入 → 决定上报身份。
+/// 纯函数，便于覆盖「Keychain 写入失败」等分支。
+enum AnalyticsInstallIDResolution {
+    enum KeychainWriteStatus: Equatable {
+        case succeeded(String)
+        case failed
+    }
+
+    struct Outcome: Equatable {
+        /// 最终上报的稳定身份；nil 表示本次没有可信身份，调用方不应 identify。
+        let identifiedID: String?
+        /// 待持久化的新值（已持久化或失败时为 nil）。
+        let valueToPersist: String?
+    }
+
+    static func resolve(existing: String?, writeStatus: KeychainWriteStatus) -> Outcome {
+        // 已持久化 ID 优先，空串等同缺失。
+        if let existing, !existing.isEmpty {
+            return Outcome(identifiedID: existing, valueToPersist: nil)
+        }
+        switch writeStatus {
+        case .succeeded(let generated):
+            return Outcome(identifiedID: generated, valueToPersist: nil)
+        case .failed:
+            return Outcome(identifiedID: nil, valueToPersist: nil)
+        }
     }
 }

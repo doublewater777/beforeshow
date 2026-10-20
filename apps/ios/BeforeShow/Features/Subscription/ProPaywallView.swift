@@ -19,6 +19,10 @@ struct ProPaywallView: View {
     @State private var isShowingOfferCodeRedemption = false
     @State private var paywallPresentedAt = Date()
     @State private var didTrackPaywallClosed = false
+    /// 已上报过营收的 transaction ID，防止同笔交易被重复计营收。
+    @State private var reportedRevenueTransactionIDs: Set<String> = []
+    /// 本次付费墙展示的实验分组快照：文案与曝光都读它，避免两处取值不一致。
+    @State private var winbackExperiment = WinbackCopyExperiment(variant: .control, isFlagResolved: false)
 
     private let store: any ProSubscriptionStore
     private let showsCloseButton: Bool
@@ -245,6 +249,7 @@ struct ProPaywallView: View {
     // MARK: - Winback presentation
 
     private var winbackContent: some View {
+        // 文案与曝光都读同一份快照，避免 flag 加载完成后界面与事件分组不一致。
         ProPaywallWinbackView(
             selectedPlan: selectedWinbackPlan,
             purchasingProductID: purchasingProductID,
@@ -252,6 +257,7 @@ struct ProPaywallView: View {
             priceAmount: priceAmount(for:),
             standardPriceAmount: standardPriceAmount(for:),
             ctaPrice: ctaPrice(for:),
+            saveLabel: { ProPaywallCopy.winbackSaveLabel($0, variant: winbackExperiment.variant) },
             onSelect: { selectedWinbackPlan = $0 },
             onPurchase: { plan in
                 Task {
@@ -305,10 +311,32 @@ struct ProPaywallView: View {
     /// PostHog 里能按 variant 对比付费墙转化。flag 未命中时不注册，事件不带该属性。
     @MainActor
     private func registerWinbackCopyExperiment() {
-        guard let variant = RemoteConfig.variantKey(RemoteConfig.FlagKey.winbackSaveCopyVariant) else { return }
+        // 一次取值固定成本次展示的分组，之后文案与事件都读这个快照。
+        winbackExperiment = WinbackCopyExperiment.resolve(
+            variantKey: RemoteConfig.variantKey(RemoteConfig.FlagKey.winbackSaveCopyVariant)
+        )
+        guard winbackExperiment.isFlagResolved else { return }
         PostHogSDK.shared.register([
-            "$feature/\(RemoteConfig.FlagKey.winbackSaveCopyVariant)": variant
+            "$feature/\(winbackExperiment.superPropertyKey)": winbackExperiment.superPropertyValue
         ])
+    }
+
+    /// 报一次 `$revenue`。同一笔交易只报一次；权益未真实激活、金额为零或
+    /// 只有 catalog 占位价时跳过（免费试用 / 恢复不产生现金收入）。
+    @MainActor
+    private func captureRevenueIfNeeded(
+        _ product: ProSubscriptionProduct?,
+        entitlement: ProEntitlementState,
+        previous: ProEntitlementState?,
+        transactionID: String?
+    ) {
+        guard RevenueEventPolicy.shouldCaptureRevenue(entitlement: entitlement, previous: previous),
+              let product,
+              let amount = RevenueEventPolicy.revenueAmount(product),
+              let currency = RevenueEventPolicy.revenueCurrency(product) else { return }
+        if let transactionID, reportedRevenueTransactionIDs.contains(transactionID) { return }
+        if let transactionID { reportedRevenueTransactionIDs.insert(transactionID) }
+        ProductAnalytics.captureRevenue(amount, currency: currency)
     }
 
     @MainActor
@@ -344,12 +372,18 @@ struct ProPaywallView: View {
         defer { purchasingProductID = nil }
 
         do {
-            let entitlement = try await store.purchase(productID: product.id)
+            let previous = entitlement
+            let outcome = try await store.purchase(productID: product.id)
+            let entitlement = outcome.entitlement
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
             ProductAnalytics.capture(.proPurchaseCompleted(plan: plan.rawValue))
-            if let amount = product.priceAmount, let currency = product.priceCurrency {
-                ProductAnalytics.captureRevenue(amount, currency: currency)
-            }
+            // 营收只按「真实成交」记：权益未激活、金额为零或只有占位价时跳过。
+            captureRevenueIfNeeded(
+                product,
+                entitlement: entitlement,
+                previous: previous,
+                transactionID: outcome.transactionID
+            )
             didPurchase = true
             message = BSLocalization.text("Pro 已启用。")
             withAnimation(.easeOut(duration: BSMotion.interface)) {

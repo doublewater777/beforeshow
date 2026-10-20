@@ -32,3 +32,41 @@ enum RemoteConfig {
         return result.enabled ? result.variant : nil
     }
 }
+
+/// 一次展示的实验分组快照（PR #357 review P2）。
+///
+/// 付费墙的文案与曝光事件必须来自同一次取值：flag 在首次请求返回前读不到，
+/// 若两处各自读取，界面可能在 flag 加载完成后重绘出新文案，而事件里记的仍是
+/// 旧的（或没有的）分组，导致实验数据与实际展示不一致。
+struct WinbackCopyExperiment: Equatable {
+    /// 本次展示采用的文案分支；读不到 flag 时按 control（线上已审文案）。
+    let variant: RemoteConfig.WinbackSaveCopyVariant
+    /// flag 是否真正命中。false 表示走的是默认回退，不是真实分组。
+    let isFlagResolved: Bool
+
+    init(variant: RemoteConfig.WinbackSaveCopyVariant, isFlagResolved: Bool) {
+        self.variant = variant
+        self.isFlagResolved = isFlagResolved
+    }
+
+    /// - Parameter variantKey: `RemoteConfig.variantKey(_:)` 的返回值。
+    static func resolve(variantKey: String?) -> WinbackCopyExperiment {
+        guard let variantKey,
+              let variant = RemoteConfig.WinbackSaveCopyVariant(rawValue: variantKey) else {
+            // 未命中 / flag 关闭 / 值非法：退回 control 并标记「未解析」，
+            // 避免把默认回退当成真实实验分组写进 super properties。
+            return WinbackCopyExperiment(variant: .control, isFlagResolved: false)
+        }
+        return WinbackCopyExperiment(variant: variant, isFlagResolved: true)
+    }
+
+    /// 写进 super properties 的值；未解析时写 control 并带一个未解析标记，
+    /// 分析时可区分「真实 control 分组」与「flag 没加载」。
+    var superPropertyKey: String {
+        RemoteConfig.FlagKey.winbackSaveCopyVariant
+    }
+
+    var superPropertyValue: String {
+        variant.rawValue
+    }
+}

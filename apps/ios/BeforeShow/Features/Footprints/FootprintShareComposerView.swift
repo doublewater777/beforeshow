@@ -196,6 +196,7 @@ struct FootprintShareComposerView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: FootprintShareComposerTokens.materialHeight)
                 .clipped()
+                .bsMaskUserContent()
 
                 LinearGradient(
                     colors: [.clear, FootprintShareComposerTokens.materialScrim],

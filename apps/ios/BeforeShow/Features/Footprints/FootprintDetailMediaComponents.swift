@@ -184,6 +184,8 @@ private struct FootprintLocalImage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        // 只用于展示用户导入的票根 / 时刻表，一律遮罩。
+        .bsMaskUserContent()
         .task(id: url) {
             image = await Task.detached(priority: .userInitiated) {
                 UIImage(contentsOfFile: url.path)

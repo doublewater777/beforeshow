@@ -9,8 +9,11 @@ import SwiftUI
 /// 需要显式标记。
 extension View {
     /// 遮罩用户文字内容，使其不出现在 session replay 录像里。
-    func bsMaskUserContent() -> some View {
-        postHogMask()
+    ///
+    /// - Parameter isEnabled: 同一组件既承载用户素材又承载公共素材时（如封面全屏
+    ///   预览）用它区分；默认无条件遮罩。
+    func bsMaskUserContent(_ isEnabled: Bool = true) -> some View {
+        postHogMask(isEnabled)
     }
 
     /// 记录 `$screen`。SwiftUI 下 SDK 的自动采集不生效，需显式调用。

@@ -147,6 +147,7 @@ struct ShowAssetUploadView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
+                    .bsMaskUserContent()
             }
             .frame(maxWidth: .infinity)
             .frame(height: replacingAsset == nil ? 260 : 420)

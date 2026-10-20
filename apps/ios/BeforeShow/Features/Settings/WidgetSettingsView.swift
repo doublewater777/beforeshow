@@ -82,6 +82,7 @@ struct WidgetSettingsView: View {
                     ZStack {
                         BSColor.Stage.background
                         coverImage(listeningCover)
+                            .bsMaskUserContent()
                         LinearGradient(
                             stops: [
                                 .init(color: .black.opacity(0), location: 0.3),

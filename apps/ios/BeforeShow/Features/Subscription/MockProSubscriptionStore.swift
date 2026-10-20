@@ -29,7 +29,7 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         return products.map { $0.markingAvailable() }
     }
 
-    func purchase(productID: String) async throws -> ProEntitlementState {
+    func purchase(productID: String) async throws -> ProPurchaseOutcome {
         if let error = simulatedError {
             throw error
         }
@@ -47,7 +47,7 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         let purchased = ProEntitlementState.active(productID: productID, expirationDate: nil)
         entitlement = purchased
         restorableEntitlement = purchased
-        return purchased
+        return ProPurchaseOutcome(entitlement: purchased, transactionID: "mock-\(productID)")
     }
 
     func restorePurchases() async throws -> ProEntitlementState {

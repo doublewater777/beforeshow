@@ -43,6 +43,11 @@ SDK 仅 swizzle `UIViewController.viewDidAppear`（`PostHogScreenViewIntegration
 - `ProductAnalytics` 在 `proPurchaseCompleted` 路径补充 `$revenue`（金额）+ `$currency`（商店区域货币，如 `USD` / `CNY`）。金额为数值，取自 RevenueCat 的 `transaction?.price?.amount` 或对应 locale 价格，不记录原始错误文案。
 - 仅成功购买记 `$revenue`；失败 / 取消不记。
 - `purchaseTapped` 已带 `price`（展示字符串），保留不改动。
+- **营收是事实数据，不是「UI 走到了成功分支」**（PR #357 review）：
+  - 只有本次购买让权益首次转为 Pro 才记；免费试用、已拥有、恢复不产生新收入。
+  - 金额为零（免费试用 / 免费恢复）或只有 catalog 占位价（`isAvailable == false`）时不记。
+  - 按 RevenueCat `transactionIdentifier` 做幂等去重，同一笔交易只记一次。
+  - 续订、退款、currency 变更等以 RevenueCat Webhook / 服务端为准，客户端只记首次成交。
 
 ## 4. Session replay 脱敏调优
 

@@ -10,6 +10,8 @@ struct ShowCoverFullscreenPreview: View {
         BSFullscreenImageViewer(pageCount: 1, currentIndex: $page) { _ in
             if let url = Self.coverURL(urlString) {
                 BSZoomableImagePage(source: .cover(url), onSingleTap: { dismiss() })
+                    // 用户从相册导入的封面是本地私有素材；远程 CDN 封面不遮。
+                    .bsMaskUserContent(url.isFileURL)
             } else {
                 ShowCoverImageView(
                     urlString: nil,

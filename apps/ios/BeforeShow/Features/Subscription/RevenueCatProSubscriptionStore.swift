@@ -46,7 +46,7 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
             }
     }
 
-    func purchase(productID: String) async throws -> ProEntitlementState {
+    func purchase(productID: String) async throws -> ProPurchaseOutcome {
         let offerings = try await Purchases.shared.offerings()
         guard let package = offerings.current?.availablePackages
                 .first(where: { $0.storeProduct.productIdentifier == productID }) else {
@@ -69,7 +69,10 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
             if result.userCancelled {
                 throw ProSubscriptionError.purchaseCancelled
             }
-            return Self.entitlement(from: result.customerInfo) ?? .free
+            return ProPurchaseOutcome(
+                entitlement: Self.entitlement(from: result.customerInfo) ?? .free,
+                transactionID: result.transaction?.transactionIdentifier
+            )
         } catch {
             if Self.isPurchaseCancelled(error) {
                 throw ProSubscriptionError.purchaseCancelled

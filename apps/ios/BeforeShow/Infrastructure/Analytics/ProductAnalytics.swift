@@ -5,7 +5,8 @@ import PostHog
 enum ProductAnalytics {
     /// 首次完成后调用一次，把匿名事件和稳定安装 ID 关联，使留存 / 漏斗按人而非按设备聚合。
     static func identify() {
-        PostHogSDK.shared.identify(AnalyticsInstallID.current())
+        guard let installID = AnalyticsInstallID.current() else { return }
+        PostHogSDK.shared.identify(installID)
     }
 
     static func capture(_ event: AnalyticsEvent) {
