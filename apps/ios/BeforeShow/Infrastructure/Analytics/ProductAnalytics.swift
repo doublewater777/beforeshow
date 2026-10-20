@@ -30,6 +30,19 @@ enum ProductAnalytics {
         PostHogSDK.shared.register(context.properties)
     }
 
+    /// 把一次展示的实验分组同步为 super property。
+    ///
+    /// flag 未命中 / 未加载时**注销**该 key：否则先前注册过的分组会继续
+    /// 附着在后续事件上，让 UI 已回到默认文案的事件仍带旧分组。
+    static func registerExperiment(_ experiment: WinbackCopyExperiment) {
+        let key = "$feature/\(experiment.superPropertyKey)"
+        guard experiment.isFlagResolved else {
+            PostHogSDK.shared.unregister(key)
+            return
+        }
+        PostHogSDK.shared.register([key: experiment.superPropertyValue])
+    }
+
     /// 营收事件：`proPurchaseCompleted` 带金额，使 PostHog 营收仪表盘与 LTV 可用。
     static func captureRevenue(_ amount: Decimal, currency: String) {
         PostHogSDK.shared.capture("$revenue", properties: [

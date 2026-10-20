@@ -48,4 +48,34 @@ final class AnalyticsInstallIDResolutionTests: XCTestCase {
         )
         XCTAssertEqual(outcome.identifiedID, "generated-id")
     }
+
+    /// 插入遇到重复条目（并发竞争）时，已建立的那条就是躓家：
+    /// 直接上报它，不生成也不覆盖。
+    func testDuplicateItemKeepsExistingIdentity() {
+        let outcome = AnalyticsInstallIDResolution.resolve(
+            existing: nil,
+            writeStatus: .succeeded("winner-id")
+        )
+        XCTAssertEqual(outcome.identifiedID, "winner-id")
+        XCTAssertNil(outcome.valueToPersist)
+    }
+
+    /// 重复条目存在但重读失败（项被删除 / 读不到）时不得上报新值：
+    /// 否则两个并发调用会拿到两个 Person 身份。
+    func testDuplicateItemUnreadableYieldsNoIdentity() {
+        let outcome = AnalyticsInstallIDResolution.resolve(existing: nil, writeStatus: .failed)
+        XCTAssertNil(outcome.identifiedID)
+        XCTAssertNil(outcome.valueToPersist)
+    }
+
+    /// 同一次竞争里输入的入参不会改变决策：已存在值始终优先。
+    func testExistingAlwaysWinsOverGenerated() {
+        XCTAssertEqual(
+            AnalyticsInstallIDResolution.resolve(
+                existing: "established",
+                writeStatus: .succeeded("generated-id")
+            ).identifiedID,
+            "established"
+        )
+    }
 }

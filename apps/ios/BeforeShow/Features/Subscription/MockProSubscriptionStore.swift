@@ -5,17 +5,21 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
     private var entitlement: ProEntitlementState
     private var restorableEntitlement: ProEntitlementState?
     private var simulatedError: Error?
+    /// true 时模拟免费试用 / 免费恢复：权益会生效，但没有实收金额。
+    private var simulatedTrial = false
 
     init(
         products: [ProSubscriptionProduct] = ProSubscriptionCatalog.defaultProducts,
         entitlement: ProEntitlementState = .free,
         restorableEntitlement: ProEntitlementState? = nil,
-        simulatedError: Error? = nil
+        simulatedError: Error? = nil,
+        simulatedTrial: Bool = false
     ) {
         self.products = products
         self.entitlement = entitlement
         self.restorableEntitlement = restorableEntitlement
         self.simulatedError = simulatedError
+        self.simulatedTrial = simulatedTrial
     }
 
     func setSimulatedError(_ error: Error?) {
@@ -47,7 +51,16 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         let purchased = ProEntitlementState.active(productID: productID, expirationDate: nil)
         entitlement = purchased
         restorableEntitlement = purchased
-        return ProPurchaseOutcome(entitlement: purchased, transactionID: "mock-\(productID)")
+        // 正常成交：按 store 返回的真实价格给实收金额。
+        // 免费试用 / 免费 intro 则无实收金额，UI 层不得据此记 `$revenue`。
+        let revenue = simulatedTrial ? nil : products
+            .first { $0.id == productID }?
+            .revenueIfCharged
+        return ProPurchaseOutcome(
+            entitlement: purchased,
+            transactionID: "mock-\(productID)",
+            revenue: revenue
+        )
     }
 
     func restorePurchases() async throws -> ProEntitlementState {

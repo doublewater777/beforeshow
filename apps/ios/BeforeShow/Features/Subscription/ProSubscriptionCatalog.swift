@@ -72,31 +72,14 @@ struct ProSubscriptionProduct: Equatable {
             priceCurrency: priceCurrency
         )
     }
-}
 
-/// `$revenue` 的准入判定（PR #357 review P1）。
-///
-/// 营收是「事实数据」，不是「UI 走到了成功分支」：只有当下单真实激活了 Pro
-/// 权益（免费试用、已拥有、恢复交易不计）且金额为正时才上报。
-enum RevenueEventPolicy {
-    /// 本次购买是否产生了新增权益。`previous == nil` 表示购买前就是 Pro。
-    static func shouldCaptureRevenue(entitlement: ProEntitlementState, previous: ProEntitlementState?) -> Bool {
-        guard entitlement.isProActive else { return false }
-        // 免费试用 / 恢复：前后都是 active，不重复计。
-        guard let previous else { return false }
-        return !previous.isProActive
-    }
-
-    /// 真实成交金额；catalog 占位价（`isAvailable == false`）、零金额（免费试用）、
-    /// 缺失货币时返回 nil，即不上报 `$revenue`。
-    static func revenueAmount(_ product: ProSubscriptionProduct) -> Decimal? {
-        guard product.isAvailable, let amount = product.priceAmount, amount > 0 else { return nil }
-        return amount
-    }
-
-    static func revenueCurrency(_ product: ProSubscriptionProduct) -> String? {
-        guard revenueAmount(product) != nil, let currency = product.priceCurrency else { return nil }
-        return currency
+    /// 该产品的实收金额：仅在 store 真实返回价格与货币时非空。
+    var revenueIfCharged: ProPurchaseRevenue? {
+        guard isAvailable, let amount = priceAmount, amount > 0, let currency = priceCurrency,
+              !currency.isEmpty else {
+            return nil
+        }
+        return ProPurchaseRevenue(amount: amount, currency: currency)
     }
 }
 

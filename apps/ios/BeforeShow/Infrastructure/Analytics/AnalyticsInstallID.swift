@@ -22,7 +22,7 @@ enum AnalyticsInstallID {
         let generated = UUID().uuidString
         let outcome = AnalyticsInstallIDResolution.resolve(
             existing: nil,
-            writeStatus: write(generated) ? .succeeded(generated) : .failed
+            writeStatus: write(generated)
         )
         return outcome.identifiedID
     }
@@ -45,9 +45,11 @@ enum AnalyticsInstallID {
         return value
     }
 
-    /// 写入是否成功。并发竞争（已存在）按更新分支处理。
-    private static func write(_ value: String) -> Bool {
-        guard let data = value.data(using: .utf8) else { return false }
+    /// 写入一条新 ID。并发竞争（已有条目）时绝不覆盖已建立身份：
+    /// 只重读现有值并抄它作为赢家。否则两个并发调用各自拿到不同 ID，
+    /// 其中一个已上报给 PostHog，之后的事件会挂到另一个 Person 上。
+    private static func write(_ value: String) -> AnalyticsInstallIDResolution.KeychainWriteStatus {
+        guard let data = value.data(using: .utf8) else { return .failed }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keychainAccount
@@ -62,12 +64,13 @@ enum AnalyticsInstallID {
         )
         switch status {
         case errSecSuccess:
-            return true
+            return .succeeded(value)
         case errSecDuplicateItem:
-            // 并发写入竞争：已有条目，转成更新即可。
-            return SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecSuccess
+            // 竞争：已存在的那条就是赢家，只重读，不覆盖。
+            if let existing = read() { return .succeeded(existing) }
+            return .failed
         default:
-            return false
+            return .failed
         }
     }
 }

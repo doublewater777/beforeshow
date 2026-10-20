@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 1 | 身份与 person properties | ✅ `AnalyticsInstallID`（Keychain）+ `ProductAnalytics.identify()` + `setPersonProperties` |
 | 2 | 屏幕浏览 `$screen` | ✅ `ProductAnalytics.screen(_:)` / `.bsScreenView(_:)`，覆盖 tab、引导页、付费墙、添加现场及各设置页 |
-| 3 | 购买带 `$revenue` | ✅ `ProSubscriptionProduct.priceAmount` / `priceCurrency`，成功购买发 `$revenue` |
+| 3 | 购买带 `$revenue` | ✅ `ProPurchaseRevenue`（交易实付金额，免费试用不记），成功购买发 `$revenue` |
 | 4 | Session replay 脱敏调优 | ✅ 关掉 `maskAllImages`，用户照片 / 视频 / 文字用 `.bsMaskUserContent()` 显式遮回 |
 | 5 | Feature flag 实验 | ✅ `RemoteConfig`，首个 flag `winback-save-copy-variant` 驱动挽留文案，分组写进 super properties |
 
@@ -40,13 +40,17 @@ SDK 仅 swizzle `UIViewController.viewDidAppear`（`PostHogScreenViewIntegration
 
 `proPurchaseCompleted` 现在只有 `plan`，无金额。后果：PostHog 营收仪表盘 / LTV 用不了。
 
-- `ProductAnalytics` 在 `proPurchaseCompleted` 路径补充 `$revenue`（金额）+ `$currency`（商店区域货币，如 `USD` / `CNY`）。金额为数值，取自 RevenueCat 的 `transaction?.price?.amount` 或对应 locale 价格，不记录原始错误文案。
+- `ProductAnalytics` 在 `proPurchaseCompleted` 路径补充 `$revenue`（金额）+ `$currency`（商店区域货币，如 `USD` / `CNY`）。金额为数值，不记录原始错误文案。
 - 仅成功购买记 `$revenue`；失败 / 取消不记。
 - `purchaseTapped` 已带 `price`（展示字符串），保留不改动。
 - **营收是事实数据，不是「UI 走到了成功分支」**（PR #357 review）：
-  - 只有本次购买让权益首次转为 Pro 才记；免费试用、已拥有、恢复不产生新收入。
-  - 金额为零（免费试用 / 免费恢复）或只有 catalog 占位价（`isAvailable == false`）时不记。
-  - 按 RevenueCat `transactionIdentifier` 做幂等去重，同一笔交易只记一次。
+  - **商品标价不等于实收金额**。免费试用 / intro 优惠也会给 Pro 权益，但商品标价仍是 $4.99；按标价记就会把试用记成正收入。
+  - 因此金额只取 `ProPurchaseRevenue`，由 store 统一整理：
+    - `entitlement.periodType == .normal`（试用 / intro / 取不到均不记）；
+    - 优先 StoreKit 2 交易实付金额（折扣 / 促销会低于标价），取不到才退回标价；
+    - 金额 > 0 且有 ISO 4217 货币代码；否则上报 nil，不发 `$revenue`。
+  - **无效权益不算购买成功**。`purchase()` 返回后先校验 `entitlement.isProActive`，未激活时走失败分支：不记 `proPurchaseCompleted`、不显示「Pro 已启用」。
+  - 按 `transactionID` 做幂等去重，同一笔交易只记一次。
   - 续订、退款、currency 变更等以 RevenueCat Webhook / 服务端为准，客户端只记首次成交。
 
 ## 4. Session replay 脱敏调优
@@ -71,7 +75,7 @@ SDK 已 `preloadFeatureFlags = true`，但代码零调用 `isFeatureEnabled`。E
 
 - Person 页面出现可读安装 ID，留存 / 漏斗改用 identify 后身份。
 - `$screen` 事件有量，`$screen_name` 正确附着在业务事件上。
-- 成功购买事件带 `$revenue` 与 `$currency`，营收看板可读。
+- 成功购买事件带 `$revenue` 与 `$currency`，营收看板可读；免费试用与无效权益不记。
 - 回放里核心视觉可辨识、用户输入仍被遮挡；新增含输入视图显式 mask。
 - 至少一个 feature flag 在真机按配置分支并产出对比数据。
 

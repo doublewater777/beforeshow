@@ -130,8 +130,8 @@ SQL、查询定义与 insight ID 存在 [product-analytics-posthog.json](product
 - **身份**：首次启动用 Keychain 里的匿名安装 ID 调 `identify`，并把公共上下文同步为 person properties。不使用 iCloud / Apple 身份。
 - Keychain 写入失败时**不 identify**：宁可本次缺身份，也不把无法持久化的随机 UUID 上报成 Person（会把同一装切成多个 Person，污染留存 / 漏斗）。
 - **屏幕**：`$screen` 是系统事件，经 `ProductAnalytics.screen(_:)` 或 `.bsScreenView(_:)` 上报。纯 SwiftUI 下 SDK 的自动采集不生效，必须显式埋。名字须是稳定 ASCII 值，不用界面文案（`BeforeShowTab.rawValue` 是中文，改用 `analyticsKey`）。
-- **营收**：成功购买额外发 `$revenue`（`$amount` + `$currency`），金额取自 store 真实价格，catalog 占位价不上报。
-- **实验**：flag 经 `RemoteConfig` 读取；分组以 `$feature/<flag_key>` 写进 super properties，使同会话事件都带分组。flag 未命中时行为等同于关闭。
+- **营收**：成功购买额外发 `$revenue`（`$amount` + `$currency`）。金额取 `ProPurchaseRevenue`（store 统一整理的交易实付金额），不取商品标价：免费试用 / intro（`periodType != .normal`）、零金额、缺货币代码、无效权益均上报 nil 不发。
+- **实验**：flag 经 `RemoteConfig` 读取；分组以 `$feature/<flag_key>` 写进 super properties，使同会话事件都带分组。flag 未命中时由 `ProductAnalytics.registerExperiment` 注销该 key，不留上一次的分组。
 - **回放**：`maskAllImages` 已关闭以保留封面等核心视觉；用户照片、视频、文字展示处用 `.bsMaskUserContent()` 显式遮回。输入框仍由 SDK 默认全遮。
   默认遮罩落在**共享组件**上（`MemoryThumbnail`、`FootprintLocalImage`、`FootprintCoverLocalImage`、`BSZoomableImagePage` 调用点），而不是逐个调用点：加新展示路径时不需要重新记一遍规则（PR #357 review）。
 - **实验分组快照**：一次展示只取一次 flag，文案与曝光事件都读同一份快照（`WinbackCopyExperiment`）；flag 未加载时按 control 处理，并标记「未解析」以区分真实 control 分组。

@@ -1,3 +1,4 @@
+import RevenueCat
 import XCTest
 @testable import BeforeShow
 
@@ -86,12 +87,14 @@ final class WinbackCopyExperimentTests: XCTestCase {
     }
 }
 
-/// PR #357 review P1：`$revenue` 只在「真实成交且金额为正」时上报。
-final class RevenueEventPolicyTests: XCTestCase {
-    private func product(_ plan: ProSubscriptionPlan, amount: Decimal?, currency: String?) -> ProSubscriptionProduct {
+
+/// PR #357 review: `$revenue` 的准入判定。商品标价不是收入：免费试用 / intro
+/// 优惠会给 Pro 权益但当期没收钱，拿不到可信实收金额时必须不上报。
+final class PurchaseRevenueTests: XCTestCase {
+    private func paidProduct(amount: Decimal = 4.99, currency: String? = "USD") -> ProSubscriptionProduct {
         ProSubscriptionProduct(
             id: "com.doublewaterapps.beforeshow.pro.test",
-            plan: plan,
+            plan: .yearly,
             displayName: "Test",
             priceText: "$4.99/年",
             benefitCopy: [],
@@ -101,40 +104,96 @@ final class RevenueEventPolicyTests: XCTestCase {
         )
     }
 
-    /// 试用 / 已拥有 / 恢复：权益不因本次购买首次转为 Pro 时不产生营收。
-    func testRevenueOnlyWhenPurchaseActivatesPro() {
-        let active: ProEntitlementState = .active(productID: "p", expirationDate: nil)
-        let free: ProEntitlementState = .free
-
-        XCTAssertTrue(RevenueEventPolicy.shouldCaptureRevenue(entitlement: active, previous: .free))
-        // 免费试用：购买完成后仍可能是 free（首次试用未激活付费权益）。
-        XCTAssertFalse(RevenueEventPolicy.shouldCaptureRevenue(entitlement: free, previous: .free))
-        // 已拥有 Pro 再购买（理论上不会被 UI 走到）不重复计营收。
-        XCTAssertFalse(RevenueEventPolicy.shouldCaptureRevenue(entitlement: active, previous: active))
+    /// store 真实返回价格的产品（Mock 默认 catalog 只给占位价）。
+    private func pricedProduct() -> ProSubscriptionProduct {
+        paidProduct()
     }
 
-    /// 零金额（免费试用 / 免费恢复）不记为营收。
-    func testZeroAmountIsNotRevenue() {
-        let freeTrial = product(.yearly, amount: 0, currency: "USD")
-        XCTAssertEqual(RevenueEventPolicy.revenueAmount(freeTrial), nil)
+
+
+    /// store 返回的真实价格与货币是唯一上报来源。
+    func testPaidPurchaseReportsListPriceWhenCharged() {
+        let revenue = paidProduct().revenueIfCharged
+        XCTAssertEqual(revenue?.amount, 4.99)
+        XCTAssertEqual(revenue?.currency, "USD")
     }
 
-    /// catalog 占位价（isAvailable == false）不当作营收上报。
-    func testUnavailableCatalogPlaceholderIsNotRevenue() {
-        let placeholder = product(.yearly, amount: 4.99, currency: nil)
-            .markingAvailable(false)
+    /// 试用 / intro：entitlement periodType 不是 normal → 无实收金额。
+    func testTrialPeriodTypeHasNoRevenue() {
+        for period in [PeriodType.trial, .intro] {
+            XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
+                entitlementPeriodType: period,
+                transactionPrice: nil,
+                productPrice: 4.99,
+                currencyCode: "USD"
+            ))
+        }
+    }
+
+    /// 拿不到 periodType 时保守不上报：宁可漏，不要把试用记成正收入。
+    func testUnknownPeriodTypeHasNoRevenue() {
+        XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
+            entitlementPeriodType: nil,
+            transactionPrice: nil,
+            productPrice: 4.99,
+            currencyCode: "USD"
+        ))
+    }
+
+    /// 普通付费 + 金额 > 0 + 有货币才记。
+    func testNormalPeriodTypeReportsRevenue() {
+        XCTAssertEqual(
+            RevenueCatProSubscriptionStore.revenue(
+                entitlementPeriodType: .normal,
+                transactionPrice: nil,
+                productPrice: 4.99,
+                currencyCode: "USD"
+            ),
+            ProPurchaseRevenue(amount: 4.99, currency: "USD")
+        )
+    }
+
+    /// 交易实付金额优先于标价（促销 / 部分退款场景）。
+    func testTransactionPriceBeatsListPrice() {
+        XCTAssertEqual(
+            RevenueCatProSubscriptionStore.revenue(
+                entitlementPeriodType: .normal,
+                transactionPrice: 2.99,
+                productPrice: 4.99,
+                currencyCode: "USD"
+            )?.amount,
+            2.99
+        )
+    }
+
+    /// 普通购买但实付为零（零元促销）不记。
+    func testZeroTransactionPriceHasNoRevenue() {
+        XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
+            entitlementPeriodType: .normal,
+            transactionPrice: 0,
+            productPrice: 4.99,
+            currencyCode: "USD"
+        ))
+    }
+
+    /// 缺货币不上报，避免金额被记成默认货币。
+    func testMissingCurrencyHasNoRevenue() {
+        XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
+            entitlementPeriodType: .normal,
+            transactionPrice: nil,
+            productPrice: 4.99,
+            currencyCode: nil
+        ))
+    }
+
+    /// catalog 占位价（isAvailable == false）不是收入来源。
+    func testCatalogPlaceholderIsNotRevenue() {
+        let placeholder = paidProduct().markingAvailable(false)
         XCTAssertFalse(placeholder.isAvailable)
-        XCTAssertNil(RevenueEventPolicy.revenueAmount(placeholder))
+        XCTAssertNil(placeholder.revenueIfCharged)
     }
 
-    /// 有价格与货币时给出 (amount, currency)。
-    func testAmountAndCurrencyReturnedTogether() {
-        let real = product(.yearly, amount: 4.99, currency: "USD")
-        XCTAssertEqual(RevenueEventPolicy.revenueAmount(real), 4.99)
-        XCTAssertEqual(RevenueEventPolicy.revenueCurrency(real), "USD")
-    }
-
-    /// 成交必须带交易标识，`$revenue` 才能按交易去重。
+    /// 成交带交易标识，`$revenue` 才能按交易去重。
     func testPurchaseOutcomeCarriesTransactionID() async throws {
         let store = MockProSubscriptionStore()
         let products = try await store.loadProducts()
@@ -142,10 +201,38 @@ final class RevenueEventPolicyTests: XCTestCase {
         XCTAssertNotNil(purchased.transactionID)
     }
 
-    /// 币种缺失时不上报，避免把金额记成默认货币。
-    func testMissingCurrencyBlocksRevenue() {
-        let noCurrency = product(.yearly, amount: 4.99, currency: nil)
-        XCTAssertNil(RevenueEventPolicy.revenueCurrency(noCurrency))
+    /// Mock 模拟免费试用：权益生效但没有实收金额。
+    func testTrialPurchaseHasEntitlementWithoutRevenue() async throws {
+        let store = MockProSubscriptionStore(simulatedTrial: true)
+        let products = try await store.loadProducts()
+        let purchased = try await store.purchase(productID: products[0].id)
+
+        XCTAssertTrue(purchased.isProActive, "试用也会给权益")
+        XCTAssertNil(purchased.revenue, "试用不能按标价记收入")
+    }
+
+    /// 正常成交：权益 + 实收金额都在。
+    func testPaidPurchaseHasEntitlementWithRevenue() async throws {
+        let store = MockProSubscriptionStore(products: [pricedProduct()])
+        let products = try await store.loadProducts()
+        let purchased = try await store.purchase(productID: products[0].id)
+
+        XCTAssertTrue(purchased.isProActive)
+        XCTAssertEqual(purchased.revenue, ProPurchaseRevenue(amount: 4.99, currency: "USD"))
+    }
+
+    /// 试用与正常成交都给权益，区别只在本期收没收钱。
+    func testTrialAndPaidDifferOnlyInRevenue() async throws {
+        let product = pricedProduct()
+        let trial = try await MockProSubscriptionStore(products: [product], simulatedTrial: true)
+            .purchase(productID: product.id)
+        let paid = try await MockProSubscriptionStore(products: [product])
+            .purchase(productID: product.id)
+
+        XCTAssertTrue(trial.entitlement.isProActive)
+        XCTAssertTrue(paid.entitlement.isProActive)
+        XCTAssertNil(trial.revenue)
+        XCTAssertNotNil(paid.revenue)
     }
 }
 

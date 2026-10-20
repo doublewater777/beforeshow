@@ -1,5 +1,3 @@
-import PostHog
-import StoreKit
 import SwiftUI
 
 struct ProPaywallView: View {
@@ -308,35 +306,27 @@ struct ProPaywallView: View {
     }
 
     /// 把实验分组写进 super properties，使同会话的购买 / 关闭事件都带 `$feature/winback-save-copy-variant`，
-    /// PostHog 里能按 variant 对比付费墙转化。flag 未命中时不注册，事件不带该属性。
+    /// PostHog 里能按 variant 对比付费墙转化。flag 未命中时注销该 key，事件不带残留分组。
     @MainActor
     private func registerWinbackCopyExperiment() {
         // 一次取值固定成本次展示的分组，之后文案与事件都读这个快照。
         winbackExperiment = WinbackCopyExperiment.resolve(
             variantKey: RemoteConfig.variantKey(RemoteConfig.FlagKey.winbackSaveCopyVariant)
         )
-        guard winbackExperiment.isFlagResolved else { return }
-        PostHogSDK.shared.register([
-            "$feature/\(winbackExperiment.superPropertyKey)": winbackExperiment.superPropertyValue
-        ])
+        ProductAnalytics.registerExperiment(winbackExperiment)
     }
 
-    /// 报一次 `$revenue`。同一笔交易只报一次；权益未真实激活、金额为零或
-    /// 只有 catalog 占位价时跳过（免费试用 / 恢复不产生现金收入）。
+    /// 报一次 `$revenue`。金额来自 store 整理的「交易实收」而不是商品标价，
+    /// 免费试用 / 零元交易在模型层就被判为无营收；同笔交易只报一次。
     @MainActor
     private func captureRevenueIfNeeded(
-        _ product: ProSubscriptionProduct?,
-        entitlement: ProEntitlementState,
-        previous: ProEntitlementState?,
+        _ revenue: ProPurchaseRevenue?,
         transactionID: String?
     ) {
-        guard RevenueEventPolicy.shouldCaptureRevenue(entitlement: entitlement, previous: previous),
-              let product,
-              let amount = RevenueEventPolicy.revenueAmount(product),
-              let currency = RevenueEventPolicy.revenueCurrency(product) else { return }
+        guard let revenue, revenue.amount > 0 else { return }
         if let transactionID, reportedRevenueTransactionIDs.contains(transactionID) { return }
         if let transactionID { reportedRevenueTransactionIDs.insert(transactionID) }
-        ProductAnalytics.captureRevenue(amount, currency: currency)
+        ProductAnalytics.captureRevenue(revenue.amount, currency: revenue.currency)
     }
 
     @MainActor
@@ -372,16 +362,20 @@ struct ProPaywallView: View {
         defer { purchasingProductID = nil }
 
         do {
-            let previous = entitlement
             let outcome = try await store.purchase(productID: product.id)
-            let entitlement = outcome.entitlement
-            entitlementRawValue = ProEntitlementStorage.encode(entitlement)
+            let purchased = outcome.entitlement
+            // 商店可能「没取消但也没给出有效权益」（权益同步延迟 / RC 侧未就绪）。
+            // 这种结果不能走成功路径：既不记 proPurchaseCompleted，也不显示「已启用」。
+            guard purchased.isProActive else {
+                ProductAnalytics.capture(.proPurchaseFailed(plan: plan.rawValue))
+                message = BSLocalization.text("购买暂时没有完成。")
+                return
+            }
+
+            entitlementRawValue = ProEntitlementStorage.encode(purchased)
             ProductAnalytics.capture(.proPurchaseCompleted(plan: plan.rawValue))
-            // 营收只按「真实成交」记：权益未激活、金额为零或只有占位价时跳过。
             captureRevenueIfNeeded(
-                product,
-                entitlement: entitlement,
-                previous: previous,
+                outcome.revenue,
                 transactionID: outcome.transactionID
             )
             didPurchase = true
