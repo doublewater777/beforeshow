@@ -33,7 +33,7 @@ struct ListenRootView: View {
 
     private var show: Show? {
         CurrentShowSession().selectCurrentShow(
-            from: shows,
+            from: shows.filter(\.isAttached),
             manualSelection: CurrentShowSelectionStore.canonical(in: selections)
         )
     }

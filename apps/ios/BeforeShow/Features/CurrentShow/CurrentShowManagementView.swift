@@ -68,7 +68,7 @@ struct CurrentShowManagementSection: View {
     /// 给仪式 sheet 用的极简身份快照：只需从 `shows` 推导「第 N 场现场」
     /// 与同行次数；日期、城市和艺人直接来自当前 `show`，不需要完整 archive 统计。
     private func footprintIdentityForCeremony() -> FootprintDetailIdentity {
-        let snapshot = FootprintArchiveSnapshot.identityOnly(shows: candidateShows)
+        let snapshot = FootprintArchiveSnapshot.identityOnly(shows: attachedCandidateShows)
         return FootprintDetailIdentityBuilder.make(
             show: show,
             archive: snapshot,
@@ -84,7 +84,7 @@ struct CurrentShowManagementSection: View {
         )
     }
 
-    var body: some View {
+    var liveBody: some View {
         CurrentShowLiveTimetableContent(show: show, isActive: isHeroPlaybackActive) { now, liveState in
             GeometryReader { geometry in
                 homeContent(now: now, availableWidth: geometry.size.width, liveState: liveState)
@@ -164,7 +164,7 @@ struct CurrentShowManagementSection: View {
                 CurrentShowClosableSheet {
                     FootprintDetailView(
                         show: show,
-                        archive: FootprintArchiveSnapshot.identityOnly(shows: candidateShows)
+                        archive: FootprintArchiveSnapshot.identityOnly(shows: attachedCandidateShows)
                     )
                 }
             }
@@ -299,7 +299,7 @@ struct CurrentShowManagementSection: View {
         let snapshot = HomeHeroSnapshot(show: show, now: now)
         let timeState = snapshot.timeState
         let followUpShows = CurrentShowFollowUpPolicy.laterShows(
-            from: candidateShows,
+            from: attachedCandidateShows,
             excluding: show.id,
             now: now
         )
@@ -424,9 +424,9 @@ struct CurrentShowManagementSection: View {
                         .padding(.horizontal, contentInset)
                         .padding(.top, 25)
                         .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
-                    } else if candidateShows.count > 1 {
+                    } else if attachedCandidateShows.count > 1 {
                         CurrentShowLibraryEntryTile(
-                            totalShowCount: candidateShows.count,
+                            totalShowCount: attachedCandidateShows.count,
                             onOpenShowLibrary: onOpenShowLibrary
                         )
                         .padding(.horizontal, contentInset)
@@ -533,14 +533,14 @@ struct CurrentShowManagementSection: View {
         }
         let facts = FeatureUsageFacts(hasInstalledWidget: hasInstalledWidget, isICloudAvailable: isICloudAvailable)
         let ledger = FeatureRecommendationLedger.snapshot(
-            shows: candidateShows,
+            shows: attachedCandidateShows,
             records: recommendationRecords,
             facts: facts,
             now: snapshot.now
         )
         let hasFutureShow = FeatureRecommendationLedger.nextFutureShow(
             excluding: show.id,
-            in: candidateShows,
+            in: attachedCandidateShows,
             now: snapshot.now
         ) != nil
         let todayNotificationFeature = notificationRecords.first {
@@ -642,7 +642,7 @@ struct CurrentShowManagementSection: View {
     private var companionHistory: [Show] {
         CompanionSharedHistory.shows(
             matching: show,
-            from: candidateShows
+            from: attachedCandidateShows
         )
     }
 

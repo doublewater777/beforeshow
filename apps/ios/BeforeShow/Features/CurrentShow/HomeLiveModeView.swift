@@ -91,7 +91,7 @@ struct HomeLiveModeView: View {
         .padding(.top, 14)
         .task(id: timetable.id) {
             let names = timetable.orderedDays.flatMap(\.performances).map(\.artistName)
-            await avatars.load(artistNames: names, lineup: show.artists)
+            await avatars.load(artistNames: names, lineup: show.isAttached ? show.artists : [])
         }
     }
 

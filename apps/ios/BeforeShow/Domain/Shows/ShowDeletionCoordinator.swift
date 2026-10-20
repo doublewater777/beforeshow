@@ -125,3 +125,8 @@ enum ShowDeletionCoordinator {
         }
     }
 }
+
+extension Show {
+    /// 删除提交后，视图或协调器仍可能拿着上一帧的 Show；脱离 context 后读持久化属性会 trap。
+    var isAttached: Bool { modelContext != nil && !isDeleted }
+}

@@ -5,6 +5,13 @@ import SwiftUI
 // 快捷入口、主卡推荐和通知转来的落点，统一在当前现场首页里打开（ADR 0037）。
 
 extension CurrentShowManagementSection {
+    /// 删除当前现场后，父视图切到下一场之前，本视图可能先带着上一帧的 show / 列表重算。
+    @ViewBuilder var body: some View {
+        if show.isAttached { liveBody }
+    }
+
+    var attachedCandidateShows: [Show] { candidateShows.filter(\.isAttached) }
+
     func performQuickAction(_ action: CurrentShowQuickAction) {
         switch action {
         case .route:
@@ -41,7 +48,7 @@ extension CurrentShowManagementSection {
         case .footprint:
             presentedSheet = .footprint
         case .nextShow:
-            if let next = FeatureRecommendationLedger.nextFutureShow(excluding: show.id, in: candidateShows, now: Date()) {
+            if let next = FeatureRecommendationLedger.nextFutureShow(excluding: show.id, in: attachedCandidateShows, now: Date()) {
                 onSetCurrentShow(next)
             } else {
                 onAddShow()

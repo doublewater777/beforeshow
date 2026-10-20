@@ -60,7 +60,7 @@ struct CurrentShowHomeView: View {
 
     /// 删除提交后 @Query 仍可能有一帧带着已脱离 context 的 Show，读属性会 trap。
     private var liveShows: [Show] {
-        shows.filter { $0.modelContext != nil }
+        shows.filter(\.isAttached)
     }
 
     private var currentShow: Show? {

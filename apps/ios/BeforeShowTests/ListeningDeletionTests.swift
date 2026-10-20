@@ -144,4 +144,67 @@ final class ListeningDeletionTests: XCTestCase {
         XCTAssertEqual(inventory.familiarSongCount, 1)
         XCTAssertEqual(inventory.listeningRecordCount, 1)
     }
+
+    func testDeletingLoadedCurrentShowDetachesListeningRoom() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let selection = CurrentShowSelection(selectedShowID: show.id)
+        context.insert(selection)
+        try context.save()
+        let room = ListenTestData.room(context)
+        room.prepareForDisplay(show: show)
+        XCTAssertEqual(room.show?.id, show.id)
+
+        _ = try await ShowDeletionCoordinator.delete(
+            show,
+            from: [show],
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            effects: CurrentShowPostCommitEffects(
+                reconcileNotifications: { _ in true },
+                syncWidget: { _, _ in true }
+            )
+        )
+
+        XCTAssertNil(room.show)
+        XCTAssertEqual(room.presentation, .noCurrentShow)
+        room.mechanism.motion.stop()
+    }
+
+    func testDeletedShowIsNotAttachedSoStaleViewInputsDropIt() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date(timeIntervalSinceNow: 86_400)
+        let deleted = try Show(name: "删除目标", date: start, startTime: start)
+        let kept = try Show(name: "保留", date: start.addingTimeInterval(86_400), startTime: start.addingTimeInterval(86_400))
+        let selection = CurrentShowSelection(selectedShowID: deleted.id)
+        context.insert(deleted)
+        context.insert(kept)
+        context.insert(selection)
+        try context.save()
+        let staleViewInput = [deleted, kept]
+
+        _ = try await ShowDeletionCoordinator.delete(
+            deleted,
+            from: staleViewInput,
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            effects: CurrentShowPostCommitEffects(
+                reconcileNotifications: { _ in true },
+                syncWidget: { _, _ in true }
+            )
+        )
+
+        XCTAssertFalse(deleted.isAttached)
+        XCTAssertEqual(staleViewInput.filter(\.isAttached).map(\.id), [kept.id])
+        let snapshot = FeatureRecommendationLedger.snapshot(
+            shows: staleViewInput.filter(\.isAttached),
+            records: [],
+            facts: FeatureUsageFacts(hasInstalledWidget: false, isICloudAvailable: false),
+            now: Date()
+        )
+        XCTAssertEqual(snapshot.shows.map(\.showID), [kept.id])
+    }
 }

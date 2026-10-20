@@ -124,7 +124,7 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     private var currentShow: Show? {
         CurrentShowSession().selectCurrentShow(
-            from: shows,
+            from: shows.filter(\.isAttached),
             manualSelection: CurrentShowSelectionStore.canonical(in: selections)
         )
     }

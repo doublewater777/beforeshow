@@ -22,9 +22,9 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     private(set) var catalogAlbums: [CatalogAlbum] = []
     private(set) var openingTiers: [ShowOpeningArtistTier] = []
     private(set) var catalogSnapshots: [ArtistCatalogSnapshot] = []
-    private(set) var show: Show?
+    private var loadedShow: Show?
+    var show: Show? { loadedShow?.isAttached == true ? loadedShow : nil }  // nil once deleted
     private(set) var discs: [ListeningDisc] = []
-
     #if DEBUG
     /// Test hook: put a disc straight into the tray without touching the
     /// catalog pipeline (used by `--listen-seed-disc` for simulator previews).
@@ -461,7 +461,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         resetShowCatalog()
         musicAccessRequestGeneration = UUID()
         widgetSync.cancel()
-        show = nil
+        loadedShow = nil
     }
 
     /// Prepare the fixed room and persisted records without requesting music access
@@ -477,7 +477,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             runtimeRevision += 1
         }
         showCatalogKey = newKey
-        self.show = show
+        loadedShow = show
         catalogState = .loading
 
         let knownStatus = catalogService.currentAuthorizationStatus()
