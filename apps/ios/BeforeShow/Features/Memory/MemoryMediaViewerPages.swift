@@ -46,6 +46,7 @@ struct MemoryPhotoPage: View {
             onSingleTap: onDismiss,
             onLongPress: { isShowingActions = true }
         )
+        .bsMaskUserContent()
         .modifier(MemoryMediaActions(
             isPresented: $isShowingActions,
             kind: .photo,

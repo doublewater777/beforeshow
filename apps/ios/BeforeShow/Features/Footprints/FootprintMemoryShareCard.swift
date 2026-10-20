@@ -1,3 +1,4 @@
+import PostHog
 import SwiftUI
 import UIKit
 
@@ -232,6 +233,7 @@ struct FootprintMemoryShareCard: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .bsMaskUserContent()
     }
 
 }

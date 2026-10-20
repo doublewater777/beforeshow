@@ -113,7 +113,7 @@ final class LocalNotificationCenter {
             )
             let currentShowID = CurrentShowSession()
                 .selectCurrentShow(from: shows, manualSelection: selection, now: now)?.id
-            ProductAnalytics.register(AnalyticsContext(
+            let analyticsContext = AnalyticsContext(
                 shows: shows,
                 currentShowID: currentShowID,
                 isPro: ProEntitlementStorage.decode(
@@ -121,7 +121,9 @@ final class LocalNotificationCenter {
                 ).isProActive,
                 hasWidget: facts.hasInstalledWidget,
                 now: now
-            ))
+            )
+            ProductAnalytics.register(analyticsContext)
+            ProductAnalytics.setPersonProperties(analyticsContext)
 
             if authorization.allowsDelivery {
                 try Self.recordDeliveredRecommendations(records, now: now, in: context)

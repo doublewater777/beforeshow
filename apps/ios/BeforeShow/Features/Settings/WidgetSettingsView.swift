@@ -1,3 +1,4 @@
+import PostHog
 import SwiftUI
 import UIKit
 
@@ -61,6 +62,7 @@ struct WidgetSettingsView: View {
         .background(BSColor.Stage.background.ignoresSafeArea())
         .navigationTitle(BSLocalization.text("小组件"))
         .navigationBarTitleDisplayMode(.inline)
+        .postHogScreenView("widget_settings")
         .onAppear {
             refreshSnapshot()
         }

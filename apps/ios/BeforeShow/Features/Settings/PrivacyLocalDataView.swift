@@ -1,3 +1,4 @@
+import PostHog
 import SwiftData
 import SwiftUI
 import UIKit
@@ -100,6 +101,7 @@ struct PrivacyLocalDataView: View {
         }
         .navigationTitle(BSLocalization.text("隐私与本地数据"))
         .navigationBarTitleDisplayMode(.inline)
+        .postHogScreenView("privacy_local_data")
         .task {
             await refreshInventory()
         }

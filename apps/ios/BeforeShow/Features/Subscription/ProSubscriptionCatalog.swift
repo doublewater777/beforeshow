@@ -29,6 +29,10 @@ struct ProSubscriptionProduct: Equatable {
     let perMonthEquivalentText: String?
     /// 免费试用文案（如「3 天免费试用」），仅当 store 提供零价 intro offer 且用户有试用资格时有值。
     let trialText: String?
+    /// 真实交易金额，仅 store 返回时有值。catalog 参考价不填，避免把占位价当营收上报。
+    let priceAmount: Decimal?
+    /// 金额的 ISO 4217 货币代码（如 `USD` / `CNY`），仅 store 返回时有值。
+    let priceCurrency: String?
 
     init(
         id: String,
@@ -38,7 +42,9 @@ struct ProSubscriptionProduct: Equatable {
         benefitCopy: [String],
         isAvailable: Bool = false,
         perMonthEquivalentText: String? = nil,
-        trialText: String? = nil
+        trialText: String? = nil,
+        priceAmount: Decimal? = nil,
+        priceCurrency: String? = nil
     ) {
         self.id = id
         self.plan = plan
@@ -48,6 +54,8 @@ struct ProSubscriptionProduct: Equatable {
         self.isAvailable = isAvailable
         self.perMonthEquivalentText = perMonthEquivalentText
         self.trialText = trialText
+        self.priceAmount = priceAmount
+        self.priceCurrency = priceCurrency
     }
 
     func markingAvailable(_ available: Bool = true) -> ProSubscriptionProduct {
@@ -59,7 +67,9 @@ struct ProSubscriptionProduct: Equatable {
             benefitCopy: benefitCopy,
             isAvailable: available,
             perMonthEquivalentText: perMonthEquivalentText,
-            trialText: trialText
+            trialText: trialText,
+            priceAmount: priceAmount,
+            priceCurrency: priceCurrency
         )
     }
 }

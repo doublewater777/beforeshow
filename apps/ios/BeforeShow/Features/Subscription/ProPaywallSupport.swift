@@ -1,4 +1,5 @@
 import PostHog
+import PostHog
 import SwiftUI
 
 struct ProPaywallSheetView: View {
@@ -94,7 +95,18 @@ enum ProPaywallCopy {
         return BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。")
     }
 
+    /// 挽留方案的角标文案。controlled by the `winback-save-copy-variant` flag：
+    /// control 沿用折扣百分比，access 强调内容不丢失。
+    /// flag 未命中时保持 control（即线上现有文案）。
     static func winbackSaveLabel(_ plan: ProSubscriptionPlan) -> String {
+        let variant = RemoteConfig.variantKey(RemoteConfig.FlagKey.winbackSaveCopyVariant) ?? ""
+        if variant == RemoteConfig.WinbackSaveCopyVariant.access.rawValue {
+            switch plan {
+            case .yearlyDiscount: return BSLocalization.text("现场与回忆保留")
+            case .lifetimeDiscount: return BSLocalization.text("一次解锁，永久保留")
+            default: break
+            }
+        }
         switch plan {
         case .yearlyDiscount: return BSLocalization.text("省 40%")
         case .lifetimeDiscount: return BSLocalization.text("省 33%")

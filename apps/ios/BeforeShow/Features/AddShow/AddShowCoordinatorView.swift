@@ -30,6 +30,9 @@ struct AddShowCoordinatorSheet: View {
             .toolbar {
                 BSChromeToolbarCloseButton(accessibilityLabel: "取消", placement: .topBarTrailing) { dismiss() }
             }
+            // $screen 上报放在 NavigationStack 这一层：AddShowFlowView 已到行数上限。
+            // initialSheet ?? .link 与 AddShowFlowView 的实际初始 method 一致。
+            .bsScreenView("add_show_\((initialSheet ?? .link).rawValue)")
         }
         .preferredColorScheme(.dark)
     }

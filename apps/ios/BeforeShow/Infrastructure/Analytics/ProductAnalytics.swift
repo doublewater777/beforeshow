@@ -3,8 +3,22 @@ import PostHog
 
 /// 产品分析唯一出口。关闭「产品数据分析」后 SDK 已 opt-out，这里不再判断。
 enum ProductAnalytics {
+    /// 首次完成后调用一次，把匿名事件和稳定安装 ID 关联，使留存 / 漏斗按人而非按设备聚合。
+    static func identify() {
+        PostHogSDK.shared.identify(AnalyticsInstallID.current())
+    }
+
     static func capture(_ event: AnalyticsEvent) {
         PostHogSDK.shared.capture(event.name, properties: event.properties)
+    }
+
+    /// 把公共上下文同步为 person properties，使 Person 页面可按维度筛选、留存可按人。
+    /// 在 `register`（super properties）之外独立维护。
+    static func setPersonProperties(_ context: AnalyticsContext) {
+        for key in AnalyticsContext.keys where context.properties[key] == nil {
+            PostHogSDK.shared.unregister(key)
+        }
+        PostHogSDK.shared.setPersonProperties(userPropertiesToSet: context.properties)
     }
 
     /// 以 super properties 附在之后的每个事件上。
@@ -13,6 +27,20 @@ enum ProductAnalytics {
             PostHogSDK.shared.unregister(key)
         }
         PostHogSDK.shared.register(context.properties)
+    }
+
+    /// 营收事件：`proPurchaseCompleted` 带金额，使 PostHog 营收仪表盘与 LTV 可用。
+    static func captureRevenue(_ amount: Decimal, currency: String) {
+        PostHogSDK.shared.capture("$revenue", properties: [
+            "$amount": amount,
+            "$currency": currency
+        ])
+    }
+
+    /// 屏幕浏览。`$screen` 是 PostHog 系统事件，不是产品事件，故不走 `capture(_:)`。
+    /// 名字会作为 `$screen_name` 附着到后续每个事件上。
+    static func screen(_ name: String) {
+        PostHogSDK.shared.screen(name)
     }
 }
 

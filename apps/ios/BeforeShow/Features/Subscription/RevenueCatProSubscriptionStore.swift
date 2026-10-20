@@ -143,7 +143,9 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
                 : nil,
             trialText: plan == .yearly && trialEligible
                 ? Self.freeTrialText(for: package.storeProduct)
-                : nil
+                : nil,
+            priceAmount: package.storeProduct.price,
+            priceCurrency: package.storeProduct.currencyCode
         )
     }
 

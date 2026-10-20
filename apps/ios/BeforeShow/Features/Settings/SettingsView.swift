@@ -1,3 +1,4 @@
+import PostHog
 import SwiftData
 import SwiftUI
 import UIKit
@@ -157,6 +158,7 @@ struct SettingsView: View {
         .background(stageBackground)
         .navigationTitle(BSLocalization.text("设置"))
         .navigationBarTitleDisplayMode(.inline)
+        .postHogScreenView("settings")
         .toolbar {
             SettingsDismissToolbar()
         }

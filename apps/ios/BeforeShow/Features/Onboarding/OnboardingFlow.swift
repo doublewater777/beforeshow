@@ -187,6 +187,7 @@ struct OnboardingFlowView: View {
         }
         .onChange(of: page) { _, newPage in
             ProductAnalytics.capture(.onboardingPageViewed(page: newPage.analyticsValue))
+            ProductAnalytics.screen("onboarding_\(newPage.analyticsValue)")
         }
     }
 

@@ -1,3 +1,4 @@
+import PostHog
 import SwiftData
 import SwiftUI
 
@@ -126,6 +127,7 @@ struct TimetableManageView: View {
         .tint(TimetableStyle.mine)
         .navigationTitle(BSLocalization.text("管理时刻表"))
         .navigationBarTitleDisplayMode(.inline)
+        .postHogScreenView("timetable_manage")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(BSLocalization.text("完成")) { dismiss() }

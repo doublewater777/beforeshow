@@ -1,3 +1,4 @@
+import PostHog
 import StoreKit
 import SwiftUI
 
@@ -92,8 +93,10 @@ struct ProPaywallView: View {
         }
         .preferredColorScheme(.dark)
         .navigationBarTitleDisplayMode(.inline)
+        .postHogScreenView("pro_paywall")
         .task {
             paywallPresentedAt = Date()
+            registerWinbackCopyExperiment()
             ProductAnalytics.capture(.proPaywallViewed)
             await loadProducts()
         }
@@ -298,6 +301,16 @@ struct ProPaywallView: View {
         }
     }
 
+    /// 把实验分组写进 super properties，使同会话的购买 / 关闭事件都带 `$feature/winback-save-copy-variant`，
+    /// PostHog 里能按 variant 对比付费墙转化。flag 未命中时不注册，事件不带该属性。
+    @MainActor
+    private func registerWinbackCopyExperiment() {
+        guard let variant = RemoteConfig.variantKey(RemoteConfig.FlagKey.winbackSaveCopyVariant) else { return }
+        PostHogSDK.shared.register([
+            "$feature/\(RemoteConfig.FlagKey.winbackSaveCopyVariant)": variant
+        ])
+    }
+
     @MainActor
     private func loadProducts() async {
         isLoadingProducts = true
@@ -334,6 +347,9 @@ struct ProPaywallView: View {
             let entitlement = try await store.purchase(productID: product.id)
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
             ProductAnalytics.capture(.proPurchaseCompleted(plan: plan.rawValue))
+            if let amount = product.priceAmount, let currency = product.priceCurrency {
+                ProductAnalytics.captureRevenue(amount, currency: currency)
+            }
             didPurchase = true
             message = BSLocalization.text("Pro 已启用。")
             withAnimation(.easeOut(duration: BSMotion.interface)) {

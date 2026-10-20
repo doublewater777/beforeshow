@@ -1,5 +1,6 @@
 import AVFoundation
 import AVKit
+import PostHog
 import SwiftUI
 
 /// Full-screen memory video page. Only the selected page owns an AVPlayer;
@@ -22,6 +23,8 @@ struct MemoryViewerVideoPage: View {
                 Color.black
             }
         }
+        // 用户录制的视频同样要遮回来（replay 已关掉全图遮罩）。
+        .bsMaskUserContent()
         .onAppear { updatePlayer() }
         .onChange(of: isActive) { _, _ in updatePlayer() }
         .onChange(of: url) { _, _ in

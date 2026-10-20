@@ -577,7 +577,7 @@ struct CurrentShowCompanionSheet: View {
             }
             Text(name)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.foreground)
+                .foregroundStyle(BSColor.Stage.foreground).bsMaskUserContent()
         }
     }
 

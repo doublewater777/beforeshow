@@ -122,3 +122,13 @@ SQL、查询定义与 insight ID 存在 [product-analytics-posthog.json](product
 - 一次用户事务一个结果事件；不为中间 UI 状态埋点。
 - 新增或改名事件同时改本文；已上线事件名与属性名不改，只新增。
 - 用户关闭「产品数据分析」后 SDK opt-out，不发送任何事件。
+
+## 身份、屏幕、营收与回放
+
+详见 [posthog-activation-goal.md](posthog-activation-goal.md)。要点：
+
+- **身份**：首次启动用 Keychain 里的匿名安装 ID 调 `identify`，并把公共上下文同步为 person properties。不使用 iCloud / Apple 身份。
+- **屏幕**：`$screen` 是系统事件，经 `ProductAnalytics.screen(_:)` 或 `.bsScreenView(_:)` 上报。纯 SwiftUI 下 SDK 的自动采集不生效，必须显式埋。名字须是稳定 ASCII 值，不用界面文案（`BeforeShowTab.rawValue` 是中文，改用 `analyticsKey`）。
+- **营收**：成功购买额外发 `$revenue`（`$amount` + `$currency`），金额取自 store 真实价格，catalog 占位价不上报。
+- **回放**：`maskAllImages` 已关闭以保留封面等核心视觉；用户照片、视频、文字展示处用 `.bsMaskUserContent()` 显式遮回。输入框仍由 SDK 默认全遮。
+- **实验**：flag 经 `RemoteConfig` 读取；分组以 `$feature/<flag_key>` 写进 super properties，使同会话事件都带分组。flag 未命中时行为等同于关闭。

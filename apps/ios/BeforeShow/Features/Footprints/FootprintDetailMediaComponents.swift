@@ -1,4 +1,5 @@
 import Foundation
+import PostHog
 import SwiftUI
 import UIKit
 
@@ -47,6 +48,7 @@ struct FootprintMemoryTile: View {
                     Text(fragment.text ?? "")
                         .font(BSFont.caption)
                         .foregroundStyle(BSColor.Stage.foreground)
+                        .bsMaskUserContent()
                         .lineLimit(5)
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
