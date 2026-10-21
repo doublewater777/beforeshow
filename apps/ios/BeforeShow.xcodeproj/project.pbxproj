@@ -95,6 +95,7 @@
 		23A0C265D9993104C43F2C5F /* ShowIdentityCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116F9EC6DB6402F23F1778C5 /* ShowIdentityCopy.swift */; };
 		24ADCDBF87E10057F93E2A4D /* CompanionSharingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F5A040C4517DE4A769DA272 /* CompanionSharingCoordinator.swift */; };
 		24BA02BE9BD92725212251DC /* BSArtistComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039CE96399510890BB2FB9D3 /* BSArtistComponents.swift */; };
+		24E41BB84970DD17C372DFF0 /* LiveActivityPlanSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD7AEFD5011B5D896C58599 /* LiveActivityPlanSecretStore.swift */; };
 		24F624468E2E025CE9132CFF /* TimetableImportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE793C6B8631DA2D5DA9D5D6 /* TimetableImportViews.swift */; };
 		253B15AE42009FAB9D16187D /* Timetable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 243E63AB79C5AB3DA235FB8E /* Timetable.swift */; };
 		25754F7C674CB92A5569A888 /* CDContinuousRotationLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE0CDFF405FDCAC19E86F02 /* CDContinuousRotationLayer.swift */; };
@@ -113,6 +114,7 @@
 		2D6F62B35A1C9E8303016B9C /* CompanionInvitationPreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB3A5E04BCC2873D3DC196E7 /* CompanionInvitationPreparation.swift */; };
 		2D9AFAD5ED48C7AA09831F2D /* ListeningDeckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06FDA76410BF047AA2346AD9 /* ListeningDeckTests.swift */; };
 		2E2DFB39A5B62415EB56A031 /* LiveActivityNotificationHandover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3378E2AB179087288886AA2 /* LiveActivityNotificationHandover.swift */; };
+		2E7D6415240724DCB4A12B45 /* LiveActivityRemoteSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25F3E4B404368E9CDCE78ED /* LiveActivityRemoteSyncService.swift */; };
 		2ED953EA83EAB4643C984778 /* CloudKitCompanionInvitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE5A68F7881574967B602FE /* CloudKitCompanionInvitation.swift */; };
 		2F5194B13ACA5559EF3F36AF /* ListeningRack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667F6E4B29865C2C891F27EC /* ListeningRack.swift */; };
 		2FA48021A0B775999B39C880 /* ListeningSearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C80F437E355ED72B31647FE0 /* ListeningSearchSheet.swift */; };
@@ -146,6 +148,7 @@
 		402703B80438B080A3F6DBDF /* DynamicCoverMediaMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1BEBB854ED795072D76DAF /* DynamicCoverMediaMaintenance.swift */; };
 		40946D41FE9569872D0FD57C /* ArtistNameMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB74E374AED1DC486AB58EA /* ArtistNameMatching.swift */; };
 		40A556597F542A8EBB6482AB /* ArtistAvatarResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71A63099F05D6B6884F0595A /* ArtistAvatarResolver.swift */; };
+		41F0BFB78E4DCC73E69F5EA2 /* LiveActivityRemoteSyncServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A265862DEF1190D5B04032E /* LiveActivityRemoteSyncServiceTests.swift */; };
 		431A0D94F7A40F73A12D9D3A /* CompanionAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E42703F1600BE166EF38E9D8 /* CompanionAnalyticsTests.swift */; };
 		43A43F872D307E0A29D3A195 /* SongFamiliarityRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AD97D16C3C4F0BD6FCF362 /* SongFamiliarityRecord.swift */; };
 		4403AFEBB710611E6A6F5AE3 /* ProLimitPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312B2D194D81024A1E5D1B30 /* ProLimitPresentation.swift */; };
@@ -653,6 +656,7 @@
 		0B48CF97104780F89D7D239A /* ShowCoverLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowCoverLifecycle.swift; sourceTree = "<group>"; };
 		0B5B2697611600BD7155E4AE /* FootprintShareExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintShareExport.swift; sourceTree = "<group>"; };
 		0BD58F80E6360B0E3BB82C17 /* cd-read.caf */ = {isa = PBXFileReference; path = "cd-read.caf"; sourceTree = "<group>"; };
+		0BD7AEFD5011B5D896C58599 /* LiveActivityPlanSecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlanSecretStore.swift; sourceTree = "<group>"; };
 		0C1311ECCA8BF006296D7C6F /* LiveModeStateEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveModeStateEngineTests.swift; sourceTree = "<group>"; };
 		0CAD23A70AA12249035563A7 /* WidgetArtworkPreparationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkPreparationTests.swift; sourceTree = "<group>"; };
 		0CCBE5B1E5667B970571AAEE /* ListeningAudioIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningAudioIntents.swift; sourceTree = "<group>"; };
@@ -684,6 +688,7 @@
 		1849C5DD2B33E29499644642 /* FootprintSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintSearchTests.swift; sourceTree = "<group>"; };
 		19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityAndNotificationTests.swift; sourceTree = "<group>"; };
 		1A05FF048A656A3A3B2BAC4C /* ListeningWidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningWidgetTests.swift; sourceTree = "<group>"; };
+		1A265862DEF1190D5B04032E /* LiveActivityRemoteSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityRemoteSyncServiceTests.swift; sourceTree = "<group>"; };
 		1A63E4DCC9DD1D52BAEA1548 /* ListeningDiscCover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDiscCover.swift; sourceTree = "<group>"; };
 		1B40307197FB63E23967B651 /* ListeningShowLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningShowLifecycleCoordinator.swift; sourceTree = "<group>"; };
 		1C5030CC5C7822DC0BF4175B /* DynamicCoverMediaStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverMediaStore.swift; sourceTree = "<group>"; };
@@ -1013,6 +1018,7 @@
 		AE8091E7223860F3892A8ECF /* BSListeningActionStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSListeningActionStyle.swift; sourceTree = "<group>"; };
 		AE88AA3B2E3D32607D5D374F /* CurrentShowTimelineSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowTimelineSchedule.swift; sourceTree = "<group>"; };
 		B018189489366FBAC81227FD /* ListeningDisc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDisc.swift; sourceTree = "<group>"; };
+		B25F3E4B404368E9CDCE78ED /* LiveActivityRemoteSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityRemoteSyncService.swift; sourceTree = "<group>"; };
 		B27BC02E7D7DE6A5DA07961E /* ListeningWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningWidgetViews.swift; sourceTree = "<group>"; };
 		B2EE6AC9C7E9BE2500CED425 /* ObservationValuesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationValuesTests.swift; sourceTree = "<group>"; };
 		B32270415ABEA26969CCF07D /* TimetablePersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePersistenceTests.swift; sourceTree = "<group>"; };
@@ -1211,6 +1217,7 @@
 			children = (
 				32B638209B9577E5E8ABEC11 /* Analytics */,
 				67FC670E0576B1D4E557756A /* Cloud */,
+				31872F514AEF7925B16A00EF /* LiveActivity */,
 				5B26DCDFA6650A2B50BE68F4 /* Maps */,
 				42E3EB9B81F2A6AFCA851E7F /* Media */,
 				81B826A9F52551BD2B1C96D2 /* Music */,
@@ -1309,6 +1316,15 @@
 				57EBA390964282353F575E9A /* cd-seat.caf */,
 			);
 			path = Sounds;
+			sourceTree = "<group>";
+		};
+		31872F514AEF7925B16A00EF /* LiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				0BD7AEFD5011B5D896C58599 /* LiveActivityPlanSecretStore.swift */,
+				B25F3E4B404368E9CDCE78ED /* LiveActivityRemoteSyncService.swift */,
+			);
+			path = LiveActivity;
 			sourceTree = "<group>";
 		};
 		32B638209B9577E5E8ABEC11 /* Analytics */ = {
@@ -1839,6 +1855,7 @@
 				2C4D6FC5594D83118D2C7B25 /* ListenTestData.swift */,
 				19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */,
 				CA648BF4E38DDA01FEC74BD1 /* LiveActivityImageBudgetTests.swift */,
+				1A265862DEF1190D5B04032E /* LiveActivityRemoteSyncServiceTests.swift */,
 				0C1311ECCA8BF006296D7C6F /* LiveModeStateEngineTests.swift */,
 				6EDA0EA772B60E3B5CF21C92 /* LocalNotificationSchedulingTests.swift */,
 				56A115625BFA2AA222D9539B /* MemoryFragmentRelativeTimeBoundaryTests.swift */,
@@ -2657,7 +2674,9 @@
 				9F89E74CA691CE07C455190B /* ListeningWidgetSync.swift in Sources */,
 				4D57951DF0A662CABADB6833 /* LiveActivityContent.swift in Sources */,
 				2E2DFB39A5B62415EB56A031 /* LiveActivityNotificationHandover.swift in Sources */,
+				24E41BB84970DD17C372DFF0 /* LiveActivityPlanSecretStore.swift in Sources */,
 				6BA26BDCA5AF6CA2C335AAB3 /* LiveActivityPlanner.swift in Sources */,
+				2E7D6415240724DCB4A12B45 /* LiveActivityRemoteSyncService.swift in Sources */,
 				0A983A2CFD77142E60CC7DD9 /* LiveActivityTransitionPlan.swift in Sources */,
 				3C950504FE1D927A099318BF /* LiveAndWidgetShowcaseView.swift in Sources */,
 				08E2411FFD8905BF99132D56 /* LiveModeFocusStore.swift in Sources */,
@@ -2901,6 +2920,7 @@
 				AFBE4EAB2A593D0FA387CE33 /* ListeningWidgetTests.swift in Sources */,
 				0F3BE470CA1FE8CCCA4FF900 /* LiveActivityAndNotificationTests.swift in Sources */,
 				5C6BA85B7E9E80B885A7E4D7 /* LiveActivityImageBudgetTests.swift in Sources */,
+				41F0BFB78E4DCC73E69F5EA2 /* LiveActivityRemoteSyncServiceTests.swift in Sources */,
 				49232AF96FAED3354A73522F /* LiveModeStateEngineTests.swift in Sources */,
 				479EDB16C034E37FCA30ACD0 /* LocalNotificationSchedulingTests.swift in Sources */,
 				657CF5DFAFE087FDEFAC3903 /* MemoryFragmentRelativeTimeBoundaryTests.swift in Sources */,

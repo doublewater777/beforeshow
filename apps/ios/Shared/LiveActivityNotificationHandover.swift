@@ -35,6 +35,10 @@ struct PerformanceReminderEventKey: Hashable, Codable, Sendable {
     var stableIdentifier: String {
         "\(showID).\(milestone).\(performanceID).\(Int(scheduledStartsAt.timeIntervalSince1970))"
     }
+
+    var notificationIdentifier: String {
+        "\(showID).\(milestone).\(performanceID)"
+    }
 }
 
 struct PerformanceReminderRecord: Codable, Equatable, Sendable {
