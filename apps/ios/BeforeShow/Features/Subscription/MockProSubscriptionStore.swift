@@ -7,19 +7,23 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
     private var simulatedError: Error?
     /// true 时模拟免费试用 / 免费恢复：权益会生效，但没有实收金额。
     private var simulatedTrial = false
+    /// true 时模拟 StoreKit 报不出交易实付金额：权益生效，但不得把标价当实收。
+    private var simulatedMissingTransactionPrice = false
 
     init(
         products: [ProSubscriptionProduct] = ProSubscriptionCatalog.defaultProducts,
         entitlement: ProEntitlementState = .free,
         restorableEntitlement: ProEntitlementState? = nil,
         simulatedError: Error? = nil,
-        simulatedTrial: Bool = false
+        simulatedTrial: Bool = false,
+        simulatedMissingTransactionPrice: Bool = false
     ) {
         self.products = products
         self.entitlement = entitlement
         self.restorableEntitlement = restorableEntitlement
         self.simulatedError = simulatedError
         self.simulatedTrial = simulatedTrial
+        self.simulatedMissingTransactionPrice = simulatedMissingTransactionPrice
     }
 
     func setSimulatedError(_ error: Error?) {
@@ -51,11 +55,14 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         let purchased = ProEntitlementState.active(productID: productID, expirationDate: nil)
         entitlement = purchased
         restorableEntitlement = purchased
-        // 正常成交：按 store 返回的真实价格给实收金额。
-        // 免费试用 / 免费 intro 则无实收金额，UI 层不得据此记 `$revenue`。
-        let revenue = simulatedTrial ? nil : products
-            .first { $0.id == productID }?
-            .revenueIfCharged
+        // 实收金额只能来自交易实付价格；商品标价 / 占位价不能充数。
+        // 免费试用（无实收）与跟不到交易价格（不可信）均上报 nil。
+        let revenue: ProPurchaseRevenue?
+        if simulatedTrial || simulatedMissingTransactionPrice {
+            revenue = nil
+        } else {
+            revenue = products.first { $0.id == productID }?.revenueIfCharged
+        }
         return ProPurchaseOutcome(
             entitlement: purchased,
             transactionID: "mock-\(productID)",

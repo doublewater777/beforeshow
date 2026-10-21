@@ -114,7 +114,6 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
             revenue: Self.revenue(
                 entitlementPeriodType: entitlementPeriodType,
                 transactionPrice: Self.transactionPrice(transaction),
-                productPrice: product.price,
                 currencyCode: product.currencyCode
             )
         )
@@ -130,23 +129,24 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
 
     /// 实收金额（纯函数，便于覆盖试用 / intro / 普通购买）
     ///
-    /// 三条规则缺一不可：
+    /// 四条规则缺一不可：
     /// 1. `entitlementPeriodType == .normal`：试用 / intro 优惠虽然也会给 Pro 权益，
-    ///    但当期没收钱，不能按标价记成正收入。
-    /// 2. 金额 > 0：零元交易不是收入。
-    /// 3. 有货币代码：避免把金额记成默认货币。
+    ///    但当期没收钱，不能记成收入。
+    /// 2. **只要交易实付金额**。商品标价不是实收金额：优惠 / 促销能使
+    ///    实付低于标价，而 `periodType == .normal` 只说明权益在普通计费周期，
+    ///    并不证明等于标价。取不到就上报 nil，不拿标价填空。
+    /// 3. 金额 > 0：零元交易不是收入。
+    /// 4. 有货币代码：避免把金额记成默认货币。
     static func revenue(
         entitlementPeriodType: PeriodType?,
         transactionPrice: Decimal?,
-        productPrice: Decimal,
         currencyCode: String?
     ) -> ProPurchaseRevenue? {
         guard entitlementPeriodType == .normal else { return nil }
+        guard let transactionPrice else { return nil }
         guard let currencyCode, !currencyCode.isEmpty else { return nil }
-        // 优先交易实付金额（后续续订 / 促销折价会低于标价）；取不到才退回标价。
-        let amount = transactionPrice ?? productPrice
-        guard amount > 0 else { return nil }
-        return ProPurchaseRevenue(amount: amount, currency: currencyCode)
+        guard transactionPrice > 0 else { return nil }
+        return ProPurchaseRevenue(amount: transactionPrice, currency: currencyCode)
     }
 
     /// StoreKit 2 交易实付金额。iOS 15+ 可用；取不到（SK1 / 未公开）返回 nil。
