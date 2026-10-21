@@ -156,6 +156,34 @@ final class LiveActivityRemoteSyncServiceTests: XCTestCase {
         let success = await service.revokePlan(showID: "test-show-123")
         XCTAssertTrue(success)
     }
+
+    func testLedgerPreventsReconciliationOfHandedOverNotification() async throws {
+        let showID = UUID().uuidString
+        let performanceID = UUID().uuidString
+        let scheduledStartsAt = Date().addingTimeInterval(3600)
+
+        let ledger = LiveActivityReminderLedger()
+        let eventKey = PerformanceReminderEventKey(
+            showID: showID,
+            performanceID: performanceID,
+            scheduledStartsAt: scheduledStartsAt
+        )
+
+        // Handover completed
+        let didHandover = await ledger.completeHandover(eventKey: eventKey, planVersion: 1, now: Date())
+        XCTAssertTrue(didHandover)
+
+        // isHandedOverOrConsumed returns true for the notification identifier
+        let isHandedOver = await ledger.isHandedOverOrConsumed(notificationIdentifier: eventKey.notificationIdentifier)
+        XCTAssertTrue(isHandedOver)
+
+        // Revoking to local restores pending state so it can be reconciled again
+        let didRevoke = await ledger.revokeToLocal(eventKey: eventKey, now: Date())
+        XCTAssertTrue(didRevoke)
+
+        let isStillHandedOver = await ledger.isHandedOverOrConsumed(notificationIdentifier: eventKey.notificationIdentifier)
+        XCTAssertFalse(isStillHandedOver)
+    }
 }
 
 private actor MockCloudSession: URLSessionProtocol {

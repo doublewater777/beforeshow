@@ -178,6 +178,12 @@ final class LocalNotificationCenter {
             var identifiersNeedingSystemWrite = Set<String>()
             for identifier in scheduledIdentifiers {
                 guard let request = scheduledByIdentifier[identifier] else { continue }
+                if await LiveActivityReminderLedger.shared.isHandedOverOrConsumed(notificationIdentifier: identifier) {
+                    if pendingIdentifiers.contains(identifier) {
+                        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                    }
+                    continue
+                }
                 let existing = normalization.canonicalByIdentifier[identifier]
                 if existing == nil
                     || existing?.matches(request) != true

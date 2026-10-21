@@ -113,7 +113,6 @@
 		2CD29A11D9F3C6D1B032209D /* WidgetDataSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F3081E975867E95F098F8C /* WidgetDataSync.swift */; };
 		2D6F62B35A1C9E8303016B9C /* CompanionInvitationPreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB3A5E04BCC2873D3DC196E7 /* CompanionInvitationPreparation.swift */; };
 		2D9AFAD5ED48C7AA09831F2D /* ListeningDeckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06FDA76410BF047AA2346AD9 /* ListeningDeckTests.swift */; };
-		2E2DFB39A5B62415EB56A031 /* LiveActivityNotificationHandover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3378E2AB179087288886AA2 /* LiveActivityNotificationHandover.swift */; };
 		2E7D6415240724DCB4A12B45 /* LiveActivityRemoteSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25F3E4B404368E9CDCE78ED /* LiveActivityRemoteSyncService.swift */; };
 		2ED953EA83EAB4643C984778 /* CloudKitCompanionInvitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE5A68F7881574967B602FE /* CloudKitCompanionInvitation.swift */; };
 		2F5194B13ACA5559EF3F36AF /* ListeningRack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667F6E4B29865C2C891F27EC /* ListeningRack.swift */; };
@@ -139,6 +138,7 @@
 		3899A74D7AF4ACCC0B222427 /* TimetableReviewIssues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F52A258E2746FD67AABDBCB /* TimetableReviewIssues.swift */; };
 		39101B2A8D6FA5C68CE5240D /* ShowDraftFieldComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72B3587927F28D0941257C9 /* ShowDraftFieldComponents.swift */; };
 		3B8A851901B49084E347E259 /* ListeningLocalDataCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10ABB29AB0D2A14A08D678FF /* ListeningLocalDataCleaner.swift */; };
+		3BB541607EDDBF4FAC52ED88 /* LiveActivityNotificationHandover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239648979CB22E2A33DD72DF /* LiveActivityNotificationHandover.swift */; };
 		3C950504FE1D927A099318BF /* LiveAndWidgetShowcaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8D75674843E8DE639CA2E2 /* LiveAndWidgetShowcaseView.swift */; };
 		3D755090E43EB9BF535A878F /* AnalyticsIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DADE259C2201BC0640782B37 /* AnalyticsIdentityTests.swift */; };
 		3D7A53B52199DE2CB7701158 /* ListeningAudioIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CCBE5B1E5667B970571AAEE /* ListeningAudioIntents.swift */; };
@@ -543,7 +543,6 @@
 		E9B52EA96E0ED9502FB4FBBC /* ListeningRoomSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37ADD555CC275111FBCD7DEA /* ListeningRoomSessionStoreTests.swift */; };
 		E9D2659C380E1DA05AB12893 /* ListeningEvidenceFailureOwnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C27594C362AA89ABDC85D562 /* ListeningEvidenceFailureOwnerTests.swift */; };
 		EA8E0CA17E4D70B8A15349F5 /* RevenueCatProSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF642A93582E431B891959F9 /* RevenueCatProSubscriptionStore.swift */; };
-		EB3E646D82D4FE66F5C2A424 /* LiveActivityNotificationHandover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3378E2AB179087288886AA2 /* LiveActivityNotificationHandover.swift */; };
 		EB86A04317E0AACC2246AD8F /* BeforeShowCloudClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDB001AD89D32CEDC33E72F /* BeforeShowCloudClientTests.swift */; };
 		ECBBAF36054572BD3FB5DBEA /* ListeningDiscDetailHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA47D20900C04DFB928258E /* ListeningDiscDetailHero.swift */; };
 		ED0073F2CF7C0306E90AF48B /* ModelContainerFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110CA86A45FE96CC7A19FD5E /* ModelContainerFactory.swift */; };
@@ -706,6 +705,7 @@
 		21B83A34563BD0FA48907007 /* CurrentShowHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowHomeView.swift; sourceTree = "<group>"; };
 		2213C810CBDEDCCB00255B1F /* ShowArtistListeningPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowArtistListeningPreference.swift; sourceTree = "<group>"; };
 		234997CE799B19ECCB9A9393 /* SettingsFeedbackSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFeedbackSupport.swift; sourceTree = "<group>"; };
+		239648979CB22E2A33DD72DF /* LiveActivityNotificationHandover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityNotificationHandover.swift; sourceTree = "<group>"; };
 		23C3DE6E4201A7D66E0D05D3 /* ListeningBrowseState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningBrowseState.swift; sourceTree = "<group>"; };
 		243E63AB79C5AB3DA235FB8E /* Timetable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Timetable.swift; sourceTree = "<group>"; };
 		249DA2554DF5BC4EE6EB1397 /* ExternalMapApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalMapApps.swift; sourceTree = "<group>"; };
@@ -1141,7 +1141,6 @@
 		DFDB001AD89D32CEDC33E72F /* BeforeShowCloudClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowCloudClientTests.swift; sourceTree = "<group>"; };
 		E0EF9D309E457D17CC9DFA5E /* ShowDraftEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftEditorView.swift; sourceTree = "<group>"; };
 		E2F175B82E34124EFD7D9C9B /* Listening.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Listening.xcstrings; sourceTree = "<group>"; };
-		E3378E2AB179087288886AA2 /* LiveActivityNotificationHandover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityNotificationHandover.swift; sourceTree = "<group>"; };
 		E34E5B9E39C9BD619A3A2208 /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
 		E3579A72CB30A5394056D930 /* FootprintArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintArchiveTests.swift; sourceTree = "<group>"; };
 		E39665C520E719F6AC46E963 /* BSInteractionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSInteractionComponents.swift; sourceTree = "<group>"; };
@@ -1321,6 +1320,7 @@
 		31872F514AEF7925B16A00EF /* LiveActivity */ = {
 			isa = PBXGroup;
 			children = (
+				239648979CB22E2A33DD72DF /* LiveActivityNotificationHandover.swift */,
 				0BD7AEFD5011B5D896C58599 /* LiveActivityPlanSecretStore.swift */,
 				B25F3E4B404368E9CDCE78ED /* LiveActivityRemoteSyncService.swift */,
 			);
@@ -1765,7 +1765,6 @@
 				13FA246F6A2CD9BBD76F12B3 /* HomeShowPhase.swift */,
 				0CCBE5B1E5667B970571AAEE /* ListeningAudioIntents.swift */,
 				AC960C7FD153F512DF4C7EB0 /* LiveActivityContent.swift */,
-				E3378E2AB179087288886AA2 /* LiveActivityNotificationHandover.swift */,
 				6E093EF6A3D3EBC5FFA65129 /* LiveActivityPlanner.swift */,
 				9C85F0740C82C92512A9B938 /* LiveActivityTransitionPlan.swift */,
 				5A25CF298412D145B2E394A8 /* LiveModeFocusStore.swift */,
@@ -2673,7 +2672,7 @@
 				D945978648F1AD489FE531FE /* ListeningStyle.swift in Sources */,
 				9F89E74CA691CE07C455190B /* ListeningWidgetSync.swift in Sources */,
 				4D57951DF0A662CABADB6833 /* LiveActivityContent.swift in Sources */,
-				2E2DFB39A5B62415EB56A031 /* LiveActivityNotificationHandover.swift in Sources */,
+				3BB541607EDDBF4FAC52ED88 /* LiveActivityNotificationHandover.swift in Sources */,
 				24E41BB84970DD17C372DFF0 /* LiveActivityPlanSecretStore.swift in Sources */,
 				6BA26BDCA5AF6CA2C335AAB3 /* LiveActivityPlanner.swift in Sources */,
 				2E7D6415240724DCB4A12B45 /* LiveActivityRemoteSyncService.swift in Sources */,
@@ -2980,7 +2979,6 @@
 				D4D5614E8EE557B0D823D12A /* ListeningWidgetViews.swift in Sources */,
 				DBF7C3405A200AE71CCABBB0 /* LiveActivityContent.swift in Sources */,
 				4A6724C2E8FC2C66E6F0A015 /* LiveActivityLineupView.swift in Sources */,
-				EB3E646D82D4FE66F5C2A424 /* LiveActivityNotificationHandover.swift in Sources */,
 				6B7842578C77CA426C4DF7B8 /* LiveActivityPlanner.swift in Sources */,
 				C6BEA4BE631971C01AEB40ED /* LiveActivityTransitionPlan.swift in Sources */,
 				A3B2ED4FC6B2E1B272736B3C /* LiveModeFocusStore.swift in Sources */,

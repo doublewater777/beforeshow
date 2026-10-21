@@ -136,3 +136,49 @@ test("dispatchLiveActivityPush marks plan as token_expired on 410 Unregistered",
   assert.equal(res.expiredTokenCount, 1);
   assert.equal(finalStatus, "token_expired");
 });
+
+test("dispatchLiveActivityPush marks plan as completed when all steps are consumed or ended", async () => {
+  const now = new Date("2026-10-21T23:00:00Z");
+  let finalStatus = null;
+
+  const plan = {
+    _id: "dev-1:show-end",
+    activityPushToken: "token-end",
+    isProduction: false,
+    status: "active",
+    steps: [
+      {
+        stepIndex: 0,
+        scheduledAt: now,
+        state: { showName: "Strawberry Festival", isEnded: true },
+        isConsumed: false
+      }
+    ]
+  };
+
+  const res = await main(
+    {},
+    {},
+    {
+      now: () => now,
+      findActivePlans: async () => [plan],
+      updatePlan: async (docId, updateData) => {
+        finalStatus = updateData.status;
+      },
+      transport: async () => {
+        return { ok: true, statusCode: 200 };
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.dispatchedCount, 1);
+  assert.equal(finalStatus, "completed");
+});
+
+test("dispatchLiveActivityPush gracefully skips when APNs credentials are missing and no transport", async () => {
+  const res = await main({}, {}, {});
+  assert.equal(res.ok, true);
+  assert.equal(res.skippedDueToConfig, true);
+  assert.equal(res.dispatchedCount, 0);
+});

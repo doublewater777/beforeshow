@@ -152,6 +152,14 @@ actor LiveActivityReminderLedger {
         records[eventKey.stableIdentifier] = current
     }
 
+    /// 检查指定通知标识符是否已交接给实时活动或已被消费
+    func isHandedOverOrConsumed(notificationIdentifier: String) -> Bool {
+        records.values.contains { record in
+            record.eventKey.notificationIdentifier == notificationIdentifier
+                && (record.status == .handedOver || record.status == .consumed)
+        }
+    }
+
     func allRecords() -> [PerformanceReminderRecord] {
         Array(records.values)
     }
