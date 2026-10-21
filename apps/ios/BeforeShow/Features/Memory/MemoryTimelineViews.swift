@@ -124,6 +124,7 @@ private struct MemoryTimelinePost: View {
                 .foregroundStyle(Color(red: 0.90, green: 0.91, blue: 0.93))
                 .lineSpacing(7)
                 .fixedSize(horizontal: false, vertical: true)
+                .bsMaskUserContent()
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -142,6 +143,7 @@ private struct MemoryTimelinePost: View {
                         .font(.system(size: 13))
                         .foregroundStyle(Color(red: 0.90, green: 0.91, blue: 0.93))
                         .lineSpacing(5)
+                        .bsMaskUserContent()
                 }
                 .padding(13)
             }
@@ -223,5 +225,8 @@ struct MemoryThumbnail: View {
             }.value
             image = loaded
         }
+        // 用户照片：session replay 已关掉全图遮罩以保留封面等核心视觉，
+        // 用户自己的照片 / 视频帧必须显式遮回来。
+        .bsMaskUserContent()
     }
 }

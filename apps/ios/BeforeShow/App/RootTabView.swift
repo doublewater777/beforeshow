@@ -28,7 +28,10 @@ struct RootTabView: View {
                     .accessibilityHidden(selectedTab != .footprints)
             }
         }
-        .onChange(of: selectedTab) { _, tab in mountedTabs.insert(tab) }
+        .onChange(of: selectedTab) { _, tab in
+            mountedTabs.insert(tab)
+            ProductAnalytics.screen("tab_\(tab.analyticsKey)")
+        }
         .task {
             // Spread first construction across idle turns, before a tab tap needs it.
             // Listen remains inactive, so music authorization/catalog loading waits.
@@ -44,5 +47,6 @@ struct RootTabView: View {
         // Keep system nav chrome neutral so tint does not leak into child controls.
         .tint(BSColor.Stage.foreground)
         .sensoryFeedback(.selection, trigger: selectedTab)
+        .task { ProductAnalytics.screen("tab_\(selectedTab.analyticsKey)") }
     }
 }

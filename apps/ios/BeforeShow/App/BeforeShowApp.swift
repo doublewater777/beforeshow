@@ -70,11 +70,16 @@ struct BeforeShowApp: App {
                 config.captureApplicationLifecycleEvents = true
                 config.errorTrackingConfig.autoCapture = true
                 config.sessionReplay = true
+                // 输入框全遮罩保留默认 true；但刻意关掉「全图遮罩」——封面、唱片、
+                // 回忆卡片照片是核心视觉，全遮会让回放看不出用户在操作什么。
+                // 用户照片改用 .bsMaskUserContent() 显式标记（见 BSUserContentMask）。
+                config.sessionReplayConfig.maskAllImages = false
                 #if DEBUG
                 config.debug = true
                 #endif
                 PostHogSDK.shared.setup(config)
                 ProductAnalyticsPreferences.syncPostHog()
+                ProductAnalytics.identify()
             }
         }
 

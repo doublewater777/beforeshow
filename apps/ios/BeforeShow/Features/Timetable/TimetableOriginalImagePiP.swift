@@ -69,6 +69,7 @@ struct TimetableOriginalImagePiP: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: size.width, maxHeight: size.height)
+                    .bsMaskUserContent()
             }
         }
         .frame(width: size.width, height: size.height)

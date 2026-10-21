@@ -1,4 +1,3 @@
-import StoreKit
 import SwiftUI
 
 struct ProPaywallView: View {
@@ -18,6 +17,10 @@ struct ProPaywallView: View {
     @State private var isShowingOfferCodeRedemption = false
     @State private var paywallPresentedAt = Date()
     @State private var didTrackPaywallClosed = false
+    /// 已上报过营收的 transaction ID，防止同笔交易被重复计营收。
+    @State private var reportedRevenueTransactionIDs: Set<String> = []
+    /// 本次付费墙展示的实验分组快照：文案与曝光都读它，避免两处取值不一致。
+    @State private var winbackExperiment = WinbackCopyExperiment(variant: .control, isFlagResolved: false)
 
     private let store: any ProSubscriptionStore
     private let showsCloseButton: Bool
@@ -92,8 +95,10 @@ struct ProPaywallView: View {
         }
         .preferredColorScheme(.dark)
         .navigationBarTitleDisplayMode(.inline)
+        .postHogScreenView("pro_paywall")
         .task {
             paywallPresentedAt = Date()
+            registerWinbackCopyExperiment()
             ProductAnalytics.capture(.proPaywallViewed)
             await loadProducts()
         }
@@ -242,6 +247,7 @@ struct ProPaywallView: View {
     // MARK: - Winback presentation
 
     private var winbackContent: some View {
+        // 文案与曝光都读同一份快照，避免 flag 加载完成后界面与事件分组不一致。
         ProPaywallWinbackView(
             selectedPlan: selectedWinbackPlan,
             purchasingProductID: purchasingProductID,
@@ -249,6 +255,7 @@ struct ProPaywallView: View {
             priceAmount: priceAmount(for:),
             standardPriceAmount: standardPriceAmount(for:),
             ctaPrice: ctaPrice(for:),
+            saveLabel: { ProPaywallCopy.winbackSaveLabel($0, variant: winbackExperiment.variant) },
             onSelect: { selectedWinbackPlan = $0 },
             onPurchase: { plan in
                 Task {
@@ -298,6 +305,30 @@ struct ProPaywallView: View {
         }
     }
 
+    /// 把实验分组写进 super properties，使同会话的购买 / 关闭事件都带 `$feature/winback-save-copy-variant`，
+    /// PostHog 里能按 variant 对比付费墙转化。flag 未命中时注销该 key，事件不带残留分组。
+    @MainActor
+    private func registerWinbackCopyExperiment() {
+        // 一次取值固定成本次展示的分组，之后文案与事件都读这个快照。
+        winbackExperiment = WinbackCopyExperiment.resolve(
+            variantKey: RemoteConfig.variantKey(RemoteConfig.FlagKey.winbackSaveCopyVariant)
+        )
+        ProductAnalytics.registerExperiment(winbackExperiment)
+    }
+
+    /// 报一次 `$revenue`。金额来自 store 整理的「交易实收」而不是商品标价，
+    /// 免费试用 / 零元交易在模型层就被判为无营收；同笔交易只报一次。
+    @MainActor
+    private func captureRevenueIfNeeded(
+        _ revenue: ProPurchaseRevenue?,
+        transactionID: String?
+    ) {
+        guard let revenue, revenue.amount > 0 else { return }
+        if let transactionID, reportedRevenueTransactionIDs.contains(transactionID) { return }
+        if let transactionID { reportedRevenueTransactionIDs.insert(transactionID) }
+        ProductAnalytics.captureRevenue(revenue.amount, currency: revenue.currency)
+    }
+
     @MainActor
     private func loadProducts() async {
         isLoadingProducts = true
@@ -331,9 +362,22 @@ struct ProPaywallView: View {
         defer { purchasingProductID = nil }
 
         do {
-            let entitlement = try await store.purchase(productID: product.id)
-            entitlementRawValue = ProEntitlementStorage.encode(entitlement)
+            let outcome = try await store.purchase(productID: product.id)
+            let purchased = outcome.entitlement
+            // 商店可能「没取消但也没给出有效权益」（权益同步延迟 / RC 侧未就绪）。
+            // 这种结果不能走成功路径：既不记 proPurchaseCompleted，也不显示「已启用」。
+            guard purchased.isProActive else {
+                ProductAnalytics.capture(.proPurchaseFailed(plan: plan.rawValue))
+                message = BSLocalization.text("购买暂时没有完成。")
+                return
+            }
+
+            entitlementRawValue = ProEntitlementStorage.encode(purchased)
             ProductAnalytics.capture(.proPurchaseCompleted(plan: plan.rawValue))
+            captureRevenueIfNeeded(
+                outcome.revenue,
+                transactionID: outcome.transactionID
+            )
             didPurchase = true
             message = BSLocalization.text("Pro 已启用。")
             withAnimation(.easeOut(duration: BSMotion.interface)) {

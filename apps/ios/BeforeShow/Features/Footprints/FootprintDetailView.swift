@@ -823,7 +823,7 @@ private struct FootprintCoverImageViewer: View {
 
     var body: some View {
         BSFullscreenImageViewer(pageCount: 1, currentIndex: $page) { _ in
-            BSZoomableImagePage(source: source, onSingleTap: { dismiss() })
+            BSZoomableImagePage(source: source, onSingleTap: { dismiss() }).bsMaskUserContent()
         }
     }
 }

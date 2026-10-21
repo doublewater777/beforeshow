@@ -480,8 +480,7 @@ private struct CompanionJoinConfirmationView: View {
                     : BSLocalization.format("%@ 邀请你一起去", ownerName)
             )
             .font(.system(size: 28, weight: .bold, design: .rounded))
-            .foregroundStyle(BSColor.Stage.foreground)
-            .multilineTextAlignment(.center)
+            .foregroundStyle(BSColor.Stage.foreground).multilineTextAlignment(.center)
 
             if isHistorical {
                 Text(BSLocalization.format("%@ 邀请你确认这段共同足迹", ownerName))
@@ -490,6 +489,7 @@ private struct CompanionJoinConfirmationView: View {
                     .multilineTextAlignment(.center)
             }
         }
+        .bsMaskUserContent()
     }
 
     private func showCard(session: CompanionSessionSnapshot) -> some View {

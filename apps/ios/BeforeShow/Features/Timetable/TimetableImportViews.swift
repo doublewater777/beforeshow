@@ -329,6 +329,7 @@ struct TimetableRecognizingView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
+                    .bsMaskUserContent()
             } else {
                 Color.white.opacity(0.05)
             }

@@ -10,6 +10,7 @@ struct TimetableOriginalImagePages: View {
         TabView(selection: $currentIndex) {
             ForEach(images.indices, id: \.self) { index in
                 BSZoomableImageView(image: images[index], onSingleTap: onSingleTap)
+                    .bsMaskUserContent()
                     .tag(index)
             }
         }
@@ -55,6 +56,7 @@ struct TimetableSavedImagesView: View {
                     }
                 )
                 .ignoresSafeArea()
+                .bsMaskUserContent()
 
                 if isChromeVisible {
                     bottomOverlay
@@ -148,6 +150,7 @@ struct TimetableOriginalImageViewer: View {
     var body: some View {
         BSFullscreenImageViewer(pageCount: images.count, currentIndex: $currentIndex) { index in
             BSZoomableImagePage(source: .image(images[index]), onSingleTap: onDismiss)
+                .bsMaskUserContent()
         }
         // Images can vanish underneath (timetable deleted); keep a way out.
         .overlay {

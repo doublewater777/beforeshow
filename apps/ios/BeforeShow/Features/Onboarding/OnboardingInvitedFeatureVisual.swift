@@ -29,6 +29,7 @@ struct OnboardingInvitedFeatureVisual: View {
                         Image(systemName: "person.2.fill")
                             .font(.system(size: 11, weight: .bold))
                         Text(BSLocalization.format("%@ 邀请你同行", snapshot.ownerName))
+                            .bsMaskUserContent()
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundStyle(BSColor.Stage.accent)

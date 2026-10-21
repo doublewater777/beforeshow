@@ -7,6 +7,10 @@ struct ProPaywallWinbackView: View {
     let priceAmount: (ProSubscriptionPlan) -> String
     let standardPriceAmount: (ProSubscriptionPlan) -> String
     let ctaPrice: (ProSubscriptionPlan) -> String
+    /// 本次展示的实验分组快照，与曝光事件同源（PR #357 review P2）。
+    var saveLabel: (ProSubscriptionPlan) -> String = { plan in
+        ProPaywallCopy.winbackSaveLabel(plan)
+    }
     let onSelect: (ProSubscriptionPlan) -> Void
     let onPurchase: (ProSubscriptionPlan) -> Void
     let onDecline: () -> Void
@@ -69,7 +73,7 @@ struct ProPaywallWinbackView: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Spacer(minLength: 0)
-                    Text(ProPaywallCopy.winbackSaveLabel(plan))
+                    Text(saveLabel(plan))
                         .font(.system(size: 9.5, weight: .bold))
                         .foregroundStyle(BSColor.Stage.accent)
                         .padding(.horizontal, 7)

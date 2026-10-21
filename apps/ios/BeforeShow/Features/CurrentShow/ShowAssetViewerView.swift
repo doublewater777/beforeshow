@@ -28,6 +28,7 @@ struct ShowAssetViewerView: View {
                         }
                     }
                     .padding(.horizontal, 12)
+                    .bsMaskUserContent()
                 } else {
                     ProgressView()
                         .tint(.white)

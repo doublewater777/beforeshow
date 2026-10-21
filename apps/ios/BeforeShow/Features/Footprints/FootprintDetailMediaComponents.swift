@@ -1,4 +1,5 @@
 import Foundation
+import PostHog
 import SwiftUI
 import UIKit
 
@@ -47,6 +48,7 @@ struct FootprintMemoryTile: View {
                     Text(fragment.text ?? "")
                         .font(BSFont.caption)
                         .foregroundStyle(BSColor.Stage.foreground)
+                        .bsMaskUserContent()
                         .lineLimit(5)
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
@@ -182,6 +184,8 @@ private struct FootprintLocalImage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        // 只用于展示用户导入的票根 / 时刻表，一律遮罩。
+        .bsMaskUserContent()
         .task(id: url) {
             image = await Task.detached(priority: .userInitiated) {
                 UIImage(contentsOfFile: url.path)

@@ -46,7 +46,7 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
             }
     }
 
-    func purchase(productID: String) async throws -> ProEntitlementState {
+    func purchase(productID: String) async throws -> ProPurchaseOutcome {
         let offerings = try await Purchases.shared.offerings()
         guard let package = offerings.current?.availablePackages
                 .first(where: { $0.storeProduct.productIdentifier == productID }) else {
@@ -69,7 +69,12 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
             if result.userCancelled {
                 throw ProSubscriptionError.purchaseCancelled
             }
-            return Self.entitlement(from: result.customerInfo) ?? .free
+            return Self.outcome(
+                entitlement: Self.entitlement(from: result.customerInfo),
+                entitlementPeriodType: Self.entitlementPeriodType(result.customerInfo),
+                transaction: result.transaction,
+                product: package.storeProduct
+            )
         } catch {
             if Self.isPurchaseCancelled(error) {
                 throw ProSubscriptionError.purchaseCancelled
@@ -93,6 +98,63 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
 
     static func isPurchaseCancelled(_ error: Error) -> Bool {
         (error as NSError).code == ErrorCode.purchaseCancelledError.rawValue
+    }
+
+    /// 把一次成功购买整理成 `ProPurchaseOutcome`。
+    /// 权益为 nil（未拿到有效 Pro 权益）时按 free 返回，但 revenue 一定为 nil。
+    static func outcome(
+        entitlement: ProEntitlementState?,
+        entitlementPeriodType: PeriodType?,
+        transaction: StoreTransaction?,
+        product: StoreProduct
+    ) -> ProPurchaseOutcome {
+        ProPurchaseOutcome(
+            entitlement: entitlement ?? .free,
+            transactionID: transaction?.transactionIdentifier,
+            revenue: Self.revenue(
+                entitlementPeriodType: entitlementPeriodType,
+                transactionPrice: Self.transactionPrice(transaction),
+                productPrice: product.price,
+                currencyCode: product.currencyCode
+            )
+        )
+    }
+
+    /// entitlement 的 periodType 反映本次交易落在哪种计费周期；权益缺失时为 nil。
+    static func entitlementPeriodType(_ info: CustomerInfo) -> PeriodType? {
+        proEntitlementIDs.lazy
+            .compactMap { info.entitlements[$0] }
+            .first?
+            .periodType
+    }
+
+    /// 实收金额（纯函数，便于覆盖试用 / intro / 普通购买）
+    ///
+    /// 三条规则缺一不可：
+    /// 1. `entitlementPeriodType == .normal`：试用 / intro 优惠虽然也会给 Pro 权益，
+    ///    但当期没收钱，不能按标价记成正收入。
+    /// 2. 金额 > 0：零元交易不是收入。
+    /// 3. 有货币代码：避免把金额记成默认货币。
+    static func revenue(
+        entitlementPeriodType: PeriodType?,
+        transactionPrice: Decimal?,
+        productPrice: Decimal,
+        currencyCode: String?
+    ) -> ProPurchaseRevenue? {
+        guard entitlementPeriodType == .normal else { return nil }
+        guard let currencyCode, !currencyCode.isEmpty else { return nil }
+        // 优先交易实付金额（后续续订 / 促销折价会低于标价）；取不到才退回标价。
+        let amount = transactionPrice ?? productPrice
+        guard amount > 0 else { return nil }
+        return ProPurchaseRevenue(amount: amount, currency: currencyCode)
+    }
+
+    /// StoreKit 2 交易实付金额。iOS 15+ 可用；取不到（SK1 / 未公开）返回 nil。
+    private static func transactionPrice(_ transaction: StoreTransaction?) -> Decimal? {
+        guard let transaction,
+              #available(iOS 15.0, tvOS 15.0, watchOS 8.0, macOS 12.0, *),
+              let price = transaction.sk2Transaction?.price else { return nil }
+        return price
     }
 
     /// 把 RC 的 `CustomerInfo` 映射成本地 `ProEntitlementState`。
@@ -143,7 +205,9 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
                 : nil,
             trialText: plan == .yearly && trialEligible
                 ? Self.freeTrialText(for: package.storeProduct)
-                : nil
+                : nil,
+            priceAmount: package.storeProduct.price,
+            priceCurrency: package.storeProduct.currencyCode
         )
     }
 
