@@ -54,12 +54,18 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var currentArtistImageFilename: String? = nil
         var alsoArtistImageFilename: String? = nil
         var nextArtistImageFilename: String? = nil
+        var isEnded: Bool? = false
+        var contentExpirationDate: Date? = nil
 
         /// Shared by ActivityKit staleness and the widget's bounded system timer.
         var endBoundary: Date {
             lifecycleEnd ?? endDate ?? currentEndsAt ?? startDate.addingTimeInterval(
                 TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600
             )
+        }
+
+        var staleDate: Date {
+            contentExpirationDate ?? endBoundary
         }
 
         var timerInterval: ClosedRange<Date> {
@@ -69,7 +75,7 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         }
 
         func hasEnded(isStale: Bool, now: Date) -> Bool {
-            isStale || now >= endBoundary
+            (isEnded ?? false) || now >= endBoundary
         }
 
         /// 普通现场的锁屏/灵动岛显示阶段，沿用结束边界和 ActivityKit 的 stale 语义。
@@ -104,4 +110,39 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
 
     /// 现场身份(app 侧判断是否同一场,决定更新还是重启)
     var showID: String
+}
+
+extension ShowLiveActivityAttributes.ContentState {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        showName = try container.decode(String.self, forKey: .showName)
+        city = try container.decodeIfPresent(String.self, forKey: .city)
+        venueName = try container.decodeIfPresent(String.self, forKey: .venueName)
+        startDate = try container.decode(Date.self, forKey: .startDate)
+        endDate = try container.decodeIfPresent(Date.self, forKey: .endDate)
+        lifecycleEnd = try container.decodeIfPresent(Date.self, forKey: .lifecycleEnd)
+        timeZoneSecondsFromGMT = try container.decodeIfPresent(Int.self, forKey: .timeZoneSecondsFromGMT)
+        endTimeZoneSecondsFromGMT = try container.decodeIfPresent(Int.self, forKey: .endTimeZoneSecondsFromGMT)
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+        endTimeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .endTimeZoneIdentifier)
+        coverImageFilename = try container.decodeIfPresent(String.self, forKey: .coverImageFilename)
+        hasStarted = try container.decodeIfPresent(Bool.self, forKey: .hasStarted) ?? false
+        currentArtistName = try container.decodeIfPresent(String.self, forKey: .currentArtistName)
+        currentStageName = try container.decodeIfPresent(String.self, forKey: .currentStageName)
+        currentStartsAt = try container.decodeIfPresent(Date.self, forKey: .currentStartsAt)
+        currentEndsAt = try container.decodeIfPresent(Date.self, forKey: .currentEndsAt)
+        nextArtistName = try container.decodeIfPresent(String.self, forKey: .nextArtistName)
+        nextStageName = try container.decodeIfPresent(String.self, forKey: .nextStageName)
+        nextStartsAt = try container.decodeIfPresent(Date.self, forKey: .nextStartsAt)
+        isNextStartingSoon = try container.decodeIfPresent(Bool.self, forKey: .isNextStartingSoon) ?? false
+        isInterestedNext = try container.decodeIfPresent(Bool.self, forKey: .isInterestedNext) ?? false
+        isFestivalDayActive = try container.decodeIfPresent(Bool.self, forKey: .isFestivalDayActive) ?? false
+        alsoArtistName = try container.decodeIfPresent(String.self, forKey: .alsoArtistName)
+        alsoStageName = try container.decodeIfPresent(String.self, forKey: .alsoStageName)
+        currentArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .currentArtistImageFilename)
+        alsoArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .alsoArtistImageFilename)
+        nextArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .nextArtistImageFilename)
+        isEnded = try container.decodeIfPresent(Bool.self, forKey: .isEnded) ?? false
+        contentExpirationDate = try container.decodeIfPresent(Date.self, forKey: .contentExpirationDate)
+    }
 }

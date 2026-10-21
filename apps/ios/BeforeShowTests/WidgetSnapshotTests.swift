@@ -226,9 +226,9 @@ final class WidgetSnapshotTests: XCTestCase {
         }
 
         let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
-        // 默认 4h 演出 → 最早约开场前 4h,不是 12h
-        XCTAssertEqual(earliest.timeIntervalSince(start), -4 * 3_600, accuracy: 1)
-        XCTAssertEqual(end.timeIntervalSince(earliest), 8 * 3_600, accuracy: 1)
+        // 默认 4h 演出 → 最多提前 30 分钟 (19:30), 且距离结束不超过 8h
+        XCTAssertEqual(earliest.timeIntervalSince(start), -30 * 60, accuracy: 1)
+        XCTAssertLessThanOrEqual(end.timeIntervalSince(earliest), 8 * 3_600)
         // 旧逻辑 12h lead 会在开场前 4h 被系统掐断
         let wrongLead = start.addingTimeInterval(-12 * 3_600)
         XCTAssertLessThan(wrongLead.timeIntervalSince(earliest), 0)
@@ -408,8 +408,12 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(state.timerInterval, start...end)
         XCTAssertFalse(state.hasEnded(isStale: false, now: archivedAt))
         XCTAssertFalse(state.hasEnded(isStale: false, now: start))
-        XCTAssertTrue(state.hasEnded(isStale: true, now: archivedAt))
+        // Issue #359: isStale 不直接等于已散场
+        XCTAssertFalse(state.hasEnded(isStale: true, now: archivedAt))
         XCTAssertTrue(state.hasEnded(isStale: false, now: end))
+        state.isEnded = true
+        XCTAssertTrue(state.hasEnded(isStale: false, now: archivedAt))
+        state.isEnded = false
 
         state.endDate = nil
         let fallbackEnd = start.addingTimeInterval(4 * 3_600)
@@ -447,8 +451,8 @@ final class WidgetSnapshotTests: XCTestCase {
         state.hasStarted = false
         XCTAssertEqual(state.standardPhase(at: start), .live)
 
-        // ActivityKit 标记过期时仍走现有散场语义。
-        XCTAssertEqual(state.standardPhase(at: start, isStale: true), .ended)
+        // Issue #359: isStale 不直接等于已散场。
+        XCTAssertEqual(state.standardPhase(at: start, isStale: true), .live)
     }
 
     func testStandardLiveActivityPhaseWithoutExplicitEndUsesLifecycleBoundary() {
@@ -646,8 +650,8 @@ final class WidgetSnapshotTests: XCTestCase {
     /// 窗口内、无现有活动 → request;有同场活动 → update。
     func testPlannerRequestAndUpdateInsideWindow() {
         let now = Date()
-        // 默认 4h 演出 → 窗口 = 开场前 4h;now+2h 在窗口内
-        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(2 * 3_600))
+        // 默认 4h 演出 → 窗口 = 开场前 30m;now+20m 在窗口内
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 60))
         let showID = snapshot.showID.uuidString
 
         let request = LiveActivityPlanner.action(
@@ -732,13 +736,16 @@ final class WidgetSnapshotTests: XCTestCase {
         let end = start.addingTimeInterval(3 * 86_400)
 
         let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
-        XCTAssertEqual(earliest, start, "超 8h 现场的窗口起点必须钳到开场,不能按 end-8h 排到开场之后")
+        // 单日超 8h (例如 11h, 12:00-23:00) 窗口起点取 end - 8h
+        let singleDayEnd = start.addingTimeInterval(11 * 3_600)
+        let singleDayEarliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: singleDayEnd)
+        XCTAssertEqual(singleDayEarliest, singleDayEnd.addingTimeInterval(-8 * 3_600))
 
         // 常规 4h 演出不受影响
         let normalEnd = start.addingTimeInterval(4 * 3_600)
         XCTAssertEqual(
             LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: normalEnd),
-            start.addingTimeInterval(-4 * 3_600)
+            start.addingTimeInterval(-30 * 60)
         )
     }
 
@@ -768,8 +775,8 @@ final class WidgetSnapshotTests: XCTestCase {
     /// 不能 .update(改不了 pending 的 start)。
     func testPlannerRequestsWhenStalePendingEntersActiveWindow() {
         let now = Date()
-        // 新时间:2h 后开场 → 窗口内(默认 4h 演出 → 开场前 4h 起)
-        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(2 * 3_600))
+        // 新时间:20m 后开场 → 窗口内(开场前 30m 起)
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 60))
         let showID = snapshot.showID.uuidString
         let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
 

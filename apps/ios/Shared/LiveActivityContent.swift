@@ -40,6 +40,7 @@ struct LiveActivityContent {
     let kicker: String
     let timerInterval: ClosedRange<Date>
     let caption: String?
+    let isStale: Bool
     let title: String
     let subtitle: String?
     let timeRange: String?
@@ -49,8 +50,8 @@ struct LiveActivityContent {
     var lineup: (avatar: String?, stage: String?, also: Also?)? = nil
 
     init(state: ShowLiveActivityAttributes.ContentState, isStale: Bool, now: Date = .now) {
-        timerInterval = state.timerInterval
-        let isLive = now >= state.startDate
+        self.isStale = isStale
+        let currentEnded = state.currentEndsAt.map { now >= $0 } ?? false
         let clock = { (date: Date) in LiveActivityCopy.clockText(date, calendar: state.startCalendar) }
         let upcoming = state.nextArtistName.map { artist in
             Next(
@@ -74,7 +75,8 @@ struct LiveActivityContent {
             timeRange = nil
             progress = nil
             next = nil
-        } else if let artist = state.currentArtistName {
+            timerInterval = state.timerInterval
+        } else if let artist = state.currentArtistName, !currentEnded {
             let start = state.currentStartsAt ?? state.startDate
             let end = state.currentEndsAt ?? state.endDate ?? state.startDate
             mode = .set
@@ -93,12 +95,12 @@ struct LiveActivityContent {
                 }
                 lineup = (state.currentArtistImageFilename, state.currentStageName, also)
             }
-        } else if state.isFestivalDayActive, let artist = state.nextArtistName {
-            // 场间:startDate 指向下一场开演。过点后 app 没来得及更新时,
-            // 下一场就是正在演的那场,计时转为已开演时长。
-            mode = isLive ? .set : .between
-            kicker = BSLocalization.text(isLive ? "正在演出" : "下一场")
-            caption = isLive ? BSLocalization.text("已开场") : nil
+            timerInterval = state.timerInterval
+        } else if state.isFestivalDayActive, let artist = state.nextArtistName, state.nextStartsAt.map({ now < $0 }) ?? true {
+            // 场间:倒数下一场开演。若下一场开演已过但未收到更新，降级回现场身份。
+            mode = .between
+            kicker = BSLocalization.text("下一场")
+            caption = nil
             title = artist
             subtitle = state.nextStageName
             timeRange = state.nextStartsAt.map(clock)
@@ -106,6 +108,8 @@ struct LiveActivityContent {
             progress = nil
             next = nil
             lineup = (state.nextArtistImageFilename, state.nextStageName, nil)
+            let target = state.nextStartsAt ?? state.endBoundary
+            timerInterval = target...max(target, state.endBoundary)
         } else if standardPhase == .live {
             mode = .started
             kicker = BSLocalization.text("正在现场")
@@ -117,6 +121,7 @@ struct LiveActivityContent {
             // 普通演出:开场到预计散场的进度，与现场模式同一条进度条。
             progress = state.endDate.flatMap { $0 > state.startDate ? state.startDate...$0 : nil }
             next = nil
+            timerInterval = state.timerInterval
         } else {
             mode = .pre
             kicker = BSLocalization.text("距离开场")
@@ -131,10 +136,11 @@ struct LiveActivityContent {
             timeRange = nil
             progress = nil
             next = upcoming
+            timerInterval = state.timerInterval
         }
     }
 
-    var showsWave: Bool { mode == .set || mode == .started }
+    var showsWave: Bool { (mode == .set || mode == .started) && !isStale }
 
     var nextStartText: String?
 

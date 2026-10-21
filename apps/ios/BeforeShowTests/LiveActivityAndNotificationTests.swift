@@ -314,9 +314,137 @@ final class LiveActivityAndNotificationTests: XCTestCase {
     func testNextRefreshDateFlipsStandardShowAtStart() {
         let snapshot = makeSnapshot(timetableDays: [])
 
-        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(9, 0)), date(10, 0))
-        XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(10, 0)))
+        // 启动窗口起点为 10:00 - 30m = 09:30
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(9, 0)), date(9, 30))
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(9, 30)), date(10, 0))
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(10, 0)), date(14, 0))
+        XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(14, 0)))
         XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: nil, now: date(9, 0)))
+    }
+
+    // MARK: - Issue #359: 启动窗口、内容过期与散场收起
+
+    func testEarliestStartRespectsThirtyMinutesLeadAndEightHoursCap() {
+        // 1. 20:00 - 22:00 普通现场 (2h): 开场前 30m = 19:30, 谢幕前 8h = 14:00 -> 较晚者为 19:30
+        let start20 = date(20, 0)
+        let end22 = date(22, 0)
+        XCTAssertEqual(
+            LiveActivityPlanner.earliestStart(activityStart: start20, activityEnd: end22),
+            date(19, 30)
+        )
+
+        // 2. 12:00 - 23:00 音乐节单日 (11h): 开场前 30m = 11:30, 谢幕前 8h = 15:00 -> 较晚者为 15:00
+        let start12 = date(12, 0)
+        let end23 = date(23, 0)
+        XCTAssertEqual(
+            LiveActivityPlanner.earliestStart(activityStart: start12, activityEnd: end23),
+            date(15, 0)
+        )
+
+        // 3. 音乐节换场或切换聚焦不改变当日启动窗口
+        let p1 = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Band 1", stageID: UUID(), stageName: "Main",
+            startsAt: date(14, 0), endsAt: date(15, 0), isInterested: false
+        )
+        let p2 = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Band 2", stageID: UUID(), stageName: "Main",
+            startsAt: date(16, 0), endsAt: date(17, 0), isInterested: false
+        )
+        let day = WidgetTimetableDay(id: UUID(), date: date(0, 0), performances: [p1, p2])
+        let festivalSnapshot = makeSnapshot(timetableDays: [day])
+
+        let desiredEarly = LiveActivityPlanner.desiredState(snapshot: festivalSnapshot, now: date(13, 0), coverFilename: nil)!
+        let desiredLater = LiveActivityPlanner.desiredState(snapshot: festivalSnapshot, now: date(15, 30), coverFilename: nil)!
+        let earliestEarly = LiveActivityPlanner.earliestStart(activityStart: desiredEarly.dayStart, activityEnd: desiredEarly.activityEnd)
+        let earliestLater = LiveActivityPlanner.earliestStart(activityStart: desiredLater.dayStart, activityEnd: desiredLater.activityEnd)
+        XCTAssertEqual(earliestEarly, earliestLater, "换场不应改变当日活动启动窗口")
+        XCTAssertEqual(earliestEarly, date(13, 30), "14:00 首演的音乐节应在 13:30 启动")
+    }
+
+    func testNextRefreshDateIncludesEarliestStartAndEndBoundaries() {
+        let (snapshot, _, _) = makeTwoSetFestival()
+        // 当日首场 14:00，启动窗口 13:30
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(12, 0)), date(13, 30))
+        // 终场结束 17:30
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(17, 0)), date(17, 30))
+    }
+
+    func testDegradationWhenPerformanceEndsWithoutUpdate() {
+        let (snapshot, p1, p2) = makeTwoSetFestival()
+        let stateDuringP1 = LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(14, 30), coverFilename: nil)!.state
+        XCTAssertEqual(stateDuringP1.currentArtistName, p1.artistName)
+
+        // P1 已于 15:30 结束。若 App 挂起未更新，在 15:35 渲染时：
+        let contentAtBreak = LiveActivityContent(state: stateDuringP1, isStale: true, now: date(15, 35))
+        XCTAssertNotEqual(contentAtBreak.mode, .set, "已结束的艺人不能继续显示正在演出")
+        XCTAssertEqual(contentAtBreak.mode, .between, "应降级为场间倒数下一场")
+        XCTAssertEqual(contentAtBreak.title, p2.artistName)
+
+        // 下一场预定 16:00 开演。若到 16:15 依然未收到更新（下一场未知）：
+        let contentAfterNextStart = LiveActivityContent(state: stateDuringP1, isStale: true, now: date(16, 15))
+        XCTAssertNotEqual(contentAfterNextStart.mode, .set)
+        XCTAssertEqual(contentAfterNextStart.title, snapshot.name, "缺乏确定状态时应回到现场身份")
+    }
+
+    func testIsStaleDoesNotDirectlyEqualEnded() {
+        let snapshot = makeSnapshot(timetableDays: [])
+        let state = LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(11, 0), coverFilename: nil)!.state
+        // 演出中途网络滞后导致的 isStale = true，不能直接变成已散场
+        let content = LiveActivityContent(state: state, isStale: true, now: date(11, 0))
+        XCTAssertNotEqual(content.mode, .ended, "isStale 不等于已散场")
+        XCTAssertEqual(content.mode, .started)
+    }
+
+    func testNaturalEndDismissesAfterFifteenMinutes() {
+        let snapshot = makeSnapshot(timetableDays: [])
+        // 演出 10:00 - 14:00，14:00 结束
+        let desiredAtEnd = LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(14, 5), coverFilename: nil)
+        XCTAssertNil(desiredAtEnd, "演出结束后 desiredState 为 nil")
+
+        let existingState = LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(13, 0), coverFilename: nil)!.state
+        let existing = [LiveActivityExisting(showID: snapshot.showID.uuidString, isPending: false, state: existingState)]
+
+        // 14:05: 刚过结束点 5 分钟，仍在 15 分钟展示窗口内 -> 自然结束，带有 15 分钟 dismissal
+        let actionWithin15m = LiveActivityPlanner.action(
+            snapshot: snapshot, now: date(14, 5), existing: existing, coverFilename: nil
+        )
+        guard case .endNaturally(let finalState, let dismissDate) = actionWithin15m else {
+            return XCTFail("自然结束点应返回 .endNaturally")
+        }
+        XCTAssertTrue(finalState.isEnded ?? false, "最终态应标记为已结束")
+        XCTAssertEqual(dismissDate, date(14, 15), "应在散场 15 分钟后收起")
+
+        // 14:20: 超过散场 15 分钟 -> 立即清除
+        let actionAfter15m = LiveActivityPlanner.action(
+            snapshot: snapshot, now: date(14, 20), existing: existing, coverFilename: nil
+        )
+        XCTAssertEqual(actionAfter15m, .endAll)
+
+        // 异常结束（如取消现场）-> 无论何时都应立即清除，不保留 15 分钟
+        var canceledSnapshot = snapshot
+        canceledSnapshot.timing.changeStatus = .canceled
+        let actionCanceled = LiveActivityPlanner.action(
+            snapshot: canceledSnapshot, now: date(14, 5), existing: existing, coverFilename: nil
+        )
+        XCTAssertEqual(actionCanceled, .endAll)
+    }
+
+    func testContentStateBackwardsCompatibilityDecoding() throws {
+        // 仅包含旧版本字段的 JSON
+        let oldJson = """
+        {
+            "showName": "Summer Festival",
+            "startDate": 1790956800,
+            "hasStarted": false
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let state = try decoder.decode(ShowLiveActivityAttributes.ContentState.self, from: oldJson)
+        XCTAssertEqual(state.showName, "Summer Festival")
+        XCTAssertEqual(state.isEnded, false)
+        XCTAssertNil(state.contentExpirationDate)
     }
 
     // MARK: - Helpers

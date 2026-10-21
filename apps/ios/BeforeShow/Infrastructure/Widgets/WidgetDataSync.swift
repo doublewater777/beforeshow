@@ -435,7 +435,7 @@ actor ShowLiveActivityController {
             guard isCurrent() else { return }
             let target = Activity<ShowLiveActivityAttributes>.activities
                 .first(where: { $0.attributes.showID == showID })
-            let content = ActivityContent(state: state, staleDate: state.endBoundary)
+            let content = ActivityContent(state: state, staleDate: state.staleDate)
             if let target {
                 await target.update(content)
             } else {
@@ -446,13 +446,13 @@ actor ShowLiveActivityController {
         case .request(let state):
             await endAll(generation: generation)
             guard isCurrent() else { return }
-            let content = ActivityContent(state: state, staleDate: state.endBoundary)
+            let content = ActivityContent(state: state, staleDate: state.staleDate)
             request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
 
         case .schedule(let state, let start):
             await endAll(generation: generation)
             guard isCurrent(), #available(iOS 26, *) else { return }
-            let content = ActivityContent(state: state, staleDate: state.endBoundary)
+            let content = ActivityContent(state: state, staleDate: state.staleDate)
             do {
                 let alert = AlertConfiguration(
                     title: "开场前",
@@ -471,6 +471,16 @@ actor ShowLiveActivityController {
                 #if DEBUG
                 print("[ShowLiveActivity] schedule failed: \(error)")
                 #endif
+            }
+
+        case .endNaturally(let state, let dismissDate):
+            await endActivities(matching: { $0.attributes.showID != showID }, generation: generation)
+            guard isCurrent() else { return }
+            let matching = Activity<ShowLiveActivityAttributes>.activities.filter { $0.attributes.showID == showID }
+            let content = ActivityContent(state: state, staleDate: dismissDate)
+            for activity in matching {
+                guard isCurrent() else { return }
+                await activity.end(content, dismissalPolicy: .after(dismissDate))
             }
 
         case .endAll:
