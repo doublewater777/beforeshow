@@ -577,6 +577,101 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         }
     }
 
+    // MARK: - Issue #362 Tests: Handover & Arbitration
+
+    func testHandoverDefaultToLocalAndCompletesWhenEligible() async throws {
+        let ledger = LiveActivityReminderLedger()
+        let eventKey = PerformanceReminderEventKey(
+            showID: UUID().uuidString,
+            performanceID: UUID().uuidString,
+            scheduledStartsAt: date(16, 0)
+        )
+
+        // 1. Default channel is localNotification
+        let initial = await ledger.record(for: eventKey)
+        XCTAssertEqual(initial.channel, .localNotification)
+        XCTAssertEqual(initial.status, .pending)
+
+        // 2. Handover before reminder trigger (at 15:30, trigger is 15:45)
+        let handoverSuccess = await ledger.completeHandover(
+            eventKey: eventKey,
+            planVersion: 1,
+            now: date(15, 30)
+        )
+        XCTAssertTrue(handoverSuccess)
+
+        let handedOver = await ledger.record(for: eventKey)
+        XCTAssertEqual(handedOver.channel, .liveActivity)
+        XCTAssertEqual(handedOver.status, .handedOver)
+        XCTAssertEqual(handedOver.planVersion, 1)
+
+        // 3. Handover after trigger point fails (e.g. at 15:50)
+        let lateKey = PerformanceReminderEventKey(
+            showID: UUID().uuidString,
+            performanceID: UUID().uuidString,
+            scheduledStartsAt: date(16, 0)
+        )
+        let lateHandover = await ledger.completeHandover(
+            eventKey: lateKey,
+            planVersion: 1,
+            now: date(15, 50)
+        )
+        XCTAssertFalse(lateHandover, "Late handover must be rejected")
+    }
+
+    func testConcurrentConsumptionOnlySucceedsOnce() async throws {
+        let ledger = LiveActivityReminderLedger()
+        let eventKey = PerformanceReminderEventKey(
+            showID: UUID().uuidString,
+            performanceID: UUID().uuidString,
+            scheduledStartsAt: date(16, 0)
+        )
+
+        _ = await ledger.completeHandover(eventKey: eventKey, planVersion: 1, now: date(15, 0))
+
+        // Trigger time is 15:45. Test consumption at 15:46
+        let now = date(15, 46)
+
+        // Simulate concurrent attempts (e.g. app foreground vs background remote task)
+        async let consume1 = ledger.tryConsume(eventKey: eventKey, by: .liveActivity, now: now)
+        async let consume2 = ledger.tryConsume(eventKey: eventKey, by: .liveActivity, now: now)
+        async let wrongChannel = ledger.tryConsume(eventKey: eventKey, by: .localNotification, now: now)
+
+        let (res1, res2, resWrong) = await (consume1, consume2, wrongChannel)
+
+        // Exactly one liveActivity consumption succeeds, wrong channel rejected
+        XCTAssertTrue(res1 != res2, "Exactly one concurrent consume must succeed")
+        XCTAssertFalse(resWrong, "Wrong channel cannot consume handed-over event")
+
+        // Subsequent consume attempt fails
+        let subsequent = await ledger.tryConsume(eventKey: eventKey, by: .liveActivity, now: now)
+        XCTAssertFalse(subsequent)
+    }
+
+    func testRevocationToLocalBeforeTriggerPoint() async throws {
+        let ledger = LiveActivityReminderLedger()
+        let eventKey = PerformanceReminderEventKey(
+            showID: UUID().uuidString,
+            performanceID: UUID().uuidString,
+            scheduledStartsAt: date(16, 0)
+        )
+
+        _ = await ledger.completeHandover(eventKey: eventKey, planVersion: 1, now: date(15, 0))
+
+        // Revoke at 15:30 (before trigger at 15:45)
+        let revokeSuccess = await ledger.revokeToLocal(eventKey: eventKey, now: date(15, 30))
+        XCTAssertTrue(revokeSuccess)
+
+        let record = await ledger.record(for: eventKey)
+        XCTAssertEqual(record.channel, .localNotification)
+        XCTAssertEqual(record.status, .pending)
+
+        // Revoke after trigger point (15:50) fails
+        _ = await ledger.completeHandover(eventKey: eventKey, planVersion: 2, now: date(15, 35))
+        let lateRevoke = await ledger.revokeToLocal(eventKey: eventKey, now: date(15, 50))
+        XCTAssertFalse(lateRevoke, "Cannot revoke after reminder trigger passed")
+    }
+
     // MARK: - Helpers
 
     private func makeTwoSetFestival(
