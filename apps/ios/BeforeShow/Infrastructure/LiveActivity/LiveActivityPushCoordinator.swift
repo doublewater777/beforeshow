@@ -8,7 +8,6 @@ actor LiveActivityPushCoordinator {
     private let customSyncService: LiveActivityRemoteSyncService?
     private var lazyResolvedSyncService: LiveActivityRemoteSyncService?
     private var latestPushTokens: [String: String] = [:]
-    private var planVersions: [String: Int] = [:]
     private var currentSnapshot: WidgetShowSnapshot?
     private let appInstanceIDProvider: (@Sendable () async -> String)?
 
@@ -39,8 +38,6 @@ actor LiveActivityPushCoordinator {
         }
     }
 
-
-
     /// 处理获取到的 Token 并上报计划
     func handleTokenUpdate(_ token: String, for showID: String) async {
         latestPushTokens[showID] = token
@@ -50,18 +47,20 @@ actor LiveActivityPushCoordinator {
     /// 撤销并注销指定现场的推送计划
     func revoke(showID: String) async {
         latestPushTokens.removeValue(forKey: showID)
-        planVersions.removeValue(forKey: showID)
         let service = await resolveSyncService()
         await service.revokePlan(showID: showID)
     }
 
-    func currentVersion(for showID: String) -> Int? {
-        planVersions[showID]
-    }
-
     private func syncCurrentPlan(for showID: String, pushToken: String) async {
         guard let snapshot = currentSnapshot, snapshot.showID.uuidString == showID else { return }
-        let nextVersion = (planVersions[showID] ?? 0) + 1
+        let versionKey = "com.doublewaterapps.beforeshow.liveActivityPlanVersion.\(showID)"
+        // Reserve before suspension: a lost response or restart must never reuse a version.
+        // The timestamp floor also supersedes plans uploaded before versions were persisted.
+        let nextVersion = max(
+            UserDefaults.standard.integer(forKey: versionKey) + 1,
+            Int(Date().timeIntervalSince1970 * 1_000)
+        )
+        UserDefaults.standard.set(nextVersion, forKey: versionKey)
 
         let isProduction: Bool
         #if DEBUG
@@ -90,9 +89,6 @@ actor LiveActivityPushCoordinator {
         }
 
         let service = await resolveSyncService()
-        let success = await service.syncPlan(plan)
-        if success {
-            planVersions[showID] = nextVersion
-        }
+        await service.syncPlan(plan)
     }
 }

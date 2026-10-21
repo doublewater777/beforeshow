@@ -42,20 +42,21 @@ final class LiveActivityPushCoordinatorTests: XCTestCase {
         let snapshot = makeSnapshot(showID: showID, performanceID: performanceID, start: scheduledStartsAt)
         await coordinator.updateSnapshot(snapshot)
 
-        // No token yet, version should be nil
-        let initialVersion = await coordinator.currentVersion(for: showID.uuidString)
-        XCTAssertNil(initialVersion)
+        let initialRequests = await session.recordedRequests
+        XCTAssertTrue(initialRequests.isEmpty)
 
         // Token arrived
         await coordinator.handleTokenUpdate("token-hex-12345", for: showID.uuidString)
 
-        let v1 = await coordinator.currentVersion(for: showID.uuidString)
-        XCTAssertEqual(v1, 1)
-
-        // Snapshot updated again -> new version 2
         await coordinator.updateSnapshot(snapshot)
-        let v2 = await coordinator.currentVersion(for: showID.uuidString)
-        XCTAssertEqual(v2, 2)
+        let requests = await session.recordedRequests
+        let versions = try requests.map {
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap($0.httpBody)) as? [String: Any])
+            let plan = try XCTUnwrap(json["plan"] as? [String: Any])
+            return try XCTUnwrap(plan["version"] as? Int)
+        }
+        XCTAssertEqual(versions.count, 2)
+        XCTAssertGreaterThan(versions[1], versions[0])
     }
 
     func testRevokeClearsTokenAndNotifiesService() async throws {
@@ -89,14 +90,11 @@ final class LiveActivityPushCoordinatorTests: XCTestCase {
         let snapshot = makeSnapshot(showID: showID, performanceID: performanceID, start: scheduledStartsAt)
         await coordinator.updateSnapshot(snapshot)
         await coordinator.handleTokenUpdate("token-hex-12345", for: showID.uuidString)
-        let v1 = await coordinator.currentVersion(for: showID.uuidString)
-        XCTAssertEqual(v1, 1)
-
         await coordinator.revoke(showID: showID.uuidString)
-        let vAfterRevoke = await coordinator.currentVersion(for: showID.uuidString)
-        XCTAssertNil(vAfterRevoke)
+        await coordinator.updateSnapshot(snapshot)
 
         let requests = await session.recordedRequests
+        XCTAssertEqual(requests.filter { $0.url?.lastPathComponent == "syncLiveActivityPlan" }.count, 1)
         let revokeReq = requests.first { $0.url?.lastPathComponent == "revokeLiveActivityPlan" }
         XCTAssertNotNil(revokeReq)
         if let body = revokeReq?.httpBody,
@@ -105,6 +103,51 @@ final class LiveActivityPushCoordinatorTests: XCTestCase {
         } else {
             XCTFail("Missing or invalid revoke request body")
         }
+    }
+
+    func testRestartAndReenableUploadNewerVersionsEvenAfterFailedUpload() async throws {
+        let showID = UUID()
+        let snapshot = makeSnapshot(
+            showID: showID, performanceID: UUID(), start: Date().addingTimeInterval(3600)
+        )
+        let session = MockPushCloudSession { request in
+            if request.url?.lastPathComponent == "revokeLiveActivityPlan" {
+                return (Data(#"{"ok":true,"revoked":true}"#.utf8), 200)
+            }
+            // An unacknowledged upload must not let a later process reuse its version.
+            return (Data(), 500)
+        }
+        let service = LiveActivityRemoteSyncService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(appInstanceId: "restart-test", appSignature: "sig"),
+                session: session
+            ),
+            ledger: LiveActivityReminderLedger(),
+            secretProvider: { "dummy-secret-32-chars-test-value" },
+            notificationRevoker: { _ in }
+        )
+        let first = LiveActivityPushCoordinator(syncService: service, appInstanceIDProvider: { "restart-test" })
+        await first.updateSnapshot(snapshot)
+        await first.handleTokenUpdate("old-token", for: showID.uuidString)
+
+        let restarted = LiveActivityPushCoordinator(syncService: service, appInstanceIDProvider: { "restart-test" })
+        await restarted.updateSnapshot(snapshot)
+        await restarted.handleTokenUpdate("new-token", for: showID.uuidString)
+        await restarted.revoke(showID: showID.uuidString)
+        await restarted.handleTokenUpdate("reenabled-token", for: showID.uuidString)
+
+        let requests = await session.recordedRequests
+        let plans = try requests.filter { $0.url?.lastPathComponent == "syncLiveActivityPlan" }.map {
+            let body = try XCTUnwrap($0.httpBody)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            return try XCTUnwrap(json["plan"] as? [String: Any])
+        }
+        XCTAssertEqual(plans.count, 3)
+        let versions = try plans.map { try XCTUnwrap($0["version"] as? Int) }
+        XCTAssertGreaterThan(versions[1], versions[0])
+        XCTAssertGreaterThan(versions[2], versions[1])
+        XCTAssertEqual(plans[1]["activityPushToken"] as? String, "new-token")
     }
 
     private func makeSnapshot(showID: UUID, performanceID: UUID, start: Date) -> WidgetShowSnapshot {

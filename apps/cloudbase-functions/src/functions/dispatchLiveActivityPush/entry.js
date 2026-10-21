@@ -125,7 +125,7 @@ async function queryActivePlansFromDb(now) {
     const res = await db.collection(COLLECTION_NAME)
       .where({
         status: "active",
-        deadline: db.command.gte(now)
+        expireAt: db.command.gte(now)
       })
       .limit(100)
       .get();

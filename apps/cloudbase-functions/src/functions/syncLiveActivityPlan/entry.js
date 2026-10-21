@@ -41,7 +41,7 @@ export async function main(event = {}, context = {}, options = {}) {
     return errorResponse("PLAN_INVALID", "Missing required plan fields (showID, activityPushToken, version, deadline).");
   }
 
-  const deadline = new Date(deadlineRaw);
+  const deadline = parsePlanDate(deadlineRaw);
   if (isNaN(deadline.getTime())) {
     return errorResponse("PLAN_INVALID", "Invalid plan deadline timestamp.");
   }
@@ -77,8 +77,8 @@ export async function main(event = {}, context = {}, options = {}) {
   }
 
   const normalizedSteps = stepsRaw.map((step, idx) => {
-    const scheduledAt = new Date(step.scheduledAt);
-    const staleAt = step.staleAt ? new Date(step.staleAt) : null;
+    const scheduledAt = parsePlanDate(step.scheduledAt);
+    const staleAt = step.staleAt != null ? parsePlanDate(step.staleAt) : null;
     const state = step.state ?? {};
     const isReminder = Boolean(state.isReminderActive);
 
@@ -135,6 +135,12 @@ export function hashSecret(secret) {
   return createHash("sha256").update(secret, "utf8").digest("hex");
 }
 
+function parsePlanDate(value) {
+  // Swift JSONEncoder's default Date format is seconds since 2001-01-01.
+  // Content-state dates stay untouched so ActivityKit can decode them.
+  return new Date(typeof value === "number" ? (value + 978307200) * 1000 : value);
+}
+
 function safeCompareHash(storedHex, incomingHex) {
   if (typeof storedHex !== "string" || typeof incomingHex !== "string") return false;
   const bufA = Buffer.from(storedHex, "hex");
@@ -186,5 +192,6 @@ async function findExistingPlan(docId) {
 async function savePlanRecord(record) {
   const { default: cloudbase } = await import("@cloudbase/node-sdk");
   const db = cloudbase.init({}).database();
-  await db.collection(COLLECTION_NAME).doc(record._id).set(record);
+  const { _id, ...data } = record;
+  await db.collection(COLLECTION_NAME).doc(_id).set(data);
 }

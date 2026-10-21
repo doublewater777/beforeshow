@@ -11,7 +11,7 @@ await rm(outputRoot, { force: true, recursive: true });
 await mkdir(outputRoot, { recursive: true });
 
 await esbuild.build({
-  entryPoints: [resolve(packageRoot, "src/functions/dispatchLiveActivityPush/webEntry.js")],
+  entryPoints: [resolve(packageRoot, "src/functions/dispatchLiveActivityPush/entry.js")],
   bundle: true,
   platform: "node",
   target: "node18",
@@ -34,11 +34,6 @@ await writeFile(
       node: ">=18"
     }
   }, null, 2) + "\n"
-);
-
-await writeFile(
-  resolve(outputRoot, "scf_bootstrap"),
-  "#!/bin/bash\nexport PORT=9000\nnode index.js\n"
 );
 
 console.log(`Prepared CloudBase function at ${outputRoot}`);

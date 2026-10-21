@@ -88,7 +88,8 @@ export async function sendActivityKitPush({
     ? "https://api.push.apple.com"
     : "https://api.sandbox.push.apple.com";
   const topic = `${bundleId}${APNS_TOPIC_SUFFIX}`;
-  const hasAlert = Boolean(payload?.aps?.alert);
+  // End promptly without requiring an alert; routine updates can save the push budget.
+  const needsImmediateDelivery = Boolean(payload?.aps?.alert) || payload?.aps?.event === "end";
   const bodyString = JSON.stringify(payload);
 
   return new Promise((resolve, reject) => {
@@ -105,7 +106,7 @@ export async function sendActivityKitPush({
       authorization: `bearer ${token}`,
       "apns-push-type": "liveactivity",
       "apns-topic": topic,
-      "apns-priority": hasAlert ? "10" : "5",
+      "apns-priority": needsImmediateDelivery ? "10" : "5",
       "content-type": "application/json"
     });
 

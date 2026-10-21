@@ -360,6 +360,7 @@
 		949B381C18AC939AD86218E7 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 70EA39AEEA47B90F87C8C06B /* LaunchScreen.storyboard */; };
 		94AE1050E93A7AA44C9C9DEA /* ListeningSearchFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D2EF02A4AFD3BFD4608434 /* ListeningSearchFlowTests.swift */; };
 		94EC3477C674E2A12F9AC300 /* CurrentShowSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44C2E4E0581733EB3FD032AB /* CurrentShowSession.swift */; };
+		950E02208459B6737FFF388C /* HomeLiveOnStageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F7173EFB6F2F7EDCB21968 /* HomeLiveOnStageView.swift */; };
 		95B27275F637FA6163E0D6C3 /* BSInteractionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E39665C520E719F6AC46E963 /* BSInteractionComponents.swift */; };
 		95E1AA2999E5C5B91795624D /* BSListeningActionStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8091E7223860F3892A8ECF /* BSListeningActionStyle.swift */; };
 		96719C7655B1A528E9D12EE0 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 76A949464241E37F1E2E2C29 /* PostHog */; };
@@ -737,6 +738,7 @@
 		312B2D194D81024A1E5D1B30 /* ProLimitPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProLimitPresentation.swift; sourceTree = "<group>"; };
 		31552191BC26D7DD4DF13678 /* MemoryMediaViewerPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryMediaViewerPages.swift; sourceTree = "<group>"; };
 		31A954A32F07A13DF1F4DDB5 /* CDSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDSoundPlayer.swift; sourceTree = "<group>"; };
+		31F7173EFB6F2F7EDCB21968 /* HomeLiveOnStageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeLiveOnStageView.swift; sourceTree = "<group>"; };
 		3237568171E27BDAF308AC8C /* ListeningRackGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningRackGeometry.swift; sourceTree = "<group>"; };
 		326FD307A0AFE2BB69BB5C17 /* CompanionShowMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionShowMapping.swift; sourceTree = "<group>"; };
 		3287BAA3EF70D7C728E6FBBC /* FootprintShareComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintShareComposerView.swift; sourceTree = "<group>"; };
@@ -1701,6 +1703,7 @@
 				C2FD5CA5BBF19E7FF00FE591 /* HomeCountdownPrimaryAction.swift */,
 				6771BBFDDF8F146A5BB772CC /* HomeHeroPresentation.swift */,
 				B62A0DBDBA8C327C3446A2F3 /* HomeLiveModeView.swift */,
+				31F7173EFB6F2F7EDCB21968 /* HomeLiveOnStageView.swift */,
 				B892168266993245CFCD5F10 /* HomeLivePulse.swift */,
 				0DEA36D476766B5B39BC79A3 /* HomeLiveTimetableContent.swift */,
 				2CAFD895E014AE959125BDDE /* ShowAssetSheet.swift */,
@@ -2614,6 +2617,7 @@
 				32A817666A27840437731918 /* HomeCountdownPrimaryAction.swift in Sources */,
 				7EC5EE529D859AA967BDD675 /* HomeHeroPresentation.swift in Sources */,
 				E646242A4D39AB3EF2D6CF62 /* HomeLiveModeView.swift in Sources */,
+				950E02208459B6737FFF388C /* HomeLiveOnStageView.swift in Sources */,
 				4E9D09E2004E67F208AA55F1 /* HomeLivePulse.swift in Sources */,
 				8E16672F7F52CF64EC81F91B /* HomeLiveTimetableContent.swift in Sources */,
 				0C8F58FF0811E9E5B48327B6 /* HomeShowPhase.swift in Sources */,
