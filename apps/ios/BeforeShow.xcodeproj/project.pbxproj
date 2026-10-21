@@ -25,6 +25,7 @@
 		0958413B1EBA7C70B5F3E713 /* ListeningMVPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4344E7B4300303BA6DDB2394 /* ListeningMVPTests.swift */; };
 		0A42CFCBE7188D24E0CE5A36 /* NotificationDeepLinkRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6C4B7FFF6712CA20842022 /* NotificationDeepLinkRouting.swift */; };
 		0A983A2CFD77142E60CC7DD9 /* LiveActivityTransitionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C85F0740C82C92512A9B938 /* LiveActivityTransitionPlan.swift */; };
+		0BCC1C5A762C1E55B00A43E3 /* LiveActivityPushCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62A1AB9DB3DABF8B73F1EB1A /* LiveActivityPushCoordinatorTests.swift */; };
 		0C2C4667341D576B8AD2C949 /* TimetablePreviewSearchResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20089F131785C4D6F8C725D9 /* TimetablePreviewSearchResponseTests.swift */; };
 		0C8F58FF0811E9E5B48327B6 /* HomeShowPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13FA246F6A2CD9BBD76F12B3 /* HomeShowPhase.swift */; };
 		0DBEDF691A70C6C58E63B058 /* MemoryUnifiedEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45DA9AC9049A0FC08F457D46 /* MemoryUnifiedEditorView.swift */; };
@@ -268,6 +269,7 @@
 		6D854F6D32E06DDBF0E9717C /* ListeningPlayer.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F02863424C2BC905D82010A /* ListeningPlayer.xcassets */; };
 		6E2BF1111E202BB2795338CE /* FootprintDashboardExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7DCA6E905F85BCF0C3E6389 /* FootprintDashboardExport.swift */; };
 		6E39DE17E5AEA12858AFDACF /* TimetableDateConfirmationNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007B16EBD175BEAC8EE2861C /* TimetableDateConfirmationNotice.swift */; };
+		6E3ABAC16DB6037EE061156D /* LiveActivityPushCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DA7246B605937CECA37D7C /* LiveActivityPushCoordinator.swift */; };
 		6E5A5F19B6E0FA31997EC853 /* OpeningFamiliarityCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06086E49C0BEF21E3CA73836 /* OpeningFamiliarityCoordinatorTests.swift */; };
 		6EC3825667823FD4A58A83EA /* TimetableOrientationHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7668B37EC876E36719F32B /* TimetableOrientationHost.swift */; };
 		6F079B245A452BC1F2B56BEB /* TimetablePreviewPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A860EFCC0A5641D73C50D02 /* TimetablePreviewPlayer.swift */; };
@@ -418,6 +420,7 @@
 		AFBE4EAB2A593D0FA387CE33 /* ListeningWidgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A05FF048A656A3A3B2BAC4C /* ListeningWidgetTests.swift */; };
 		B03EE9ED967296D395E1DF3C /* ShowDetailPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C11C438C3C5F42F7460D578 /* ShowDetailPresentationSupport.swift */; };
 		B15C56CF2979DBE94CB5BB2F /* AppAudioSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCBB6761F83BFF352A4DD6AC /* AppAudioSessionTests.swift */; };
+		B1830EBDB1E14B6C0560739F /* LiveActivityShowResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D07E9C9DD0B299D5853905 /* LiveActivityShowResolver.swift */; };
 		B203E3D34F4489D52DF883C2 /* TimetableDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F4584157B000C78D91DD2B /* TimetableDraft.swift */; };
 		B217212979FF3A3D2A5C8374 /* FootprintDateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413830B83BEA5AFCAA368F70 /* FootprintDateFormatting.swift */; };
 		B264C7E4CA5FC349FCA54E09 /* CompanionShowSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF6CEC504A8757BAF259119 /* CompanionShowSnapshot.swift */; };
@@ -857,6 +860,7 @@
 		619CAC680E3D044C14478072 /* CompanionReviewerRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionReviewerRegressionTests.swift; sourceTree = "<group>"; };
 		624D7A7F9CD38403E3EF8361 /* MusicKitListeningPlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitListeningPlaybackService.swift; sourceTree = "<group>"; };
 		6287BC80F1F7D37458EA5AD4 /* DynamicCover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCover.swift; sourceTree = "<group>"; };
+		62A1AB9DB3DABF8B73F1EB1A /* LiveActivityPushCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPushCoordinatorTests.swift; sourceTree = "<group>"; };
 		62C049F63AB646AD21C0F75C /* TimetableStageMatrixView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableStageMatrixView.swift; sourceTree = "<group>"; };
 		6342243FBB6368DAC7C4785D /* RemoteConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConfig.swift; sourceTree = "<group>"; };
 		635A08F180A354053CC188E2 /* ListeningDiscDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDiscDetailView.swift; sourceTree = "<group>"; };
@@ -989,6 +993,7 @@
 		A15EAC9B6473733DFD55331A /* ScheduledNotificationRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledNotificationRequest.swift; sourceTree = "<group>"; };
 		A17098BD24AC149A783AB802 /* ShowScreenshotRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowScreenshotRecognitionService.swift; sourceTree = "<group>"; };
 		A1B6B7DDF2282FE689AE2C5B /* DynamicCoverPlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverPlaybackView.swift; sourceTree = "<group>"; };
+		A1DA7246B605937CECA37D7C /* LiveActivityPushCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPushCoordinator.swift; sourceTree = "<group>"; };
 		A25801B763F5EA9EF2F52A04 /* ProPaywallWinbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPaywallWinbackView.swift; sourceTree = "<group>"; };
 		A2AD97D16C3C4F0BD6FCF362 /* SongFamiliarityRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongFamiliarityRecord.swift; sourceTree = "<group>"; };
 		A3858942B559D1FD467BDCA7 /* TimetablePerformanceInspectorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePerformanceInspectorSheet.swift; sourceTree = "<group>"; };
@@ -1177,6 +1182,7 @@
 		F14165D92E2CC15B61519B57 /* CurrentShowCoverPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowCoverPreference.swift; sourceTree = "<group>"; };
 		F183C29A92FD2E5A0843FD34 /* ProEntitlement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProEntitlement.swift; sourceTree = "<group>"; };
 		F230E93BAB2AA006202C2C0C /* FootprintDebugSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDebugSeeder.swift; sourceTree = "<group>"; };
+		F2D07E9C9DD0B299D5853905 /* LiveActivityShowResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityShowResolver.swift; sourceTree = "<group>"; };
 		F35BD1012092049EB683666A /* ListeningStateMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningStateMessage.swift; sourceTree = "<group>"; };
 		F7DCA6E905F85BCF0C3E6389 /* FootprintDashboardExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDashboardExport.swift; sourceTree = "<group>"; };
 		F85EDD69877A8E16FCE6C4EC /* ArtistAlbumArtworkResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistAlbumArtworkResolverTests.swift; sourceTree = "<group>"; };
@@ -1322,7 +1328,9 @@
 			children = (
 				239648979CB22E2A33DD72DF /* LiveActivityNotificationHandover.swift */,
 				0BD7AEFD5011B5D896C58599 /* LiveActivityPlanSecretStore.swift */,
+				A1DA7246B605937CECA37D7C /* LiveActivityPushCoordinator.swift */,
 				B25F3E4B404368E9CDCE78ED /* LiveActivityRemoteSyncService.swift */,
+				F2D07E9C9DD0B299D5853905 /* LiveActivityShowResolver.swift */,
 			);
 			path = LiveActivity;
 			sourceTree = "<group>";
@@ -1854,6 +1862,7 @@
 				2C4D6FC5594D83118D2C7B25 /* ListenTestData.swift */,
 				19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */,
 				CA648BF4E38DDA01FEC74BD1 /* LiveActivityImageBudgetTests.swift */,
+				62A1AB9DB3DABF8B73F1EB1A /* LiveActivityPushCoordinatorTests.swift */,
 				1A265862DEF1190D5B04032E /* LiveActivityRemoteSyncServiceTests.swift */,
 				0C1311ECCA8BF006296D7C6F /* LiveModeStateEngineTests.swift */,
 				6EDA0EA772B60E3B5CF21C92 /* LocalNotificationSchedulingTests.swift */,
@@ -2675,7 +2684,9 @@
 				3BB541607EDDBF4FAC52ED88 /* LiveActivityNotificationHandover.swift in Sources */,
 				24E41BB84970DD17C372DFF0 /* LiveActivityPlanSecretStore.swift in Sources */,
 				6BA26BDCA5AF6CA2C335AAB3 /* LiveActivityPlanner.swift in Sources */,
+				6E3ABAC16DB6037EE061156D /* LiveActivityPushCoordinator.swift in Sources */,
 				2E7D6415240724DCB4A12B45 /* LiveActivityRemoteSyncService.swift in Sources */,
+				B1830EBDB1E14B6C0560739F /* LiveActivityShowResolver.swift in Sources */,
 				0A983A2CFD77142E60CC7DD9 /* LiveActivityTransitionPlan.swift in Sources */,
 				3C950504FE1D927A099318BF /* LiveAndWidgetShowcaseView.swift in Sources */,
 				08E2411FFD8905BF99132D56 /* LiveModeFocusStore.swift in Sources */,
@@ -2919,6 +2930,7 @@
 				AFBE4EAB2A593D0FA387CE33 /* ListeningWidgetTests.swift in Sources */,
 				0F3BE470CA1FE8CCCA4FF900 /* LiveActivityAndNotificationTests.swift in Sources */,
 				5C6BA85B7E9E80B885A7E4D7 /* LiveActivityImageBudgetTests.swift in Sources */,
+				0BCC1C5A762C1E55B00A43E3 /* LiveActivityPushCoordinatorTests.swift in Sources */,
 				41F0BFB78E4DCC73E69F5EA2 /* LiveActivityRemoteSyncServiceTests.swift in Sources */,
 				49232AF96FAED3354A73522F /* LiveModeStateEngineTests.swift in Sources */,
 				479EDB16C034E37FCA30ACD0 /* LocalNotificationSchedulingTests.swift in Sources */,

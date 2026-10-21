@@ -123,3 +123,13 @@ actor LiveActivityRemoteSyncService {
         }
     }
 }
+
+
+extension LiveActivityRemoteSyncService {
+    @MainActor
+    static let live: LiveActivityRemoteSyncService = {
+        LiveActivityRemoteSyncService(
+            client: BeforeShowCloudClient.production()
+        )
+    }()
+}
