@@ -8,6 +8,8 @@ import WidgetKit
 
 struct LiveActivityContent {
     enum Mode {
+        /// 想看演出开演前 15 分钟提醒
+        case reminder
         /// 时刻表里正在演的一场
         case set
         /// 场间:倒数下一场
@@ -66,6 +68,12 @@ struct LiveActivityContent {
 
         let standardPhase = state.standardPhase(at: now, isStale: isStale)
 
+        let hasValidReminder: Bool = {
+            guard state.isReminderActive, let startsAt = state.reminderStartsAt else { return false }
+            let expiresAt = state.reminderExpiresAt ?? startsAt
+            return now < expiresAt
+        }()
+
         if standardPhase == .ended {
             mode = .ended
             kicker = BSLocalization.text("已散场")
@@ -76,6 +84,26 @@ struct LiveActivityContent {
             progress = nil
             next = nil
             timerInterval = state.timerInterval
+        } else if hasValidReminder, let reminderArtist = state.reminderArtistName {
+            mode = .reminder
+            kicker = BSLocalization.text("快开始了")
+            caption = nil
+            title = reminderArtist
+            let startsText = state.reminderStartsAt.map { BSLocalization.format("%@ 开场", clock($0)) }
+            if let stage = state.reminderStageName, !stage.isEmpty {
+                subtitle = startsText.map { BSLocalization.format("%1$@ · %2$@", stage, $0) } ?? stage
+            } else {
+                subtitle = startsText
+            }
+            timeRange = state.reminderStartsAt.map(clock)
+            nextStartText = timeRange
+            progress = nil
+            next = upcoming
+            if state.isFestivalDayActive {
+                lineup = (state.nextArtistImageFilename, state.reminderStageName, nil)
+            }
+            let target = state.reminderStartsAt ?? state.endBoundary
+            timerInterval = target...max(target, state.endBoundary)
         } else if let artist = state.currentArtistName, !currentEnded {
             let start = state.currentStartsAt ?? state.startDate
             let end = state.currentEndsAt ?? state.endDate ?? state.startDate
@@ -149,7 +177,7 @@ struct LiveActivityContent {
         switch mode {
         case .set:
             return timeRange
-        case .between:
+        case .between, .reminder:
             return nextStartText.map { BSLocalization.format("%@ 开场", $0) }
         case .pre, .started, .ended:
             return nil
@@ -159,7 +187,7 @@ struct LiveActivityContent {
     var kickerColor: Color {
         switch mode {
         case .set, .started: WidgetTheme.liveTitle
-        case .between: WidgetTheme.accent
+        case .between, .reminder: WidgetTheme.accent
         case .pre, .ended: WidgetTheme.muted
         }
     }
@@ -167,7 +195,7 @@ struct LiveActivityContent {
     var timerColor: Color {
         switch mode {
         case .set, .started, .pre: WidgetTheme.foreground
-        case .between, .ended: WidgetTheme.heroWarmGold
+        case .between, .ended, .reminder: WidgetTheme.heroWarmGold
         }
     }
 
@@ -194,7 +222,7 @@ struct LiveActivityTimerText: View {
 
     var body: some View {
         Group {
-            if content.mode == .pre || content.mode == .between {
+            if content.mode == .pre || content.mode == .between || content.mode == .reminder {
                 Text(content.timerInterval.lowerBound, style: .timer)
             } else {
                 Text(timerInterval: content.timerInterval, countsDown: false)

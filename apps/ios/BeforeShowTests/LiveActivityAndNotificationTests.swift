@@ -447,6 +447,136 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertNil(state.contentExpirationDate)
     }
 
+    // MARK: - Issue #360 Tests: 15-minute Want-to-See Reminder & Transition Plan
+
+    func testWantToSeeReminderActivatesAtFifteenMinutesLead() throws {
+        // Main set at 14:00-15:30 (not interested)
+        // Set 2 at 16:00-17:30 with isInterested = true
+        let (snapshot, _, second) = makeTwoSetFestival()
+        var days = snapshot.timetable!.days
+        let perf2 = WidgetTimetablePerformance(
+            id: second.id,
+            artistName: "Bonobo",
+            stageID: second.stageID,
+            stageName: "Green Stage",
+            startsAt: second.startsAt,
+            endsAt: second.endsAt,
+            isInterested: true
+        )
+        days[0] = WidgetTimetableDay(id: days[0].id, date: days[0].date, performances: [days[0].performances[0], perf2])
+        let festival = makeSnapshot(timetableDays: days)
+
+        // At 15:20 (40 mins before 16:00): not in reminder window, not in startingSoon window
+        let state40 = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: festival, now: date(15, 20), coverFilename: nil)).state
+        XCTAssertFalse(state40.isReminderActive)
+        XCTAssertNil(state40.reminderArtistName)
+
+        // At 15:35 (25 mins before 16:00): in 30m startingSoon window, but NOT 15m reminder window!
+        let state25 = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: festival, now: date(15, 35), coverFilename: nil)).state
+        XCTAssertFalse(state25.isReminderActive, "30-min visual threshold must not activate reminder")
+        XCTAssertNil(state25.reminderArtistName)
+
+        // At 15:45 (15 mins before 16:00): exactly in 15m reminder window!
+        let state15 = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: festival, now: date(15, 45), coverFilename: nil)).state
+        XCTAssertTrue(state15.isReminderActive)
+        XCTAssertEqual(state15.reminderArtistName, "Bonobo")
+        XCTAssertEqual(state15.reminderStageName, "Green Stage")
+        XCTAssertEqual(state15.reminderStartsAt, date(16, 0))
+
+        // Content presentation in LiveActivityContent:
+        let content15 = LiveActivityContent(state: state15, isStale: false, now: date(15, 45))
+        XCTAssertEqual(content15.mode, .reminder)
+        XCTAssertEqual(content15.kicker, "快开始了")
+        XCTAssertEqual(content15.title, "Bonobo")
+        XCTAssertTrue(content15.subtitle?.contains("Green Stage") == true)
+
+        // At 16:00: show starts! Reminder expires and silently switches to .set (Now Playing)
+        let stateStart = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: festival, now: date(16, 0), coverFilename: nil)).state
+        XCTAssertFalse(stateStart.isReminderActive, "Reminder must expire once performance starts")
+        let contentStart = LiveActivityContent(state: stateStart, isStale: false, now: date(16, 0))
+        XCTAssertEqual(contentStart.mode, .set)
+        XCTAssertEqual(contentStart.kicker, "正在演出")
+        XCTAssertEqual(contentStart.title, "Bonobo")
+    }
+
+    func testMultipleInterestedPerformancesSummary() throws {
+        // Two performances starting at 16:00 simultaneously on different stages
+        let p1 = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Band 1", stageID: UUID(), stageName: "Stage 1",
+            startsAt: date(16, 0), endsAt: date(17, 0), isInterested: true
+        )
+        let p2 = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Band 2", stageID: UUID(), stageName: "Stage 2",
+            startsAt: date(16, 0), endsAt: date(17, 0), isInterested: true
+        )
+        let day = WidgetTimetableDay(id: UUID(), date: date(0, 0), performances: [p1, p2])
+        let snapshot = makeSnapshot(timetableDays: [day])
+
+        let state = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(15, 45), coverFilename: nil)).state
+        XCTAssertTrue(state.isReminderActive)
+        XCTAssertEqual(state.reminderPerformanceIDs?.count, 2)
+        XCTAssertNotNil(state.reminderSummary)
+        XCTAssertTrue(state.reminderSummary?.contains("Band 1") == true)
+        XCTAssertTrue(state.reminderSummary?.contains("Band 2") == true)
+    }
+
+    func testNextRefreshDateIncludesFifteenMinuteReminderBoundary() throws {
+        let (snapshot, _, second) = makeTwoSetFestival()
+        var days = snapshot.timetable!.days
+        let perf2 = WidgetTimetablePerformance(
+            id: second.id,
+            artistName: "Bonobo",
+            stageID: second.stageID,
+            stageName: "Green Stage",
+            startsAt: date(16, 0),
+            endsAt: date(17, 0),
+            isInterested: true
+        )
+        days[0] = WidgetTimetableDay(id: days[0].id, date: days[0].date, performances: [days[0].performances[0], perf2])
+        let festival = makeSnapshot(timetableDays: days)
+
+        // At 15:40: next refresh boundary must be 15:45 (T-15m reminder fire time)!
+        let next = LiveActivityPlanner.nextRefreshDate(snapshot: festival, now: date(15, 40))
+        XCTAssertEqual(next, date(15, 45))
+    }
+
+    func testTransitionPlanGenerationUnder4KB() throws {
+        let (snapshot, _, second) = makeTwoSetFestival()
+        var days = snapshot.timetable!.days
+        let perf2 = WidgetTimetablePerformance(
+            id: second.id,
+            artistName: "Bonobo",
+            stageID: second.stageID,
+            stageName: "Green Stage",
+            startsAt: date(16, 0),
+            endsAt: date(17, 30),
+            isInterested: true
+        )
+        days[0] = WidgetTimetableDay(id: days[0].id, date: days[0].date, performances: [days[0].performances[0], perf2])
+        let festival = makeSnapshot(timetableDays: days)
+
+        let plan = try XCTUnwrap(LiveActivityTransitionPlanBuilder.buildPlan(
+            snapshot: festival,
+            now: date(14, 0),
+            appInstanceID: "test-device-uuid",
+            activityPushToken: "test-apns-token-hex",
+            isProduction: false,
+            version: 1
+        ))
+
+        XCTAssertEqual(plan.version, 1)
+        XCTAssertFalse(plan.steps.isEmpty)
+        XCTAssertEqual(plan.showID, festival.showID.uuidString)
+
+        // Verify each payload step is under 4 KB (platform budget limit)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        for step in plan.steps {
+            let stepData = try encoder.encode(step.state)
+            XCTAssertLessThan(stepData.count, 4096, "Step state exceeds 4KB APNs limit")
+        }
+    }
+
     // MARK: - Helpers
 
     private func makeTwoSetFestival(

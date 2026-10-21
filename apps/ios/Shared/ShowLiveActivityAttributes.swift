@@ -50,6 +50,13 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         /// 与主现场同时在演的另一场(现场模式)。
         var alsoArtistName: String? = nil
         var alsoStageName: String? = nil
+        var reminderArtistName: String? = nil
+        var reminderStageName: String? = nil
+        var reminderStartsAt: Date? = nil
+        var reminderExpiresAt: Date? = nil
+        var reminderSummary: String? = nil
+        var reminderPerformanceIDs: [String]? = nil
+        var isReminderActive: Bool = false
         /// App Group 内艺人头像小图文件名;nil 用首字母。
         var currentArtistImageFilename: String? = nil
         var alsoArtistImageFilename: String? = nil
@@ -139,6 +146,13 @@ extension ShowLiveActivityAttributes.ContentState {
         isFestivalDayActive = try container.decodeIfPresent(Bool.self, forKey: .isFestivalDayActive) ?? false
         alsoArtistName = try container.decodeIfPresent(String.self, forKey: .alsoArtistName)
         alsoStageName = try container.decodeIfPresent(String.self, forKey: .alsoStageName)
+        reminderArtistName = try container.decodeIfPresent(String.self, forKey: .reminderArtistName)
+        reminderStageName = try container.decodeIfPresent(String.self, forKey: .reminderStageName)
+        reminderStartsAt = try container.decodeIfPresent(Date.self, forKey: .reminderStartsAt)
+        reminderExpiresAt = try container.decodeIfPresent(Date.self, forKey: .reminderExpiresAt)
+        reminderSummary = try container.decodeIfPresent(String.self, forKey: .reminderSummary)
+        reminderPerformanceIDs = try container.decodeIfPresent([String].self, forKey: .reminderPerformanceIDs)
+        isReminderActive = try container.decodeIfPresent(Bool.self, forKey: .isReminderActive) ?? false
         currentArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .currentArtistImageFilename)
         alsoArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .alsoArtistImageFilename)
         nextArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .nextArtistImageFilename)

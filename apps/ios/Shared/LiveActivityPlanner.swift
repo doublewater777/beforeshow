@@ -28,9 +28,59 @@ enum LiveActivityAction: Equatable {
 }
 
 enum LiveActivityPlanner {
+    struct ActiveReminder {
+        let artistName: String
+        let stageName: String
+        let startsAt: Date
+        let expiresAt: Date
+        let performanceIDs: [String]
+        let summary: String?
+    }
+
+    static func activeReminder(
+        in timetable: WidgetTimetableSnapshot,
+        now: Date
+    ) -> ActiveReminder? {
+        // 遍历所有天所有舞台的想看场次
+        var activePerfs: [(dayDate: Date, perf: WidgetTimetablePerformance)] = []
+        for day in timetable.days {
+            for p in day.performances where p.isInterested {
+                let reminderStart = p.startsAt.addingTimeInterval(-reminderLeadTime)
+                if now >= reminderStart && now < p.startsAt {
+                    activePerfs.append((day.date, p))
+                }
+            }
+        }
+        guard !activePerfs.isEmpty else { return nil }
+
+        // 按开演时间升序，同开演时间按 ID 字典序稳定排序
+        activePerfs.sort { lhs, rhs in
+            if lhs.perf.startsAt != rhs.perf.startsAt {
+                return lhs.perf.startsAt < rhs.perf.startsAt
+            }
+            return lhs.perf.id.uuidString < rhs.perf.id.uuidString
+        }
+
+        let first = activePerfs[0].perf
+        let performanceIDs = activePerfs.map { $0.perf.id.uuidString }
+        let summary: String? = activePerfs.count > 1
+            ? activePerfs.map { $0.perf.artistName }.joined(separator: " / ")
+            : nil
+
+        return ActiveReminder(
+            artistName: first.artistName,
+            stageName: first.stageName,
+            startsAt: first.startsAt,
+            expiresAt: first.startsAt,
+            performanceIDs: performanceIDs,
+            summary: summary
+        )
+    }
+
     static let maxActiveDuration: TimeInterval = 8 * 3_600
     static let scheduleHorizon: TimeInterval = 7 * 86_400
     static let dismissalGracePeriod: TimeInterval = 15 * 60
+    static let reminderLeadTime: TimeInterval = 15 * 60
 
     static func desiredState(
         snapshot: WidgetShowSnapshot?,
@@ -72,6 +122,7 @@ enum LiveActivityPlanner {
             func image(_ id: UUID?) -> String? {
                 id.flatMap { imageSources[$0] }.flatMap(artistImageFilename)
             }
+            let reminder = activeReminder(in: timetable, now: now)
 
             switch liveState.phase {
             case .dayEnded:
@@ -104,7 +155,13 @@ enum LiveActivityPlanner {
                 let upcoming = liveState.upcomingPerformances.first
                 // 场间:计时倒数到下一场开演(staleDate 也随之落在开演时刻)。
                 let start = current?.startsAt ?? upcoming?.startsAt ?? now
-                let contentExpiration = current?.endsAt ?? upcoming?.startsAt
+                let baseExpiration = current?.endsAt ?? upcoming?.startsAt
+                let contentExpiration: Date?
+                if let reminder {
+                    contentExpiration = [baseExpiration, reminder.expiresAt].compactMap({ $0 }).min()
+                } else {
+                    contentExpiration = baseExpiration
+                }
 
                 return (
                     ShowLiveActivityAttributes.ContentState(
@@ -132,6 +189,13 @@ enum LiveActivityPlanner {
                         isFestivalDayActive: true,
                         alsoArtistName: also?.artistName,
                         alsoStageName: also?.stageName,
+                        reminderArtistName: reminder?.artistName,
+                        reminderStageName: reminder?.stageName,
+                        reminderStartsAt: reminder?.startsAt,
+                        reminderExpiresAt: reminder?.expiresAt,
+                        reminderSummary: reminder?.summary,
+                        reminderPerformanceIDs: reminder?.performanceIDs,
+                        isReminderActive: reminder != nil,
                         currentArtistImageFilename: image(current?.id),
                         alsoArtistImageFilename: image(also?.id),
                         nextArtistImageFilename: image(upcoming?.id),
@@ -158,7 +222,13 @@ enum LiveActivityPlanner {
                     dayStart = firstStartsAt
                     activityEnd = firstStartsAt.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600)
                 }
-                let contentExpiration = upcoming?.startsAt ?? firstStartsAt
+                let baseExpiration = upcoming?.startsAt ?? firstStartsAt
+                let contentExpiration: Date?
+                if let reminder {
+                    contentExpiration = [baseExpiration, reminder.expiresAt].compactMap({ $0 }).min()
+                } else {
+                    contentExpiration = baseExpiration
+                }
 
                 return (
                     ShowLiveActivityAttributes.ContentState(
@@ -180,6 +250,13 @@ enum LiveActivityPlanner {
                         isNextStartingSoon: upcoming?.isStartingSoon ?? false,
                         isInterestedNext: upcoming?.isInterested ?? false,
                         isFestivalDayActive: false,
+                        reminderArtistName: reminder?.artistName,
+                        reminderStageName: reminder?.stageName,
+                        reminderStartsAt: reminder?.startsAt,
+                        reminderExpiresAt: reminder?.expiresAt,
+                        reminderSummary: reminder?.summary,
+                        reminderPerformanceIDs: reminder?.performanceIDs,
+                        isReminderActive: reminder != nil,
                         nextArtistImageFilename: image(upcoming?.id),
                         isEnded: false,
                         contentExpirationDate: contentExpiration
@@ -250,6 +327,9 @@ enum LiveActivityPlanner {
                 boundaries.append(dayEnd)
                 for performance in day.performances {
                     boundaries.append(performance.startsAt.addingTimeInterval(-LivePerformanceSnapshot.startingSoonLead))
+                    if performance.isInterested {
+                        boundaries.append(performance.startsAt.addingTimeInterval(-reminderLeadTime))
+                    }
                     boundaries.append(performance.startsAt)
                     boundaries.append(performance.endsAt)
                 }
