@@ -96,6 +96,7 @@ export function normalizeUrl(urlString) {
 
   if (platform === "showstart") {
     const activityId = url.searchParams.get("activityId")
+      ?? url.pathname.match(/\/event\/(\d{6,})/i)?.[1]
       ?? extractedUrl.match(/activityId\D*(\d{6,})/i)?.[1];
     if (!activityId) {
       throw new UnsupportedPlatformError(urlString);

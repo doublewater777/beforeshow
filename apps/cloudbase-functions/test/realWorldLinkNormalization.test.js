@@ -92,6 +92,17 @@ describe("real-world domestic ticket share URLs", () => {
     );
   });
 
+  it("extracts ShowStart activity ID from the PC event path", () => {
+    const normalized = normalizeUrl("https://www.showstart.com/event/312580");
+
+    assert.equal(normalized.platform, "showstart");
+    assert.equal(normalized.activityId, "312580");
+    assert.equal(
+      normalized.canonicalUrl,
+      "https://wap.showstart.com/pages/activity/detail/detail?activityId=312580"
+    );
+  });
+
   it("accepts Fenwandao project_id and projectId aliases", () => {
     for (const key of ["project_id", "projectId"]) {
       const normalized = normalizeUrl(
