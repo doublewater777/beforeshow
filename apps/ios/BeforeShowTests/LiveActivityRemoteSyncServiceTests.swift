@@ -197,6 +197,72 @@ final class LiveActivityRemoteSyncServiceTests: XCTestCase {
         let isStillHandedOver = await ledger.isHandedOverOrConsumed(notificationIdentifier: eventKey.notificationIdentifier)
         XCTAssertFalse(isStillHandedOver)
     }
+
+    func testRevokePlanRestoresFutureHandedOverRemindersToLocalNotification() async throws {
+        let showID = UUID().uuidString
+        let futurePerformanceID = UUID().uuidString
+        let latePerformanceID = UUID().uuidString
+        let now = Date()
+
+        let futureStart = now.addingTimeInterval(3600)
+        let lateStart = now.addingTimeInterval(300)
+        let handoverTime = now.addingTimeInterval(-1800)
+
+        let ledger = LiveActivityReminderLedger()
+        let futureKey = PerformanceReminderEventKey(
+            showID: showID,
+            performanceID: futurePerformanceID,
+            scheduledStartsAt: futureStart
+        )
+        let lateKey = PerformanceReminderEventKey(
+            showID: showID,
+            performanceID: latePerformanceID,
+            scheduledStartsAt: lateStart
+        )
+
+        _ = await ledger.completeHandover(eventKey: futureKey, planVersion: 1, now: handoverTime)
+        _ = await ledger.completeHandover(eventKey: lateKey, planVersion: 1, now: handoverTime)
+
+        let session = MockCloudSession(
+            responseData: #"{"ok":true,"revoked":true}"#.data(using: .utf8)!,
+            statusCode: 200
+        )
+        let client = BeforeShowCloudClient(
+            rootURL: URL(string: "https://example.com")!,
+            credentials: BeforeShowAppCredentials(appInstanceId: "test-dev", appSignature: "test-sig"),
+            session: session
+        )
+
+        let recorder = RestorationRecorder()
+        let service = LiveActivityRemoteSyncService(
+            client: client,
+            ledger: ledger,
+            secretProvider: { "dummy-secret-32-chars-long-value" },
+            notificationRestorer: { keys in
+                await recorder.record(keys)
+            }
+        )
+
+        let success = await service.revokePlan(showID: showID, now: now)
+        XCTAssertTrue(success)
+
+        let futureRecord = await ledger.record(for: futureKey)
+        XCTAssertEqual(futureRecord.channel, .localNotification)
+        XCTAssertEqual(futureRecord.status, .pending)
+
+        let lateRecord = await ledger.record(for: lateKey)
+        XCTAssertEqual(lateRecord.status, .handedOver)
+
+        let recordedKeys = await recorder.restoredKeys
+        XCTAssertEqual(recordedKeys, [futureKey])
+    }
+}
+
+private actor RestorationRecorder {
+    var restoredKeys: [PerformanceReminderEventKey] = []
+    func record(_ keys: [PerformanceReminderEventKey]) {
+        restoredKeys = keys
+    }
 }
 
 private actor MockCloudSession: URLSessionProtocol {

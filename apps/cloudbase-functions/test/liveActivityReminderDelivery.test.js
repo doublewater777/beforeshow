@@ -207,3 +207,47 @@ test('SDK code-style transaction write errors do not acknowledge registration', 
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'WRITE_FAILED');
 });
+
+test("multiple due steps merge unconsumed reminder events without dropping earlier due fresh reminders", async () => {
+  const h = harness();
+  await h.upload([
+    step(40, [event("a", 55)]),
+    step(42, [event("b", 56)])
+  ]);
+  await h.deliver(43);
+  assert.equal(h.payloads.length, 1);
+  const alert = h.payloads[0].aps.alert;
+  assert.ok(alert, "alert must be generated");
+  assert.match(alert.body, /1 more saved set starts soon/);
+  const rec = h.record();
+  assert.equal(rec.deliveredReminderKeys.length, 2);
+  assert.ok(rec.deliveredReminderKeys.some(k => k.startsWith("a:")));
+  assert.ok(rec.deliveredReminderKeys.some(k => k.startsWith("b:")));
+});
+
+test("nextDispatchAt is computed on upload and advances after steps are consumed", async () => {
+  const h = harness();
+  await h.upload([
+    step(40, [event("a", 55)]),
+    step(45, [event("b", 59)])
+  ]);
+  assert.equal(new Date(h.record().nextDispatchAt).getTime(), instant(40).getTime());
+
+  await h.deliver(40);
+  assert.equal(new Date(h.record().nextDispatchAt).getTime(), instant(45).getTime());
+
+  await h.deliver(45);
+  assert.equal(h.record().nextDispatchAt, null);
+  assert.equal(h.record().status, "completed");
+});
+
+test("dispatchLiveActivityPush returns QUERY_FAILED when findActivePlans throws", async () => {
+  const res = await dispatch({}, {}, {
+    now: () => instant(40),
+    transport: async () => ({ ok: true, statusCode: 200 }),
+    findActivePlans: async () => { throw new Error("DB connection reset"); }
+  });
+  assert.equal(res.ok, false);
+  assert.equal(res.error.code, "QUERY_FAILED");
+  assert.equal(res.error.message, "DB connection reset");
+});

@@ -103,6 +103,11 @@ export async function main(event = {}, context = {}, options = {}) {
     };
   });
 
+  const unconsumedSteps = normalizedSteps.filter(s => !s.isConsumed);
+  const nextDispatchAt = unconsumedSteps.length > 0
+    ? new Date(Math.min(...unconsumedSteps.map(s => s.scheduledAt.getTime())))
+    : null;
+
   const expireAt = new Date(deadline.getTime() + EXPIRY_BUFFER_MS);
   const record = {
     _id: docId,
@@ -115,6 +120,7 @@ export async function main(event = {}, context = {}, options = {}) {
     version,
     deadline,
     expireAt,
+    nextDispatchAt,
     status: "active",
     updatedAt: now,
     language: plan.language ?? "zh-Hans",

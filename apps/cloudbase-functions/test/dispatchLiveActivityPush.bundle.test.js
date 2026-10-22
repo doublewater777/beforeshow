@@ -70,7 +70,8 @@ test("deployed dispatcher exposes a callable CloudBase event handler", () => {
     const deployed = require("./.cloudbase/functions/dispatchLiveActivityPush/index.js");
     assert.equal(typeof deployed.main, "function", "CloudBase index.main handler must exist");
     deployed.main({}, {}).then(result => {
-      assert.equal(result.ok, true);
+      assert.equal(result.ok, false);
+      assert.equal(result.error.code, "CONFIG_MISSING");
       assert.equal(result.skippedDueToConfig, true);
     }).catch(error => { console.error(error); process.exitCode = 1; });
   `], {

@@ -11,20 +11,23 @@ actor LiveActivityPushCoordinator {
     private var currentSnapshot: WidgetShowSnapshot?
     private var focusedPerformanceID: UUID?
     private let appInstanceIDProvider: (@Sendable () async -> String)?
+    private let notificationRestorer: (@Sendable ([PerformanceReminderEventKey]) async -> Void)?
 
     init(
         syncService: LiveActivityRemoteSyncService? = nil,
-        appInstanceIDProvider: (@Sendable () async -> String)? = nil
+        appInstanceIDProvider: (@Sendable () async -> String)? = nil,
+        notificationRestorer: (@Sendable ([PerformanceReminderEventKey]) async -> Void)? = nil
     ) {
         self.customSyncService = syncService
         self.appInstanceIDProvider = appInstanceIDProvider
+        self.notificationRestorer = notificationRestorer
     }
 
     private func resolveSyncService() async -> LiveActivityRemoteSyncService {
         if let custom = customSyncService { return custom }
         if let resolved = lazyResolvedSyncService { return resolved }
         let client = await MainActor.run { BeforeShowCloudClient.production() }
-        let service = LiveActivityRemoteSyncService(client: client)
+        let service = LiveActivityRemoteSyncService(client: client, notificationRestorer: notificationRestorer)
         self.lazyResolvedSyncService = service
         return service
     }

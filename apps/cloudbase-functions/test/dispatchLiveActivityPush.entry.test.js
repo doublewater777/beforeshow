@@ -178,7 +178,8 @@ test("dispatchLiveActivityPush marks plan as completed when all steps are consum
 
 test("dispatchLiveActivityPush gracefully skips when APNs credentials are missing and no transport", async () => {
   const res = await main({}, {}, {});
-  assert.equal(res.ok, true);
+  assert.equal(res.ok, false);
+  assert.equal(res.error.code, "CONFIG_MISSING");
   assert.equal(res.skippedDueToConfig, true);
   assert.equal(res.dispatchedCount, 0);
 });

@@ -15,9 +15,10 @@ export async function main(event = {}, context = {}, options = {}) {
   const apnsPrivateKey = options.apnsPrivateKey ?? process.env.APNS_PRIVATE_KEY;
 
   if (!options.transport && (!apnsKeyId || !apnsTeamId || !apnsPrivateKey)) {
-    console.warn("dispatchLiveActivityPush: Missing APNs configuration, skipping push dispatch.");
+    console.error("dispatchLiveActivityPush: Missing APNs configuration, skipping push dispatch.");
     return {
-      ok: true,
+      ok: false,
+      error: { code: "CONFIG_MISSING", message: "Missing APNs configuration" },
       processedCount: 0,
       dispatchedCount: 0,
       expiredTokenCount: 0,
@@ -25,8 +26,20 @@ export async function main(event = {}, context = {}, options = {}) {
     };
   }
 
-  const findActivePlans = options.findActivePlans ?? queryActivePlansFromDb;
-  const activePlans = await findActivePlans(now);
+  let activePlans;
+  try {
+    const findActivePlans = options.findActivePlans ?? queryActivePlansFromDb;
+    activePlans = await findActivePlans(now, options);
+  } catch (err) {
+    console.error("dispatchLiveActivityPush: Database query failed:", err);
+    return {
+      ok: false,
+      error: { code: "QUERY_FAILED", message: err.message },
+      processedCount: 0,
+      dispatchedCount: 0,
+      expiredTokenCount: 0
+    };
+  }
 
   let processedCount = 0;
   let dispatchedCount = 0;
@@ -64,16 +77,45 @@ export async function main(event = {}, context = {}, options = {}) {
       }
 
       const delivered = new Set(deliveredReminderKeys(plan));
-      const events = reminderEvents(targetStep.state, targetStep.reminderEvents);
-      const freshEvents = events.filter(event => {
+
+      // Collect reminder events across all due steps so earlier due reminders are not lost
+      const allDueEvents = [];
+      const seenEventKeys = new Set();
+      for (const s of dueSteps) {
+        const stepEvents = reminderEvents(s.state, s.reminderEvents);
+        for (const ev of stepEvents) {
+          const key = reminderKey(ev);
+          if (!seenEventKeys.has(key)) {
+            seenEventKeys.add(key);
+            allDueEvents.push(ev);
+          }
+        }
+      }
+
+      // Filter: only keep events within the reminder window (startsAt - 15m <= now < startsAt) and not yet delivered
+      const freshEvents = allDueEvents.filter(event => {
         const startsAt = contentDate(event.startsAt);
         return !delivered.has(reminderKey(event)) && now < startsAt
           && now >= new Date(startsAt.getTime() - REMINDER_WINDOW_MS);
       });
+
+      const mergedReminderCount = Math.max(
+        freshEvents.length,
+        targetStep.state?.reminderCount ?? 0,
+        targetStep.state?.reminderPerformanceIDs?.length ?? 0
+      );
+
       let alert = null;
       if (!targetStep.state?.isEnded && freshEvents.length) {
-        alert = reminderAlert(targetStep.state, freshEvents, plan.language);
-      } else if (!events.length && targetStep.isReminder
+        const alertState = {
+          ...targetStep.state,
+          reminderArtistName: targetStep.state?.reminderArtistName ?? freshEvents[0].artistName,
+          reminderStageName: targetStep.state?.reminderStageName ?? freshEvents[0].stageName,
+          reminderStartsAt: targetStep.state?.reminderStartsAt ?? freshEvents[0].startsAt,
+          reminderCount: mergedReminderCount
+        };
+        alert = reminderAlert(alertState, freshEvents, plan.language);
+      } else if (!allDueEvents.length && targetStep.isReminder
           && now - new Date(targetStep.scheduledAt) <= REMINDER_WINDOW_MS) {
         // Preserve already-registered legacy steps without event identities.
         alert = { title: targetStep.alertTitle || "快开始了",
@@ -83,7 +125,9 @@ export async function main(event = {}, context = {}, options = {}) {
       const isEnd = Boolean(targetStep.state?.isEnded);
       // Per-event handover metadata stays on the server; the widget only needs the count.
       const { reminderPerformanceIDs: ids, ...contentState } = targetStep.state;
-      if (events.length) contentState.reminderCount = events.length;
+      if (allDueEvents.length || freshEvents.length) {
+        contentState.reminderCount = mergedReminderCount || 1;
+      }
       const payload = buildActivityKitPayload({
         contentState,
         scheduledAt: targetStep.scheduledAt,
@@ -125,9 +169,15 @@ export async function main(event = {}, context = {}, options = {}) {
         dispatchedCount += 1;
       }
 
+      const remainingSteps = steps.filter(s => !s.isConsumed);
+      const nextDispatchAt = remainingSteps.length > 0
+        ? new Date(Math.min(...remainingSteps.map(s => new Date(s.scheduledAt).getTime())))
+        : null;
+
       const update = {
         steps,
         status: planStatus,
+        nextDispatchAt,
         deliveredReminderKeys: [...delivered],
         updatedAt: now
       };
@@ -146,19 +196,51 @@ export async function main(event = {}, context = {}, options = {}) {
   };
 }
 
-async function queryActivePlansFromDb(now) {
-  try {
-    const { default: cloudbase } = await import("@cloudbase/node-sdk");
-    const db = cloudbase.init({}).database();
-    const res = await db.collection(COLLECTION_NAME)
-      .where({
-        status: "active",
-        expireAt: db.command.gte(now)
-      })
-      .limit(100)
-      .get();
-    return res.data ?? [];
-  } catch {
-    return [];
+async function queryActivePlansFromDb(now, options = {}) {
+  const { default: cloudbase } = await import("@cloudbase/node-sdk");
+  const db = cloudbase.init({}).database();
+  const _ = db?.command;
+
+  const pageSize = options.pageSize ?? 100;
+  const maxPages = options.maxPages ?? 10;
+  const plans = [];
+
+  let queryFilter = {
+    status: "active"
+  };
+  if (typeof _?.gte === "function") {
+    queryFilter.expireAt = _.gte(now);
   }
+  if (typeof _?.and === "function" && typeof _?.or === "function" && typeof _?.lte === "function") {
+    queryFilter = _.and([
+      { status: "active" },
+      { expireAt: _.gte(now) },
+      _.or([
+        { nextDispatchAt: _.lte(now) },
+        { nextDispatchAt: typeof _?.exists === "function" ? _.exists(false) : null },
+        { nextDispatchAt: null }
+      ])
+    ]);
+  }
+
+  for (let page = 0; page < maxPages; page++) {
+    let query = db.collection(COLLECTION_NAME).where(queryFilter);
+    if (typeof query.orderBy === "function") {
+      query = query.orderBy("nextDispatchAt", "asc");
+    }
+    if (typeof query.skip === "function") {
+      query = query.skip(page * pageSize);
+    }
+    if (typeof query.limit === "function") {
+      query = query.limit(pageSize);
+    }
+    const res = await query.get();
+    const batch = res.data ?? [];
+    plans.push(...batch);
+    if (batch.length < pageSize || typeof query.skip !== "function") {
+      break;
+    }
+  }
+
+  return plans;
 }
