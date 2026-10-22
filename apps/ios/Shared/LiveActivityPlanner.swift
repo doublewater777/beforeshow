@@ -23,12 +23,69 @@ enum LiveActivityAction: Equatable {
     case update(ShowLiveActivityAttributes.ContentState)
     case request(ShowLiveActivityAttributes.ContentState)
     case schedule(ShowLiveActivityAttributes.ContentState, start: Date)
+    case endNaturally(ShowLiveActivityAttributes.ContentState, dismissAt: Date)
     case endAll
 }
 
 enum LiveActivityPlanner {
+    struct ActiveReminder {
+        let artistName: String
+        let stageName: String
+        let startsAt: Date
+        let expiresAt: Date
+        let performanceIDs: [String]
+        let summary: String?
+        let events: [LiveActivityReminderEvent]
+        let performanceID: UUID
+    }
+
+    static func activeReminder(
+        in timetable: WidgetTimetableSnapshot,
+        now: Date
+    ) -> ActiveReminder? {
+        // 遍历所有天所有舞台的想看场次
+        var activePerfs: [(dayDate: Date, perf: WidgetTimetablePerformance)] = []
+        for day in timetable.days {
+            for p in day.performances where p.isInterested {
+                let reminderStart = p.startsAt.addingTimeInterval(-reminderLeadTime)
+                if now >= reminderStart && now < p.startsAt {
+                    activePerfs.append((day.date, p))
+                }
+            }
+        }
+        guard !activePerfs.isEmpty else { return nil }
+
+        // 按开演时间升序，同开演时间按 ID 字典序稳定排序
+        activePerfs.sort { lhs, rhs in
+            if lhs.perf.startsAt != rhs.perf.startsAt {
+                return lhs.perf.startsAt < rhs.perf.startsAt
+            }
+            return lhs.perf.id.uuidString < rhs.perf.id.uuidString
+        }
+
+        let first = activePerfs[0].perf
+        let performanceIDs = activePerfs.map { $0.perf.id.uuidString }
+        let summary: String? = activePerfs.count > 1
+            ? LiveActivityCopy.additionalReminders(activePerfs.count - 1)
+            : nil
+
+        return ActiveReminder(
+            artistName: first.artistName,
+            stageName: first.stageName,
+            startsAt: first.startsAt,
+            expiresAt: first.startsAt,
+            performanceIDs: performanceIDs,
+            summary: summary,
+            events: activePerfs.map { .init(performanceID: $0.perf.id.uuidString, startsAt: $0.perf.startsAt,
+                artistName: $0.perf.artistName, stageName: $0.perf.stageName) },
+            performanceID: first.id
+        )
+    }
+
     static let maxActiveDuration: TimeInterval = 8 * 3_600
     static let scheduleHorizon: TimeInterval = 7 * 86_400
+    static let dismissalGracePeriod: TimeInterval = 15 * 60
+    static let reminderLeadTime: TimeInterval = 15 * 60
 
     static func desiredState(
         snapshot: WidgetShowSnapshot?,
@@ -36,7 +93,7 @@ enum LiveActivityPlanner {
         coverFilename: String?,
         focusedPerformanceID: UUID? = nil,
         artistImageFilename: (String) -> String? = { _ in nil }
-    ) -> (state: ShowLiveActivityAttributes.ContentState, activityEnd: Date)? {
+    ) -> (state: ShowLiveActivityAttributes.ContentState, activityEnd: Date, dayStart: Date)? {
         guard let snapshot,
               snapshot.timing.changeStatus != .canceled,
               snapshot.timing.endedAt == nil,
@@ -70,6 +127,7 @@ enum LiveActivityPlanner {
             func image(_ id: UUID?) -> String? {
                 id.flatMap { imageSources[$0] }.flatMap(artistImageFilename)
             }
+            let reminder = activeReminder(in: timetable, now: now)
 
             switch liveState.phase {
             case .dayEnded:
@@ -80,13 +138,18 @@ enum LiveActivityPlanner {
                 break
 
             case .active:
+                let dayStart: Date
                 let dayEnd: Date
                 if let activeDayID = liveState.activeDayID,
                    let day = liveDays.first(where: { $0.id == activeDayID }),
+                   let minStart = day.performances.map({ $0.startsAt }).min(),
                    let maxEnd = day.performances.map({ $0.endsAt }).max() {
+                    dayStart = snapshot.timing.resolvedSessions(calendar: snapshot.timing.eventCalendar(fallback: .current))
+                        .first { $0.date == day.date }?.startsAt ?? minStart
                     dayEnd = snapshot.timing.resolvedSessions(calendar: snapshot.timing.eventCalendar(fallback: .current))
                         .first { $0.date == day.date }?.endsAt ?? maxEnd
                 } else {
+                    dayStart = now
                     dayEnd = now.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600)
                 }
 
@@ -97,6 +160,13 @@ enum LiveActivityPlanner {
                 let upcoming = liveState.upcomingPerformances.first
                 // 场间:计时倒数到下一场开演(staleDate 也随之落在开演时刻)。
                 let start = current?.startsAt ?? upcoming?.startsAt ?? now
+                let baseExpiration = current?.endsAt ?? upcoming?.startsAt
+                let contentExpiration: Date?
+                if let reminder {
+                    contentExpiration = [baseExpiration, reminder.expiresAt].compactMap({ $0 }).min()
+                } else {
+                    contentExpiration = baseExpiration
+                }
 
                 return (
                     ShowLiveActivityAttributes.ContentState(
@@ -124,23 +194,50 @@ enum LiveActivityPlanner {
                         isFestivalDayActive: true,
                         alsoArtistName: also?.artistName,
                         alsoStageName: also?.stageName,
+                        reminderArtistName: reminder?.artistName,
+                        reminderStageName: reminder?.stageName,
+                        reminderStartsAt: reminder?.startsAt,
+                        reminderExpiresAt: reminder?.expiresAt,
+                        reminderSummary: reminder?.summary,
+                        reminderPerformanceIDs: reminder?.performanceIDs,
+                        isReminderActive: reminder != nil,
                         currentArtistImageFilename: image(current?.id),
                         alsoArtistImageFilename: image(also?.id),
-                        nextArtistImageFilename: image(upcoming?.id)
+                        nextArtistImageFilename: image(upcoming?.id),
+                        reminderArtistImageFilename: image(reminder?.performanceID),
+                        isEnded: false,
+                        contentExpirationDate: contentExpiration,
+                        reminderCount: reminder?.events.count,
+                        reminderPerformanceID: reminder?.performanceID.uuidString,
+                        nextPerformanceID: upcoming?.id.uuidString,
+                        hasTimetable: true
                     ),
-                    dayEnd
+                    dayEnd,
+                    dayStart
                 )
 
             case .upcoming(let firstStartsAt):
                 let upcoming = liveState.upcomingPerformances.first
+                let dayStart: Date
                 let activityEnd: Date
                 if let activeDayID = liveState.activeDayID,
                    let day = liveDays.first(where: { $0.id == activeDayID }),
+                   let minStart = day.performances.map({ $0.startsAt }).min(),
                    let maxEnd = day.performances.map({ $0.endsAt }).max() {
+                    dayStart = snapshot.timing.resolvedSessions(calendar: snapshot.timing.eventCalendar(fallback: .current))
+                        .first { $0.date == day.date }?.startsAt ?? minStart
                     activityEnd = snapshot.timing.resolvedSessions(calendar: snapshot.timing.eventCalendar(fallback: .current))
                         .first { $0.date == day.date }?.endsAt ?? maxEnd
                 } else {
+                    dayStart = firstStartsAt
                     activityEnd = firstStartsAt.addingTimeInterval(TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600)
+                }
+                let baseExpiration = upcoming?.startsAt ?? firstStartsAt
+                let contentExpiration: Date?
+                if let reminder {
+                    contentExpiration = [baseExpiration, reminder.expiresAt].compactMap({ $0 }).min()
+                } else {
+                    contentExpiration = baseExpiration
                 }
 
                 return (
@@ -163,9 +260,24 @@ enum LiveActivityPlanner {
                         isNextStartingSoon: upcoming?.isStartingSoon ?? false,
                         isInterestedNext: upcoming?.isInterested ?? false,
                         isFestivalDayActive: false,
-                        nextArtistImageFilename: image(upcoming?.id)
+                        reminderArtistName: reminder?.artistName,
+                        reminderStageName: reminder?.stageName,
+                        reminderStartsAt: reminder?.startsAt,
+                        reminderExpiresAt: reminder?.expiresAt,
+                        reminderSummary: reminder?.summary,
+                        reminderPerformanceIDs: reminder?.performanceIDs,
+                        isReminderActive: reminder != nil,
+                        nextArtistImageFilename: image(upcoming?.id),
+                        reminderArtistImageFilename: image(reminder?.performanceID),
+                        isEnded: false,
+                        contentExpirationDate: contentExpiration,
+                        reminderCount: reminder?.events.count,
+                        reminderPerformanceID: reminder?.performanceID.uuidString,
+                        nextPerformanceID: upcoming?.id.uuidString,
+                        hasTimetable: true
                     ),
-                    activityEnd
+                    activityEnd,
+                    dayStart
                 )
             }
         }
@@ -184,6 +296,7 @@ enum LiveActivityPlanner {
 
         // 仅在真实设置了散场钟点/时间时提供 endDate；未填写时不计算虚假进度
         let explicitEnd = snapshot.timing.endTime != nil ? timeState.endBoundary : nil
+        let contentExpiration = now < start ? start : activityEnd
 
         return (
             ShowLiveActivityAttributes.ContentState(
@@ -198,31 +311,111 @@ enum LiveActivityPlanner {
                 timeZoneIdentifier: snapshot.timing.sessionTimeZoneIdentifier ?? snapshot.timing.timeZoneIdentifier,
                 endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
                 coverImageFilename: coverFilename,
-                hasStarted: now >= start
+                hasStarted: now >= start,
+                isEnded: false,
+                contentExpirationDate: contentExpiration
             ),
-            activityEnd
+            activityEnd,
+            start
         )
     }
 
     /// 下一个会改变实时活动内容的时刻(场次开演/结束、「即将开始」阈值、普通现场开场)。
     /// ActivityKit 不会自己换内容:App 存活时到点用同一快照重新发布。
     static func nextRefreshDate(snapshot: WidgetShowSnapshot?, now: Date) -> Date? {
-        guard let snapshot else { return nil }
+        guard let snapshot,
+              snapshot.timing.changeStatus != .canceled,
+              snapshot.timing.endedAt == nil,
+              !(snapshot.timing.changeStatus == .postponed && snapshot.timing.postponedDate == nil) else {
+            return nil
+        }
         var boundaries: [Date] = []
         if let timetable = snapshot.timetable, !timetable.days.isEmpty {
-            for performance in timetable.days.flatMap(\.performances) {
-                boundaries.append(performance.startsAt.addingTimeInterval(-LivePerformanceSnapshot.startingSoonLead))
-                boundaries.append(performance.startsAt)
-                boundaries.append(performance.endsAt)
+            let calendar = snapshot.timing.eventCalendar(fallback: .current)
+            let sessions = snapshot.timing.resolvedSessions(calendar: calendar)
+            for day in timetable.days {
+                guard let minStart = day.performances.map(\.startsAt).min(),
+                      let maxEnd = day.performances.map(\.endsAt).max() else { continue }
+                let dayStart = sessions.first { $0.date == day.date }?.startsAt ?? minStart
+                let dayEnd = sessions.first { $0.date == day.date }?.endsAt ?? maxEnd
+                boundaries.append(earliestStart(activityStart: dayStart, activityEnd: dayEnd))
+                boundaries.append(dayEnd)
+                for performance in day.performances {
+                    boundaries.append(performance.startsAt.addingTimeInterval(-LivePerformanceSnapshot.startingSoonLead))
+                    if performance.isInterested {
+                        boundaries.append(performance.startsAt.addingTimeInterval(-reminderLeadTime))
+                    }
+                    boundaries.append(performance.startsAt)
+                    boundaries.append(performance.endsAt)
+                }
             }
         } else if let start = CurrentShowTimeState(timing: snapshot.timing, now: now).effectiveStartTime {
+            let timeState = CurrentShowTimeState(timing: snapshot.timing, now: now)
+            let activityEnd = timeState.endBoundary ?? start.addingTimeInterval(
+                TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600
+            )
+            boundaries.append(earliestStart(activityStart: start, activityEnd: activityEnd))
             boundaries.append(start)
+            boundaries.append(activityEnd)
         }
         return boundaries.filter { $0 > now }.min()
     }
 
     static func earliestStart(activityStart: Date, activityEnd: Date) -> Date {
-        min(activityStart, activityEnd.addingTimeInterval(-maxActiveDuration))
+        max(activityStart.addingTimeInterval(-30 * 60), activityEnd.addingTimeInterval(-maxActiveDuration))
+    }
+
+    static func naturalEndBoundary(snapshot: WidgetShowSnapshot, now: Date) -> (dayStart: Date, activityEnd: Date)? {
+        if let timetable = snapshot.timetable, !timetable.days.isEmpty {
+            let calendar = snapshot.timing.eventCalendar(fallback: .current)
+            let sessions = snapshot.timing.resolvedSessions(calendar: calendar)
+            for day in timetable.days {
+                guard let minStart = day.performances.map(\.startsAt).min(),
+                      let maxEnd = day.performances.map(\.endsAt).max() else { continue }
+                let dayStart = sessions.first { $0.date == day.date }?.startsAt ?? minStart
+                let dayEnd = sessions.first { $0.date == day.date }?.endsAt ?? maxEnd
+                if now >= dayStart.addingTimeInterval(-maxActiveDuration) && now <= dayEnd.addingTimeInterval(dismissalGracePeriod) {
+                    return (dayStart, dayEnd)
+                }
+            }
+            return nil
+        }
+
+        let timeState = CurrentShowTimeState(timing: snapshot.timing, now: now)
+        guard let start = timeState.effectiveStartTime else { return nil }
+        let activityEnd = timeState.endBoundary ?? start.addingTimeInterval(
+            TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600
+        )
+        if now >= start.addingTimeInterval(-maxActiveDuration) && now <= activityEnd.addingTimeInterval(dismissalGracePeriod) {
+            return (start, activityEnd)
+        }
+        return nil
+    }
+
+    static func naturalFinalState(
+        snapshot: WidgetShowSnapshot,
+        dayStart: Date,
+        activityEnd: Date,
+        coverFilename: String?
+    ) -> ShowLiveActivityAttributes.ContentState {
+        ShowLiveActivityAttributes.ContentState(
+            showName: snapshot.name,
+            city: snapshot.city,
+            venueName: snapshot.venueName,
+            startDate: dayStart,
+            endDate: activityEnd,
+            lifecycleEnd: activityEnd,
+            timeZoneSecondsFromGMT: snapshot.timing.timeZoneSecondsFromGMT,
+            endTimeZoneSecondsFromGMT: snapshot.timing.endTimeZoneSecondsFromGMT,
+            timeZoneIdentifier: snapshot.timing.sessionTimeZoneIdentifier ?? snapshot.timing.timeZoneIdentifier,
+            endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
+            coverImageFilename: coverFilename,
+            hasStarted: true,
+            isEnded: true,
+            hasTimetable: !(snapshot.timetable?.days.isEmpty ?? true),
+            endKind: !(snapshot.timetable?.days.isEmpty ?? true) ? "festival"
+                : snapshot.timing.endTime == nil ? "tracking" : "show"
+        )
     }
 
     static func action(
@@ -234,17 +427,36 @@ enum LiveActivityPlanner {
         artistImageFilename: (String) -> String? = { _ in nil },
         supportsScheduling: Bool = true
     ) -> LiveActivityAction {
-        guard let desired = desiredState(
-            snapshot: snapshot, now: now, coverFilename: coverFilename,
-            focusedPerformanceID: focusedPerformanceID, artistImageFilename: artistImageFilename
-        ),
-              let snapshot else {
+        guard let snapshot,
+              snapshot.timing.changeStatus != .canceled,
+              snapshot.timing.endedAt == nil,
+              !(snapshot.timing.changeStatus == .postponed && snapshot.timing.postponedDate == nil) else {
             return .endAll
         }
 
         let showID = snapshot.showID.uuidString
         let matching = existing.filter { $0.showID == showID }
-        let earliest = earliestStart(activityStart: desired.state.startDate, activityEnd: desired.activityEnd)
+
+        guard let desired = desiredState(
+            snapshot: snapshot, now: now, coverFilename: coverFilename,
+            focusedPerformanceID: focusedPerformanceID, artistImageFilename: artistImageFilename
+        ) else {
+            if let boundaries = naturalEndBoundary(snapshot: snapshot, now: now) {
+                let dismissAt = boundaries.activityEnd.addingTimeInterval(dismissalGracePeriod)
+                if now <= dismissAt && !matching.isEmpty {
+                    let finalState = naturalFinalState(
+                        snapshot: snapshot,
+                        dayStart: boundaries.dayStart,
+                        activityEnd: boundaries.activityEnd,
+                        coverFilename: coverFilename
+                    )
+                    return .endNaturally(finalState, dismissAt: dismissAt)
+                }
+            }
+            return .endAll
+        }
+
+        let earliest = earliestStart(activityStart: desired.dayStart, activityEnd: desired.activityEnd)
         let inWindow = now >= earliest
         let pending = matching.filter(\.isPending)
         let hasStalePending = pending.contains { $0.state != desired.state }
@@ -293,3 +505,4 @@ enum LiveActivityPlanner {
         return sources
     }
 }
+

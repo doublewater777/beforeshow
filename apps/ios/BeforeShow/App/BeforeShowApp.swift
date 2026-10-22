@@ -46,6 +46,7 @@ struct BeforeShowApp: App {
 
         MainActor.assumeIsolated {
             ListeningIntentHandler.shared.configure(with: modelContainer)
+            LocalNotificationCenter.shared.configure(with: modelContainer)
         }
 
         if !isRunningHostedUnitTests {

@@ -17,7 +17,6 @@ struct CurrentShowLiveTimetableContent<Content: View>: View {
                     focusedPerformanceID: focusedPerformanceID.flatMap(UUID.init(uuidString:))
                 )
             )
-            .animation(.spring(response: 0.45, dampingFraction: 0.85), value: focusedPerformanceID)
         }
     }
 }

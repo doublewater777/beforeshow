@@ -99,7 +99,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ opening"
+            "value" : "Starts at %@"
           }
         },
         "zh-Hant" : {
@@ -115,7 +115,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ends"
+            "value" : "Ends at %@"
           }
         },
         "zh-Hant" : {
@@ -147,7 +147,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ends %@"
+            "value" : "Ends at %@"
           }
         },
         "zh-Hant" : {
@@ -1865,12 +1865,11 @@
       }
     },
     "预计 %@ 散场" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Est. ends %@"
+            "value" : "Expected to end at %@"
           }
         },
         "zh-Hant" : {
@@ -1893,6 +1892,210 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "首場"
+          }
+        }
+      }
+    },
+    "快开始了" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starting soon"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快開始了"
+          }
+        }
+      }
+    },
+    "%@ 快开始了" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is starting soon"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 快開始了"
+          }
+        }
+      }
+    },
+    "今日演出已结束" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's shows have ended"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日演出已結束"
+          }
+        }
+      }
+    },
+    "信息待更新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update pending"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資訊待更新"
+          }
+        }
+      }
+    },
+    "原定 %@ 开演" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scheduled for %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原定 %@ 開演"
+          }
+        }
+      }
+    },
+    "另有 %lld 场想看即将开演" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@sets@"
+          },
+          "substitutions" : {
+            "sets" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more saved set starts soon"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more saved sets start soon"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另有 %lld 场想看即将开演"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另有 %lld 場想看即將開演"
+          }
+        }
+      }
+    },
+    "同时在演" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also playing"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時在演"
+          }
+        }
+      }
+    },
+    "本次跟踪已结束" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracking ended"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次追蹤已結束"
+          }
+        }
+      }
+    },
+    "预计次日 %@ 散场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected to end at %@ tomorrow"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預計次日 %@ 散場"
+          }
+        }
+      }
+    },
+    "%@ 开演" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts at %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 開演"
+          }
+        }
+      }
+    },
+    "%1$@–次日 %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–%2$@ tomorrow"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–次日 %2$@"
           }
         }
       }

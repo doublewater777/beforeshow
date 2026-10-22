@@ -49,6 +49,42 @@
         "DASHSCOPE_BASE_URL": "{{env.DASHSCOPE_BASE_URL}}",
         "TIMETABLE_MODEL": "{{env.TIMETABLE_MODEL}}"
       }
+    },
+    {
+      "name": "syncLiveActivityPlan",
+      "type": "HTTP",
+      "timeout": 15,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": true
+    },
+    {
+      "name": "revokeLiveActivityPlan",
+      "type": "HTTP",
+      "timeout": 10,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": true
+    },
+    {
+      "name": "dispatchLiveActivityPush",
+      "type": "Event",
+      "timeout": 30,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": true,
+      "triggers": [
+        {
+          "name": "everyMinute",
+          "type": "timer",
+          "config": "0 * * * * * *"
+        }
+      ],
+      "envVariables": {
+        "APNS_KEY_ID": "{{env.APNS_KEY_ID}}",
+        "APNS_TEAM_ID": "{{env.APNS_TEAM_ID}}",
+        "APNS_PRIVATE_KEY": "{{env.APNS_PRIVATE_KEY}}"
+      }
     }
   ]
 }

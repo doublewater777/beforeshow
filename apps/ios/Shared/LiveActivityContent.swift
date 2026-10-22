@@ -8,6 +8,8 @@ import WidgetKit
 
 struct LiveActivityContent {
     enum Mode {
+        /// 想看演出开演前 15 分钟提醒
+        case reminder
         /// 时刻表里正在演的一场
         case set
         /// 场间:倒数下一场
@@ -40,17 +42,19 @@ struct LiveActivityContent {
     let kicker: String
     let timerInterval: ClosedRange<Date>
     let caption: String?
+    let isStale: Bool
     let title: String
     let subtitle: String?
     let timeRange: String?
     let progress: ClosedRange<Date>?
     let next: Next?
+    var reminderSummary: String? = nil
     /// 现场模式:主角艺人头像、舞台、同时在演;非 nil 时用「阵容」版式。
     var lineup: (avatar: String?, stage: String?, also: Also?)? = nil
 
     init(state: ShowLiveActivityAttributes.ContentState, isStale: Bool, now: Date = .now) {
-        timerInterval = state.timerInterval
-        let isLive = now >= state.startDate
+        self.isStale = isStale || now >= state.staleDate
+        let currentEnded = state.currentEndsAt.map { now >= $0 } ?? false
         let clock = { (date: Date) in LiveActivityCopy.clockText(date, calendar: state.startCalendar) }
         let upcoming = state.nextArtistName.map { artist in
             Next(
@@ -65,16 +69,59 @@ struct LiveActivityContent {
 
         let standardPhase = state.standardPhase(at: now, isStale: isStale)
 
+        let hasValidReminder: Bool = {
+            guard state.isReminderActive, let startsAt = state.reminderStartsAt else { return false }
+            let expiresAt = state.reminderExpiresAt ?? startsAt
+            return now < expiresAt
+        }()
+
         if standardPhase == .ended {
             mode = .ended
-            kicker = BSLocalization.text("已散场")
+            switch state.endKind {
+            case "tracking": kicker = BSLocalization.text("本次跟踪已结束")
+            case "festival": kicker = BSLocalization.text("今日演出已结束")
+            default:
+                if state.hasTimetable == true || state.isFestivalDayActive {
+                    kicker = BSLocalization.text("今日演出已结束")
+                } else {
+                    kicker = state.endDate == nil ? BSLocalization.text("本次跟踪已结束") : BSLocalization.text("已散场")
+                }
+            }
             caption = nil
             title = state.showName
             subtitle = state.venueName
             timeRange = nil
             progress = nil
             next = nil
-        } else if let artist = state.currentArtistName {
+            timerInterval = state.timerInterval
+        } else if hasValidReminder, let reminderArtist = state.reminderArtistName {
+            mode = .reminder
+            kicker = BSLocalization.text("快开始了")
+            caption = nil
+            title = reminderArtist
+            let startsText = state.reminderStartsAt.map { LiveActivityCopy.reminderOpening($0, calendar: state.startCalendar) }
+            if let stage = state.reminderStageName, !stage.isEmpty {
+                subtitle = startsText.map { BSLocalization.format("%1$@ · %2$@", stage, $0) } ?? stage
+            } else {
+                subtitle = startsText
+            }
+            timeRange = state.reminderStartsAt.map(clock)
+            nextStartText = timeRange
+            progress = nil
+            let samePerformance: Bool
+            if let reminderID = state.reminderPerformanceID, let nextID = state.nextPerformanceID {
+                samePerformance = reminderID == nextID && state.nextStartsAt == state.reminderStartsAt
+            } else {
+                samePerformance = state.nextArtistName == reminderArtist && state.nextStartsAt == state.reminderStartsAt
+                    && state.nextStageName == state.reminderStageName
+            }
+            next = samePerformance ? nil : upcoming
+            let additionalCount = (state.reminderCount ?? state.reminderPerformanceIDs?.count ?? 1) - 1
+            reminderSummary = additionalCount > 0 ? LiveActivityCopy.additionalReminders(additionalCount) : nil
+            lineup = (state.reminderArtistImageFilename, state.reminderStageName, nil)
+            let target = state.reminderStartsAt ?? state.endBoundary
+            timerInterval = min(now, target)...target
+        } else if let artist = state.currentArtistName, !currentEnded {
             let start = state.currentStartsAt ?? state.startDate
             let end = state.currentEndsAt ?? state.endDate ?? state.startDate
             mode = .set
@@ -84,7 +131,9 @@ struct LiveActivityContent {
             title = artist
             let ends = BSLocalization.format("%@ 结束", clock(end))
             subtitle = state.currentStageName.map { BSLocalization.format("%1$@ · %2$@", $0, ends) } ?? ends
-            timeRange = "\(clock(start))–\(clock(end))"
+            timeRange = state.startCalendar.isDate(start, inSameDayAs: end)
+                ? "\(clock(start))–\(clock(end))"
+                : BSLocalization.format("%1$@–次日 %2$@", clock(start), clock(end))
             progress = start < end ? start...end : nil
             next = upcoming
             if state.isFestivalDayActive {
@@ -93,12 +142,12 @@ struct LiveActivityContent {
                 }
                 lineup = (state.currentArtistImageFilename, state.currentStageName, also)
             }
+            timerInterval = state.timerInterval
         } else if state.isFestivalDayActive, let artist = state.nextArtistName {
-            // 场间:startDate 指向下一场开演。过点后 app 没来得及更新时,
-            // 下一场就是正在演的那场,计时转为已开演时长。
-            mode = isLive ? .set : .between
-            kicker = BSLocalization.text(isLive ? "正在演出" : "下一场")
-            caption = isLive ? BSLocalization.text("已开场") : nil
+            // 场间:倒数下一场开演。
+            mode = .between
+            kicker = BSLocalization.text("下一场")
+            caption = nil
             title = artist
             subtitle = state.nextStageName
             timeRange = state.nextStartsAt.map(clock)
@@ -106,17 +155,20 @@ struct LiveActivityContent {
             progress = nil
             next = nil
             lineup = (state.nextArtistImageFilename, state.nextStageName, nil)
+            let target = state.nextStartsAt ?? state.endBoundary
+            timerInterval = min(now, target)...target
         } else if standardPhase == .live {
             mode = .started
-            kicker = BSLocalization.text("正在现场")
+            kicker = BSLocalization.text("已开场")
             caption = BSLocalization.text("已开场")
             title = state.showName
-            subtitle = state.endDate.map { BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar)) }
+            subtitle = state.endDate.map { LiveActivityCopy.expectedEnd($0, state: state) }
                 ?? state.venueName
             timeRange = nil
             // 普通演出:开场到预计散场的进度，与现场模式同一条进度条。
             progress = state.endDate.flatMap { $0 > state.startDate ? state.startDate...$0 : nil }
             next = nil
+            timerInterval = state.timerInterval
         } else {
             mode = .pre
             kicker = BSLocalization.text("距离开场")
@@ -131,10 +183,11 @@ struct LiveActivityContent {
             timeRange = nil
             progress = nil
             next = upcoming
+            timerInterval = min(now, state.startDate)...state.startDate
         }
     }
 
-    var showsWave: Bool { mode == .set || mode == .started }
+    var showsWave: Bool { (mode == .set || mode == .started) && !isStale }
 
     var nextStartText: String?
 
@@ -143,6 +196,8 @@ struct LiveActivityContent {
         switch mode {
         case .set:
             return timeRange
+        case .reminder:
+            return nextStartText.map { BSLocalization.format("%@ 开演", $0) }
         case .between:
             return nextStartText.map { BSLocalization.format("%@ 开场", $0) }
         case .pre, .started, .ended:
@@ -153,7 +208,7 @@ struct LiveActivityContent {
     var kickerColor: Color {
         switch mode {
         case .set, .started: WidgetTheme.liveTitle
-        case .between: WidgetTheme.accent
+        case .between, .reminder: WidgetTheme.accent
         case .pre, .ended: WidgetTheme.muted
         }
     }
@@ -161,7 +216,7 @@ struct LiveActivityContent {
     var timerColor: Color {
         switch mode {
         case .set, .started, .pre: WidgetTheme.foreground
-        case .between, .ended: WidgetTheme.heroWarmGold
+        case .between, .ended, .reminder: WidgetTheme.heroWarmGold
         }
     }
 
@@ -171,6 +226,24 @@ struct LiveActivityContent {
 }
 
 enum LiveActivityCopy {
+    static func reminderOpening(_ date: Date, calendar: Calendar) -> String {
+        BSLocalization.format("%@ 开演", clockText(date, calendar: calendar))
+    }
+
+    static func additionalReminders(_ count: Int) -> String {
+        BSLocalization.format("另有 %lld 场想看即将开演", count)
+    }
+
+    static func expectedEnd(_ date: Date, state: ShowLiveActivityAttributes.ContentState) -> String {
+        let clock = clockText(date, calendar: state.endCalendar)
+        let calendar = state.startCalendar
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: state.startDate),
+                                           to: calendar.startOfDay(for: date)).day ?? 0
+        if days == 1 { return BSLocalization.format("预计次日 %@ 散场", clock) }
+        let time = days == 0 ? clock : BSDateFormat.dateTime(date, timeZone: state.endCalendar.timeZone)
+        return BSLocalization.format("预计 %@ 散场", time)
+    }
+
     /// 24 小时制，时区使用活动所在地。
     static func clockText(_ date: Date, calendar: Calendar) -> String {
         BSDateFormat.clock(date, timeZone: calendar.timeZone)
@@ -188,8 +261,8 @@ struct LiveActivityTimerText: View {
 
     var body: some View {
         Group {
-            if content.mode == .pre || content.mode == .between {
-                Text(content.timerInterval.lowerBound, style: .timer)
+            if content.mode == .pre || content.mode == .between || content.mode == .reminder {
+                Text(timerInterval: content.timerInterval, countsDown: true)
             } else {
                 Text(timerInterval: content.timerInterval, countsDown: false)
             }

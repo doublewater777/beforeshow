@@ -124,54 +124,60 @@ final class PurchaseRevenueTests: XCTestCase {
             XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
                 entitlementPeriodType: period,
                 transactionPrice: nil,
-                productPrice: 4.99,
                 currencyCode: "USD"
             ))
         }
     }
 
-    /// 拿不到 periodType 时保守不上报：宁可漏，不要把试用记成正收入。
+    /// 拿不到 periodType 时保守不上报：宁可漏，不把试用记成正收入。
     func testUnknownPeriodTypeHasNoRevenue() {
         XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
             entitlementPeriodType: nil,
             transactionPrice: nil,
-            productPrice: 4.99,
             currencyCode: "USD"
         ))
     }
 
-    /// 普通付费 + 金额 > 0 + 有货币才记。
+    /// 普通付费 + 交易实付金额 > 0 + 有货币才记。
     func testNormalPeriodTypeReportsRevenue() {
         XCTAssertEqual(
             RevenueCatProSubscriptionStore.revenue(
                 entitlementPeriodType: .normal,
-                transactionPrice: nil,
-                productPrice: 4.99,
+                transactionPrice: 4.99,
                 currencyCode: "USD"
             ),
             ProPurchaseRevenue(amount: 4.99, currency: "USD")
         )
     }
 
-    /// 交易实付金额优先于标价（促销 / 部分退款场景）。
-    func testTransactionPriceBeatsListPrice() {
+    /// **普通计费周期但跟不到交易实付价格时不得回落到商品标价。**
+    /// 优惠 / 促销使实付低于标价，而 `periodType == .normal` 只说明权益
+    /// 在普通周期，不证明等于标价；拿标价填空会高报营收。
+    func testMissingTransactionPriceHasNoRevenue() {
+        XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
+            entitlementPeriodType: .normal,
+            transactionPrice: nil,
+            currencyCode: "USD"
+        ))
+    }
+
+    /// 实付低于标价（折扣 / 促销）时按实付金额记。
+    func testDiscountedTransactionPriceIsReportedAsIs() {
         XCTAssertEqual(
             RevenueCatProSubscriptionStore.revenue(
                 entitlementPeriodType: .normal,
                 transactionPrice: 2.99,
-                productPrice: 4.99,
                 currencyCode: "USD"
-            )?.amount,
-            2.99
+            ),
+            ProPurchaseRevenue(amount: 2.99, currency: "USD")
         )
     }
 
-    /// 普通购买但实付为零（零元促销）不记。
+    /// 实付为零（零元促销）不记。
     func testZeroTransactionPriceHasNoRevenue() {
         XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
             entitlementPeriodType: .normal,
             transactionPrice: 0,
-            productPrice: 4.99,
             currencyCode: "USD"
         ))
     }
@@ -180,11 +186,11 @@ final class PurchaseRevenueTests: XCTestCase {
     func testMissingCurrencyHasNoRevenue() {
         XCTAssertNil(RevenueCatProSubscriptionStore.revenue(
             entitlementPeriodType: .normal,
-            transactionPrice: nil,
-            productPrice: 4.99,
+            transactionPrice: 4.99,
             currencyCode: nil
         ))
     }
+
 
     /// catalog 占位价（isAvailable == false）不是收入来源。
     func testCatalogPlaceholderIsNotRevenue() {
@@ -209,6 +215,20 @@ final class PurchaseRevenueTests: XCTestCase {
 
         XCTAssertTrue(purchased.isProActive, "试用也会给权益")
         XCTAssertNil(purchased.revenue, "试用不能按标价记收入")
+    }
+
+    /// 报不出交易实付价格时：权益生效，但不得把商品标价当实收。
+    func testPurchaseWithoutTransactionPriceHasNoRevenue() async throws {
+        let product = pricedProduct()
+        let store = MockProSubscriptionStore(
+            products: [product],
+            simulatedMissingTransactionPrice: true
+        )
+        let purchased = try await store.purchase(productID: product.id)
+
+        XCTAssertTrue(purchased.isProActive, "普通计费周期仍给权益")
+        XCTAssertEqual(product.revenueIfCharged?.amount, 4.99, "商品标价确实存在")
+        XCTAssertNil(purchased.revenue, "取不到实付金额时不得回落到标价")
     }
 
     /// 正常成交：权益 + 实收金额都在。

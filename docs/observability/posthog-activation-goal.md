@@ -47,7 +47,7 @@ SDK 仅 swizzle `UIViewController.viewDidAppear`（`PostHogScreenViewIntegration
   - **商品标价不等于实收金额**。免费试用 / intro 优惠也会给 Pro 权益，但商品标价仍是 $4.99；按标价记就会把试用记成正收入。
   - 因此金额只取 `ProPurchaseRevenue`，由 store 统一整理：
     - `entitlement.periodType == .normal`（试用 / intro / 取不到均不记）；
-    - 优先 StoreKit 2 交易实付金额（折扣 / 促销会低于标价），取不到才退回标价；
+    - 优先且只取 StoreKit 2 交易实付金额（`transaction.sk2Transaction?.price`，iOS 15+）；拿不到实付价格时上报 nil，不回落商品标价。
     - 金额 > 0 且有 ISO 4217 货币代码；否则上报 nil，不发 `$revenue`。
   - **无效权益不算购买成功**。`purchase()` 返回后先校验 `entitlement.isProActive`，未激活时走失败分支：不记 `proPurchaseCompleted`、不显示「Pro 已启用」。
   - 按 `transactionID` 做幂等去重，同一笔交易只记一次。

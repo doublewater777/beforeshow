@@ -1,4 +1,4 @@
-import ActivityKit
+@preconcurrency import ActivityKit
 import Foundation
 import WidgetKit
 
@@ -104,49 +104,6 @@ enum WidgetDataSync {
     }
 }
 
-/// Live Activity 只展示当前现场：当前现场正在进行或还没开场时才有活动，
-/// 不会替其他现场开活动（ADR 0037）。
-struct LiveActivityShowResolver {
-    let calendar: Calendar
-
-    init(calendar: Calendar = .current) {
-        self.calendar = calendar
-    }
-
-    func resolve(
-        shows: [Show],
-        currentShow: Show?,
-        now: Date = Date()
-    ) -> Show? {
-        guard let currentShow,
-              shows.contains(where: { $0.id == currentShow.id }),
-              currentShow.wasAddedAsHistorical != true,
-              currentShow.changeStatus != .canceled,
-              currentShow.endedAt == nil,
-              !(currentShow.changeStatus == .postponed && currentShow.postponedDate == nil) else {
-            return nil
-        }
-        if isActuallyLive(currentShow, now: now) {
-            return currentShow
-        }
-        guard let start = startTime(for: currentShow, now: now), start > now else { return nil }
-        return currentShow
-    }
-
-    private func startTime(for show: Show, now: Date) -> Date? {
-        CurrentShowTimeState(show: show, calendar: calendar, now: now).effectiveStartTime
-    }
-
-    private func isActuallyLive(_ show: Show, now: Date) -> Bool {
-        let state = CurrentShowTimeState(show: show, calendar: calendar, now: now)
-        guard state.kind == .today,
-              let start = state.effectiveStartTime,
-              let end = state.endBoundary else {
-            return false
-        }
-        return now >= start && now < end
-    }
-}
 
 extension WidgetShowSnapshot {
     @MainActor
@@ -235,6 +192,9 @@ enum LiveActivityRuntimeSelection {
 // MARK: - Live Activity Controller
 
 actor ShowLiveActivityController {
+    private var pushTokenTasks: [String: Task<Void, Never>] = [:]
+    private var observedActivityIDs: [String: String] = [:]
+
     static let shared = ShowLiveActivityController()
 
     private struct PendingSync {
@@ -393,13 +353,20 @@ actor ShowLiveActivityController {
         guard request.generation == latestGeneration else { return }
         await perform(
             action,
-            showID: snapshot?.showID.uuidString,
+            snapshot: snapshot,
             generation: request.generation
         )
+        guard request.generation == latestGeneration, let snapshot,
+              let activity = Activity<ShowLiveActivityAttributes>.activities.first(where: {
+                  $0.attributes.showID == snapshot.showID.uuidString
+                      && ($0.activityState == .active || $0.activityState == .stale || Self.isPending($0))
+              }) else { return }
+        await registerPushTokenUpdates(for: activity, showID: snapshot.showID.uuidString, snapshot: snapshot, focusedPerformanceID: focusedPerformanceID)
     }
 
-    private func perform(_ action: LiveActivityAction, showID: String?, generation: UInt64) async {
+    private func perform(_ action: LiveActivityAction, snapshot: WidgetShowSnapshot?, generation: UInt64) async {
         func isCurrent() -> Bool { generation == latestGeneration }
+        let showID = snapshot?.showID.uuidString
 
         switch action {
         case .none:
@@ -435,7 +402,7 @@ actor ShowLiveActivityController {
             guard isCurrent() else { return }
             let target = Activity<ShowLiveActivityAttributes>.activities
                 .first(where: { $0.attributes.showID == showID })
-            let content = ActivityContent(state: state, staleDate: state.endBoundary)
+            let content = ActivityContent(state: state, staleDate: state.staleDate)
             if let target {
                 await target.update(content)
             } else {
@@ -446,13 +413,13 @@ actor ShowLiveActivityController {
         case .request(let state):
             await endAll(generation: generation)
             guard isCurrent() else { return }
-            let content = ActivityContent(state: state, staleDate: state.endBoundary)
+            let content = ActivityContent(state: state, staleDate: state.staleDate)
             request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
 
         case .schedule(let state, let start):
             await endAll(generation: generation)
             guard isCurrent(), #available(iOS 26, *) else { return }
-            let content = ActivityContent(state: state, staleDate: state.endBoundary)
+            let content = ActivityContent(state: state, staleDate: state.staleDate)
             do {
                 let alert = AlertConfiguration(
                     title: "开场前",
@@ -462,7 +429,7 @@ actor ShowLiveActivityController {
                 _ = try Activity<ShowLiveActivityAttributes>.request(
                     attributes: ShowLiveActivityAttributes(showID: showID ?? ""),
                     content: content,
-                    pushType: nil,
+                    pushType: .token,
                     style: .standard,
                     alertConfiguration: alert,
                     start: start
@@ -471,6 +438,19 @@ actor ShowLiveActivityController {
                 #if DEBUG
                 print("[ShowLiveActivity] schedule failed: \(error)")
                 #endif
+            }
+
+        case .endNaturally(let state, let dismissDate):
+            await endActivities(matching: { $0.attributes.showID != showID }, generation: generation)
+            guard isCurrent() else { return }
+            let matching = Activity<ShowLiveActivityAttributes>.activities.filter { $0.attributes.showID == showID }
+            let content = ActivityContent(state: state, staleDate: dismissDate)
+            for activity in matching {
+                guard isCurrent() else { return }
+                await activity.end(content, dismissalPolicy: .after(dismissDate))
+            }
+            if let showID {
+                await LiveActivityPushCoordinator.shared.revoke(showID: showID)
             }
 
         case .endAll:
@@ -486,12 +466,20 @@ actor ShowLiveActivityController {
             _ = try Activity<ShowLiveActivityAttributes>.request(
                 attributes: attributes,
                 content: content,
-                pushType: nil
+                pushType: .token
             )
         } catch {
-            #if DEBUG
-            print("[ShowLiveActivity] request failed: \(error)")
-            #endif
+            do {
+                _ = try Activity<ShowLiveActivityAttributes>.request(
+                    attributes: attributes,
+                    content: content,
+                    pushType: nil
+                )
+            } catch {
+                #if DEBUG
+                print("[ShowLiveActivity] request failed: \(error)")
+                #endif
+            }
         }
     }
 
@@ -575,6 +563,35 @@ actor ShowLiveActivityController {
         for activity in activities {
             guard generation == latestGeneration else { return }
             await activity.end(nil, dismissalPolicy: .immediate)
+        }
+    }
+
+    private func registerPushTokenUpdates(
+        for activity: Activity<ShowLiveActivityAttributes>,
+        showID: String,
+        snapshot: WidgetShowSnapshot,
+        focusedPerformanceID: UUID?
+    ) async {
+        await LiveActivityPushCoordinator.shared.updateSnapshot(snapshot, focusedPerformanceID: focusedPerformanceID)
+        guard observedActivityIDs[showID] != activity.id else { return }
+        pushTokenTasks[showID]?.cancel()
+        observedActivityIDs[showID] = activity.id
+        pushTokenTasks[showID] = Task {
+            guard !Task.isCancelled else { return }
+            var previousToken: Data?
+            if let token = activity.pushToken {
+                previousToken = token
+                await LiveActivityPushCoordinator.shared.handleTokenUpdate(
+                    token.map { String(format: "%02x", $0) }.joined(), for: showID
+                )
+            }
+            for await tokenData in activity.pushTokenUpdates {
+                guard !Task.isCancelled else { break }
+                guard tokenData != previousToken else { continue }
+                previousToken = tokenData
+                let hexToken = tokenData.map { String(format: "%02x", $0) }.joined()
+                await LiveActivityPushCoordinator.shared.handleTokenUpdate(hexToken, for: showID)
+            }
         }
     }
 }

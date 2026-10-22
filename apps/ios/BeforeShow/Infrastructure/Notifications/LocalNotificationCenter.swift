@@ -80,8 +80,20 @@ final class LocalNotificationCenter {
 
     private let center = UNUserNotificationCenter.current()
     private let planner = NotificationPortfolioPlanner()
+    private var modelContainer: ModelContainer?
 
     private init() {}
+
+    func configure(with container: ModelContainer) {
+        self.modelContainer = container
+    }
+
+    /// 重新编排待发通知组合
+    @discardableResult
+    func reconcilePortfolio(now: Date = Date()) async -> Bool {
+        guard let container = modelContainer else { return false }
+        return await reconcilePortfolio(in: ModelContext(container), now: now)
+    }
 
     func authorizationState() async -> NotificationAuthorizationState {
         NotificationAuthorizationState(await center.notificationSettings().authorizationStatus)
@@ -178,6 +190,12 @@ final class LocalNotificationCenter {
             var identifiersNeedingSystemWrite = Set<String>()
             for identifier in scheduledIdentifiers {
                 guard let request = scheduledByIdentifier[identifier] else { continue }
+                if await LiveActivityReminderLedger.shared.isHandedOverOrConsumed(notificationIdentifier: identifier) {
+                    if pendingIdentifiers.contains(identifier) {
+                        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                    }
+                    continue
+                }
                 let existing = normalization.canonicalByIdentifier[identifier]
                 if existing == nil
                     || existing?.matches(request) != true

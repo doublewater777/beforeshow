@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:deploy": "npm run prepare:deploy:parseShowLink && npm run prepare:deploy:submitFeedback && npm run prepare:deploy:listFeedback && npm run prepare:deploy:recognizeTimetable",
+    "prepare:deploy": "npm run prepare:deploy:parseShowLink && npm run prepare:deploy:submitFeedback && npm run prepare:deploy:listFeedback && npm run prepare:deploy:recognizeTimetable && npm run prepare:deploy:syncLiveActivityPlan && npm run prepare:deploy:revokeLiveActivityPlan && npm run prepare:deploy:dispatchLiveActivityPush",
     "prepare:deploy:parseShowLink": "node scripts/prepare-parseShowLink.mjs",
     "test": "node --test",
     "prepare:deploy:submitFeedback": "node scripts/prepare-submitFeedback.mjs",
     "prepare:deploy:listFeedback": "node scripts/prepare-listFeedback.mjs",
     "prepare:deploy:recognizeTimetable": "node scripts/prepare-recognizeTimetable.mjs",
+    "prepare:deploy:syncLiveActivityPlan": "node scripts/prepare-syncLiveActivityPlan.mjs",
+    "prepare:deploy:revokeLiveActivityPlan": "node scripts/prepare-revokeLiveActivityPlan.mjs",
+    "prepare:deploy:dispatchLiveActivityPush": "node scripts/prepare-dispatchLiveActivityPush.mjs",
     "feedback:list": "node scripts/list-feedback.mjs"
   },
   "engines": {

@@ -7,12 +7,16 @@ import WidgetKit
 // 生命周期由 app 侧 ShowLiveActivityController 管理(决策在 Shared/LiveActivityPlanner)。
 //
 // Live Activity 不依赖 TimelineView 唤醒。系统计时文本自行累计并在边界停止，
-// context.isStale 只表示到达散场边界。
+// context.isStale 表示当前内容需要更新，不等同于散场。
 
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
             LiveActivityBannerView(state: context.state, isStale: context.isStale)
+                .widgetURL(BeforeShowOpenURL.make(
+                    showID: context.attributes.showID,
+                    destination: context.state.hasTimetable == true || context.state.isFestivalDayActive || context.state.isReminderActive ? "timetable" : "home"
+                ))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.bottom) {
@@ -35,30 +39,35 @@ struct ShowLiveActivity: Widget {
                         LiveActivityThinRing(progress: progress, size: 20)
                     }
                     .frame(width: 20, height: 20)
+
                 } else if content.mode == .ended {
                     Text(content.kicker)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(content.kickerColor)
                         .lineLimit(1)
                 } else {
-                    HStack(spacing: 2.5) {
-                        if content.showsWave {
-                            Image(systemName: "waveform")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 2.5) {
+                            Image(systemName: content.showsWave ? "waveform" : "hourglass")
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(WidgetTheme.live)
+                                .foregroundStyle(content.kickerColor)
+                            LiveActivityTimerText(content: content, fontSize: 11)
+                                .frame(width: 44, alignment: .trailing)
                         }
-                        LiveActivityTimerText(
-                            content: content,
-                            fontSize: 11,
-                            alignment: content.showsWave ? .leading : .trailing
-                        )
-                        .frame(width: 44, alignment: content.showsWave ? .leading : .trailing)
+                        Image(systemName: content.showsWave ? "waveform" : "hourglass")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(content.kickerColor)
+                            .frame(width: 20, height: 20)
                     }
                 }
             } minimal: {
                 LiveActivityAppIconMark(size: 14)
                     .accessibilityLabel(Text(context.state.showName))
             }
+            .widgetURL(BeforeShowOpenURL.make(
+                showID: context.attributes.showID,
+                destination: context.state.hasTimetable == true || context.state.isFestivalDayActive || context.state.isReminderActive ? "timetable" : "home"
+            ))
         }
     }
 }
@@ -269,7 +278,7 @@ private struct LiveActivityMetadataLine: View {
 // MARK: - Dynamic Island expanded bottom
 // 封面 3:4 在左;右侧状态行(右端时段或计时)+ 主角 + 舞台;其下进度条与下一场。
 
-private struct LiveActivityExpandedDetails: View {
+struct LiveActivityExpandedDetails: View {
     let state: ShowLiveActivityAttributes.ContentState
     let isStale: Bool
 
@@ -290,7 +299,7 @@ private struct LiveActivityExpandedDetails: View {
     private func standard(_ content: LiveActivityContent) -> some View {
         let openingText = BSLocalization.format("%@ 开场", LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar))
         let endText: String? = state.endDate.map {
-            BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar))
+            LiveActivityCopy.expectedEnd($0, state: state)
         }
 
         HStack(alignment: .top, spacing: 11) {
@@ -311,12 +320,10 @@ private struct LiveActivityExpandedDetails: View {
                 Spacer(minLength: 2)
 
                 // 2. 第二行：地点与时间锚点（自适应阶梯降级，防超长）
-                LiveActivityMetadataLine(
-                    venue: state.venueName,
-                    openingText: openingText,
-                    endText: endText,
-                    fontSize: 12
-                )
+                if content.mode != .ended {
+                    LiveActivityMetadataLine(venue: state.venueName, openingText: openingText,
+                                             endText: endText, fontSize: 12)
+                }
 
                 if let next = content.next {
                     Spacer(minLength: 2)
@@ -362,7 +369,7 @@ private struct LiveActivityExpandedDetails: View {
 // 两列:左列状态 + 大计时(固定宽,Text(.timer) 理想宽度近乎无限,不能与标题同列争宽);
 // 右列主角 + 舞台 + 下一场;现场模式正在演底部给进度条。不放主按钮。
 
-private struct LiveActivityBannerView: View {
+struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
     let isStale: Bool
 
@@ -395,7 +402,7 @@ private struct LiveActivityBannerView: View {
     private func standard(_ content: LiveActivityContent) -> some View {
         let openingText = BSLocalization.format("%@ 开场", LiveActivityCopy.clockText(state.startDate, calendar: state.startCalendar))
         let endText: String? = state.endDate.map {
-            BSLocalization.format("%@ 散场", LiveActivityCopy.clockText($0, calendar: state.endCalendar))
+            LiveActivityCopy.expectedEnd($0, state: state)
         }
 
         HStack(alignment: .top, spacing: 14) {
@@ -415,12 +422,10 @@ private struct LiveActivityBannerView: View {
                 Spacer(minLength: 2)
 
                 // 2. 第二行信息：地点与时间锚点（自适应阶梯降级，防超长）
-                LiveActivityMetadataLine(
-                    venue: state.venueName,
-                    openingText: openingText,
-                    endText: endText,
-                    fontSize: 13
-                )
+                if content.mode != .ended {
+                    LiveActivityMetadataLine(venue: state.venueName, openingText: openingText,
+                                             endText: endText, fontSize: 13)
+                }
 
                 if let next = content.next {
                     Spacer(minLength: 2)
