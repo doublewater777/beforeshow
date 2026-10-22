@@ -99,20 +99,11 @@ export async function main(event = {}, context = {}, options = {}) {
           && now >= new Date(startsAt.getTime() - REMINDER_WINDOW_MS);
       });
 
-      const mergedReminderCount = Math.max(
-        freshEvents.length,
-        targetStep.state?.reminderCount ?? 0,
-        targetStep.state?.reminderPerformanceIDs?.length ?? 0
-      );
-
       let alert = null;
       if (!targetStep.state?.isEnded && freshEvents.length) {
         const alertState = {
           ...targetStep.state,
-          reminderArtistName: targetStep.state?.reminderArtistName ?? freshEvents[0].artistName,
-          reminderStageName: targetStep.state?.reminderStageName ?? freshEvents[0].stageName,
-          reminderStartsAt: targetStep.state?.reminderStartsAt ?? freshEvents[0].startsAt,
-          reminderCount: mergedReminderCount
+          reminderCount: freshEvents.length
         };
         alert = reminderAlert(alertState, freshEvents, plan.language);
       } else if (!allDueEvents.length && targetStep.isReminder
@@ -125,8 +116,8 @@ export async function main(event = {}, context = {}, options = {}) {
       const isEnd = Boolean(targetStep.state?.isEnded);
       // Per-event handover metadata stays on the server; the widget only needs the count.
       const { reminderPerformanceIDs: ids, ...contentState } = targetStep.state;
-      if (allDueEvents.length || freshEvents.length) {
-        contentState.reminderCount = mergedReminderCount || 1;
+      if (contentState.reminderCount == null && (allDueEvents.length || freshEvents.length)) {
+        contentState.reminderCount = ids?.length || freshEvents.length || 1;
       }
       const payload = buildActivityKitPayload({
         contentState,

@@ -48,7 +48,9 @@ actor LiveActivityRemoteSyncService {
         self.ledger = ledger
         self.secretProvider = secretProvider
         self.notificationRevoker = notificationRevoker
-        self.notificationRestorer = notificationRestorer
+        self.notificationRestorer = notificationRestorer ?? { _ in
+            _ = await LocalNotificationCenter.shared.reconcilePortfolio()
+        }
     }
 
     /// 同步计划至云端；服务端接受后，将未来触发点前的事件从本地通知通道交接至实时活动通道。

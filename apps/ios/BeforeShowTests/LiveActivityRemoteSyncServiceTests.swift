@@ -1,4 +1,6 @@
 import XCTest
+import SwiftData
+import UserNotifications
 @testable import BeforeShow
 
 final class LiveActivityRemoteSyncServiceTests: XCTestCase {
@@ -255,6 +257,109 @@ final class LiveActivityRemoteSyncServiceTests: XCTestCase {
 
         let recordedKeys = await recorder.restoredKeys
         XCTAssertEqual(recordedKeys, [futureKey])
+    }
+
+    @MainActor
+    func testRevokePlanDefaultRestorerRecreatesOnlyFutureInterestedSystemRequests() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let center = UNUserNotificationCenter.current()
+        let authorization = await center.notificationSettings().authorizationStatus
+        if authorization == .notDetermined {
+            let granted = try await center.requestAuthorization(options: [.provisional])
+            XCTAssertTrue(granted)
+        }
+        let now = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970 / 60) * 60)
+        let performances = try [3600.0, 4200, 4800, 300, -300].enumerated().map { index, offset in
+            let start = now.addingTimeInterval(offset)
+            let performance = try TimetablePerformance(
+                artistName: "Restoration \(index)", startsAt: start,
+                endsAt: start.addingTimeInterval(60)
+            )
+            performance.isInterested = true
+            return performance
+        }
+        let calendar = Calendar.current
+        let days = try Dictionary(grouping: performances, by: {
+            calendar.startOfDay(for: $0.startsAt)
+        }).map { date, performances in
+            try TimetableDay(date: date, stages: [
+                TimetableStage(name: "Main Stage", performances: performances)
+            ])
+        }
+        let show = try Show(
+            name: "Notification restoration", date: performances[4].startsAt,
+            startTime: performances[4].startsAt,
+            endDate: performances[2].endsAt, endTime: performances[2].endsAt,
+            timeZoneIdentifier: calendar.timeZone.identifier
+        )
+        context.insert(show)
+        let timetable = try Timetable(timeZoneIdentifier: calendar.timeZone.identifier, days: days)
+        timetable.show = show
+        show.timetable = timetable
+        context.insert(timetable)
+        context.insert(CurrentShowSelection(selectedShowID: show.id))
+        try context.save()
+        LocalNotificationCenter.shared.configure(with: container)
+
+        let ledger = LiveActivityReminderLedger.shared
+        let keys = performances.map {
+            PerformanceReminderEventKey(showID: show.id.uuidString,
+                performanceID: $0.id.uuidString, scheduledStartsAt: $0.startsAt)
+        }
+        for key in keys {
+            let handedOver = await ledger.completeHandover(
+                eventKey: key, planVersion: 1, now: now.addingTimeInterval(-3600)
+            )
+            XCTAssertTrue(handedOver)
+        }
+        let showID = show.id.uuidString
+        addTeardownBlock {
+            let center = UNUserNotificationCenter.current()
+            let pending = await center.pendingNotificationRequests()
+            center.removePendingNotificationRequests(withIdentifiers: pending
+                .filter { $0.identifier.hasPrefix(showID) }.map(\.identifier))
+            for key in keys { await ledger.revoke(eventKey: key) }
+        }
+        _ = await LocalNotificationCenter.shared.reconcilePortfolio()
+        let before = await center.pendingNotificationRequests()
+        XCTAssertFalse(before.contains { keys.map(\.notificationIdentifier).contains($0.identifier) })
+
+        let updatedStart = now.addingTimeInterval(4260)
+        performances[1].startsAt = updatedStart
+        performances[1].endsAt = updatedStart.addingTimeInterval(60)
+        performances[2].isInterested = false
+        try context.save()
+
+        let session = MockCloudSession(
+            responseData: #"{"ok":true,"revoked":true}"#.data(using: .utf8)!,
+            statusCode: 200
+        )
+        let client = BeforeShowCloudClient(
+            rootURL: URL(string: "https://example.com")!,
+            credentials: BeforeShowAppCredentials(appInstanceId: "test-dev", appSignature: "test-sig"),
+            session: session
+        )
+
+        let service = LiveActivityRemoteSyncService(
+            client: client,
+            ledger: ledger,
+            secretProvider: { "dummy-secret-32-chars-long-value" }
+        )
+
+        let success = await service.revokePlan(showID: show.id.uuidString, now: now)
+        XCTAssertTrue(success)
+
+        let pending = await center.pendingNotificationRequests()
+        let restored = pending.filter { request in keys.contains { $0.notificationIdentifier == request.identifier } }
+        XCTAssertEqual(Set(restored.map(\.identifier)), Set(keys.prefix(2).map(\.notificationIdentifier)))
+        for (index, start) in [performances[0].startsAt, updatedStart].enumerated() {
+            let request = try XCTUnwrap(restored.first { $0.identifier == keys[index].notificationIdentifier })
+            let trigger = try XCTUnwrap(request.trigger as? UNCalendarNotificationTrigger)
+            let fireDate = try XCTUnwrap(trigger.nextTriggerDate())
+            XCTAssertEqual(fireDate.timeIntervalSince1970,
+                start.addingTimeInterval(-900).timeIntervalSince1970, accuracy: 1)
+        }
     }
 }
 

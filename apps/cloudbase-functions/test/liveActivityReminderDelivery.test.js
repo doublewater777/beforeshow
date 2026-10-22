@@ -51,13 +51,27 @@ test('latest due step retains first alert, then new versions stay silent per per
 
 test('overlapping reminder groups alert only for newly appearing events', async () => {
   const h = harness();
-  await h.upload([step(40, [event('a')]), step(41, [event('a'), event('b', 56)]),
-    step(42, [event('b', 56)])]);
+  const a = { ...event('a'), artistName: 'Already reminded', stageName: 'Old Stage' };
+  const b = { ...event('b', 56), artistName: 'New artist', stageName: 'New Stage' };
+  await h.upload([step(40, [a]), step(41, [a, b]), step(42, [b])]);
   await h.deliver(40);
   await h.deliver(41);
   await h.deliver(42);
   assert.deepEqual(h.payloads.map(p => Boolean(p.aps.alert)), [true, true, false]);
-  assert.match(h.payloads[1].aps.alert.body, /1 more saved set starts soon/);
+  assert.equal(h.payloads[1].aps.alert.title, 'New artist is starting soon');
+  assert.equal(h.payloads[1].aps.alert.body, 'Starts at 01:56 · New Stage');
+  assert.equal(h.payloads[1].aps["content-state"].reminderCount, 2);
+});
+
+test('mixed expired and upcoming events announce only the upcoming set', async () => {
+  const h = harness();
+  const expired = { ...event('expired', 41), artistName: 'Past artist', stageName: 'Past Stage' };
+  const upcoming = { ...event('upcoming', 56), artistName: '下一场艺人', stageName: '新舞台' };
+  await h.upload([step(41, [expired, upcoming])], 1, 'zh-Hans');
+  await h.deliver(41);
+  assert.equal(h.payloads[0].aps.alert.title, '下一场艺人快开始了');
+  assert.equal(h.payloads[0].aps.alert.body, '01:56 开演 · 新舞台');
+  assert.deepEqual(h.record().deliveredReminderKeys, [`upcoming:${instant(56).getTime()}`]);
 });
 
 test('expired reminders and failed deliveries do not become successful reminder receipts', async () => {
