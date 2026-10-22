@@ -1,425 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "这场已收进足迹。有新的演出计划了吗？可以记下下一场。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This show is saved in Footprints. Any new show plans? Add your next one."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这场已收进足迹。有新的演出计划了吗？可以记下下一场。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這場已收進足跡。有新的演出計畫了嗎？可以記下下一場。"
-          }
-        }
-      }
-    },
-    "这场已收进足迹。下一场是 %1$@，还有 %2$lld 天。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This show is saved in Footprints. Next up: %1$@ in %2$lld days."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这场已收进足迹。下一场是 %1$@，还有 %2$lld 天。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這場已收進足跡。下一場是 %1$@，還有 %2$lld 天。"
-          }
-        }
-      }
-    },
-    "离现场越来越近了，再听听这份热门歌单吧。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The show is getting closer. Listen to these favorites again."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "离现场越来越近了，再听听这份热门歌单吧。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "離現場越來越近了，再聽聽這份熱門歌單吧。"
-          }
-        }
-      }
-    },
-    "看看时刻表，确认想看的艺人场次。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Check the timetable for the artists you want to see."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "看看时刻表，确认想看的艺人场次。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "看看時刻表，確認想看的藝人場次。"
-          }
-        }
-      }
-    },
-    "热门曲目之外，这些作品也值得一听。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beyond the hits, these songs are worth a listen too."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "热门曲目之外，这些作品也值得一听。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "熱門曲目之外，這些作品也值得一聽。"
-          }
-        }
-      }
-    },
-    "来听听%@的歌。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Come listen to some music by %@."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "来听听%@的歌。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "來聽聽%@的歌。"
-          }
-        }
-      }
-    },
-    "散场了吗？记下时间，聊聊这场怎么样。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Has the show ended? Note the time and share how it was."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "散场了吗？记下时间，聊聊这场怎么样。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "散場了嗎？記下時間，聊聊這場怎麼樣。"
-          }
-        }
-      }
-    },
-    "收录了现场常演的热门歌，可以先熟悉一下。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Get familiar with popular songs often played live."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "收录了现场常演的热门歌，可以先熟悉一下。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "收錄了現場常演的熱門歌，可以先熟悉一下。"
-          }
-        }
-      }
-    },
-    "挑几首常演的热门歌预热一下。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warm up with a few popular live favorites."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "挑几首常演的热门歌预热一下。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "挑幾首常演的熱門歌暖身一下。"
-          }
-        }
-      }
-    },
-    "把时刻表存进这里，在现场能随时查看。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save the timetable here so you can check it at the show."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把时刻表存进这里，在现场能随时查看。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把時刻表存進這裡，在現場能隨時查看。"
-          }
-        }
-      }
-    },
-    "已收进足迹，可以生成一张卡片留念。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved in Footprints. Make a card to remember it by."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已收进足迹，可以生成一张卡片留念。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已收進足跡，可以產生一張卡片留念。"
-          }
-        }
-      }
-    },
-    "听听参演艺人最近发行的新歌。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listen to recent releases from the artists on the lineup."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "听听参演艺人最近发行的新歌。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聽聽參演藝人最近發行的新歌。"
-          }
-        }
-      }
-    },
-    "听听你标记的那些艺人吧。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listen to the artists you saved."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "听听你标记的那些艺人吧。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聽聽你標記的那些藝人吧。"
-          }
-        }
-      }
-    },
-    "听听%@的歌。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listen to some music by %@."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "听听%@的歌。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聽聽%@的歌。"
-          }
-        }
-      }
-    },
-    "听听%1$@的专辑《%2$@》。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listen to “%2$@”, an album by %1$@."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "听听%1$@的专辑《%2$@》。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聽聽%1$@的專輯《%2$@》。"
-          }
-        }
-      }
-    },
-    "先听听这场的歌吧。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listen to some music for the show."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先听听这场的歌吧。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先聽聽這場的歌吧。"
-          }
-        }
-      }
-    },
-    "从这份精选歌单开始，认识一下%@。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Get to know %@ with this essentials playlist."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从这份精选歌单开始，认识一下%@。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從這份精選歌單開始，認識一下%@。"
-          }
-        }
-      }
-    },
-    "。还有 3 小时，准备出门，路上让这些歌陪你出发。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ". Three hours to go. Get ready to head out with some music for the journey."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "。还有 3 小时，准备出门，路上让这些歌陪你出发。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "。還有 3 小時，準備出門，路上讓這些歌陪你出發。"
-          }
-        }
-      }
-    },
-    "%1$@%2$@" : {
-      "comment" : "开场前一天通知：第一句说明明天开场，第二句建议听歌；英文句间需要空格。",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ %2$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@%2$@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@%2$@"
-          }
-        }
-      }
-    },
     "" : {
       "shouldTranslate" : false
     },
@@ -523,6 +104,45 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%1$@%2$@" : {
+      "comment" : "开场前一天通知：第一句说明明天开场，第二句建议听歌；英文句间需要空格。",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@%2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@%2$@"
+          }
+        }
+      }
+    },
+    "%1$@–次日 %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–%2$@ tomorrow"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–次日 %2$@"
           }
         }
       }
@@ -775,22 +395,6 @@
         }
       }
     },
-    "快开始了" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Starting soon"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快開始了"
-          }
-        }
-      }
-    },
     "%@ 快开始了" : {
       "localizations" : {
         "en" : {
@@ -808,6 +412,7 @@
       }
     },
     "%@ 散场" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -819,6 +424,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 散場"
+          }
+        }
+      }
+    },
+    "%@ 结束" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends at %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 結束"
           }
         }
       }
@@ -2927,6 +2548,28 @@
         }
       }
     },
+    "。还有 3 小时，准备出门，路上让这些歌陪你出发。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". Three hours to go. Get ready to head out with some music for the journey."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。还有 3 小时，准备出门，路上让这些歌陪你出发。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。還有 3 小時，準備出門，路上讓這些歌陪你出發。"
+          }
+        }
+      }
+    },
     "「夜航」巡演 · 上海站" : {
       "localizations" : {
         "en" : {
@@ -3054,6 +2697,9 @@
           }
         }
       }
+    },
+    "一次解锁，永久保留" : {
+
     },
     "一起去 %@" : {
       "localizations" : {
@@ -3379,134 +3025,6 @@
         }
       }
     },
-    "唱片" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discs"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "唱片"
-          }
-        }
-      }
-    },
-    "唱片、艺人或歌名" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discs, artists, or songs"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "唱片、藝人或歌名"
-          }
-        }
-      }
-    },
-    "在当前现场的唱片柜里找唱片名、艺人或歌名。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Find a disc, artist, or song in this show’s rack."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在目前現場的唱片櫃裡找唱片名、藝人或歌名。"
-          }
-        }
-      }
-    },
-    "换个关键词试试" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try a different keyword"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "換個關鍵字試試"
-          }
-        }
-      }
-    },
-    "搜索唱片与歌曲" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Discs & Songs"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋唱片與歌曲"
-          }
-        }
-      }
-    },
-    "歌曲" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Songs"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "歌曲"
-          }
-        }
-      }
-    },
-    "没有找到匹配的唱片或歌曲" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Matching Discs or Songs"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有找到符合的唱片或歌曲"
-          }
-        }
-      }
-    },
-    "还有" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You have"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還有"
-          }
-        }
-      }
-    },
     "买断终身 Pro · %@" : {
       "localizations" : {
         "en" : {
@@ -3828,6 +3346,22 @@
         }
       }
     },
+    "今日演出已结束" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's shows have ended"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日演出已結束"
+          }
+        }
+      }
+    },
     "今日首场" : {
       "localizations" : {
         "en" : {
@@ -3953,6 +3487,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從相簿選擇"
+          }
+        }
+      }
+    },
+    "从这份精选歌单开始，认识一下%@。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get to know %@ with this essentials playlist."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从这份精选歌单开始，认识一下%@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從這份精選歌單開始，認識一下%@。"
+          }
+        }
+      }
+    },
+    "以时刻表为准" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use timetable"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以時刻表為準"
           }
         }
       }
@@ -4359,6 +3931,23 @@
         }
       }
     },
+    "信息待更新" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update pending"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資訊待更新"
+          }
+        }
+      }
+    },
     "修改同行人备注" : {
       "localizations" : {
         "en" : {
@@ -4550,6 +4139,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先聽聽 %@ 的歌。"
+          }
+        }
+      }
+    },
+    "先听听这场的歌吧。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to some music for the show."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先听听这场的歌吧。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先聽聽這場的歌吧。"
           }
         }
       }
@@ -6268,6 +5879,23 @@
         }
       }
     },
+    "原定 %@ 开演" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scheduled for %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原定 %@ 開演"
+          }
+        }
+      }
+    },
     "去听几首" : {
       "localizations" : {
         "en" : {
@@ -6505,6 +6133,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消這場演出？"
+          }
+        }
+      }
+    },
+    "另有 %lld 场想看即将开演" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@sets@"
+          },
+          "substitutions" : {
+            "sets" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more saved set starts soon"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more saved sets start soon"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另有 %lld 场想看即将开演"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另有 %lld 場想看即將開演"
           }
         }
       }
@@ -6943,6 +6615,94 @@
         }
       }
     },
+    "听听%1$@的专辑《%2$@》。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to “%2$@”, an album by %1$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听%1$@的专辑《%2$@》。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽%1$@的專輯《%2$@》。"
+          }
+        }
+      }
+    },
+    "听听%@的歌。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to some music by %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听%@的歌。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽%@的歌。"
+          }
+        }
+      }
+    },
+    "听听你标记的那些艺人吧。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to the artists you saved."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听你标记的那些艺人吧。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽你標記的那些藝人吧。"
+          }
+        }
+      }
+    },
+    "听听参演艺人最近发行的新歌。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to recent releases from the artists on the lineup."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听参演艺人最近发行的新歌。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽參演藝人最近發行的新歌。"
+          }
+        }
+      }
+    },
     "和朋友一起去？邀请他们加入这场。" : {
       "localizations" : {
         "en" : {
@@ -6955,6 +6715,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "和朋友一起去？邀請他們加入這場。"
+          }
+        }
+      }
+    },
+    "唱片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唱片"
+          }
+        }
+      }
+    },
+    "唱片、艺人或歌名" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discs, artists, or songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唱片、藝人或歌名"
           }
         }
       }
@@ -7261,6 +7053,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在小工具上直接控制聽模組播放或暫停"
+          }
+        }
+      }
+    },
+    "在当前现场的唱片柜里找唱片名、艺人或歌名。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a disc, artist, or song in this show’s rack."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在目前現場的唱片櫃裡找唱片名、藝人或歌名。"
           }
         }
       }
@@ -8820,6 +8628,28 @@
         }
       }
     },
+    "已收进足迹，可以生成一张卡片留念。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved in Footprints. Make a card to remember it by."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收进足迹，可以生成一张卡片留念。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收進足跡，可以產生一張卡片留念。"
+          }
+        }
+      }
+    },
     "已改期" : {
       "localizations" : {
         "en" : {
@@ -8837,7 +8667,6 @@
       }
     },
     "已散场" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9815,6 +9644,22 @@
         }
       }
     },
+    "快开始了" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starting soon"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快開始了"
+          }
+        }
+      }
+    },
     "总时长" : {
       "localizations" : {
         "en" : {
@@ -10640,6 +10485,28 @@
         }
       }
     },
+    "把时刻表存进这里，在现场能随时查看。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the timetable here so you can check it at the show."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把时刻表存进这里，在现场能随时查看。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把時刻表存進這裡，在現場能隨時查看。"
+          }
+        }
+      }
+    },
     "把歌听熟，把期待留给现场" : {
       "localizations" : {
         "en" : {
@@ -10797,6 +10664,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "依選擇日期延期"
+          }
+        }
+      }
+    },
+    "挑几首常演的热门歌预热一下。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warm up with a few popular live favorites."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挑几首常演的热门歌预热一下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挑幾首常演的熱門歌暖身一下。"
+          }
+        }
+      }
+    },
+    "换个关键词试试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try a different keyword"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "換個關鍵字試試"
           }
         }
       }
@@ -10974,6 +10879,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋你要新增的演出"
+          }
+        }
+      }
+    },
+    "搜索唱片与歌曲" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Discs & Songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋唱片與歌曲"
           }
         }
       }
@@ -11252,6 +11173,28 @@
         }
       }
     },
+    "收录了现场常演的热门歌，可以先熟悉一下。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get familiar with popular songs often played live."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收录了现场常演的热门歌，可以先熟悉一下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收錄了現場常演的熱門歌，可以先熟悉一下。"
+          }
+        }
+      }
+    },
     "收起" : {
       "localizations" : {
         "en" : {
@@ -11424,6 +11367,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "散場了"
+          }
+        }
+      }
+    },
+    "散场了吗？记下时间，聊聊这场怎么样。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Has the show ended? Note the time and share how it was."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "散场了吗？记下时间，聊聊这场怎么样。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "散場了嗎？記下時間，聊聊這場怎麼樣。"
           }
         }
       }
@@ -12054,6 +12019,22 @@
         }
       }
     },
+    "日期不一致" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dates don't match"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日期不一致"
+          }
+        }
+      }
+    },
     "日期与时间" : {
       "localizations" : {
         "en" : {
@@ -12361,6 +12342,7 @@
       }
     },
     "明天开场" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12393,6 +12375,7 @@
       }
     },
     "明天开始" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13775,6 +13758,22 @@
         }
       }
     },
+    "本次跟踪已结束" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracking ended"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次追蹤已結束"
+          }
+        }
+      }
+    },
     "杜比全景声" : {
       "localizations" : {
         "en" : {
@@ -13819,6 +13818,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "條記憶"
+          }
+        }
+      }
+    },
+    "来听听%@的歌。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Come listen to some music by %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来听听%@的歌。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來聽聽%@的歌。"
           }
         }
       }
@@ -14093,6 +14114,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "偵測到剪貼簿中含有排程資料"
+          }
+        }
+      }
+    },
+    "歌曲" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌曲"
           }
         }
       }
@@ -14575,6 +14612,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有儲存成功，請重試。你的修改仍保留在這裡。"
+          }
+        }
+      }
+    },
+    "没有找到匹配的唱片或歌曲" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Matching Discs or Songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有找到符合的唱片或歌曲"
           }
         }
       }
@@ -15434,6 +15487,28 @@
         }
       }
     },
+    "热门曲目之外，这些作品也值得一听。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beyond the hits, these songs are worth a listen too."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "热门曲目之外，这些作品也值得一听。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "熱門曲目之外，這些作品也值得一聽。"
+          }
+        }
+      }
+    },
     "照片" : {
       "localizations" : {
         "en" : {
@@ -15627,6 +15702,25 @@
           }
         }
       }
+    },
+    "现场 %1$@ · 时刻表 %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show %1$@ · Timetable %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現場 %1$@ · 時刻表 %2$@"
+          }
+        }
+      }
+    },
+    "现场与回忆保留" : {
+
     },
     "现场体验" : {
       "localizations" : {
@@ -16221,6 +16315,28 @@
         }
       }
     },
+    "看看时刻表，确认想看的艺人场次。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the timetable for the artists you want to see."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看时刻表，确认想看的艺人场次。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看時刻表，確認想看的藝人場次。"
+          }
+        }
+      }
+    },
     "看起来你已经添加过类似的现场。先选择要使用的记录，或把它作为另一场保留。" : {
       "localizations" : {
         "en" : {
@@ -16634,6 +16750,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "票根和時刻表副本"
+          }
+        }
+      }
+    },
+    "离现场越来越近了，再听听这份热门歌单吧。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The show is getting closer. Listen to these favorites again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离现场越来越近了，再听听这份热门歌单吧。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離現場越來越近了，再聽聽這份熱門歌單吧。"
           }
         }
       }
@@ -19691,6 +19829,22 @@
         }
       }
     },
+    "还有" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還有"
+          }
+        }
+      }
+    },
     "还有 %d 天" : {
       "localizations" : {
         "en" : {
@@ -20206,6 +20360,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這場已延期。這裡編輯的是原定資訊；延期日期在下方「現場狀態」中更新。"
+          }
+        }
+      }
+    },
+    "这场已收进足迹。下一场是 %1$@，还有 %2$lld 天。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This show is saved in Footprints. Next up: %1$@ in %2$lld days."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这场已收进足迹。下一场是 %1$@，还有 %2$lld 天。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這場已收進足跡。下一場是 %1$@，還有 %2$lld 天。"
+          }
+        }
+      }
+    },
+    "这场已收进足迹。有新的演出计划了吗？可以记下下一场。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This show is saved in Footprints. Any new show plans? Add your next one."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这场已收进足迹。有新的演出计划了吗？可以记下下一场。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這場已收進足跡。有新的演出計畫了嗎？可以記下下一場。"
           }
         }
       }
@@ -21429,6 +21627,22 @@
         }
       }
     },
+    "预计 %@ 散场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected to end at %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預計 %@ 散場"
+          }
+        }
+      }
+    },
     "预计 %@ 结束" : {
       "localizations" : {
         "en" : {
@@ -21441,6 +21655,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預計 %@ 結束"
+          }
+        }
+      }
+    },
+    "预计次日 %@ 散场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expected to end at %@ tomorrow"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預計次日 %@ 散場"
           }
         }
       }
@@ -21512,226 +21742,6 @@
     },
     "🎭" : {
       "shouldTranslate" : false
-    },
-    "%@ 结束" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ends at %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 結束"
-          }
-        }
-      }
-    },
-    "今日演出已结束" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today's shows have ended"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今日演出已結束"
-          }
-        }
-      }
-    },
-    "信息待更新" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Update pending"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "資訊待更新"
-          }
-        }
-      }
-    },
-    "原定 %@ 开演" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scheduled for %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原定 %@ 開演"
-          }
-        }
-      }
-    },
-    "另有 %lld 场想看即将开演" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@sets@"
-          },
-          "substitutions" : {
-            "sets" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg more saved set starts soon"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg more saved sets start soon"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "另有 %lld 场想看即将开演"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "另有 %lld 場想看即將開演"
-          }
-        }
-      }
-    },
-    "本次跟踪已结束" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tracking ended"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本次追蹤已結束"
-          }
-        }
-      }
-    },
-    "预计 %@ 散场" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expected to end at %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預計 %@ 散場"
-          }
-        }
-      }
-    },
-    "预计次日 %@ 散场" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expected to end at %@ tomorrow"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預計次日 %@ 散場"
-          }
-        }
-      }
-    },
-    "%1$@–次日 %2$@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@–%2$@ tomorrow"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@–次日 %2$@"
-          }
-        }
-      }
-    },
-    "日期不一致" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dates don't match"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日期不一致"
-          }
-        }
-      }
-    },
-    "现场 %1$@ · 时刻表 %2$@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show %1$@ · Timetable %2$@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現場 %1$@ · 時刻表 %2$@"
-          }
-        }
-      }
-    },
-    "以时刻表为准" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use timetable"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "以時刻表為準"
-          }
-        }
-      }
     }
   },
   "version" : "1.0"
