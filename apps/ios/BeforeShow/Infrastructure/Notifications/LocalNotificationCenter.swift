@@ -167,8 +167,17 @@ final class LocalNotificationCenter {
                 now: now
             )
 
-            let listeningRoster = try shows.first { $0.id == currentShowID }.map {
+            var listeningRoster = try shows.first { $0.id == currentShowID }.map {
                 try ListeningReminderRosterReader.read(show: $0, in: context)
+            }
+            if let show = shows.first(where: { $0.id == currentShowID }) {
+                let calendar = show.timingCalendar()
+                for notification in await center.deliveredNotifications()
+                    where notification.date <= now
+                        && notification.request.identifier.hasPrefix(show.id.uuidString + ".listeningReminder.") {
+                    guard let discID = NotificationDeepLink(userInfo: notification.request.content.userInfo)?.discID else { continue }
+                    listeningRoster?.deliveredDiscIDsByDay[calendar.startOfDay(for: notification.date)] = discID
+                }
             }
             let plan = planner.plan(
                 shows: shows,

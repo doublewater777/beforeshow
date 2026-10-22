@@ -21,6 +21,8 @@ struct ListeningReminderRoster: Equatable {
     var wanted: Disc?
     var rehearsal: Disc?
     var completedDiscIDs: Set<String> = []
+    /// Event-local days from notifications still visible in Notification Center; not a complete delivery log.
+    var deliveredDiscIDsByDay: [Date: String] = [:]
     var lastListenedAt: Date?
 
     static func uncached(artists: [ArtistSlot]) -> Self {

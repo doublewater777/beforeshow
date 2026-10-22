@@ -45,7 +45,7 @@ enum ListeningReminderSchedule {
         var day = calendar.startOfDay(for: addedAt)
         var previous: Date?
         var index = 0
-        var unanswered = 0
+        var nodesSinceListening = 0
         let listeningBoundary = roster.lastListenedAt ?? addedAt
         var result: [ScheduledShowNotification] = []
         while day < opening {
@@ -58,7 +58,14 @@ enum ListeningReminderSchedule {
             if uncached, let previous, (calendar.dateComponents([.day], from: previous, to: day).day ?? 0) < 3 { continue }
             if let last = roster.lastListenedAt, calendar.isDate(day, inSameDayAs: last) { continue }
             if fire > listeningBoundary {
-                guard unanswered < 3 || distance >= 31 || distance % 3 == 0 else { continue }
+                guard nodesSinceListening < 3 || distance >= 31 || distance % 3 == 0 else { continue }
+            }
+            // Observed payloads keep their actual targets when the roster is rebuilt.
+            // Missing/cleared notifications retain the documented theoretical fallback.
+            if fire <= now, roster.deliveredDiscIDsByDay[day] != nil {
+                if fire > listeningBoundary { nodesSinceListening += 1 }
+                previous = day
+                continue
             }
             let target: Target
             var isRepeat = false
@@ -67,7 +74,8 @@ enum ListeningReminderSchedule {
             } else {
                 if fire > now {
                     while index < queue.count, let disc = queue[index].disc,
-                          roster.completedDiscIDs.contains(disc.id) { index += 1 }
+                          roster.completedDiscIDs.contains(disc.id)
+                            || roster.deliveredDiscIDsByDay.values.contains(disc.id) { index += 1 }
                 }
                 if index < queue.count {
                     target = queue[index]
@@ -80,7 +88,7 @@ enum ListeningReminderSchedule {
                 }
             }
             if uncached { index += 1 }
-            if fire > listeningBoundary { unanswered += 1 }
+            if fire > listeningBoundary { nodesSinceListening += 1 }
             previous = day
             guard fire > now else { continue }
             let line: String

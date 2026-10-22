@@ -69,7 +69,7 @@ final class ListeningReminderSchedulingTests: XCTestCase {
         XCTAssertEqual(requests[8].body, BSLocalization.text("热门曲目之外，这些作品也值得一听。"))
     }
 
-    func testThreeIgnoredRemindersThinOutUntilListeningResumesAndTodayStaysQuiet() throws {
+    func testPlannedNodesWithoutListeningThinOutUntilListeningResumesAndTodayStaysQuiet() throws {
         let added = date("2026-10-01T10:00:00Z")
         let show = try Show(name: "秋夜", date: date("2026-10-15T20:00:00Z"),
                             startTime: date("2026-10-15T20:00:00Z"), createdAt: added)
@@ -168,6 +168,25 @@ final class ListeningReminderSchedulingTests: XCTestCase {
         XCTAssertNil(opening.userInfo["discID"])
         XCTAssertNotEqual(opening.makeNotificationRequest().content.categoryIdentifier, "listeningReminder")
         XCTAssertFalse(opening.body.contains("彩排"))
+    }
+
+    func testRosterChangesPreserveObservedPastTargetsAndAdmitNewArtists() throws {
+        let added = date("2026-10-01T10:00:00Z")
+        let show = try Show(name: "音乐节", date: date("2026-10-15T20:00:00Z"),
+            startTime: date("2026-10-15T20:00:00Z"), createdAt: added)
+        func artist(_ id: String) -> ListeningReminderRoster.Artist {
+            .init(id: id, name: id, albums: [.init(id: id, title: id)])
+        }
+        for lineup in [["e", "a", "b", "c"], ["a", "c"]] {
+            let roster = ListeningReminderRoster(artists: lineup.map(artist), isMultiArtist: true,
+                deliveredDiscIDsByDay: [date("2026-10-01T00:00:00Z"): "a", date("2026-10-02T00:00:00Z"): "b"])
+            let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(for: show,
+                now: date("2026-10-03T10:00:00Z"),
+                scope: NotificationScheduleScope(includesAllMilestones: true, listeningRoster: roster))
+                .filter { $0.milestone == .listeningReminder }
+            XCTAssertEqual(requests.first?.discID, lineup.contains("e") ? "e" : "c")
+            XCTAssertFalse(requests.contains { $0.discID == "a" || $0.discID == "b" })
+        }
     }
 
     func testPassingAFeatureRecommendationDayDoesNotShiftFutureDiscs() throws {

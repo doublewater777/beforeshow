@@ -5,6 +5,41 @@ import XCTest
 
 @MainActor
 final class ListeningReminderRosterTests: XCTestCase {
+    func testOpeningRemindersNeverBorrowWantedProgramsFromALaterFestivalDay() throws {
+        for firstDayWanted in [false, true] {
+            let (container, show) = try ListenTestData.make()
+            for snapshot in try container.mainContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>()) where snapshot.artistID == "c" {
+                snapshot.topSongIDs = ["c1"]
+            }
+            let start = ISO8601DateFormatter().date(from: "2026-10-15T04:00:00Z")!
+            let next = start.addingTimeInterval(86400)
+            show.date = start
+            show.startTime = start
+            show.timeZoneIdentifier = "Asia/Shanghai"
+            let first = try TimetablePerformance(artistName: "A", startsAt: start,
+                endsAt: start.addingTimeInterval(3600), appleMusicArtistID: "a")
+            first.isInterested = firstDayWanted
+            let second = try TimetablePerformance(artistName: "C", startsAt: next,
+                endsAt: next.addingTimeInterval(3600), appleMusicArtistID: "c")
+            second.isInterested = true
+            let day1 = try TimetableDay(date: start.addingTimeInterval(-43200), stages: [TimetableStage(name: "主舞台", performances: [first])])
+            let day2 = try TimetableDay(date: next.addingTimeInterval(-43200), stages: [TimetableStage(name: "主舞台", performances: [second])])
+            show.timetable = try Timetable(timeZoneIdentifier: "Asia/Shanghai", days: [day1, day2])
+            try container.mainContext.save()
+            let roster = try ListeningReminderRosterReader.read(show: show, in: container.mainContext)
+            if firstDayWanted {
+                XCTAssertEqual(roster.wanted?.id, "compilation-\(show.id)-wanted-\(day1.id)")
+            } else {
+                XCTAssertNil(roster.wanted, "Use singalong rather than a later day's wanted program")
+            }
+            let request = try XCTUnwrap(LocalNotificationScheduler().futureRequests(for: show,
+                now: start.addingTimeInterval(-172800),
+                scope: NotificationScheduleScope(includesAllMilestones: true, listeningRoster: roster))
+                .first { $0.milestone == .oneDayBefore })
+            XCTAssertEqual(request.discID, firstDayWanted ? roster.wanted?.id : roster.singalong?.id)
+        }
+    }
+
     func testCachedRosterUsesWantedOrderExclusionsRealEvidenceAndTheVisibleCompilationIdentity() throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
@@ -25,6 +60,9 @@ final class ListeningReminderRosterTests: XCTestCase {
         let start = ISO8601DateFormatter().date(from: "2026-10-15T12:00:00Z")!
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        show.date = start
+        show.startTime = start
+        show.timeZoneIdentifier = "UTC"
         let c = try TimetablePerformance(artistName: "C", startsAt: start, endsAt: start.addingTimeInterval(1000), appleMusicArtistID: "c")
         c.isInterested = true
         let b = try TimetablePerformance(artistName: "B", startsAt: start.addingTimeInterval(2000),

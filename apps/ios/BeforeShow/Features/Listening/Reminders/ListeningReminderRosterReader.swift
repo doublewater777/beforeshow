@@ -58,13 +58,17 @@ enum ListeningReminderRosterReader {
         let complete = Set(trackIDs.compactMap { id, tracks in
             !tracks.isEmpty && Set(tracks).isSubset(of: heard) ? id : nil
         })
+        let calendar = show.timingCalendar()
+        let opening = CurrentShowTimeState(show: show, calendar: calendar, now: .distantPast).effectiveDate
+        let openingDay = show.timetable?.orderedDays.first { calendar.isDate($0.date, inSameDayAs: opening) }
+        let wantedID = openingDay.map { "compilation-\(show.id)-wanted-\($0.id)" }
         let recent = try context.fetch(FetchDescriptor<ShowRecentListening>(predicate: #Predicate { $0.showID == showID }))
             .map(\.playedAt).max()
         return ListeningReminderRoster(artists: ordered, isMultiArtist: show.artists.count > 1,
             singalong: compilations.first { $0.id.hasSuffix("-singalong") }.map(value),
             latest: compilations.first { $0.id.hasSuffix("-latest") }.map(value),
             deepCuts: compilations.first { $0.id.hasSuffix("-deepCuts") }.map(value),
-            wanted: compilations.first { $0.id.contains("-wanted-") }.map(value),
+            wanted: compilations.first { $0.id == wantedID }.map(value),
             rehearsal: compilations.first { $0.id.hasSuffix("-rehearsal")
                 || (show.artists.count == 1 && $0.id.contains("-stage-")) }.map(value),
             completedDiscIDs: complete, lastListenedAt: recent)
