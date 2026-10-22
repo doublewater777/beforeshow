@@ -1,9 +1,25 @@
 import Foundation
 import UserNotifications
 
+enum ListeningNotificationCategory {
+    static let identifier = "listeningReminder"
+    static let playActionIdentifier = "playListeningDisc"
+
+    static var category: UNNotificationCategory {
+        UNNotificationCategory(identifier: identifier, actions: [
+            UNNotificationAction(identifier: playActionIdentifier, title: BSLocalization.text("播放"), options: [.foreground])
+        ], intentIdentifiers: [])
+    }
+}
+
 extension ScheduledShowNotification {
+    var categoryIdentifier: String {
+        milestone == .listeningReminder || (discID != nil && (milestone == .oneDayBefore || milestone == .showDay))
+            ? ListeningNotificationCategory.identifier : ""
+    }
+
     var deepLink: NotificationDeepLink {
-        NotificationDeepLink(showID: showID, destination: destination, feature: feature)
+        NotificationDeepLink(showID: showID, destination: destination, feature: feature, discID: discID, artistID: artistID, artistName: artistName)
     }
 
     var userInfo: [AnyHashable: Any] {
@@ -11,6 +27,9 @@ extension ScheduledShowNotification {
     }
 
     var requestIdentifier: String {
+        if milestone == .listeningReminder {
+            return "\(showID.uuidString).\(milestone.rawValue).\(Int(fireDate.timeIntervalSince1970))"
+        }
         if let performanceID {
             return "\(showID.uuidString).\(milestone.rawValue).\(performanceID.uuidString)"
         }
@@ -22,6 +41,7 @@ extension ScheduledShowNotification {
         content.title = title
         content.body = body
         content.userInfo = userInfo
+        content.categoryIdentifier = categoryIdentifier
         // 同一现场的通知归到一组，等待期里不会散落成一串独立横幅。
         content.threadIdentifier = showID.uuidString
         if milestone.isTimeSensitive {
@@ -54,6 +74,9 @@ extension ScheduledShowNotification {
 
 extension ShowNotificationScheduleRecord {
     var requestIdentifier: String {
+        if milestoneRawValue == "listeningReminder" {
+            return "\(showID.uuidString).\(milestoneRawValue).\(Int(fireDate.timeIntervalSince1970))"
+        }
         if isBackfill == true {
             return "\(showID.uuidString).backfill.\(milestoneRawValue)"
         }

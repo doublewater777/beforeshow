@@ -320,34 +320,30 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertGreaterThan(Set(plan.scheduledRequests.map(\.showID)).count, 1)
     }
 
-    func testExistingBackfillIsRemovedFromPortfolio() throws {
+    func testRetiredMilestonesStillDecodeButTheirBackfillsLeaveThePortfolio() throws {
         let portfolioNow = makeDate(year: 2026, month: 6, day: 1, hour: 10)
         let shows = try (20...29).map { day in
             try makeShow(name: "第\(day)场", day: day)
         }
         let owner = try XCTUnwrap(shows.first)
-        let deferredBackfill = ShowNotificationScheduleRecord(
-            showID: owner.id,
-            milestone: .fourteenDaysBefore,
-            fireDate: makeDate(year: 2026, month: 7, day: 1, hour: 12),
-            isBackfill: true,
-            title: "保留标题",
-            body: "保留正文"
-        )
+        for rawValue in ["addedFollowUp", "fourteenDaysBefore", "openingMemory"] {
+            let legacy = ShowNotificationScheduleRecord(
+                showID: owner.id,
+                milestone: .showDay,
+                fireDate: makeDate(year: 2026, month: 7, day: 1, hour: 12),
+                isBackfill: true,
+                title: "保留标题",
+                body: "保留正文"
+            )
+            legacy.milestoneRawValue = rawValue
+            XCTAssertEqual(legacy.milestone.rawValue, rawValue)
 
-        let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
-            shows: shows,
-            existingRecords: [deferredBackfill],
-            currentShowID: owner.id,
-            now: portfolioNow
-        )
-
-        XCTAssertFalse(
-            plan.scheduledRequests.contains { $0.requestIdentifier == deferredBackfill.requestIdentifier }
-        )
-        XCTAssertFalse(
-            plan.modelRequests.contains { $0.requestIdentifier == deferredBackfill.requestIdentifier }
-        )
+            let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
+                shows: shows, existingRecords: [legacy], currentShowID: owner.id, now: portfolioNow
+            )
+            XCTAssertFalse(plan.scheduledRequests.contains { $0.requestIdentifier == legacy.requestIdentifier })
+            XCTAssertFalse(plan.modelRequests.contains { $0.requestIdentifier == legacy.requestIdentifier })
+        }
     }
 
     func testShowDayReminderDoesNotMoveOrRepeatAcrossReconciles() throws {

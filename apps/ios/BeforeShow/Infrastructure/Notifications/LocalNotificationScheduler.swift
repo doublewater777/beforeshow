@@ -22,6 +22,7 @@ struct NotificationScheduleScope {
     let includesAllMilestones: Bool
     var recommendations = FeatureRecommendationContext()
     var nextShow: NotificationNextShow?
+    var listeningRoster: ListeningReminderRoster?
 
     static let all = NotificationScheduleScope(includesAllMilestones: true)
     static let showDayOnly = NotificationScheduleScope(includesAllMilestones: false)
@@ -63,13 +64,16 @@ struct LocalNotificationScheduler {
 
         var plannedExposures: [RecommendedFeature: Int] = [:]
         var requests: [ScheduledShowNotification] = []
-        for node in nodes.filter({ $0.fireDate > now }).sorted(by: { $0.fireDate < $1.fireDate }) {
+        var recommendationDays = Set<Date>()
+        for node in nodes.sorted(by: { $0.fireDate < $1.fireDate }) {
             guard let content = content(
                 for: node.milestone, fireDate: node.fireDate, show: show, timeState: timeState,
                 calendar: eventCalendar, copy: copy, scope: scope, plannedExposures: plannedExposures
             ) else {
                 continue
             }
+            if content.feature != nil { recommendationDays.insert(eventCalendar.startOfDay(for: node.fireDate)) }
+            guard node.fireDate > now else { continue }
             if let feature = content.feature {
                 plannedExposures[feature, default: 0] += 1
             }
@@ -78,10 +82,10 @@ struct LocalNotificationScheduler {
                 milestone: node.milestone,
                 fireDate: node.fireDate,
                 title: copy.displayTitle(for: node.milestone),
-                body: copy.displayBody(content.body),
+                body: node.milestone == .oneDayBefore ? content.body : copy.displayBody(content.body),
                 showStartTime: node.milestone == .showDay ? timeState.effectiveStartTime : nil,
                 destination: content.destination,
-                feature: content.feature
+                feature: content.feature, discID: content.discID
             ))
         }
         // 个性化开演提醒：仅针对明确标记「想看」的 performance（固定 15 分钟提前量）
@@ -111,6 +115,15 @@ struct LocalNotificationScheduler {
             }
         }
 
+        if scope.includesAllMilestones, show.endedAt == nil {
+            requests += ListeningReminderSchedule.requests(
+                showID: show.id, showName: show.name,
+                roster: scope.listeningRoster ?? .uncached(artists: show.artists),
+                showDate: timeState.effectiveDate, addedAt: show.createdAt, now: now,
+                calendar: eventCalendar,
+                blockedDays: recommendationDays
+            )
+        }
         return requests
     }
 
@@ -300,8 +313,9 @@ struct LocalNotificationScheduler {
                 from: calendar.startOfDay(for: fireDate),
                 to: calendar.startOfDay(for: timeState.effectiveDate)
             ).day ?? 0
+            guard let body = copy.recommendation(feature, daysLeft: daysLeft) else { return nil }
             return NotificationNodeContent(
-                body: copy.recommendation(feature, daysLeft: daysLeft),
+                body: body,
                 destination: feature.notificationDestination,
                 feature: feature
             )
@@ -310,37 +324,34 @@ struct LocalNotificationScheduler {
         let isConfirmed = show.endedAt != nil
         switch milestone {
         case .oneDayBefore:
-            return NotificationNodeContent(body: copy.oneDayBefore(), destination: .listen)
+            let roster = scope.listeningRoster
+            let disc = roster?.isMultiArtist == true ? roster?.wanted ?? roster?.singalong : roster?.singalong
+            return NotificationNodeContent(body: copy.oneDayBefore(hasDisc: disc != nil, isWanted: disc != nil && disc?.id == roster?.wanted?.id), destination: .listen, discID: disc?.id)
         case .showDayMorning:
-            let timetable = copy.context.isFestival
-            return NotificationNodeContent(
-                body: copy.morning(showsTimetable: timetable),
-                destination: timetable ? .timetable : .route
-            )
+            return NotificationNodeContent(body: copy.morning(), destination: .timetable)
         case .showDay:
             let remaining = timeState.effectiveStartTime.map { Int($0.timeIntervalSince(fireDate)) }
             let isBackfill = remaining.map { $0 < 3 * 3_600 - 60 } ?? false
+            let roster = scope.includesAllMilestones && !isBackfill ? scope.listeningRoster : nil
+            let disc = roster?.isMultiArtist == true
+                ? roster?.wanted ?? roster?.singalong : roster?.rehearsal ?? roster?.singalong
             return NotificationNodeContent(
-                body: copy.showDay(remainingSeconds: isBackfill ? remaining : nil),
-                destination: .route
+                body: copy.showDay(remainingSeconds: isBackfill ? remaining : nil, hasMusic: disc != nil),
+                destination: .route, discID: disc?.id
             )
-        case .openingMemory:
-            return NotificationNodeContent(body: copy.opening, destination: .memoryCreate)
         case .postShowRitual:
             return NotificationNodeContent(body: copy.postShowRitual(isConfirmed: isConfirmed), destination: .dispersal)
         case .afterShow:
             return NotificationNodeContent(body: copy.afterShow(isConfirmed: isConfirmed), destination: .dispersal)
         case .footprintArrival:
-            guard isConfirmed else {
-                return NotificationNodeContent(body: copy.confirmEndForFootprint, destination: .dispersal)
-            }
-            guard let feature = recommended(.footprintArrival) else { return nil }
+            guard isConfirmed, let feature = recommended(.footprintArrival),
+                  let body = copy.afterRetention(feature, nextShow: scope.nextShow) else { return nil }
             return NotificationNodeContent(
-                body: copy.afterRetention(feature, nextShow: scope.nextShow),
+                body: body,
                 destination: feature.notificationDestination,
                 feature: feature
             )
-        case .addedFollowUp, .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .interestedPerformance:
+        case .listeningReminder, .addedFollowUp, .fourteenDaysBefore, .openingMemory, .sevenDaysBefore, .threeDaysBefore, .interestedPerformance:
             return nil
         }
     }

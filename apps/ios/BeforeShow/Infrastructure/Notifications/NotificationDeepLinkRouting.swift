@@ -65,16 +65,12 @@ final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDe
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let userInfo = response.notification.request.content.userInfo
-        let showIDString = userInfo[NotificationUserInfoKey.showID] as? String
-        let destinationString = userInfo[NotificationUserInfoKey.destination] as? String
-        let featureString = userInfo[NotificationUserInfoKey.feature] as? String
+        let deepLink = NotificationDeepLink(
+            userInfo: response.notification.request.content.userInfo,
+            actionIdentifier: response.actionIdentifier
+        )
         Task { @MainActor in
-            var parsed: [AnyHashable: Any] = [:]
-            if let showIDString { parsed[NotificationUserInfoKey.showID] = showIDString }
-            if let destinationString { parsed[NotificationUserInfoKey.destination] = destinationString }
-            if let featureString { parsed[NotificationUserInfoKey.feature] = featureString }
-            if let deepLink = NotificationDeepLink(userInfo: parsed) {
+            if let deepLink {
                 ProductAnalytics.capture(.appOpenedFrom(
                     source: .notification, destination: deepLink.destination.rawValue, feature: deepLink.feature
                 ))

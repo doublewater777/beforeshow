@@ -1,6 +1,425 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "这场已收进足迹。有新的演出计划了吗？可以记下下一场。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This show is saved in Footprints. Any new show plans? Add your next one."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这场已收进足迹。有新的演出计划了吗？可以记下下一场。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這場已收進足跡。有新的演出計畫了嗎？可以記下下一場。"
+          }
+        }
+      }
+    },
+    "这场已收进足迹。下一场是 %1$@，还有 %2$lld 天。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This show is saved in Footprints. Next up: %1$@ in %2$lld days."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这场已收进足迹。下一场是 %1$@，还有 %2$lld 天。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這場已收進足跡。下一場是 %1$@，還有 %2$lld 天。"
+          }
+        }
+      }
+    },
+    "离现场越来越近了，再听听这份热门歌单吧。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The show is getting closer. Listen to these favorites again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离现场越来越近了，再听听这份热门歌单吧。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離現場越來越近了，再聽聽這份熱門歌單吧。"
+          }
+        }
+      }
+    },
+    "看看时刻表，确认想看的艺人场次。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the timetable for the artists you want to see."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看时刻表，确认想看的艺人场次。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看時刻表，確認想看的藝人場次。"
+          }
+        }
+      }
+    },
+    "热门曲目之外，这些作品也值得一听。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beyond the hits, these songs are worth a listen too."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "热门曲目之外，这些作品也值得一听。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "熱門曲目之外，這些作品也值得一聽。"
+          }
+        }
+      }
+    },
+    "来听听%@的歌。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Come listen to some music by %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来听听%@的歌。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來聽聽%@的歌。"
+          }
+        }
+      }
+    },
+    "散场了吗？记下时间，聊聊这场怎么样。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Has the show ended? Note the time and share how it was."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "散场了吗？记下时间，聊聊这场怎么样。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "散場了嗎？記下時間，聊聊這場怎麼樣。"
+          }
+        }
+      }
+    },
+    "收录了现场常演的热门歌，可以先熟悉一下。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get familiar with popular songs often played live."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收录了现场常演的热门歌，可以先熟悉一下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收錄了現場常演的熱門歌，可以先熟悉一下。"
+          }
+        }
+      }
+    },
+    "挑几首常演的热门歌预热一下。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warm up with a few popular live favorites."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挑几首常演的热门歌预热一下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挑幾首常演的熱門歌暖身一下。"
+          }
+        }
+      }
+    },
+    "把时刻表存进这里，在现场能随时查看。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the timetable here so you can check it at the show."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把时刻表存进这里，在现场能随时查看。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把時刻表存進這裡，在現場能隨時查看。"
+          }
+        }
+      }
+    },
+    "已收进足迹，可以生成一张卡片留念。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved in Footprints. Make a card to remember it by."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收进足迹，可以生成一张卡片留念。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收進足跡，可以產生一張卡片留念。"
+          }
+        }
+      }
+    },
+    "听听参演艺人最近发行的新歌。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to recent releases from the artists on the lineup."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听参演艺人最近发行的新歌。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽參演藝人最近發行的新歌。"
+          }
+        }
+      }
+    },
+    "听听你标记的那些艺人吧。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to the artists you saved."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听你标记的那些艺人吧。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽你標記的那些藝人吧。"
+          }
+        }
+      }
+    },
+    "听听%@的歌。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to some music by %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听%@的歌。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽%@的歌。"
+          }
+        }
+      }
+    },
+    "听听%1$@的专辑《%2$@》。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to “%2$@”, an album by %1$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听听%1$@的专辑《%2$@》。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽聽%1$@的專輯《%2$@》。"
+          }
+        }
+      }
+    },
+    "先听听这场的歌吧。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to some music for the show."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先听听这场的歌吧。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先聽聽這場的歌吧。"
+          }
+        }
+      }
+    },
+    "从这份精选歌单开始，认识一下%@。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get to know %@ with this essentials playlist."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从这份精选歌单开始，认识一下%@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從這份精選歌單開始，認識一下%@。"
+          }
+        }
+      }
+    },
+    "。还有 3 小时，准备出门，路上让这些歌陪你出发。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". Three hours to go. Get ready to head out with some music for the journey."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。还有 3 小时，准备出门，路上让这些歌陪你出发。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。還有 3 小時，準備出門，路上讓這些歌陪你出發。"
+          }
+        }
+      }
+    },
+    "%1$@%2$@" : {
+      "comment" : "开场前一天通知：第一句说明明天开场，第二句建议听歌；英文句间需要空格。",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@%2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@%2$@"
+          }
+        }
+      }
+    },
     "" : {
       "shouldTranslate" : false
     },
@@ -2749,22 +3168,6 @@
         }
       }
     },
-    "下一场是 %1$@，还有 %2$lld 天。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next up: %1$@, in %2$lld days."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下一場是 %1$@，還有 %2$lld 天。"
-          }
-        }
-      }
-    },
     "下一曲" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3437,38 +3840,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今日首場"
-          }
-        }
-      }
-    },
-    "今晚可以再听听 %@ 的歌。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " Listen to some %@ songs tonight."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今晚可以再聽聽 %@ 的歌。"
-          }
-        }
-      }
-    },
-    "今晚可以再听听这场的歌。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " Listen to some songs from the show tonight."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今晚可以再聽聽這場的歌。"
           }
         }
       }
@@ -4183,22 +4554,6 @@
         }
       }
     },
-    "先听听这场的歌。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listen to some songs from this show."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先聽聽這場的歌。"
-          }
-        }
-      }
-    },
     "先存为原图" : {
       "localizations" : {
         "en" : {
@@ -4820,22 +5175,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "出門前，再確認一次"
-          }
-        }
-      }
-    },
-    "出门前看一下路线。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " Check directions before you go."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "出門前看一下路線。"
           }
         }
       }
@@ -8481,22 +8820,6 @@
         }
       }
     },
-    "已收进足迹，可以做一张回忆卡片。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It's in Footprints. You can make a memory card."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已收進足跡，可以做一張回憶卡片。"
-          }
-        }
-      }
-    },
     "已改期" : {
       "localizations" : {
         "en" : {
@@ -9202,22 +9525,6 @@
         }
       }
     },
-    "开始了。现场怎么样，可以记一段记忆。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It's started. How is it? You can add a memory."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開始了。現場怎麼樣，可以記一段記憶。"
-          }
-        }
-      }
-    },
     "开始解析" : {
       "localizations" : {
         "en" : {
@@ -9635,22 +9942,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "想看"
-          }
-        }
-      }
-    },
-    "想看的演出" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Want to See"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "想看的演出"
           }
         }
       }
@@ -10349,22 +10640,6 @@
         }
       }
     },
-    "把小组件放到主屏幕。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Put the widget on your Home Screen."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把小組件放到主畫面。"
-          }
-        }
-      }
-    },
     "把歌听熟，把期待留给现场" : {
       "localizations" : {
         "en" : {
@@ -10425,22 +10700,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "把這一晚，輕輕留住"
-          }
-        }
-      }
-    },
-    "把这场的照片放进记忆碎片。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add this show's photos to Memory Fragments."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把這場的照片放進記憶碎片。"
           }
         }
       }
@@ -11169,22 +11428,6 @@
         }
       }
     },
-    "散场了吗？记下时间，也记下这一刻的感受。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Is it over? Note the time and how this moment feels."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "散場了嗎？記下時間，也記下這一刻的感受。"
-          }
-        }
-      }
-    },
     "散场了，记下这一刻。" : {
       "localizations" : {
         "en" : {
@@ -11875,22 +12118,6 @@
         }
       }
     },
-    "时刻表出来了保存在这里，可快速打开。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Once the timetable is out, save it here for quick access."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "時刻表出來了保存在這裡，可快速打開。"
-          }
-        }
-      }
-    },
     "时刻表原图已保存" : {
       "localizations" : {
         "en" : {
@@ -12129,38 +12356,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "明天 %@ 再開"
-          }
-        }
-      }
-    },
-    "明天 %@ 开场。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Starts tomorrow at %@."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "明天 %@ 開場。"
-          }
-        }
-      }
-    },
-    "明天 %@ 开始。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Starts tomorrow at %@."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "明天 %@ 開始。"
           }
         }
       }
@@ -14657,22 +14852,6 @@
         }
       }
     },
-    "添加下一场现场。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add your next show."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增下一場現場。"
-          }
-        }
-      }
-    },
     "添加动态封面" : {
       "localizations" : {
         "en" : {
@@ -15561,22 +15740,6 @@
         }
       }
     },
-    "现场开始了" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The show has started"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現場開始了"
-          }
-        }
-      }
-    },
     "现场当天" : {
       "localizations" : {
         "en" : {
@@ -16054,22 +16217,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "省 40%"
-          }
-        }
-      }
-    },
-    "看一下时刻表，别错过想看的艺术家。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " Check the timetable so you don't miss the artists you want to see."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "看一下時刻表，別錯過想看的藝人。"
           }
         }
       }
@@ -19663,6 +19810,7 @@
       }
     },
     "还有 15 分钟开演，舞台：%@ (%@)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20026,22 +20174,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這場幾點散場？記下時間，也可以留一句感受。"
-          }
-        }
-      }
-    },
-    "这场几点散场？记下时间，这场就会收进足迹。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When did it end? Note the time and it goes into Footprints."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這場幾點散場？記下時間，這場就會收進足跡。"
           }
         }
       }

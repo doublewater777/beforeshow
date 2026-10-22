@@ -81,11 +81,20 @@ final class LocalNotificationCenter {
     private let center = UNUserNotificationCenter.current()
     private let planner = NotificationPortfolioPlanner()
     private var modelContainer: ModelContainer?
+    private var isReconciling = false
+    private var reconciliationWaiters: [CheckedContinuation<Void, Never>] = []
 
     private init() {}
 
     func configure(with container: ModelContainer) {
         self.modelContainer = container
+        center.setNotificationCategories([ListeningNotificationCategory.category])
+    }
+
+    /// Listening producers notify only the configured application store after a saved change.
+    func listeningDataDidChange(in container: ModelContainer) {
+        guard modelContainer === container else { return }
+        Task { await reconcilePortfolio() }
     }
 
     /// 重新编排待发通知组合
@@ -115,6 +124,16 @@ final class LocalNotificationCenter {
         in context: ModelContext,
         now: Date = Date()
     ) async -> Bool {
+        // Capture fresh facts only after earlier system writes have finished.
+        if isReconciling {
+            await withCheckedContinuation { reconciliationWaiters.append($0) }
+        } else {
+            isReconciling = true
+        }
+        defer {
+            if reconciliationWaiters.isEmpty { isReconciling = false }
+            else { reconciliationWaiters.removeFirst().resume() }
+        }
         let facts = await FeatureUsageEnvironment.refresh()
         let authorization = await authorizationState()
         do {
@@ -148,11 +167,15 @@ final class LocalNotificationCenter {
                 now: now
             )
 
+            let listeningRoster = try shows.first { $0.id == currentShowID }.map {
+                try ListeningReminderRosterReader.read(show: $0, in: context)
+            }
             let plan = planner.plan(
                 shows: shows,
                 existingRecords: records,
                 currentShowID: currentShowID,
                 recommendations: recommendations,
+                currentListeningRoster: listeningRoster,
                 now: now
             )
             let normalization = NotificationPortfolioRecordStore.normalize(
@@ -164,9 +187,10 @@ final class LocalNotificationCenter {
                 context.delete(duplicate)
             }
 
-            let pendingIdentifiers = Set(
-                await center.pendingNotificationRequests().map(\.identifier)
+            let pendingByIdentifier = Dictionary(
+                uniqueKeysWithValues: await center.pendingNotificationRequests().map { ($0.identifier, $0) }
             )
+            let pendingIdentifiers = Set(pendingByIdentifier.keys)
             let scheduledByIdentifier = Dictionary(
                 uniqueKeysWithValues: plan.scheduledRequests.map { ($0.requestIdentifier, $0) }
             )
@@ -179,7 +203,10 @@ final class LocalNotificationCenter {
             let staleRecords = normalization.canonicalByIdentifier.filter {
                 !modelIdentifiers.contains($0.key)
             }
-            let staleIdentifiers = staleRecords.map(\.key)
+            let staleIdentifiers = Array(Set(staleRecords.map(\.key)).union(pendingIdentifiers.filter {
+                guard let prefix = $0.split(separator: ".").first else { return false }
+                return UUID(uuidString: String(prefix)) != nil && !scheduledIdentifiers.contains($0)
+            }))
             if !staleIdentifiers.isEmpty {
                 center.removePendingNotificationRequests(withIdentifiers: staleIdentifiers)
             }
@@ -199,7 +226,8 @@ final class LocalNotificationCenter {
                 let existing = normalization.canonicalByIdentifier[identifier]
                 if existing == nil
                     || existing?.matches(request) != true
-                    || !pendingIdentifiers.contains(identifier) {
+                    || NotificationDeepLink(userInfo: pendingByIdentifier[identifier]?.content.userInfo ?? [:]) != request.deepLink
+                    || pendingByIdentifier[identifier]?.content.categoryIdentifier != request.categoryIdentifier {
                     identifiersNeedingSystemWrite.insert(identifier)
                 }
             }
@@ -235,6 +263,13 @@ final class LocalNotificationCenter {
 
             try context.save()
             await removeDeliveredRecommendationsAlreadyUsed(recommendations)
+            if let show = shows.first(where: { $0.id == currentShowID }),
+               let last = listeningRoster?.lastListenedAt, show.timingCalendar().isDate(last, inSameDayAs: now) {
+                let stale = await center.deliveredNotifications().filter {
+                    $0.request.identifier.hasPrefix(show.id.uuidString + ".listeningReminder.")
+                }.map { $0.request.identifier }
+                center.removeDeliveredNotifications(withIdentifiers: stale)
+            }
             return didScheduleEveryRequest
         } catch {
             context.rollback()

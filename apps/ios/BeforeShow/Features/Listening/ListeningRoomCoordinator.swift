@@ -888,63 +888,21 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         (show.timetable?.days ?? []).flatMap(\.performances).filter(\.isInterested).compactMap(\.appleMusicArtistID)
     }
 
-    /// Timetable: 想看 per day first, then one disc per day and stage. Single-artist show: one 彩排 disc, using the estimated end when none is set.
-    private static func livePrograms(
-        for show: Show,
-        topTracks: (String) -> [ListeningDiscTrack]
-    ) -> [ListeningCompilationAssembler.LiveProgram] {
-        typealias Program = ListeningCompilationAssembler.LiveProgram
-        func liveSet(_ performance: TimetablePerformance) -> ListeningCompilationAssembler.LiveSet? {
-            performance.appleMusicArtistID.map {
-                .init(tracks: topTracks($0), duration: performance.endsAt.timeIntervalSince(performance.startsAt))
-            }
-        }
-        if let timetable = show.timetable {
-            let days = timetable.orderedDays
-            var programs = days.enumerated().map { index, day in
-                let wanted = day.performances.filter(\.isInterested)
-                    .sorted(by: TimetablePerformance.chronologicalOrder)
-                    .compactMap { performance in
-                        performance.appleMusicArtistID.map { (tracks: topTracks($0), startsAt: performance.startsAt, endsAt: performance.endsAt) }
-                    }
-                return Program(
-                    key: "wanted-\(day.id)",
-                    title: days.count == 1 ? ListeningCopy.text("想看") : ListeningCopy.format("想看 · Day %d", index + 1),
-                    sets: ListeningCompilationAssembler.route(wanted)
-                )
-            }
-            let stageCount = days.reduce(0) { $0 + $1.orderedStages.count }
-            for (index, day) in days.enumerated() {
-                for stage in day.orderedStages {
-                    let title = stageCount == 1 ? ListeningCopy.text("彩排")
-                        : days.count == 1 ? stage.name
-                        : ListeningCopy.format("Day %d · %@", index + 1, stage.name)
-                    programs.append(Program(key: "stage-\(stage.id)", title: title, sets: stage.orderedPerformances.compactMap(liveSet)))
-                }
-            }
-            return programs
-        }
-        guard show.artists.count == 1, let artistID = show.artists.first?.appleMusicArtistID else { return [] }
-        let timeState = CurrentShowTimeState(show: show, calendar: show.timingCalendar(), now: .distantPast)
-        let start = timeState.effectiveStartTime
-            ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar())
-        guard let end = timeState.effectiveEndTime ?? timeState.endBoundary, end > start else { return [] }
-        return [Program(key: "rehearsal", title: ListeningCopy.text("彩排"), sets: [.init(tracks: topTracks(artistID), duration: end.timeIntervalSince(start))])]
-    }
-
     private func rebuildDiscs() throws {
         let interval = OSSignpostID(log: listeningPerformanceLog)
         os_signpost(.begin, log: listeningPerformanceLog, name: "ListeningRebuild", signpostID: interval)
         defer { os_signpost(.end, log: listeningPerformanceLog, name: "ListeningRebuild", signpostID: interval) }
         guard let show else { return }
         let showID = show.id
+        let previousExcludedArtistIDs = excludedArtistIDs
         excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>(
             predicate: #Predicate { $0.showID == showID && $0.isExcluded })).map(\.artistID))
 
         openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>(predicate: #Predicate { $0.showID == showID }))
         let catalogChanged = try catalogProjection.refresh(artistIDs: currentCatalogArtistIDs)
         let inputs = ListeningShowInputs(show)
-        guard catalogChanged || inputs != projectedShowInputs || runtimeRevision != projectedRuntimeRevision else {
+        guard catalogChanged || inputs != projectedShowInputs || runtimeRevision != projectedRuntimeRevision
+                || previousExcludedArtistIDs != excludedArtistIDs else {
             try refreshEvidence()
             recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>(predicate: #Predicate { $0.showID == showID })).first
             return
@@ -985,6 +943,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         let unconnected = mappedArtists.filter { !$0.isConnected }
         browseArtists = connected + unconnected
         func topTracks(_ id: String) -> [ListeningDiscTrack] {
+            guard !excludedArtistIDs.contains(id) else { return [] }
             if let runtime = runtimeSongs[id], !runtime.isEmpty {
                 return runtime.map(ListeningDiscTrack.init)
             }
@@ -1002,7 +961,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             showID: show.id,
             coverURL: showCoverURL,
             releaseDates: releaseDates,
-            livePrograms: Self.livePrograms(for: show, topTracks: topTracks),
+            livePrograms: ListeningCompilationAssembler.livePrograms(for: show, topTracks: topTracks),
             artistTracks: browseArtists.compactMap { $0.appleMusicArtistID.map(topTracks) }
         )
         var discIDs = Set<String>()
@@ -1013,6 +972,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>(predicate: #Predicate { $0.showID == showID })).first
         projectedShowInputs = inputs
         projectedRuntimeRevision = runtimeRevision
+        LocalNotificationCenter.shared.listeningDataDidChange(in: context.container)
     }
     private func refreshEvidence() throws {
         guard let show else { return }
@@ -1034,17 +994,20 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         return disc.tracks.contains { $0.id == recentListening.songID }
     }
     private func recordPlayingIfNeeded() {
-        guard deck.isPlaying, let show, let track, let disc = mechanism.disc,
-              recordedPlayingSongID != track.id else { return }
+        guard deck.isPlaying, let show, let track, let disc = mechanism.disc else { return }
+        let now = Date()
+        let listenedToday = recentListening.map { show.timingCalendar().isDate($0.playedAt, inSameDayAs: now) } ?? false
+        guard recordedPlayingSongID != track.id || !listenedToday else { return }
         do {
             let record = recentListening ?? ShowRecentListening(showID: show.id, discID: disc.id, songID: track.id)
             if recentListening == nil { context.insert(record) }
             record.discID = disc.id
             record.songID = track.id
-            record.playedAt = Date()
+            record.playedAt = now
             try context.save()
             recentListening = record
             recordedPlayingSongID = track.id
+            if !listenedToday { LocalNotificationCenter.shared.listeningDataDidChange(in: context.container) }
         } catch { errorText = BSLocalization.text("保存失败，请重试") }
     }
     func filterArtist(_ artistID: String?) {
@@ -1389,6 +1352,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     private func refreshPlaybackEvidenceProjection() {
         do {
             try refreshEvidence()
+            LocalNotificationCenter.shared.listeningDataDidChange(in: context.container)
             if let show {
                 openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
                     .filter { $0.showID == show.id }

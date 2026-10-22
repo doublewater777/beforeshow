@@ -106,10 +106,9 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         // now = June 15 10:00; show = June 20 20:00. T-14 and T-7 are past.
         XCTAssertEqual(
             requests.map(\.milestone),
-            [.threeDaysBefore, .oneDayBefore, .showDay, .postShowRitual, .afterShow]
+            [.oneDayBefore, .showDay, .postShowRitual, .afterShow]
         )
         XCTAssertEqual(requests.map(\.fireDate), [
-            makeDate(year: 2026, month: 6, day: 17, hour: 20),
             makeDate(year: 2026, month: 6, day: 19, hour: 20),
             makeDate(year: 2026, month: 6, day: 20, hour: 17),
             makeDate(year: 2026, month: 6, day: 21, hour: 0, minute: 15),
@@ -481,7 +480,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(seven.feature, .companion)
     }
 
-    func testMultiDayOneDayBeforeIncludesStartTime() throws {
+    func testMultiDayOneDayBeforeInvitesListeningWithoutRepeatingStartTime() throws {
         let show = try Show(
             name: "两日音乐节",
             date: makeDate(year: 2026, month: 8, day: 1, hour: 0),
@@ -496,15 +495,13 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         )
 
         let oneDayBefore = try XCTUnwrap(requests.first { $0.milestone == .oneDayBefore })
-        XCTAssertEqual(
-            oneDayBefore.body,
-            "两日音乐节\n"
-                + BSLocalization.format("明天 %@ 开始。", "12:00")
-                + BSLocalization.text("今晚可以再听听这场的歌。")
-        )
+        let expected = Bundle.main.preferredLocalizations.first == "en"
+            ? "It starts tomorrow. Listen to some music for the show."
+            : BSLocalization.text("明天开始。") + BSLocalization.text("先听听这场的歌吧。")
+        XCTAssertEqual(oneDayBefore.body, expected)
     }
 
-    func testLongShowNameLivesInBodyWithoutManualTruncation() throws {
+    func testListeningReminderUsesFullShowNameAsTitleWithoutRepeatingItInBody() throws {
         let longName = "2026 超级超级超级长名字音乐节特别企划最终特别加长版上海站第一日"
         let show = try Show(
             name: longName,
@@ -518,9 +515,8 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         )
 
         let oneDayBefore = try XCTUnwrap(requests.first { $0.milestone == .oneDayBefore })
-        XCTAssertEqual(oneDayBefore.title, BSLocalization.text("明天开场"))
-        XCTAssertNotEqual(oneDayBefore.title, longName)
-        XCTAssertTrue(oneDayBefore.body.hasPrefix(longName + "\n"))
+        XCTAssertEqual(oneDayBefore.title, longName)
+        XCTAssertFalse(oneDayBefore.body.contains(longName))
         XCTAssertFalse(oneDayBefore.body.contains("…"))
     }
 

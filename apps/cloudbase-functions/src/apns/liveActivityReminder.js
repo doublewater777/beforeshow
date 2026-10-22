@@ -43,8 +43,8 @@ export function reminderAlert(state, events, language) {
   const copies = {
     en: { title: `${name} is starting soon`, time: clock && `Starts at ${clock}`,
       more: `${count} more saved ${count === 1 ? 'set starts' : 'sets start'} soon` },
-    'zh-Hans': { title: `${name}快开始了`, time: clock && `${clock} 开演`, more: `另有 ${count} 场想看即将开演` },
-    'zh-Hant': { title: `${name}快開始了`, time: clock && `${clock} 開演`, more: `另有 ${count} 場想看即將開演` }
+    'zh-Hans': { title: `${name} 快开始了`, time: clock && `${clock} 开演`, more: `另有 ${count} 场想看即将开演` },
+    'zh-Hant': { title: `${name} 快開始了`, time: clock && `${clock} 開演`, more: `另有 ${count} 場想看即將開演` }
   };
   const copy = copies[lang];
   return { title: copy.title, body: [copy.time, stage, count > 0 ? copy.more : null].filter(Boolean).join(' · '), sound: 'default' };

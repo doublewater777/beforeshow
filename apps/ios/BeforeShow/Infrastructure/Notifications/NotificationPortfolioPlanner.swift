@@ -30,6 +30,7 @@ struct NotificationPortfolioPlanner {
         existingRecords: [ShowNotificationScheduleRecord],
         currentShowID: UUID?,
         recommendations: FeatureRecommendationSnapshot? = nil,
+        currentListeningRoster: ListeningReminderRoster? = nil,
         now: Date = Date()
     ) -> NotificationPortfolioPlan {
         let eligibleShows = shows.filter(Self.isEligibleForPortfolio)
@@ -49,7 +50,8 @@ struct NotificationPortfolioPlanner {
                 scope = NotificationScheduleScope(
                     includesAllMilestones: true,
                     recommendations: recommendations?.context(for: show.id) ?? FeatureRecommendationContext(),
-                    nextShow: next.map { NotificationNextShow(show: $0, now: now) }
+                    nextShow: next.map { NotificationNextShow(show: $0, now: now) },
+                    listeningRoster: currentListeningRoster
                 )
             } else {
                 scope = .showDayOnly

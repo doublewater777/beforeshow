@@ -70,6 +70,17 @@ enum ListeningRackOrdering {
 }
 
 @MainActor extension ListeningRoomCoordinator {
+    /// Artists stay on the shelf before their discs arrive.
+    var showsRack: Bool {
+        let groups = rackGroups
+        if onlyArtistID != nil, !groups.isEmpty { return true }
+        if groups.contains(where: { $0.head != nil }) { return true }
+        switch display.catalogChrome {
+        case .connectArtist, .empty: return !groups.isEmpty
+        case .preparing, .needsMusicAccess, .unavailable: return false
+        }
+    }
+
     var rackGroups: [ListeningRackGroup] {
         var groups: [ListeningRackGroup] = []
         if !compilationDiscs.isEmpty {

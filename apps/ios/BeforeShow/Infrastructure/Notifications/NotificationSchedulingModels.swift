@@ -62,18 +62,21 @@ struct NotificationPermissionPolicy {
 }
 
 enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
-    case addedFollowUp
-    case fourteenDaysBefore
+    case listeningReminder
     case sevenDaysBefore
     case threeDaysBefore
     case oneDayBefore
     case showDayMorning
     case showDay
-    case openingMemory
     case postShowRitual
     case afterShow
     case footprintArrival
     case interestedPerformance
+
+    // 已发布的持久化 raw value：仅识别旧记录，生产排程不再生成。
+    case addedFollowUp
+    case fourteenDaysBefore
+    case openingMemory
 }
 
 extension ShowNotificationMilestone {
@@ -90,8 +93,6 @@ extension ShowNotificationMilestone {
     /// 功能推荐节点：没有可推荐的功能就不发。
     var recommendationSlot: FeatureRecommendationSlot? {
         switch self {
-        case .addedFollowUp: return .addedFollowUp
-        case .fourteenDaysBefore: return .fourteenDaysBefore
         case .sevenDaysBefore: return .sevenDaysBefore
         case .threeDaysBefore: return .threeDaysBefore
         default: return nil
@@ -102,7 +103,6 @@ extension ShowNotificationMilestone {
         switch self {
         case .showDay: return 0
         case .interestedPerformance: return 1
-        case .openingMemory: return 2
         case .showDayMorning: return 2
         case .postShowRitual: return 3
         case .afterShow: return 4
@@ -110,8 +110,8 @@ extension ShowNotificationMilestone {
         case .footprintArrival: return 6
         case .threeDaysBefore: return 7
         case .sevenDaysBefore: return 8
-        case .fourteenDaysBefore: return 9
-        case .addedFollowUp: return 10
+        case .listeningReminder: return 11
+        case .addedFollowUp, .fourteenDaysBefore, .openingMemory: return .max
         }
     }
 }
@@ -195,6 +195,9 @@ struct ScheduledShowNotification: Equatable {
     /// 推荐的功能；送达后计一次露出，用过后从通知中心撤掉。
     var feature: RecommendedFeature? = nil
     var performanceID: UUID? = nil
+    var discID: String? = nil
+    var artistID: String? = nil
+    var artistName: String? = nil
 }
 
 @Model

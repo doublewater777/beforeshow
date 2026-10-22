@@ -219,6 +219,16 @@ struct ListeningRackView: View {
                 room.selectScope(.all)
             }
         }
+        .onChange(of: room.browser.scope, initial: true) { _, scope in
+            guard case .artist = scope else {
+                expandedGroupID = nil
+                return
+            }
+            guard let group = groups.first(where: { $0.scope == scope }) else { return }
+            expandedGroupID = group.id
+            focusedID = "\(group.id)#0"
+            revealedID = focusedID
+        }
         .onChange(of: focusedID) { _, id in
             withAnimation(reduceMotion ? nil : L.motion.delay(L.discDelay)) { revealedID = id }
         }
