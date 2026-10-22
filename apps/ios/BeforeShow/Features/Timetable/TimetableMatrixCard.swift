@@ -88,19 +88,17 @@ struct TimetableMatrixCard: View, Equatable {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         } else if nowOffset != nil {
-            // 正在演出：舞台专属灯光边框
+            // 正在演出：柔和玫红边，压过想看
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(stageTint.opacity(0.85), lineWidth: 1.5)
-                .shadow(color: stageTint.opacity(0.4), radius: 6)
+                .strokeBorder(TimetableStyle.nowSoft.opacity(0.55), lineWidth: 1)
         } else if case .soon = card.status {
             // 即将开演：淡舞台色描边，配合顶部预热光
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(stageTint.opacity(0.28), lineWidth: 1)
         } else {
-            // 想看只靠金心和淡金底色表达，不再加金边，边框留给「正在演」。
-            // 普通卡片边框
+            // 玻璃边缘：顶部极细高光
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(TimetableStyle.cardGlassEdge, lineWidth: 1)
         }
     }
 
@@ -109,39 +107,20 @@ struct TimetableMatrixCard: View, Equatable {
         if isGhost {
             Color.clear
         } else {
-            let baseColor: Color = {
-                if card.isInterested {
-                    if isEnded {
-                        // 已结束的喜欢：微弱的暗金灰色底，表示已过去
-                        return Color(red: 0.125, green: 0.118, blue: 0.108)
-                    } else {
-                        // 喜欢的现场（未结束）：饱满温润金底
-                        return TimetableStyle.cardMine
+            // 一张卡只染一种色：正在演出用玫红，想看用暖金，已结束只靠整体降亮。
+            TimetableStyle.cardGlass
+                .overlay {
+                    if nowOffset != nil {
+                        TimetableStyle.cardGlassLiveTint
+                    } else if card.isInterested && !isEnded {
+                        TimetableStyle.cardGlassMineTint
                     }
-                } else {
-                    return TimetableStyle.card
                 }
-            }()
-
-            baseColor
                 .overlay(alignment: .top) {
-                    // The now line lights the card where it crosses it.
-                    if let nowOffset {
-                        ZStack {
-                            stageTint.opacity(0.12)
-                            LinearGradient(
-                                colors: [stageTint.opacity(0), stageTint.opacity(0.25), stageTint.opacity(0)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 96)
-                            .offset(y: nowOffset - card.height / 2)
-                        }
-                    } else {
+                    if nowOffset == nil {
                         upcomingLight
                     }
                 }
-                .saturation(nowOffset != nil ? TimetableStyle.liveCardBackgroundSaturation : 1)
         }
     }
 
@@ -182,7 +161,8 @@ struct TimetableMatrixCard: View, Equatable {
     /// title line, then the avatar and the stacked time.
     private var rowContent: some View {
         ViewThatFits(in: .vertical) {
-            row(avatarSize: TimetableStyle.MatrixCard.avatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 2, stacked: true)
+            row(avatarSize: TimetableStyle.MatrixCard.rowAvatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 2, stacked: true)
+            row(avatarSize: TimetableStyle.MatrixCard.rowAvatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 1, stacked: true)
             row(avatarSize: TimetableStyle.MatrixCard.avatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 1, stacked: true)
             row(avatarSize: nil, controlSize: TimetableStyle.MatrixCard.compactControlSize, titleLines: 1, stacked: false)
         }
@@ -214,7 +194,7 @@ struct TimetableMatrixCard: View, Equatable {
             }
         }
         .padding(.horizontal, TimetableStyle.MatrixCard.horizontalPadding)
-        .padding(.vertical, stacked ? TimetableStyle.MatrixCard.bottomPadding : TimetableStyle.MatrixCard.compactPadding / 2)
+        .padding(.vertical, stacked ? TimetableStyle.MatrixCard.compactPadding : TimetableStyle.MatrixCard.compactPadding / 2)
         .fixedSize(horizontal: false, vertical: true)
     }
 

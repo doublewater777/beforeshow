@@ -21600,22 +21600,6 @@
           }
         }
       }
-    },
-    "换场 %d 分" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d min changeover"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "換場 %d 分"
-          }
-        }
-      }
     }
   },
   "version" : "1.0"

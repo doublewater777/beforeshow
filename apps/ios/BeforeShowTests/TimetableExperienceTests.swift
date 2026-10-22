@@ -404,22 +404,6 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertEqual(layout.hours.map(\.date), [date(2026, 11, 7, 14, 0)])
     }
 
-    func testMatrixChangeoversCoverShortBreaksOnTheSameStage() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
-        let stage = TimetableMatrixLayout.Stage(id: UUID(), name: "Main", performances: [
-            .init(id: UUID(), artistName: "A", startsAt: date(2026, 11, 7, 13, 30), endsAt: date(2026, 11, 7, 14, 10), isInterested: false),
-            .init(id: UUID(), artistName: "B", startsAt: date(2026, 11, 7, 14, 20), endsAt: date(2026, 11, 7, 15, 0), isInterested: false),
-            .init(id: UUID(), artistName: "C", startsAt: date(2026, 11, 7, 15, 0), endsAt: date(2026, 11, 7, 15, 40), isInterested: false),
-            .init(id: UUID(), artistName: "D", startsAt: date(2026, 11, 7, 16, 30), endsAt: date(2026, 11, 7, 17, 0), isInterested: false)
-        ])
-        let layout = TimetableMatrixLayout(stages: [stage], now: .distantPast, calendar: calendar)
-        XCTAssertEqual(layout.changeovers.map(\.minutes), [10, 50])
-        let first = layout.changeovers[0]
-        XCTAssertEqual(first.top, layout.y(for: date(2026, 11, 7, 14, 10)) - TimetableMatrixLayout.cardSpacing, accuracy: 0.1)
-        XCTAssertEqual(first.top + first.height, layout.y(for: date(2026, 11, 7, 14, 20)), accuracy: 0.1)
-    }
-
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
         var components = DateComponents()
         components.year = year

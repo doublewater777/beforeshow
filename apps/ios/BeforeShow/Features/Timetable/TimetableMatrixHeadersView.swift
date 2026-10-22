@@ -122,7 +122,7 @@ struct TimetableMatrixHeadersView: View {
                         }
                     }
             } else {
-                Text(stage.name)
+                Text(displayName(stage))
                     .font(.system(size: 13, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -168,6 +168,11 @@ struct TimetableMatrixHeadersView: View {
                 Label(BSLocalization.text("管理天数与舞台"), systemImage: "slider.horizontal.3")
             }
         }
+    }
+
+    /// A lone stage that was never named reads as plain "舞台" instead of "舞台 1".
+    private func displayName(_ stage: TimetableStage) -> String {
+        stages.count == 1 && stage.name == BSLocalization.format("舞台 %d", 1) ? BSLocalization.text("舞台") : stage.name
     }
 
     private func commitRename(_ stage: TimetableStage) {

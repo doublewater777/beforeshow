@@ -39,14 +39,6 @@ struct TimetableMatrixLayout: Equatable {
         let isInterested: Bool
     }
 
-    /// The break between two consecutive sets on one stage, spanning the visible space between their cards.
-    struct Changeover: Equatable {
-        let laneIndex: Int
-        let top: CGFloat
-        let height: CGFloat
-        let minutes: Int
-    }
-
     struct HourMark: Equatable {
         let y: CGFloat
         let date: Date
@@ -64,7 +56,6 @@ struct TimetableMatrixLayout: Equatable {
     /// Vertical scale; the share image uses a tighter one than the app.
     let pointsPerMinute: CGFloat
     let cards: [Card]
-    let changeovers: [Changeover]
     let hours: [HourMark]
     let activity: [Activity]
     let soonMinutes: [Int?]
@@ -108,7 +99,6 @@ struct TimetableMatrixLayout: Equatable {
         }
 
         var cards: [Card] = []
-        var changeovers: [Changeover] = []
         var activity: [Activity] = []
         var soonMinutes: [Int?] = []
         for (lane, stage) in stages.enumerated() {
@@ -120,13 +110,6 @@ struct TimetableMatrixLayout: Equatable {
                     height: CGFloat(p.endsAt.timeIntervalSince(p.startsAt) / 60) * ppm - Self.cardSpacing,
                     startsAt: p.startsAt, endsAt: p.endsAt,
                     status: status(p), isInterested: p.isInterested
-                ))
-            }
-            for (a, b) in zip(ordered, ordered.dropFirst()) where b.startsAt > a.endsAt {
-                let top = y(a.endsAt) - Self.cardSpacing
-                changeovers.append(Changeover(
-                    laneIndex: lane, top: top, height: y(b.startsAt) - top,
-                    minutes: Int((b.startsAt.timeIntervalSince(a.endsAt) / 60).rounded())
                 ))
             }
             let states = ordered.map(status)
@@ -145,7 +128,6 @@ struct TimetableMatrixLayout: Equatable {
         }
 
         self.cards = cards
-        self.changeovers = changeovers
         self.hours = hours
         self.activity = activity
         self.soonMinutes = soonMinutes

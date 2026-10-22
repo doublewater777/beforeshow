@@ -11,7 +11,15 @@ enum TimetableStyle {
     static let card = Color(red: 0.114, green: 0.125, blue: 0.165)
     /// Luminous warm gold for interested cards (#2A2317)
     static let cardMine = Color(red: 0.165, green: 0.137, blue: 0.090)
-    static let liveCardBackgroundSaturation: Double = 0.8
+    /// Matrix cards are light glass over the lanes: a translucent fill, one tint per state.
+    static let cardGlass = Color.white.opacity(0.06)
+    static let cardGlassMineTint = BSColor.Stage.accent.opacity(0.18)
+    static let cardGlassLiveTint = BSColor.Stage.live.opacity(0.16)
+    static let cardGlassEdge = LinearGradient(
+        colors: [Color.white.opacity(0.18), Color.white.opacity(0.04)],
+        startPoint: .top,
+        endPoint: .bottom
+    )
     static let foreground = BSColor.Stage.foreground
     static let muted = Color(red: 0.680, green: 0.680, blue: 0.720)
     static let dim = Color(red: 0.440, green: 0.440, blue: 0.480)
@@ -35,6 +43,7 @@ enum TimetableStyle {
         /// Lanes at least this wide lay a set out as one row: avatar, name and time, then actions.
         static let rowLayoutWidth: CGFloat = 240
         static let avatarSize: CGFloat = 34
+        static let rowAvatarSize: CGFloat = 52
         static let compactAvatarSize: CGFloat = 26
         static let controlSize: CGFloat = 32
         static let compactControlSize: CGFloat = 28
