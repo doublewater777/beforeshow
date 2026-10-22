@@ -6,8 +6,8 @@ import Foundation
 // attributes 只放稳定身份字段;可编辑展示字段放 ContentState,
 // 这样延期/改场馆/换封面时 update 能生效(attributes 本身不可变)。
 //
-// 无 push 时仅由 App 更新 ContentState。staleDate 始终指向散场边界，
-// 渲染侧以 context.isStale 显示散场；计时使用有边界的系统 timerInterval。
+// 无 push 时仅由 App 更新 ContentState。staleDate 标记内容需要更新，
+// 不代表业务散场；计时使用有边界的系统 timerInterval。
 // hasStarted 仅为兼容保留，不驱动渲染。
 
 /// 普通现场的可见阶段；以实时边界判定，不依赖已缓存的 hasStarted。
@@ -61,8 +61,16 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var currentArtistImageFilename: String? = nil
         var alsoArtistImageFilename: String? = nil
         var nextArtistImageFilename: String? = nil
+        var reminderArtistImageFilename: String? = nil
         var isEnded: Bool? = false
         var contentExpirationDate: Date? = nil
+
+        var reminderCount: Int? = nil
+        var reminderPerformanceID: String? = nil
+        var nextPerformanceID: String? = nil
+        var hasTimetable: Bool? = nil
+        /// "tracking" is a lifecycle limit, not a confirmed show ending.
+        var endKind: String? = nil
 
         /// Shared by ActivityKit staleness and the widget's bounded system timer.
         var endBoundary: Date {
@@ -156,7 +164,13 @@ extension ShowLiveActivityAttributes.ContentState {
         currentArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .currentArtistImageFilename)
         alsoArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .alsoArtistImageFilename)
         nextArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .nextArtistImageFilename)
+        reminderArtistImageFilename = try container.decodeIfPresent(String.self, forKey: .reminderArtistImageFilename)
         isEnded = try container.decodeIfPresent(Bool.self, forKey: .isEnded) ?? false
         contentExpirationDate = try container.decodeIfPresent(Date.self, forKey: .contentExpirationDate)
+        reminderCount = try container.decodeIfPresent(Int.self, forKey: .reminderCount)
+        reminderPerformanceID = try container.decodeIfPresent(String.self, forKey: .reminderPerformanceID)
+        nextPerformanceID = try container.decodeIfPresent(String.self, forKey: .nextPerformanceID)
+        hasTimetable = try container.decodeIfPresent(Bool.self, forKey: .hasTimetable)
+        endKind = try container.decodeIfPresent(String.self, forKey: .endKind)
     }
 }

@@ -97,8 +97,8 @@ test("syncLiveActivityPlan saves new plan and marks steps", async () => {
   assert.equal(savedRecord.showID, "show-456");
   assert.equal(savedRecord.planSecretHash, hashSecret(VALID_SECRET));
   assert.equal(savedRecord.steps[0].isReminder, true);
-  assert.equal(savedRecord.steps[0].alertTitle, "快开始了");
-  assert.equal(savedRecord.steps[0].alertBody, "Wasted Laika · Tang Stage");
+  assert.equal(savedRecord.steps[0].alertTitle, "Wasted Laika快开始了");
+  assert.equal(savedRecord.steps[0].alertBody, "Tang Stage");
 });
 
 test("syncLiveActivityPlan rejects lower version and accepts idempotent equal version", async () => {

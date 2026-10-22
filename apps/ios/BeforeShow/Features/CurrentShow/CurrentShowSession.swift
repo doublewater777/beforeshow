@@ -127,6 +127,8 @@ struct CurrentShowFeatureRootView: View {
                     }
                 case .addShow:
                     AddShowCoordinatorSheet()
+                case .timetable:
+                    ShowAssetSheet(showID: show.id, showName: show.name, kind: .timetable)
                 default:
                     CurrentShowClosableSheet {
                         ShowDetailView(show: show, onDetailVisibilityChange: { _ in })
@@ -152,7 +154,9 @@ struct CurrentShowFeatureRootView: View {
         )?.id
 
         switch deepLink.destination {
-        case .home, .listen:
+        case .home:
+            if target.id != currentShowID { present(showID: target.id, destination: .home) }
+        case .listen:
             return
         case .memoryFragments, .memoryCreate, .addShow:
             present(showID: target.id, destination: deepLink.destination)

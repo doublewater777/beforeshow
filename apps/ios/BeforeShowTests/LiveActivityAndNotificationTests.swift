@@ -271,6 +271,7 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         // Fixed 15 minutes lead time verification
         let p2Notification = interestedNotifications.first { $0.performanceID == p2.id }!
         XCTAssertEqual(p2Notification.fireDate, date(16, 0).addingTimeInterval(-15 * 60))
+        XCTAssertEqual(p2Notification.body, "16:00 开演 · Mountain Stage")
 
         // Untoggling interest removes the notification on next schedule
         p2.isInterested = false
@@ -374,25 +375,26 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         let stateDuringP1 = LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(14, 30), coverFilename: nil)!.state
         XCTAssertEqual(stateDuringP1.currentArtistName, p1.artistName)
 
-        // P1 已于 15:30 结束。若 App 挂起未更新，在 15:35 渲染时：
+        // P1 已于 15:30 结束。若 App 挂起未更新，在 15:35 渲染时自然呈现下一场预告：
         let contentAtBreak = LiveActivityContent(state: stateDuringP1, isStale: true, now: date(15, 35))
         XCTAssertNotEqual(contentAtBreak.mode, .set, "已结束的艺人不能继续显示正在演出")
-        XCTAssertEqual(contentAtBreak.mode, .between, "应降级为场间倒数下一场")
+        XCTAssertEqual(contentAtBreak.mode, .between)
         XCTAssertEqual(contentAtBreak.title, p2.artistName)
 
-        // 下一场预定 16:00 开演。若到 16:15 依然未收到更新（下一场未知）：
+        // 下一场预定 16:00 开演。若到 16:15 依然未收到更新，仍然安静保留下一场信息：
         let contentAfterNextStart = LiveActivityContent(state: stateDuringP1, isStale: true, now: date(16, 15))
         XCTAssertNotEqual(contentAfterNextStart.mode, .set)
-        XCTAssertEqual(contentAfterNextStart.title, snapshot.name, "缺乏确定状态时应回到现场身份")
+        XCTAssertEqual(contentAfterNextStart.title, p2.artistName)
     }
 
     func testIsStaleDoesNotDirectlyEqualEnded() {
         let snapshot = makeSnapshot(timetableDays: [])
         let state = LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(11, 0), coverFilename: nil)!.state
-        // 演出中途网络滞后导致的 isStale = true，不能直接变成已散场
+        // 演出中途网络滞后导致的 isStale = true，不能直接变成已散场，保持正在进行状态并静默收起声波
         let content = LiveActivityContent(state: state, isStale: true, now: date(11, 0))
         XCTAssertNotEqual(content.mode, .ended, "isStale 不等于已散场")
         XCTAssertEqual(content.mode, .started)
+        XCTAssertFalse(content.showsWave)
     }
 
     func testNaturalEndDismissesAfterFifteenMinutes() {
@@ -516,8 +518,7 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertTrue(state.isReminderActive)
         XCTAssertEqual(state.reminderPerformanceIDs?.count, 2)
         XCTAssertNotNil(state.reminderSummary)
-        XCTAssertTrue(state.reminderSummary?.contains("Band 1") == true)
-        XCTAssertTrue(state.reminderSummary?.contains("Band 2") == true)
+        XCTAssertEqual(state.reminderSummary, "另有 1 场想看即将开演")
     }
 
     func testNextRefreshDateIncludesFifteenMinuteReminderBoundary() throws {

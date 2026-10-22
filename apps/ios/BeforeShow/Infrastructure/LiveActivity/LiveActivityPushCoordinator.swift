@@ -9,6 +9,7 @@ actor LiveActivityPushCoordinator {
     private var lazyResolvedSyncService: LiveActivityRemoteSyncService?
     private var latestPushTokens: [String: String] = [:]
     private var currentSnapshot: WidgetShowSnapshot?
+    private var focusedPerformanceID: UUID?
     private let appInstanceIDProvider: (@Sendable () async -> String)?
 
     init(
@@ -29,8 +30,9 @@ actor LiveActivityPushCoordinator {
     }
 
     /// 更新当前现场快照，并在有可用 token 时更新计划
-    func updateSnapshot(_ snapshot: WidgetShowSnapshot?) async {
+    func updateSnapshot(_ snapshot: WidgetShowSnapshot?, focusedPerformanceID: UUID? = nil) async {
         self.currentSnapshot = snapshot
+        self.focusedPerformanceID = focusedPerformanceID
         guard let snapshot else { return }
         let showID = snapshot.showID.uuidString
         if let token = latestPushTokens[showID] {
@@ -53,6 +55,7 @@ actor LiveActivityPushCoordinator {
 
     private func syncCurrentPlan(for showID: String, pushToken: String) async {
         guard let snapshot = currentSnapshot, snapshot.showID.uuidString == showID else { return }
+        let focus = focusedPerformanceID
         let versionKey = "com.doublewaterapps.beforeshow.liveActivityPlanVersion.\(showID)"
         // Reserve before suspension: a lost response or restart must never reuse a version.
         // The timestamp floor also supersedes plans uploaded before versions were persisted.
@@ -76,6 +79,8 @@ actor LiveActivityPushCoordinator {
             appInstanceID = await MainActor.run { BeforeShowCloudClient.productionAppInstanceId() }
         }
 
+        guard currentSnapshot?.isContentEqual(to: snapshot) == true,
+              focus == focusedPerformanceID, latestPushTokens[showID] == pushToken else { return }
         guard let plan = LiveActivityTransitionPlanBuilder.buildPlan(
             snapshot: snapshot,
             now: Date(),
@@ -83,7 +88,9 @@ actor LiveActivityPushCoordinator {
             activityPushToken: pushToken,
             isProduction: isProduction,
             version: nextVersion,
-            coverFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for: snapshot.coverImageURL ?? "")
+            coverFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for: snapshot.coverImageURL ?? ""),
+            focusedPerformanceID: focus,
+            artistImageFilename: WidgetCoverCache.freshLiveActivityCoverFilename(for:)
         ) else {
             return
         }

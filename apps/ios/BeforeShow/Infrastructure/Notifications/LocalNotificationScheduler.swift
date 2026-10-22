@@ -93,12 +93,8 @@ struct LocalNotificationScheduler {
                         let fireDate = perf.startsAt.addingTimeInterval(-leadTime)
                         if fireDate > now {
                             let title = BSLocalization.format("%@ 快开始了", perf.artistName)
-                            let rangeText = "\(BSDateFormat.clock(perf.startsAt, timeZone: eventCalendar.timeZone)) - \(BSDateFormat.clock(perf.endsAt, timeZone: eventCalendar.timeZone))"
-                            let body = BSLocalization.format(
-                                "还有 15 分钟开演，舞台：%@ (%@)",
-                                stage.name,
-                                rangeText
-                            )
+                            let opening = LiveActivityCopy.reminderOpening(perf.startsAt, calendar: eventCalendar)
+                            let body = BSLocalization.format("%1$@ · %2$@", opening, stage.name)
                             requests.append(ScheduledShowNotification(
                                 showID: show.id,
                                 milestone: .interestedPerformance,

@@ -73,12 +73,14 @@ actor LiveActivityRemoteSyncService {
 
             // 服务端已接受该计划版本，逐个尝试完成交接
             for step in plan.steps where step.state.isReminderActive {
-                let perfIDs = step.state.reminderPerformanceIDs ?? []
-                for perfID in perfIDs {
+                let events = step.reminderEvents ?? (step.state.reminderPerformanceIDs ?? []).map {
+                    LiveActivityReminderEvent(performanceID: $0,
+                        startsAt: step.state.reminderStartsAt ?? step.scheduledAt)
+                }
+                for event in events {
                     let eventKey = PerformanceReminderEventKey(
-                        showID: plan.showID,
-                        performanceID: perfID,
-                        scheduledStartsAt: step.state.reminderStartsAt ?? step.scheduledAt
+                        showID: plan.showID, performanceID: event.performanceID,
+                        scheduledStartsAt: event.startsAt
                     )
                     let didHandover = await ledger.completeHandover(
                         eventKey: eventKey,

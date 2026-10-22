@@ -6,6 +6,7 @@ final class LiveActivityRemoteSyncServiceTests: XCTestCase {
     func testSyncPlanSuccessCompletesHandoverAndRevokesLocalNotification() async throws {
         let showID = UUID().uuidString
         let performanceID = UUID().uuidString
+        let secondID = UUID().uuidString
         let scheduledStartsAt = Date().addingTimeInterval(3600) // 1 hour later
 
         let ledger = LiveActivityReminderLedger()
@@ -47,10 +48,15 @@ final class LiveActivityRemoteSyncServiceTests: XCTestCase {
         contentState.isReminderActive = true
         contentState.reminderPerformanceIDs = [performanceID]
         contentState.reminderStartsAt = scheduledStartsAt
+        let secondStart = scheduledStartsAt.addingTimeInterval(300)
+        let events: [LiveActivityReminderEvent] = [
+            .init(performanceID: performanceID, startsAt: scheduledStartsAt),
+            .init(performanceID: secondID, startsAt: secondStart)
+        ]
 
         let step = LiveActivityTransitionStep(
             scheduledAt: scheduledStartsAt.addingTimeInterval(-900), // 15 mins before
-            state: contentState
+            state: contentState, reminderEvents: events
         )
         let plan = LiveActivityBoundedTransitionPlan(
             planID: "plan-1",
@@ -72,7 +78,14 @@ final class LiveActivityRemoteSyncServiceTests: XCTestCase {
         XCTAssertEqual(record.channel, .liveActivity)
         XCTAssertEqual(record.status, .handedOver)
         let revokedID = await recorder.revokedID
-        XCTAssertEqual(revokedID, eventKey.notificationIdentifier)
+        XCTAssertEqual(revokedID, PerformanceReminderEventKey(showID: showID,
+            performanceID: secondID, scheduledStartsAt: secondStart).notificationIdentifier)
+        let secondRecord = await ledger.record(for: PerformanceReminderEventKey(showID: showID,
+            performanceID: secondID, scheduledStartsAt: secondStart))
+        XCTAssertEqual(secondRecord.status, .handedOver)
+        let incorrectTime = await ledger.record(for: PerformanceReminderEventKey(showID: showID,
+            performanceID: secondID, scheduledStartsAt: scheduledStartsAt))
+        XCTAssertEqual(incorrectTime.channel, .localNotification)
     }
 
     func testSyncPlanNetworkFailurePreservesLocalNotificationFallback() async throws {

@@ -361,7 +361,7 @@ actor ShowLiveActivityController {
                   $0.attributes.showID == snapshot.showID.uuidString
                       && ($0.activityState == .active || $0.activityState == .stale || Self.isPending($0))
               }) else { return }
-        await registerPushTokenUpdates(for: activity, showID: snapshot.showID.uuidString, snapshot: snapshot)
+        await registerPushTokenUpdates(for: activity, showID: snapshot.showID.uuidString, snapshot: snapshot, focusedPerformanceID: focusedPerformanceID)
     }
 
     private func perform(_ action: LiveActivityAction, snapshot: WidgetShowSnapshot?, generation: UInt64) async {
@@ -569,9 +569,10 @@ actor ShowLiveActivityController {
     private func registerPushTokenUpdates(
         for activity: Activity<ShowLiveActivityAttributes>,
         showID: String,
-        snapshot: WidgetShowSnapshot
+        snapshot: WidgetShowSnapshot,
+        focusedPerformanceID: UUID?
     ) async {
-        await LiveActivityPushCoordinator.shared.updateSnapshot(snapshot)
+        await LiveActivityPushCoordinator.shared.updateSnapshot(snapshot, focusedPerformanceID: focusedPerformanceID)
         guard observedActivityIDs[showID] != activity.id else { return }
         pushTokenTasks[showID]?.cancel()
         observedActivityIDs[showID] = activity.id

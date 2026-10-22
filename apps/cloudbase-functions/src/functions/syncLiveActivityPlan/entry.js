@@ -1,6 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { assertAppAuthenticated } from "../../auth/appAuth.js";
 
+import { deliveredReminderKeys, reminderEvents, reminderAlert } from "../../apns/liveActivityReminder.js";
+
+import { liveActivityDatabase, readPlan, registerPlan } from "../../apns/liveActivityPlanStore.js";
+
 const EXPECTED_APP_SIGNATURE = "beforeshow-app-signature-v1";
 const COLLECTION_NAME = "liveActivityPlans";
 const EXPIRY_BUFFER_MS = 24 * 60 * 60 * 1000; // 24 hours after show deadline
@@ -54,7 +58,7 @@ export async function main(event = {}, context = {}, options = {}) {
   const incomingSecretHash = hashSecret(planSecret);
   const docId = `${auth.appInstanceId}:${showID}`;
 
-  const findExisting = options.findExisting ?? findExistingPlan;
+  const findExisting = options.findExisting ?? (id => options.database ? readPlan(options.database, id) : findExistingPlan(id));
   const existing = await findExisting(docId);
 
   if (existing) {
@@ -81,20 +85,16 @@ export async function main(event = {}, context = {}, options = {}) {
     const staleAt = step.staleAt != null ? parsePlanDate(step.staleAt) : null;
     const state = step.state ?? {};
     const isReminder = Boolean(state.isReminderActive);
-
-    let alertTitle = null;
-    let alertBody = null;
-    if (isReminder) {
-      alertTitle = "快开始了";
-      const parts = [state.reminderArtistName, state.reminderStageName].filter(Boolean);
-      alertBody = parts.length > 0 ? parts.join(" · ") : state.showName;
-    }
+    const alert = isReminder ? reminderAlert(state, reminderEvents(state, step.reminderEvents), plan.language) : null;
+    const alertTitle = alert?.title ?? null;
+    const alertBody = alert?.body ?? null;
 
     return {
       stepIndex: idx,
       scheduledAt,
       staleAt,
       state,
+      reminderEvents: step.reminderEvents ?? null,
       isReminder,
       alertTitle,
       alertBody,
@@ -117,16 +117,26 @@ export async function main(event = {}, context = {}, options = {}) {
     expireAt,
     status: "active",
     updatedAt: now,
+    language: plan.language ?? "zh-Hans",
+    deliveredReminderKeys: deliveredReminderKeys(existing),
     steps: normalizedSteps
   };
 
-  const savePlan = options.savePlan ?? savePlanRecord;
-  await savePlan(record);
+  let registration;
+  try {
+    registration = options.database
+      ? await registerPlan(options.database, record)
+      : options.savePlan ? await options.savePlan(record)
+      : await registerPlan(await liveActivityDatabase(), record);
+  } catch (err) {
+    return errorResponse(err.code || "PLAN_SAVE_FAILED", err.message);
+  }
 
   return {
     ok: true,
-    acceptedVersion: version,
-    planID: record.planID,
+    acceptedVersion: registration?.acceptedVersion ?? version,
+    planID: registration?.planID ?? record.planID,
+    ...(registration?.idempotent ? { idempotent: true } : {}),
     stepsCount: normalizedSteps.length
   };
 }
@@ -187,11 +197,4 @@ async function findExistingPlan(docId) {
   } catch {
     return null;
   }
-}
-
-async function savePlanRecord(record) {
-  const { default: cloudbase } = await import("@cloudbase/node-sdk");
-  const db = cloudbase.init({}).database();
-  const { _id, ...data } = record;
-  await db.collection(COLLECTION_NAME).doc(_id).set(data);
 }

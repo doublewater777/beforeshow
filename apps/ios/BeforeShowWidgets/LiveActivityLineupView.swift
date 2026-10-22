@@ -72,7 +72,7 @@ struct LiveActivityLineup: View {
                     if let also = lineup.also {
                         HStack(spacing: 6) {
                             LiveActivityAvatar(filename: also.image, name: also.artist, size: isExpanded ? 16 : 18)
-                            Text("同时")
+                            Text("同时在演")
                                 .foregroundStyle(WidgetTheme.muted)
                             Text(also.artist)
                                 .fontWeight(.semibold)
@@ -86,6 +86,14 @@ struct LiveActivityLineup: View {
                         }
                         .font(.system(size: isExpanded ? 12 : 13))
                         .lineLimit(1)
+                    }
+
+                    if let summary = content.reminderSummary {
+                        Text(summary)
+                            .font(.system(size: isExpanded ? 12 : 13))
+                            .foregroundStyle(WidgetTheme.muted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -130,7 +138,7 @@ struct LiveActivityLineup: View {
     private var hero: some View {
         let ringSize = heroSize + (isExpanded ? 10 : 12)
         return ZStack {
-            if content.mode == .set, let progress = content.progress {
+            if content.mode == .set, !content.isStale, let progress = content.progress {
                 Circle()
                     .strokeBorder(Color.white.opacity(0.14), lineWidth: Self.ringWidth)
                     .frame(width: ringSize, height: ringSize)

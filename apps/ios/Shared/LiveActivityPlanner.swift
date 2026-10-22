@@ -35,6 +35,8 @@ enum LiveActivityPlanner {
         let expiresAt: Date
         let performanceIDs: [String]
         let summary: String?
+        let events: [LiveActivityReminderEvent]
+        let performanceID: UUID
     }
 
     static func activeReminder(
@@ -64,7 +66,7 @@ enum LiveActivityPlanner {
         let first = activePerfs[0].perf
         let performanceIDs = activePerfs.map { $0.perf.id.uuidString }
         let summary: String? = activePerfs.count > 1
-            ? activePerfs.map { $0.perf.artistName }.joined(separator: " / ")
+            ? LiveActivityCopy.additionalReminders(activePerfs.count - 1)
             : nil
 
         return ActiveReminder(
@@ -73,7 +75,10 @@ enum LiveActivityPlanner {
             startsAt: first.startsAt,
             expiresAt: first.startsAt,
             performanceIDs: performanceIDs,
-            summary: summary
+            summary: summary,
+            events: activePerfs.map { .init(performanceID: $0.perf.id.uuidString, startsAt: $0.perf.startsAt,
+                artistName: $0.perf.artistName, stageName: $0.perf.stageName) },
+            performanceID: first.id
         )
     }
 
@@ -199,8 +204,13 @@ enum LiveActivityPlanner {
                         currentArtistImageFilename: image(current?.id),
                         alsoArtistImageFilename: image(also?.id),
                         nextArtistImageFilename: image(upcoming?.id),
+                        reminderArtistImageFilename: image(reminder?.performanceID),
                         isEnded: false,
-                        contentExpirationDate: contentExpiration
+                        contentExpirationDate: contentExpiration,
+                        reminderCount: reminder?.events.count,
+                        reminderPerformanceID: reminder?.performanceID.uuidString,
+                        nextPerformanceID: upcoming?.id.uuidString,
+                        hasTimetable: true
                     ),
                     dayEnd,
                     dayStart
@@ -258,8 +268,13 @@ enum LiveActivityPlanner {
                         reminderPerformanceIDs: reminder?.performanceIDs,
                         isReminderActive: reminder != nil,
                         nextArtistImageFilename: image(upcoming?.id),
+                        reminderArtistImageFilename: image(reminder?.performanceID),
                         isEnded: false,
-                        contentExpirationDate: contentExpiration
+                        contentExpirationDate: contentExpiration,
+                        reminderCount: reminder?.events.count,
+                        reminderPerformanceID: reminder?.performanceID.uuidString,
+                        nextPerformanceID: upcoming?.id.uuidString,
+                        hasTimetable: true
                     ),
                     activityEnd,
                     dayStart
@@ -396,7 +411,10 @@ enum LiveActivityPlanner {
             endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
             coverImageFilename: coverFilename,
             hasStarted: true,
-            isEnded: true
+            isEnded: true,
+            hasTimetable: !(snapshot.timetable?.days.isEmpty ?? true),
+            endKind: !(snapshot.timetable?.days.isEmpty ?? true) ? "festival"
+                : snapshot.timing.endTime == nil ? "tracking" : "show"
         )
     }
 

@@ -6,19 +6,29 @@ import Foundation
 // - 计划包含安装凭据、活动 token、环境、单调版本与截止时间
 // - 单次 payload 符合 4 KB 平台约束，不包含全量时刻表
 
+struct LiveActivityReminderEvent: Codable, Hashable, Sendable {
+    var performanceID: String
+    var startsAt: Date
+    var artistName: String?
+    var stageName: String?
+}
+
 struct LiveActivityTransitionStep: Codable, Equatable, Sendable {
     var scheduledAt: Date
     var staleAt: Date?
     var state: ShowLiveActivityAttributes.ContentState
+    var reminderEvents: [LiveActivityReminderEvent]? = nil
 
     init(
         scheduledAt: Date,
         staleAt: Date? = nil,
-        state: ShowLiveActivityAttributes.ContentState
+        state: ShowLiveActivityAttributes.ContentState,
+        reminderEvents: [LiveActivityReminderEvent]? = nil
     ) {
         self.scheduledAt = scheduledAt
         self.staleAt = staleAt
         self.state = state
+        self.reminderEvents = reminderEvents
     }
 }
 
@@ -30,6 +40,7 @@ struct LiveActivityBoundedTransitionPlan: Codable, Equatable, Sendable {
     var isProduction: Bool
     var version: Int
     var deadline: Date
+    var language: String? = nil
     var steps: [LiveActivityTransitionStep]
 
     init(
@@ -49,6 +60,7 @@ struct LiveActivityBoundedTransitionPlan: Codable, Equatable, Sendable {
         self.isProduction = isProduction
         self.version = version
         self.deadline = deadline
+        self.language = Bundle.main.preferredLocalizations.first
         self.steps = steps
     }
 }
@@ -63,12 +75,14 @@ enum LiveActivityTransitionPlanBuilder {
         isProduction: Bool,
         version: Int,
         coverFilename: String? = nil,
+        focusedPerformanceID: UUID? = nil,
         artistImageFilename: (String) -> String? = { _ in nil }
     ) -> LiveActivityBoundedTransitionPlan? {
         guard let currentDesired = LiveActivityPlanner.desiredState(
             snapshot: snapshot,
             now: now,
             coverFilename: coverFilename,
+            focusedPerformanceID: focusedPerformanceID,
             artistImageFilename: artistImageFilename
         ) else {
             return nil
@@ -111,12 +125,16 @@ enum LiveActivityTransitionPlanBuilder {
                 snapshot: snapshot,
                 now: date,
                 coverFilename: coverFilename,
+                focusedPerformanceID: focusedPerformanceID,
                 artistImageFilename: artistImageFilename
             ) {
                 steps.append(LiveActivityTransitionStep(
                     scheduledAt: date,
                     staleAt: desired.state.staleDate,
-                    state: desired.state
+                    state: desired.state,
+                    reminderEvents: snapshot.timetable.flatMap {
+                        LiveActivityPlanner.activeReminder(in: $0, now: date)?.events
+                    }
                 ))
             }
         }

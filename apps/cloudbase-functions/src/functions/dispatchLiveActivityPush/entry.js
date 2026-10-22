@@ -1,5 +1,9 @@
 import { buildActivityKitPayload, sendActivityKitPush } from "../../apns/apnsClient.js";
 
+import { contentDate, reminderEvents, reminderKey, reminderAlert, deliveredReminderKeys } from "../../apns/liveActivityReminder.js";
+
+import { liveActivityDatabase, claimDispatch, finishDispatch } from "../../apns/liveActivityPlanStore.js";
+
 const COLLECTION_NAME = "liveActivityPlans";
 const REMINDER_WINDOW_MS = 15 * 60 * 1000;
 
@@ -28,15 +32,26 @@ export async function main(event = {}, context = {}, options = {}) {
   let dispatchedCount = 0;
   let expiredTokenCount = 0;
 
-  for (const plan of activePlans) {
+  const database = options.database ?? (options.updatePlan ? null : await liveActivityDatabase());
+  for (const candidate of activePlans) {
+    let plan = candidate;
     try {
+      if (database) {
+        plan = await claimDispatch(database, candidate, now);
+        if (!plan) continue;
+      }
       processedCount += 1;
       const steps = plan.steps ?? [];
       const dueSteps = steps
         .filter(s => !s.isConsumed && new Date(s.scheduledAt) <= now)
         .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
 
-      if (dueSteps.length === 0) continue;
+      if (dueSteps.length === 0) {
+        if (database) await finishDispatch(database, plan, {
+          deliveredReminderKeys: deliveredReminderKeys(plan), updatedAt: now
+        });
+        continue;
+      }
 
       // The target step is the latest step that has reached scheduledAt
       const targetStep = dueSteps[dueSteps.length - 1];
@@ -48,22 +63,29 @@ export async function main(event = {}, context = {}, options = {}) {
         dueSteps[i].skipped = true;
       }
 
-      // Check reminder validity: if more than 15 minutes late, do not alert
+      const delivered = new Set(deliveredReminderKeys(plan));
+      const events = reminderEvents(targetStep.state, targetStep.reminderEvents);
+      const freshEvents = events.filter(event => {
+        const startsAt = contentDate(event.startsAt);
+        return !delivered.has(reminderKey(event)) && now < startsAt
+          && now >= new Date(startsAt.getTime() - REMINDER_WINDOW_MS);
+      });
       let alert = null;
-      if (targetStep.isReminder) {
-        const diffMs = now.getTime() - new Date(targetStep.scheduledAt).getTime();
-        if (diffMs <= REMINDER_WINDOW_MS) {
-          alert = {
-            title: targetStep.alertTitle || "快开始了",
-            body: targetStep.alertBody || targetStep.state?.showName || "",
-            sound: "default"
-          };
-        }
+      if (!targetStep.state?.isEnded && freshEvents.length) {
+        alert = reminderAlert(targetStep.state, freshEvents, plan.language);
+      } else if (!events.length && targetStep.isReminder
+          && now - new Date(targetStep.scheduledAt) <= REMINDER_WINDOW_MS) {
+        // Preserve already-registered legacy steps without event identities.
+        alert = { title: targetStep.alertTitle || "快开始了",
+          body: targetStep.alertBody || targetStep.state?.showName || "", sound: "default" };
       }
 
       const isEnd = Boolean(targetStep.state?.isEnded);
+      // Per-event handover metadata stays on the server; the widget only needs the count.
+      const { reminderPerformanceIDs: ids, ...contentState } = targetStep.state;
+      if (events.length) contentState.reminderCount = events.length;
       const payload = buildActivityKitPayload({
-        contentState: targetStep.state,
+        contentState,
         scheduledAt: targetStep.scheduledAt,
         staleAt: targetStep.staleAt,
         dismissalAt: targetStep.staleAt,
@@ -81,7 +103,11 @@ export async function main(event = {}, context = {}, options = {}) {
         transport: options.transport
       });
 
-      targetStep.isConsumed = true;
+      if (pushResult.ok) {
+        targetStep.deliveredReminderKeys = alert ? freshEvents.map(reminderKey) : [];
+        for (const key of targetStep.deliveredReminderKeys) delivered.add(key);
+      }
+      targetStep.isConsumed = pushResult.ok;
       targetStep.consumedAt = now;
       targetStep.pushStatus = pushResult.statusCode;
 
@@ -92,19 +118,21 @@ export async function main(event = {}, context = {}, options = {}) {
       if (pushResult.statusCode === 410 || pushResult.reason === "BadDeviceToken" || pushResult.reason === "Unregistered") {
         planStatus = "token_expired";
         expiredTokenCount += 1;
-      } else if (allConsumed || lastStepEnd) {
+      } else if (pushResult.ok && (allConsumed || lastStepEnd)) {
         planStatus = "completed";
         if (pushResult.ok) dispatchedCount += 1;
       } else if (pushResult.ok) {
         dispatchedCount += 1;
       }
 
-      const updatePlan = options.updatePlan ?? updatePlanRecordInDb;
-      await updatePlan(plan._id, {
+      const update = {
         steps,
         status: planStatus,
+        deliveredReminderKeys: [...delivered],
         updatedAt: now
-      });
+      };
+      if (database) await finishDispatch(database, plan, update);
+      else await options.updatePlan(plan._id, update);
     } catch (planError) {
       console.error(`Failed to process live activity plan ${plan?._id}:`, planError);
     }
@@ -133,10 +161,4 @@ async function queryActivePlansFromDb(now) {
   } catch {
     return [];
   }
-}
-
-async function updatePlanRecordInDb(docId, updateData) {
-  const { default: cloudbase } = await import("@cloudbase/node-sdk");
-  const db = cloudbase.init({}).database();
-  await db.collection(COLLECTION_NAME).doc(docId).update(updateData);
 }
