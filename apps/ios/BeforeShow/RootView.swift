@@ -49,6 +49,7 @@ struct RootView: View {
 
             CompanionPendingJoinHost()
         }
+        .modifier(ListeningNotificationTabRouting(selectedTab: $selectedTab))
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
@@ -92,11 +93,8 @@ struct RootView: View {
         #endif
     }
     private func routeNotificationTab(_ deepLink: NotificationDeepLink?) {
-        guard let deepLink else { return }
-        selectedTab = deepLink.destination == .listen ? .listen : .current
-        if deepLink.destination == .listen {
-            _ = notificationRouter.consumeFeatureRoot()
-        }
+        guard let deepLink, deepLink.destination != .listen else { return }
+        selectedTab = .current
     }
     private func persistedShowExists() -> Bool {
         var descriptor = FetchDescriptor<Show>()

@@ -73,6 +73,8 @@ struct TimetableStageMatrixView: View {
 
     var body: some View {
         let stages = day.orderedStages
+        let isSingleStage = stages.count == 1
+        let addStageWidth = isSingleStage ? 0 : Self.addStageWidth
         let performances = Dictionary(uniqueKeysWithValues: stages.flatMap(\.performances).map { ($0.id, $0) })
         let layout = TimetableMatrixLayout(
             stages: stages.map { stage in
@@ -82,20 +84,21 @@ struct TimetableStageMatrixView: View {
             },
             now: now,
             calendar: calendar,
+            pointsPerMinute: isSingleStage ? TimetableStyle.matrixSingleStagePointsPerMinute : TimetableMatrixLayout.pointsPerMinute,
             emptyDayStart: calendar.date(bySettingHour: 14, minute: 0, second: 0, of: day.date)
         )
 
         GeometryReader { geo in
             let count = CGFloat(max(stages.count, 1))
             let lane = max(Self.minLane, (geo.size.width - Self.ruler - Self.trailing - Self.laneGap * (count - 1)) / count)
-            let width = Self.ruler + lane * count + Self.laneGap * (count - 1) + Self.addStageWidth + Self.trailing
+            let width = Self.ruler + lane * count + Self.laneGap * (count - 1) + addStageWidth + Self.trailing
             let gridHeight = max(100, geo.size.height - Self.capHeight)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     // 1. Sticky Stage Headers Row (横向随列联动，纵向永远吸顶)
                     TimetableMatrixHeadersView(
-                        stages: stages, lane: lane, layout: layout, viewport: viewport,
+                        stages: stages, lane: lane, layout: layout, viewport: viewport, showsAddStage: !isSingleStage,
                         onAddPerformance: onAddPerformance, onRenameStage: onRenameStage, onManage: onManage
                     )
                         .frame(width: width, height: Self.capHeight, alignment: .leading)

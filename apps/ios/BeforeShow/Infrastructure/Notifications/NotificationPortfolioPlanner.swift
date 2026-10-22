@@ -30,6 +30,7 @@ struct NotificationPortfolioPlanner {
         existingRecords: [ShowNotificationScheduleRecord],
         currentShowID: UUID?,
         recommendations: FeatureRecommendationSnapshot? = nil,
+        currentListeningRoster: ListeningReminderRoster? = nil,
         now: Date = Date()
     ) -> NotificationPortfolioPlan {
         let eligibleShows = shows.filter(Self.isEligibleForPortfolio)
@@ -49,7 +50,8 @@ struct NotificationPortfolioPlanner {
                 scope = NotificationScheduleScope(
                     includesAllMilestones: true,
                     recommendations: recommendations?.context(for: show.id) ?? FeatureRecommendationContext(),
-                    nextShow: next.map { NotificationNextShow(show: $0, now: now) }
+                    nextShow: next.map { NotificationNextShow(show: $0, now: now) },
+                    listeningRoster: currentListeningRoster
                 )
             } else {
                 scope = .showDayOnly
@@ -75,7 +77,16 @@ struct NotificationPortfolioPlanner {
         naturalRequests = Self.deduplicated(naturalRequests)
 
         let allCandidates = Self.sortedForScheduling(naturalRequests)
-        let scheduled = Array(allCandidates.prefix(NotificationPortfolioPlan.maximumScheduledRequests))
+        // Reserve capacity for openings first, then wanted performances. Earlier
+        // preparation/listening nodes must not crowd out time-critical reminders.
+        let openings = allCandidates.filter { $0.milestone == .showDay }
+        let performances = allCandidates.filter { $0.milestone == .interestedPerformance }
+        let preparation = allCandidates.filter {
+            $0.milestone != .showDay && $0.milestone != .interestedPerformance && $0.milestone != .listeningReminder
+        }
+        let listening = allCandidates.filter { $0.milestone == .listeningReminder }
+        let admitted = Array((openings + performances + preparation + listening).prefix(NotificationPortfolioPlan.maximumScheduledRequests))
+        let scheduled = Self.sortedForScheduling(admitted)
 
         return NotificationPortfolioPlan(
             scheduledRequests: scheduled,

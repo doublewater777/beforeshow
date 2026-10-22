@@ -97,7 +97,7 @@ test("syncLiveActivityPlan saves new plan and marks steps", async () => {
   assert.equal(savedRecord.showID, "show-456");
   assert.equal(savedRecord.planSecretHash, hashSecret(VALID_SECRET));
   assert.equal(savedRecord.steps[0].isReminder, true);
-  assert.equal(savedRecord.steps[0].alertTitle, "Wasted Laika快开始了");
+  assert.equal(savedRecord.steps[0].alertTitle, "Wasted Laika 快开始了");
   assert.equal(savedRecord.steps[0].alertBody, "Tang Stage");
 });
 

@@ -37,6 +37,10 @@ struct TimetableMatrixCard: View, Equatable {
         card.status == .ended
     }
 
+    private var usesRowLayout: Bool {
+        width >= TimetableStyle.MatrixCard.rowLayoutWidth
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Main card button (opens inspector)
@@ -63,7 +67,7 @@ struct TimetableMatrixCard: View, Equatable {
             // Content with integrated controls
             if !isGhost {
                 content
-                    .frame(width: width, height: card.height, alignment: .topLeading)
+                    .frame(width: width, height: card.height, alignment: usesRowLayout ? .leading : .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .opacity(isEnded ? 0.6 : 1)
             }
@@ -84,19 +88,17 @@ struct TimetableMatrixCard: View, Equatable {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         } else if nowOffset != nil {
-            // 正在演出：舞台专属灯光边框
+            // 正在演出：柔和玫红边，压过想看
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(stageTint.opacity(0.85), lineWidth: 1.5)
-                .shadow(color: stageTint.opacity(0.4), radius: 6)
+                .strokeBorder(TimetableStyle.nowSoft.opacity(0.55), lineWidth: 1)
         } else if case .soon = card.status {
             // 即将开演：淡舞台色描边，配合顶部预热光
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(stageTint.opacity(0.28), lineWidth: 1)
         } else {
-            // 想看只靠金心和淡金底色表达，不再加金边，边框留给「正在演」。
-            // 普通卡片边框
+            // 玻璃边缘：顶部极细高光
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(TimetableStyle.cardGlassEdge, lineWidth: 1)
         }
     }
 
@@ -105,39 +107,20 @@ struct TimetableMatrixCard: View, Equatable {
         if isGhost {
             Color.clear
         } else {
-            let baseColor: Color = {
-                if card.isInterested {
-                    if isEnded {
-                        // 已结束的喜欢：微弱的暗金灰色底，表示已过去
-                        return Color(red: 0.125, green: 0.118, blue: 0.108)
-                    } else {
-                        // 喜欢的现场（未结束）：饱满温润金底
-                        return TimetableStyle.cardMine
+            // 一张卡只染一种色：正在演出用玫红，想看用暖金，已结束只靠整体降亮。
+            TimetableStyle.cardGlass
+                .overlay {
+                    if nowOffset != nil {
+                        TimetableStyle.cardGlassLiveTint
+                    } else if card.isInterested && !isEnded {
+                        TimetableStyle.cardGlassMineTint
                     }
-                } else {
-                    return TimetableStyle.card
                 }
-            }()
-
-            baseColor
                 .overlay(alignment: .top) {
-                    // The now line lights the card where it crosses it.
-                    if let nowOffset {
-                        ZStack {
-                            stageTint.opacity(0.12)
-                            LinearGradient(
-                                colors: [stageTint.opacity(0), stageTint.opacity(0.25), stageTint.opacity(0)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 96)
-                            .offset(y: nowOffset - card.height / 2)
-                        }
-                    } else {
+                    if nowOffset == nil {
                         upcomingLight
                     }
                 }
-                .saturation(nowOffset != nil ? TimetableStyle.liveCardBackgroundSaturation : 1)
         }
     }
 
@@ -165,7 +148,57 @@ struct TimetableMatrixCard: View, Equatable {
         width < TimetableStyle.MatrixCard.narrowWidth ? TimetableStyle.MatrixCard.narrowHorizontalPadding : TimetableStyle.MatrixCard.horizontalPadding
     }
 
+    @ViewBuilder
     private var content: some View {
+        if usesRowLayout {
+            rowContent
+        } else {
+            columnContent
+        }
+    }
+
+    /// Wide lanes read left to right, vertically centred: shorter sets drop the second
+    /// title line, then the avatar and the stacked time.
+    private var rowContent: some View {
+        ViewThatFits(in: .vertical) {
+            row(avatarSize: TimetableStyle.MatrixCard.rowAvatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 2, stacked: true)
+            row(avatarSize: TimetableStyle.MatrixCard.rowAvatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 1, stacked: true)
+            row(avatarSize: TimetableStyle.MatrixCard.avatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 1, stacked: true)
+            row(avatarSize: nil, controlSize: TimetableStyle.MatrixCard.compactControlSize, titleLines: 1, stacked: false)
+        }
+    }
+
+    private func row(avatarSize: CGFloat?, controlSize: CGFloat, titleLines: Int, stacked: Bool) -> some View {
+        HStack(spacing: TimetableStyle.MatrixCard.rowSpacing) {
+            if let avatarSize {
+                TimetableArtistAvatar(name: card.artistName, url: avatarURL, size: avatarSize)
+                    .allowsHitTesting(false)
+            }
+            Group {
+                if stacked {
+                    VStack(alignment: .leading, spacing: TimetableStyle.MatrixCard.metaSpacing) {
+                        name(compact: false, lines: titleLines)
+                        meta
+                    }
+                } else {
+                    HStack(spacing: TimetableStyle.MatrixCard.actionSpacing) {
+                        name(compact: true, lines: 1)
+                        meta
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: TimetableStyle.MatrixCard.actionSpacing) {
+                playPreviewButton(size: controlSize)
+                heartButton(size: controlSize)
+            }
+        }
+        .padding(.horizontal, TimetableStyle.MatrixCard.horizontalPadding)
+        .padding(.vertical, stacked ? TimetableStyle.MatrixCard.compactPadding : TimetableStyle.MatrixCard.compactPadding / 2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var columnContent: some View {
         ViewThatFits(in: .vertical) {
             cardContent(compact: false, titleLines: 2)
             cardContent(compact: true, titleLines: 2)
@@ -243,7 +276,7 @@ struct TimetableMatrixCard: View, Equatable {
     private func heartButton(size: CGFloat) -> some View {
         Button(action: onToggle) {
             heartIcon
-                .frame(width: size, height: size, alignment: .trailing)
+                .frame(width: size, height: size, alignment: usesRowLayout ? .center : .trailing)
                 .timetableHitTarget(visualSize: size, minimum: max(36.0, size + 10))
         }
         .buttonStyle(TimetableHeartButtonStyle())

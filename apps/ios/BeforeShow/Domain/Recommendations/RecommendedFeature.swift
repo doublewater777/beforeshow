@@ -16,8 +16,6 @@ enum RecommendedFeature: String, CaseIterable, Codable, Sendable {
 
 /// 推荐位：每个通知推荐节点、每个主卡阶段各有固定的候选顺序。
 enum FeatureRecommendationSlot: Equatable, Sendable {
-    case addedFollowUp
-    case fourteenDaysBefore
     case sevenDaysBefore
     case threeDaysBefore
     /// 主卡：开场前超过 7 天。
@@ -34,10 +32,6 @@ enum FeatureRecommendationSlot: Equatable, Sendable {
     func chain(isFestival: Bool, hasFutureShow: Bool) -> [RecommendedFeature] {
         let next: RecommendedFeature = hasFutureShow ? .nextShow : .addShow
         switch self {
-        case .addedFollowUp:
-            return [.widget, .companion]
-        case .fourteenDaysBefore:
-            return [.listen, .companion]
         case .sevenDaysBefore:
             return [.companion, .listen]
         case .threeDaysBefore, .cardNearBefore:

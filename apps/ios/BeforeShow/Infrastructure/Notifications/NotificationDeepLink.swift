@@ -6,6 +6,9 @@ enum NotificationUserInfoKey {
     static let showID = "showID"
     static let destination = "destination"
     static let feature = "feature"
+    static let discID = "discID"
+    static let artistID = "artistID"
+    static let artistName = "artistName"
 }
 
 /// Payload carried in each notification's `userInfo` (and Live Activity links).
@@ -42,16 +45,27 @@ struct NotificationDeepLink: Equatable, Sendable {
     let showID: UUID
     let destination: Destination
     var feature: RecommendedFeature?
+    var discID: String?
+    var artistID: String?
+    var artistName: String?
+    var requestsPlayback = false
 
-    init(showID: UUID, destination: Destination, feature: RecommendedFeature? = nil) {
+    init(showID: UUID, destination: Destination, feature: RecommendedFeature? = nil,
+         discID: String? = nil, artistID: String? = nil, artistName: String? = nil) {
         self.showID = showID
         self.destination = destination
         self.feature = feature
+        self.discID = discID
+        self.artistID = artistID
+        self.artistName = artistName
     }
 
-    init?(userInfo: [AnyHashable: Any]) {
+    init?(userInfo: [AnyHashable: Any], actionIdentifier: String? = nil) {
         guard let parsed = Self.parse(userInfo: userInfo) else { return nil }
-        self = parsed
+        let playsDisc = actionIdentifier == ListeningNotificationCategory.playActionIdentifier
+        self.init(showID: parsed.showID, destination: playsDisc ? .listen : parsed.destination,
+                  feature: parsed.feature, discID: parsed.discID, artistID: parsed.artistID, artistName: parsed.artistName)
+        requestsPlayback = playsDisc
     }
 
     /// 实时活动按钮打开的地址，格式见 `BeforeShowOpenURL`。
@@ -72,7 +86,10 @@ struct NotificationDeepLink: Equatable, Sendable {
             return nil
         }
         let feature = (userInfo[NotificationUserInfoKey.feature] as? String).flatMap(RecommendedFeature.init(rawValue:))
-        return NotificationDeepLink(showID: showID, destination: destination, feature: feature)
+        return NotificationDeepLink(showID: showID, destination: destination, feature: feature,
+                                    discID: userInfo[NotificationUserInfoKey.discID] as? String,
+                                    artistID: userInfo[NotificationUserInfoKey.artistID] as? String,
+                                    artistName: userInfo[NotificationUserInfoKey.artistName] as? String)
     }
 
     var userInfo: [AnyHashable: Any] {
@@ -83,6 +100,9 @@ struct NotificationDeepLink: Equatable, Sendable {
         if let feature {
             info[NotificationUserInfoKey.feature] = feature.rawValue
         }
+        if let discID { info[NotificationUserInfoKey.discID] = discID }
+        if let artistID { info[NotificationUserInfoKey.artistID] = artistID }
+        if let artistName { info[NotificationUserInfoKey.artistName] = artistName }
         return info
     }
 }

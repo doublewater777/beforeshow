@@ -156,7 +156,7 @@ enum CurrentShowCardRecommendation {
         plannedExposures: [RecommendedFeature: Int]
     ) -> RecommendedFeature? {
         FeatureRecommendationPolicy.candidate(
-            from: slot.chain(isFestival: isFestival, hasFutureShow: hasFutureShow),
+            from: slot.chain(isFestival: isFestival, hasFutureShow: hasFutureShow).filter { $0 != .listen },
             context: context,
             plannedExposures: plannedExposures
         )

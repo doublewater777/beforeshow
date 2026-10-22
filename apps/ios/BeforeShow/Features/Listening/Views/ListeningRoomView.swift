@@ -2,6 +2,12 @@ import SwiftUI
 import SwiftData
 import UIKit
 
+private struct ListeningNotificationTaskKey: Equatable {
+    let isActive: Bool
+    let showID: UUID?
+    let link: NotificationDeepLink?
+}
+
 struct ListenRootView: View {
     let isActive: Bool
     var catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService()
@@ -15,6 +21,7 @@ struct ListenRootView: View {
     @State private var room: ListeningRoomCoordinator?
     @State private var isShowingAddShow = false
     @State private var isShowingShowLibrary = false
+    private let notificationRouter = NotificationDeepLinkRouter.shared
 
     init(
         isActive: Bool,
@@ -102,6 +109,10 @@ struct ListenRootView: View {
                 room?.setActive(false)
             }
         }
+        .task(id: ListeningNotificationTaskKey(isActive: isActive, showID: show?.id,
+                                               link: notificationRouter.featureRootDeepLink)) {
+            await openPendingNotification()
+        }
         .onChange(of: show.map(ListeningShowInputs.init)) { _, _ in
             if let show { room?.refreshShowInputs(show) }
         }
@@ -126,12 +137,27 @@ struct ListenRootView: View {
         createRoomIfNeeded(for: show)
         if let room { ListeningChromeBootstrapper.prepareRoomForCurrentShow(room, show: show) }
         room?.setActive(true)
+        if notificationRouter.featureRootDeepLink?.destination == .listen { return }
         if catalogService.currentAuthorizationStatus() == .notDetermined {
             await room?.authorize()
             guard isActive, !Task.isCancelled else { return }
         }
         if room?.shouldReloadCatalog(for: show) == true {
             await room?.load(show: show)
+        }
+    }
+
+    @MainActor
+    private func openPendingNotification() async {
+        guard isActive, let show,
+              let link = notificationRouter.featureRootDeepLink, link.destination == .listen else { return }
+        guard await BSNotificationNavigationGate.waitUntilAvailable(), isActive,
+              notificationRouter.featureRootDeepLink == link else { return }
+        createRoomIfNeeded(for: show)
+        guard let room else { return }
+        await ListeningNotificationEntry.open(link, show: show, room: room)
+        if !Task.isCancelled, notificationRouter.featureRootDeepLink == link {
+            notificationRouter.consumeFeatureRoot()
         }
     }
 
@@ -188,7 +214,7 @@ struct ListeningRoomView: View {
                         let scale = availableWidth * BSListeningTokens.playerWidthFraction / geometry.body.width
                         let groups = room.rackGroups
                         Group {
-                            if showsRack(groups) {
+                            if room.showsRack {
                                 ListeningRackView(room: room, groups: groups, scale: scale) { index, name in
                                     matchingSlotIndex = index
                                     matchingArtistName = name
@@ -269,15 +295,6 @@ struct ListeningRoomView: View {
                 room.tickMechanism()
                 try? await Task.sleep(for: .milliseconds(1000))
             }
-        }
-    }
-
-    /// Artists stay on the shelf before their discs arrive, so each can still be opened or connected.
-    private func showsRack(_ groups: [ListeningRackGroup]) -> Bool {
-        if groups.contains(where: { $0.head != nil }) { return true }
-        switch room.display.catalogChrome {
-        case .connectArtist, .empty: return !groups.isEmpty
-        case .preparing, .needsMusicAccess, .unavailable: return false
         }
     }
 

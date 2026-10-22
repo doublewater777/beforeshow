@@ -393,6 +393,17 @@ final class TimetableExperienceTests: XCTestCase {
         XCTAssertNil(empty.nowY, "An empty future day must not offer return-to-now for today's clock")
     }
 
+    func testMatrixAxisStartsAtFirstHalfHourAndMarksOnlyFullHours() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let stage = TimetableMatrixLayout.Stage(id: UUID(), name: "Main", performances: [
+            .init(id: UUID(), artistName: "Opener", startsAt: date(2026, 11, 7, 13, 40), endsAt: date(2026, 11, 7, 14, 10), isInterested: false)
+        ])
+        let layout = TimetableMatrixLayout(stages: [stage], now: .distantPast, calendar: calendar)
+        XCTAssertEqual(layout.start, date(2026, 11, 7, 13, 30))
+        XCTAssertEqual(layout.hours.map(\.date), [date(2026, 11, 7, 14, 0)])
+    }
+
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
         var components = DateComponents()
         components.year = year

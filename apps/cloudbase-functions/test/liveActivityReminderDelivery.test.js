@@ -69,7 +69,7 @@ test('mixed expired and upcoming events announce only the upcoming set', async (
   const upcoming = { ...event('upcoming', 56), artistName: '下一场艺人', stageName: '新舞台' };
   await h.upload([step(41, [expired, upcoming])], 1, 'zh-Hans');
   await h.deliver(41);
-  assert.equal(h.payloads[0].aps.alert.title, '下一场艺人快开始了');
+  assert.equal(h.payloads[0].aps.alert.title, '下一场艺人 快开始了');
   assert.equal(h.payloads[0].aps.alert.body, '01:56 开演 · 新舞台');
   assert.deepEqual(h.record().deliveredReminderKeys, [`upcoming:${instant(56).getTime()}`]);
 });
@@ -88,8 +88,8 @@ test('expired reminders and failed deliveries do not become successful reminder 
 
 for (const [language, title, body] of [
   ['en', 'The Chairs is starting soon', 'Starts at 01:55 · Wind Stage'],
-  ['zh-Hans', 'The Chairs快开始了', '01:55 开演 · Wind Stage'],
-  ['zh-Hant', 'The Chairs快開始了', '01:55 開演 · Wind Stage']
+  ['zh-Hans', 'The Chairs 快开始了', '01:55 开演 · Wind Stage'],
+  ['zh-Hant', 'The Chairs 快開始了', '01:55 開演 · Wind Stage']
 ]) {
   test(`cloud alert uses ${language} and absolute event-local opening time`, async () => {
     const h = harness();

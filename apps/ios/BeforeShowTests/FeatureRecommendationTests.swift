@@ -153,7 +153,7 @@ final class FeatureRecommendationTests: XCTestCase {
         XCTAssertEqual(morning.destination, .timetable)
     }
 
-    func testPreparationReminderIsChosenOnceFromCreationTime() throws {
+    func testPreparationReminderUsesOnlyApplicableFeaturesFromCreationTime() throws {
         let scheduler = LocalNotificationScheduler(calendar: calendar)
 
         let early = try makeShow(day: 30)
@@ -174,7 +174,7 @@ final class FeatureRecommendationTests: XCTestCase {
             now: makeDate(month: 6, day: 24, hour: 10)
         ).map(\.milestone)
         XCTAssertFalse(midMilestones.contains(.sevenDaysBefore))
-        XCTAssertTrue(midMilestones.contains(.threeDaysBefore))
+        XCTAssertFalse(midMilestones.contains(.threeDaysBefore))
 
         let late = try makeShow(day: 30)
         late.createdAt = makeDate(month: 6, day: 28, hour: 9)
