@@ -11972,22 +11972,6 @@
         }
       }
     },
-    "时刻表排期：%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Timetable: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "時刻表排期：%@"
-          }
-        }
-      }
-    },
     "时刻表数据无效，请重新导入" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12916,22 +12900,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新延期資訊"
-          }
-        }
-      }
-    },
-    "更新现场为时刻表排期 (%@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Update show to timetable schedule (%@)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更新現場為時刻表排期 (%@)"
           }
         }
       }
@@ -15625,22 +15593,6 @@
         }
       }
     },
-    "现场日期与时刻表不一致" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show date doesn't match timetable"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現場日期與時刻表不一致"
-          }
-        }
-      }
-    },
     "现场时长" : {
       "localizations" : {
         "en" : {
@@ -15701,22 +15653,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現場模式 · 第%d天"
-          }
-        }
-      }
-    },
-    "现场演出：%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現場演出：%@"
           }
         }
       }
@@ -21613,6 +21549,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@–次日 %2$@"
+          }
+        }
+      }
+    },
+    "日期不一致" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dates don't match"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日期不一致"
+          }
+        }
+      }
+    },
+    "现场 %1$@ · 时刻表 %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show %1$@ · Timetable %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現場 %1$@ · 時刻表 %2$@"
+          }
+        }
+      }
+    },
+    "以时刻表为准" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use timetable"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以時刻表為準"
+          }
+        }
+      }
+    },
+    "换场 %d 分" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d min changeover"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "換場 %d 分"
           }
         }
       }

@@ -39,10 +39,12 @@ struct TimetableMatrixLayout: Equatable {
         let isInterested: Bool
     }
 
-    struct Gap: Equatable {
+    /// The break between two consecutive sets on one stage, spanning the visible space between their cards.
+    struct Changeover: Equatable {
         let laneIndex: Int
         let top: CGFloat
         let height: CGFloat
+        let minutes: Int
     }
 
     struct HourMark: Equatable {
@@ -56,14 +58,13 @@ struct TimetableMatrixLayout: Equatable {
     static let bottomInset: CGFloat = 130
     static let cardSpacing: CGFloat = 3
     static let soonWindow: TimeInterval = 30 * 60
-    static let changeoverThreshold: TimeInterval = 30 * 60
 
     let start: Date
     let end: Date
     /// Vertical scale; the share image uses a tighter one than the app.
     let pointsPerMinute: CGFloat
     let cards: [Card]
-    let gaps: [Gap]
+    let changeovers: [Changeover]
     let hours: [HourMark]
     let activity: [Activity]
     let soonMinutes: [Int?]
@@ -87,7 +88,11 @@ struct TimetableMatrixLayout: Equatable {
     init(stages: [Stage], now: Date, calendar: Calendar, pointsPerMinute: CGFloat = Self.pointsPerMinute, emptyDayStart: Date? = nil) {
         let all = stages.flatMap(\.performances)
         let earliest = all.map(\.startsAt).min() ?? emptyDayStart ?? now
-        let start = calendar.dateInterval(of: .hour, for: earliest)?.start ?? earliest
+        // The axis opens on the half hour before the first set rather than the full hour,
+        // so a 13:30 opener does not sit under half an hour of empty stage.
+        let hourStart = calendar.dateInterval(of: .hour, for: earliest)?.start ?? earliest
+        let halfHour = hourStart.addingTimeInterval(1800)
+        let start = halfHour <= earliest ? halfHour : hourStart
         let end = all.map(\.endsAt).max() ?? start.addingTimeInterval(all.isEmpty && emptyDayStart != nil ? 8 * 3600 : 3600)
         self.start = start
         self.end = end
@@ -103,7 +108,7 @@ struct TimetableMatrixLayout: Equatable {
         }
 
         var cards: [Card] = []
-        var gaps: [Gap] = []
+        var changeovers: [Changeover] = []
         var activity: [Activity] = []
         var soonMinutes: [Int?] = []
         for (lane, stage) in stages.enumerated() {
@@ -117,8 +122,12 @@ struct TimetableMatrixLayout: Equatable {
                     status: status(p), isInterested: p.isInterested
                 ))
             }
-            for (a, b) in zip(ordered, ordered.dropFirst()) where b.startsAt.timeIntervalSince(a.endsAt) >= Self.changeoverThreshold {
-                gaps.append(Gap(laneIndex: lane, top: y(a.endsAt), height: y(b.startsAt) - y(a.endsAt) - Self.cardSpacing))
+            for (a, b) in zip(ordered, ordered.dropFirst()) where b.startsAt > a.endsAt {
+                let top = y(a.endsAt) - Self.cardSpacing
+                changeovers.append(Changeover(
+                    laneIndex: lane, top: top, height: y(b.startsAt) - top,
+                    minutes: Int((b.startsAt.timeIntervalSince(a.endsAt) / 60).rounded())
+                ))
             }
             let states = ordered.map(status)
             activity.append(states.contains(.live) ? .live : states.contains { if case .soon = $0 { return true }; return false } ? .soon : .idle)
@@ -129,14 +138,14 @@ struct TimetableMatrixLayout: Equatable {
         }
 
         var hours: [HourMark] = []
-        var mark = start
+        var mark = hourStart < start ? hourStart.addingTimeInterval(3600) : start
         while mark <= end {
             hours.append(HourMark(y: y(mark), date: mark, isMidnight: mark > start && calendar.component(.hour, from: mark) == 0))
             mark = mark.addingTimeInterval(3600)
         }
 
         self.cards = cards
-        self.gaps = gaps
+        self.changeovers = changeovers
         self.hours = hours
         self.activity = activity
         self.soonMinutes = soonMinutes

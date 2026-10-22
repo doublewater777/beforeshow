@@ -28,8 +28,12 @@ enum TimetableStyle {
     static let matrixMinimumLaneWidth: CGFloat = 112
     static let matrixAddStageWidth: CGFloat = 72
     static let matrixRenderBuffer: CGFloat = 180
+    /// One stage leaves the whole width to a single column of row cards, so time can run tighter.
+    static let matrixSingleStagePointsPerMinute: CGFloat = 1.7
     enum MatrixCard {
         static let narrowWidth: CGFloat = 155
+        /// Lanes at least this wide lay a set out as one row: avatar, name and time, then actions.
+        static let rowLayoutWidth: CGFloat = 240
         static let avatarSize: CGFloat = 34
         static let compactAvatarSize: CGFloat = 26
         static let controlSize: CGFloat = 32
@@ -40,6 +44,7 @@ enum TimetableStyle {
         static let topPadding: CGFloat = 14
         static let bottomPadding: CGFloat = 8
         static let actionSpacing: CGFloat = 8
+        static let rowSpacing: CGFloat = 12
         static let compactActionSpacing: CGFloat = 4
         static let titleSpacing: CGFloat = 10
         static let compactTitleSpacing: CGFloat = 3

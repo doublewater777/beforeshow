@@ -6,6 +6,7 @@ struct TimetableMatrixHeadersView: View {
     let lane: CGFloat
     let layout: TimetableMatrixLayout
     let viewport: TimetableMatrixViewport
+    let showsAddStage: Bool
     let onAddPerformance: (TimetableStage, Date?) -> Void
     let onRenameStage: (TimetableStage, String) -> Void
     let onManage: () -> Void
@@ -40,22 +41,24 @@ struct TimetableMatrixHeadersView: View {
             }
 
             // "+ 舞台" top button
-            Button(action: onManage) {
-                HStack(spacing: 4) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
-                    Text(BSLocalization.text("舞台"))
-                        .font(.system(size: 12, weight: .bold))
+            if showsAddStage {
+                Button(action: onManage) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                        Text(BSLocalization.text("舞台"))
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(TimetableStyle.muted)
+                    .frame(width: Self.addStageWidth, height: Self.capHeight - 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.06))
+                    )
                 }
-                .foregroundStyle(TimetableStyle.muted)
-                .frame(width: Self.addStageWidth, height: Self.capHeight - 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.06))
-                )
+                .buttonStyle(.plain)
+                .offset(x: laneX(stages.count, lane: lane), y: 4)
             }
-            .buttonStyle(.plain)
-            .offset(x: laneX(stages.count, lane: lane), y: 4)
 
             // Pinned corner cover above ruler column
             TimetableMatrixCornerCover(viewport: viewport, progress: progress)

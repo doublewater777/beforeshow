@@ -37,6 +37,10 @@ struct TimetableMatrixCard: View, Equatable {
         card.status == .ended
     }
 
+    private var usesRowLayout: Bool {
+        width >= TimetableStyle.MatrixCard.rowLayoutWidth
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Main card button (opens inspector)
@@ -63,7 +67,7 @@ struct TimetableMatrixCard: View, Equatable {
             // Content with integrated controls
             if !isGhost {
                 content
-                    .frame(width: width, height: card.height, alignment: .topLeading)
+                    .frame(width: width, height: card.height, alignment: usesRowLayout ? .leading : .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .opacity(isEnded ? 0.6 : 1)
             }
@@ -165,7 +169,56 @@ struct TimetableMatrixCard: View, Equatable {
         width < TimetableStyle.MatrixCard.narrowWidth ? TimetableStyle.MatrixCard.narrowHorizontalPadding : TimetableStyle.MatrixCard.horizontalPadding
     }
 
+    @ViewBuilder
     private var content: some View {
+        if usesRowLayout {
+            rowContent
+        } else {
+            columnContent
+        }
+    }
+
+    /// Wide lanes read left to right, vertically centred: shorter sets drop the second
+    /// title line, then the avatar and the stacked time.
+    private var rowContent: some View {
+        ViewThatFits(in: .vertical) {
+            row(avatarSize: TimetableStyle.MatrixCard.avatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 2, stacked: true)
+            row(avatarSize: TimetableStyle.MatrixCard.avatarSize, controlSize: TimetableStyle.MatrixCard.controlSize, titleLines: 1, stacked: true)
+            row(avatarSize: nil, controlSize: TimetableStyle.MatrixCard.compactControlSize, titleLines: 1, stacked: false)
+        }
+    }
+
+    private func row(avatarSize: CGFloat?, controlSize: CGFloat, titleLines: Int, stacked: Bool) -> some View {
+        HStack(spacing: TimetableStyle.MatrixCard.rowSpacing) {
+            if let avatarSize {
+                TimetableArtistAvatar(name: card.artistName, url: avatarURL, size: avatarSize)
+                    .allowsHitTesting(false)
+            }
+            Group {
+                if stacked {
+                    VStack(alignment: .leading, spacing: TimetableStyle.MatrixCard.metaSpacing) {
+                        name(compact: false, lines: titleLines)
+                        meta
+                    }
+                } else {
+                    HStack(spacing: TimetableStyle.MatrixCard.actionSpacing) {
+                        name(compact: true, lines: 1)
+                        meta
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: TimetableStyle.MatrixCard.actionSpacing) {
+                playPreviewButton(size: controlSize)
+                heartButton(size: controlSize)
+            }
+        }
+        .padding(.horizontal, TimetableStyle.MatrixCard.horizontalPadding)
+        .padding(.vertical, stacked ? TimetableStyle.MatrixCard.bottomPadding : TimetableStyle.MatrixCard.compactPadding / 2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var columnContent: some View {
         ViewThatFits(in: .vertical) {
             cardContent(compact: false, titleLines: 2)
             cardContent(compact: true, titleLines: 2)
@@ -243,7 +296,7 @@ struct TimetableMatrixCard: View, Equatable {
     private func heartButton(size: CGFloat) -> some View {
         Button(action: onToggle) {
             heartIcon
-                .frame(width: size, height: size, alignment: .trailing)
+                .frame(width: size, height: size, alignment: usesRowLayout ? .center : .trailing)
                 .timetableHitTarget(visualSize: size, minimum: max(36.0, size + 10))
         }
         .buttonStyle(TimetableHeartButtonStyle())

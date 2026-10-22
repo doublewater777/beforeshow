@@ -73,6 +73,11 @@ struct TimetableStageMatrixView: View {
 
     var body: some View {
         let stages = day.orderedStages
+        let isSingleStage = stages.count == 1
+        // A lone stage with the placeholder name says nothing its header could add.
+        let showsHeaders = !(isSingleStage && stages[0].name == BSLocalization.format("舞台 %d", 1))
+        let capHeight = showsHeaders ? Self.capHeight : 0
+        let addStageWidth = isSingleStage ? 0 : Self.addStageWidth
         let performances = Dictionary(uniqueKeysWithValues: stages.flatMap(\.performances).map { ($0.id, $0) })
         let layout = TimetableMatrixLayout(
             stages: stages.map { stage in
@@ -82,28 +87,31 @@ struct TimetableStageMatrixView: View {
             },
             now: now,
             calendar: calendar,
+            pointsPerMinute: isSingleStage ? TimetableStyle.matrixSingleStagePointsPerMinute : TimetableMatrixLayout.pointsPerMinute,
             emptyDayStart: calendar.date(bySettingHour: 14, minute: 0, second: 0, of: day.date)
         )
 
         GeometryReader { geo in
             let count = CGFloat(max(stages.count, 1))
             let lane = max(Self.minLane, (geo.size.width - Self.ruler - Self.trailing - Self.laneGap * (count - 1)) / count)
-            let width = Self.ruler + lane * count + Self.laneGap * (count - 1) + Self.addStageWidth + Self.trailing
-            let gridHeight = max(100, geo.size.height - Self.capHeight)
+            let width = Self.ruler + lane * count + Self.laneGap * (count - 1) + addStageWidth + Self.trailing
+            let gridHeight = max(100, geo.size.height - capHeight)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     // 1. Sticky Stage Headers Row (横向随列联动，纵向永远吸顶)
-                    TimetableMatrixHeadersView(
-                        stages: stages, lane: lane, layout: layout, viewport: viewport,
-                        onAddPerformance: onAddPerformance, onRenameStage: onRenameStage, onManage: onManage
-                    )
-                        .frame(width: width, height: Self.capHeight, alignment: .leading)
-                        .zIndex(10)
+                    if showsHeaders {
+                        TimetableMatrixHeadersView(
+                            stages: stages, lane: lane, layout: layout, viewport: viewport, showsAddStage: !isSingleStage,
+                            onAddPerformance: onAddPerformance, onRenameStage: onRenameStage, onManage: onManage
+                        )
+                            .frame(width: width, height: Self.capHeight, alignment: .leading)
+                            .zIndex(10)
+                    }
 
                     // 2. Vertical Timeline Grid
                     ScrollView(.vertical, showsIndicators: false) {
-                        timelineGrid(layout: layout, lane: lane, performances: performances, stages: stages)
+                        timelineGrid(layout: layout, lane: lane, performances: performances, stages: stages, capsLanes: showsHeaders)
                             .frame(width: width, height: layout.contentHeight, alignment: .topLeading)
                             .background(BSScrollObservation(enclosing: true, controller: position) { offset in
                                 viewport.updateVerticalOffset(offset.y)
@@ -129,7 +137,7 @@ struct TimetableStageMatrixView: View {
             }
             // The sheet reports a tiny height while presenting; wait for the real one.
             .onChange(of: [day.id.hashValue, Int(geo.size.height)], initial: true) {
-                let minimumHeight = verticalSizeClass == .compact ? Self.capHeight + BSLayout.minTouchTarget : 300
+                let minimumHeight = verticalSizeClass == .compact ? capHeight + BSLayout.minTouchTarget : 300
                 guard geo.size.height > minimumHeight, scrolledDayID != day.id else { return }
                 scrolledDayID = day.id
                 scrollToNow(layout, viewport: gridHeight)
@@ -153,9 +161,17 @@ struct TimetableStageMatrixView: View {
         layout: TimetableMatrixLayout,
         lane: CGFloat,
         performances: [UUID: TimetablePerformance],
-        stages: [TimetableStage]
+        stages: [TimetableStage],
+        capsLanes: Bool
     ) -> some View {
         let laneCount = stages.count
+        // Without a header cap the lane rounds its own top corners.
+        let laneShape = UnevenRoundedRectangle(
+            topLeadingRadius: capsLanes ? 0 : TimetableStyle.matrixLaneRadius,
+            bottomLeadingRadius: TimetableStyle.matrixLaneRadius,
+            bottomTrailingRadius: TimetableStyle.matrixLaneRadius,
+            topTrailingRadius: capsLanes ? 0 : TimetableStyle.matrixLaneRadius
+        )
         let laneHeight = max(layout.laneHeight, layout.contentHeight - 24)
         return ZStack(alignment: .topLeading) {
             // 1. Pinned Time Ruler on the left (fixed horizontally, scrolls vertically with timeline)
@@ -173,20 +189,14 @@ struct TimetableStageMatrixView: View {
                 let tint = TimetableStageLight.color(stage.sortOrder)
                 let activity = layout.activity.indices.contains(index) ? layout.activity[index] : .idle
 
-                UnevenRoundedRectangle(
-                    bottomLeadingRadius: TimetableStyle.matrixLaneRadius,
-                    bottomTrailingRadius: TimetableStyle.matrixLaneRadius
-                )
+                laneShape
                     .fill(TimetableStyle.lane)
                     .overlay(alignment: .top) {
                         TimetableStageBeam(color: tint, activity: activity, index: index)
                             .allowsHitTesting(false)
                     }
                     .frame(width: lane, height: laneHeight)
-                    .clipShape(UnevenRoundedRectangle(
-                        bottomLeadingRadius: TimetableStyle.matrixLaneRadius,
-                        bottomTrailingRadius: TimetableStyle.matrixLaneRadius
-                    ))
+                    .clipShape(laneShape)
                     .contentShape(Rectangle())
                     .onTapGesture { location in
                         guard !wantOnly else { return }
@@ -220,6 +230,9 @@ struct TimetableStageMatrixView: View {
             // 3. Timeline Auxiliary Guide Lines across all stage lanes (正点虚线，严格置于现场块底层)
             timelineGuideLines(layout: layout, laneCount: laneCount, lane: lane)
                 .zIndex(-1)
+
+            changeoverLabels(layout: layout, lane: lane)
+                .zIndex(0.9)
 
             // 4. Performance Cards (现场块)
             TimetableMatrixCardsView(
@@ -275,6 +288,19 @@ struct TimetableStageMatrixView: View {
         }
         .buttonStyle(TimetablePressStyle())
         .transition(.opacity.combined(with: .scale(scale: 0.96)))
+    }
+
+    /// Changeover time sits in the space between two sets on the same stage.
+    private func changeoverLabels(layout: TimetableMatrixLayout, lane: CGFloat) -> some View {
+        ForEach(layout.changeovers.filter { $0.minutes < 60 && $0.height >= 14 }, id: \.top) { changeover in
+            Text(BSLocalization.format("换场 %d 分", changeover.minutes))
+                .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                .foregroundStyle(TimetableStyle.dim)
+                .lineLimit(1)
+                .frame(width: lane, height: changeover.height)
+                .offset(x: laneX(changeover.laneIndex, lane: lane), y: changeover.top)
+                .allowsHitTesting(false)
+        }
     }
 
     // MARK: - Timeline Guide Lines

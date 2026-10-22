@@ -13,79 +13,27 @@ struct TimetableDateConfirmationNotice: View {
         TimeZone(identifier: timetable.timeZoneIdentifier) ?? .current
     }
 
-    private func formatDate(_ date: Date) -> String {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = timeZone
-        let parts = cal.dateComponents([.month, .day], from: date)
-        return BSLocalization.format("%d月%d日", parts.month ?? 1, parts.day ?? 1)
+    private func shortDate(_ date: Date) -> String {
+        date.formatted(Date.FormatStyle(timeZone: timeZone).month(.defaultDigits).day())
     }
 
     private var timetableDateText: String {
         guard let first = timetable.orderedDays.first else { return "" }
         if timetable.orderedDays.count > 1, let last = timetable.orderedDays.last {
-            return "\(formatDate(first.date)) ~ \(formatDate(last.date))"
+            return "\(shortDate(first.date))–\(shortDate(last.date))"
         }
-        return formatDate(first.date)
+        return shortDate(first.date)
     }
 
     var body: some View {
         Group {
             if !timetable.matchesDates(of: show) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "calendar.badge.exclamationmark")
-                            .font(.system(size: 18))
-                            .foregroundStyle(TimetableStyle.attention)
-                            .padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(BSLocalization.text("现场日期与时刻表不一致"))
-                                .font(BSFont.body.weight(.semibold))
-                                .foregroundStyle(TimetableStyle.foreground)
-                            HStack(spacing: 12) {
-                                Text(BSLocalization.format("现场演出：%@", formatDate(show.effectiveDate)))
-                                Text(BSLocalization.format("时刻表排期：%@", timetableDateText))
-                            }
-                            .font(BSFont.caption)
-                            .foregroundStyle(TimetableStyle.muted)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Button(action: syncShowToTimetable) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "calendar.badge.checkmark")
-                                Text(BSLocalization.format("更新现场为时刻表排期 (%@)", timetableDateText))
-                            }
-                            .font(BSFont.caption.weight(.semibold))
-                            .foregroundStyle(TimetableStyle.background)
-                            .padding(.horizontal, 14)
-                            .frame(height: 36)
-                            .background(Capsule().fill(TimetableStyle.mine))
-                        }
-                        .buttonStyle(.plain)
-
-                        HStack(spacing: 12) {
-                            Button(action: syncTimetableToShow) {
-                                Text(BSLocalization.format("平移时刻表至 %@", formatDate(show.effectiveDate)))
-                                    .font(BSFont.caption)
-                                    .foregroundStyle(TimetableStyle.muted)
-                            }
-                            .buttonStyle(.plain)
-
-                            if let onManage {
-                                Text("·")
-                                    .font(BSFont.caption)
-                                    .foregroundStyle(TimetableStyle.muted)
-
-                                Button(action: onManage) {
-                                    Text(BSLocalization.text("手动调整天数…"))
-                                        .font(BSFont.caption)
-                                        .foregroundStyle(TimetableStyle.muted)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.top, 2)
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    HStack(spacing: 10) {
+                        summary
+                        Spacer(minLength: 4)
+                        actions
+                            .layoutPriority(1)
                     }
 
                     if let errorMessage {
@@ -94,7 +42,8 @@ struct TimetableDateConfirmationNotice: View {
                             .foregroundStyle(TimetableStyle.attention)
                     }
                 }
-                .padding(BSSpacing.md)
+                .padding(.horizontal, BSSpacing.md)
+                .padding(.vertical, BSSpacing.sm)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(TimetableStyle.card)
@@ -112,6 +61,56 @@ struct TimetableDateConfirmationNotice: View {
                 confirm()
             }
         }
+    }
+
+    private var summary: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "calendar.badge.exclamationmark")
+                .font(.system(size: 18))
+                .foregroundStyle(TimetableStyle.attention)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(BSLocalization.text("日期不一致"))
+                    .font(BSFont.body.weight(.semibold))
+                    .foregroundStyle(TimetableStyle.foreground)
+                Text(BSLocalization.format("现场 %1$@ · 时刻表 %2$@", shortDate(show.effectiveDate), timetableDateText))
+                    .font(BSFont.caption)
+                    .foregroundStyle(TimetableStyle.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 6) {
+            Button(action: syncShowToTimetable) {
+                Text(BSLocalization.text("以时刻表为准"))
+                    .font(BSFont.caption.weight(.semibold))
+                    .foregroundStyle(TimetableStyle.background)
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+                    .background(Capsule().fill(TimetableStyle.foreground))
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                Button(action: syncTimetableToShow) {
+                    Label(BSLocalization.format("平移时刻表至 %@", shortDate(show.effectiveDate)), systemImage: "arrow.left.and.right")
+                }
+                if let onManage {
+                    Button(action: onManage) {
+                        Label(BSLocalization.text("手动调整天数…"), systemImage: "slider.horizontal.3")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(TimetableStyle.muted)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
+            }
+        }
+        .fixedSize()
     }
 
     private func confirm() {
