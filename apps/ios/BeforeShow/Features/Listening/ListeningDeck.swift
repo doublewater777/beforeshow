@@ -386,6 +386,7 @@ final class ListeningDeck {
         }
         switch command {
         case .play where change.phase.isActive,
+             .play where commandTask == nil && lastTransport?.phase == .interrupted && change.phase == .paused,
              .pause where !change.phase.isActive && change.phase != .interrupted:
             command = nil
         default:

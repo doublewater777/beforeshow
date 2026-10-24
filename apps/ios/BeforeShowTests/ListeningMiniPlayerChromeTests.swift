@@ -6,6 +6,14 @@ import XCTest
 @MainActor
 final class ListeningMiniPlayerChromeTests: XCTestCase {
     func testInterruptedMiniPlayerRequestsPlayOnFirstTapAndKeepsActualPhaseUntilConfirmed() async throws {
+        try await checkInterruptedPlay(endingPhase: .playing)
+    }
+
+    func testInterruptedPlayEndingPausedAfterAcknowledgementTimeoutShowsPlayAndStopsDisc() async throws {
+        try await checkInterruptedPlay(endingPhase: .paused)
+    }
+
+    private func checkInterruptedPlay(endingPhase: ListeningPlaybackTransportPhase) async throws {
         resetChromeGlobals()
         defer { resetChromeGlobals() }
 
@@ -33,9 +41,17 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         defer { room.stop(); room.mechanism.motion.stop() }
         room.perform(.playPause)
         try await waitUntil { room.isPlaying }
+        await room.deck.settle()
+        var didObserveInterruption = false
+        let onTransportChange = room.deck.onTransportChange
+        room.deck.onTransportChange = { [weak room] in
+            onTransportChange()
+            if room?.deck.phase == .interrupted { didObserveInterruption = true }
+        }
         playback.currentTime = 21
         playback.phase = .interrupted
-        try await waitUntil { room.display.player.phase == .interrupted }
+        try await waitUntil { didObserveInterruption }
+        room.deck.onTransportChange = onTransportChange
         XCTAssertFalse(room.display.player.showsPauseControl)
         XCTAssertFalse(room.display.player.shouldRotateDisc)
         let playCount = playback.playCount
@@ -53,10 +69,17 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertFalse(room.display.player.showsPauseControl)
         XCTAssertFalse(room.display.player.shouldRotateDisc)
 
-        playback.phase = .playing
-        try await waitUntil { room.display.player.phase == .playing }
-        XCTAssertTrue(room.display.player.showsPauseControl)
-        XCTAssertTrue(room.display.player.shouldRotateDisc)
+        if endingPhase == .paused {
+            try await Task.sleep(for: .milliseconds(2_200))
+            XCTAssertEqual(playback.phase, .interrupted)
+            XCTAssertEqual(room.deck.command, .play)
+            XCTAssertEqual(playback.pauseCount, pauseCount)
+        }
+        playback.phase = endingPhase
+        let expectedPhase: ListeningPlayerPhase = endingPhase == .playing ? .playing : .paused
+        try await waitUntil { room.display.player.phase == expectedPhase }
+        XCTAssertEqual(room.display.player.showsPauseControl, endingPhase == .playing)
+        XCTAssertEqual(room.display.player.shouldRotateDisc, endingPhase == .playing)
     }
 
     func testColdStartHydratesCachedCoordinatorBeforeCompactPlaybackAndListenAdoptsIt() async throws {
