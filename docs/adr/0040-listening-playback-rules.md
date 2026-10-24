@@ -6,7 +6,7 @@
 
 | 场景 | 规则 | 归属 |
 | --- | --- | --- |
-| 中断（来电、Siri、闹钟、其他 App） | 开始即暂停并显示中断；结束时仅当系统给出 `shouldResume` 且用户期间没有暂停才续播。用户在中断中按暂停优先于系统续播。`appWasSuspended` 不是中断，忽略 | 两个音源都由服务自己续播：`MusicKitListeningPlaybackService`、`PreviewListeningPlaybackService`，共用 `ListeningPlaybackIntent` |
+| 中断（来电、Siri、闹钟、其他 App） | 开始即暂停并显示中断；结束时仅当系统给出 `shouldResume` 且用户期间没有暂停才续播。用户在中断中按暂停优先于系统续播。`appWasSuspended` 不是中断，忽略 | 完整播放：系统。试听：`PreviewListeningPlaybackService` |
 | 后台与锁屏 | 播放继续，暂停保持；切 Tab、进后台都不改变传输状态，回到前台重读播放器 | 系统 + `audio` 后台模式；Deck `resynchronize()` |
 | 耳机或蓝牙断开 | 立即暂停；重新连接不自动播放，也不被未完成的中断续播唤醒 | 完整播放：系统。试听：服务 |
 | 锁屏与控制中心 | 与 App 内按键同语义；显示曲名、艺人、唱片名与封面；试听在首尾曲时禁用上一首或下一首 | 完整播放：系统。试听：`MPNowPlayingSession` |
@@ -39,13 +39,11 @@
 
 这一层只表达用户意图，不复制播放器状态；传输状态始终读自播放器。
 
-## 播放按钮
+## 中断时的播放控制
 
-按钮只读播放器是否真的在发声：`.playing`（以及缓冲中的 `.waiting`、`.seeking`）显示暂停，其余状态一律显示播放，包括 `.interrupted`。Apple 的 MusicKit 示例同样是 `state.playbackStatus == .playing`。中断不等于用户暂停，但也不能让界面假装还在播放；用户点一次就应直接尝试恢复。
+`.interrupted` 保留为原生中断状态，唱片停止旋转，按钮提供播放操作。用户点击一次就请求 `play()`；请求尚未被播放器确认时仍显示中断，不投影为缓冲或播放。
 
-## 自动续播的归属
-
-`shouldResume` 只是系统建议，不是指令，播放器也不会自己执行它。`ApplicationMusicPlayer` 与 `AVPlayer` 一样，进入暂停后必须由 App 再调一次 `play()`。所以"全曲交给系统"只对 `SystemMusicPlayer` 成立；`ApplicationMusicPlayer` 必须自己监听中断结束并决定是否续播，这正是之前全曲播放不会自动恢复的原因。
+准备、缓冲、快进中的暂停操作保留现有命令反馈。完整播放暂由 MusicKit 处理自动续播；Apple 文档只说中断后「可能自动恢复」，没有保证一定会或一定不会。新增全曲主动续播策略前，先用真机确认缺失行为；不通过延时猜测暂停来源，也不因回到前台而强制播放。
 
 ## 迁移
 
@@ -53,4 +51,4 @@ iOS 27 SDK 将 `AVAudioSession.interruptionNotification` 的 type、option、rea
 
 ## 验证
 
-`ListeningDeckTests`（切歌、放完、结束会话）、`ListeningMusicContractsTests`（`ListeningPlaybackIntent`：续播需要用户意图与系统建议同时成立，中断中的 `.paused` 不算用户暂停）、`PreviewListeningPlaybackServiceTests`（中断、耳机、挂起恢复、发声权、超出片段的恢复位置、首尾曲）、`AppAudioSessionTests`（租约与发声权）、`ListeningPhase678Tests`（失去完整播放能力）覆盖上表。完整播放的切歌、`queue.currentEntry` 跳转与中断续播需在真机上验证，模拟器不能播放 Apple Music 曲目。
+`ListeningDeckTests`（切歌、放完、结束会话）、`PreviewListeningPlaybackServiceTests`（中断、耳机、挂起恢复、发声权、超出片段的恢复位置、首尾曲）、`AppAudioSessionTests`（租约与发声权）、`ListeningPhase678Tests`（失去完整播放能力）覆盖上表。完整播放的切歌与 `queue.currentEntry` 跳转需在真机上验证，模拟器不能播放 Apple Music 曲目。

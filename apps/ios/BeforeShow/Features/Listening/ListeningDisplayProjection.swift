@@ -602,9 +602,9 @@ enum ListeningDisplayProjector {
             phase: transport.phase,
             source: transport.source,
             previewRemaining: previewRemaining(from: transport),
-            // Reads back on the tap even while loading. Interrupted playback is
-            // not playing, so it offers Play and one tap resumes, as Apple's
-            // MusicKit sample does.
+            // Pending commands give immediate feedback while preparing or buffering.
+            // Interrupted playback offers Play; automatic resumption is not guaranteed.
+            // Preserve the interrupted phase for the control and disc animation.
             playPauseAction: transport.phase.isPlaybackActive ? .pause : .play,
             blockingReason: lidReason,
             recoveryAction: nil,

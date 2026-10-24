@@ -5,6 +5,60 @@ import XCTest
 
 @MainActor
 final class ListeningMiniPlayerChromeTests: XCTestCase {
+    func testInterruptedMiniPlayerRequestsPlayOnFirstTapAndKeepsActualPhaseUntilConfirmed() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Interrupted playback", date: now, startTime: now)
+        context.insert(show)
+        let song = CatalogSong(
+            appleMusicSongID: "interrupted-song", title: "Song", artistName: "Artist", duration: 180
+        )
+        let disc = ListeningDisc(
+            id: "interrupted-disc", title: "Disc", artworkURL: nil, tracks: [ListeningDiscTrack(song)]
+        )
+        context.insert(ListeningLoadedDiscState(
+            discData: try JSONEncoder().encode(disc), songID: song.appleMusicSongID
+        ))
+        try context.save()
+        let playback = ListeningTestPlayer()
+        let prepared = await ListeningChromeBootstrapper.prepare(
+            show: show, context: context, catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in playback }
+        )
+        let room = try XCTUnwrap(prepared)
+        defer { room.stop(); room.mechanism.motion.stop() }
+        room.perform(.playPause)
+        try await waitUntil { room.isPlaying }
+        playback.currentTime = 21
+        playback.phase = .interrupted
+        try await waitUntil { room.display.player.phase == .interrupted }
+        XCTAssertFalse(room.display.player.showsPauseControl)
+        XCTAssertFalse(room.display.player.shouldRotateDisc)
+        let playCount = playback.playCount
+        let pauseCount = playback.pauseCount
+        playback.acknowledgesCommands = false
+
+        room.perform(.playPause)
+        await room.deck.settle()
+
+        XCTAssertEqual(playback.playCount, playCount + 1)
+        XCTAssertEqual(playback.pauseCount, pauseCount)
+        XCTAssertEqual(playback.loadCount, 1)
+        XCTAssertEqual(playback.currentTime, 21)
+        XCTAssertEqual(room.display.player.phase, .interrupted)
+        XCTAssertFalse(room.display.player.showsPauseControl)
+        XCTAssertFalse(room.display.player.shouldRotateDisc)
+
+        playback.phase = .playing
+        try await waitUntil { room.display.player.phase == .playing }
+        XCTAssertTrue(room.display.player.showsPauseControl)
+        XCTAssertTrue(room.display.player.shouldRotateDisc)
+    }
+
     func testColdStartHydratesCachedCoordinatorBeforeCompactPlaybackAndListenAdoptsIt() async throws {
         resetChromeGlobals()
         defer { resetChromeGlobals() }

@@ -219,6 +219,7 @@ final class ListeningDeckTests: XCTestCase {
     func testPlayRequestedDuringInterruptionReadsAsInterruptedNotPlaying() async throws {
         let factory = PlayerFactory()
         let deck = ListeningDeck(makeEngine: factory.make)
+        defer { deck.eject() }
         deck.load([album("a", songs: ["a1"])], cursor: "a1")
         deck.play(source: .fullCatalog)
         try await waitUntil { deck.isPlaying }

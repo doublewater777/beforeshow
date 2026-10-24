@@ -1,16 +1,11 @@
 import Foundation
 import Combine
 import Observation
-import AVFoundation
 @preconcurrency import MusicKit
 
 /// Full-catalog playback on `ApplicationMusicPlayer`, the way Apple's MusicKit
 /// samples drive it: one shared player, one queue per loaded disc, state read
 /// straight from the player. Lock Screen and Control Center belong to the system.
-///
-/// MusicKit reports `.interrupted` but never resumes by itself, so this
-/// service keeps the user's play intent across the interruption and asks the
-/// player to resume only when the system recommends it.
 @MainActor
 @Observable
 final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
@@ -20,17 +15,12 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     private var durationBySongID: [String: TimeInterval] = [:]
     private(set) var queuedSongIDs: [String] = []
     private var playerRevision = 0
-    private var playbackIntent = ListeningPlaybackIntent()
     @ObservationIgnored private var playerObservers: [AnyCancellable] = []
-    @ObservationIgnored private var audioObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var focusObserver: NSObjectProtocol?
-    @ObservationIgnored private var resumeTask: Task<Void, Never>?
-    @ObservationIgnored private var pauseConfirmationTask: Task<Void, Never>?
 
     init(player: ApplicationMusicPlayer = .shared) {
         self.player = player
         observePlayer()
-        observeAudioSession()
         focusObserver = AppAudioSession.observeFocusLoss(of: .listening) { [weak self] in
             self?.pause()
         }
@@ -39,38 +29,12 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     private func observePlayer() {
         playerObservers = [player.state.objectWillChange, player.queue.objectWillChange].map { changes in
             changes.sink { [weak self] _ in
-                Task { @MainActor in
-                    guard let self else { return }
-                    self.trackPlaybackIntent()
-                    self.playerRevision &+= 1
-                }
+                Task { @MainActor in self?.playerRevision &+= 1 }
             }
         }
     }
 
-    /// A pause reported by MusicKit may be the system taking the session for
-    /// an interruption, or the user pausing from the Lock Screen. Wait for the
-    /// interruption notification to settle it before clearing the intent.
-    private func trackPlaybackIntent() {
-        let phase = self.phase
-        playbackIntent.playerDidChange(to: phase)
-        guard phase == .paused else {
-            pauseConfirmationTask?.cancel()
-            return
-        }
-        pauseConfirmationTask?.cancel()
-        pauseConfirmationTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard let self, !Task.isCancelled else { return }
-            guard self.phase == .paused else { return }
-            self.playbackIntent.confirmedPause()
-        }
-    }
-
     isolated deinit {
-        resumeTask?.cancel()
-        pauseConfirmationTask?.cancel()
-        for observer in audioObservers { NotificationCenter.default.removeObserver(observer) }
         if let focusObserver { NotificationCenter.default.removeObserver(focusObserver) }
     }
 
@@ -124,11 +88,6 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
 
     func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws {
         guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
-        // Loading a queue is not playback; a stale intent from the previous
-        // session must not resurrect it when an interruption ends.
-        playbackIntent.stopped()
-        resumeTask?.cancel()
-        pauseConfirmationTask?.cancel()
         try await fetchMissingSongs(items.map(\.songID))
         // Songs the catalog no longer returns are skipped instead of failing the disc.
         let playable = items.filter { songsByID[$0.songID] != nil }
@@ -156,8 +115,6 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func play() async throws {
-        playbackIntent.requestedPlay()
-        pauseConfirmationTask?.cancel()
         AppAudioSession.lease(.listening)
         await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
@@ -166,9 +123,6 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func pause() {
-        playbackIntent.requestedPause()
-        resumeTask?.cancel()
-        pauseConfirmationTask?.cancel()
         player.pause()
     }
 
@@ -197,71 +151,9 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func stop() {
-        playbackIntent.stopped()
-        resumeTask?.cancel()
-        pauseConfirmationTask?.cancel()
         player.stop()
         queuedSongIDs = []
         AppAudioSession.release(.listening)
-    }
-
-    /// MusicKit exposes `.interrupted` but, unlike `AVPlayer`, does not resume
-    /// on its own. The app owns the decision, exactly as Apple's interruption
-    /// guidance describes for any player.
-    private func observeAudioSession() {
-        let center = NotificationCenter.default
-        let session = AVAudioSession.sharedInstance()
-        audioObservers.append(center.addObserver(
-            forName: AVAudioSession.interruptionNotification, object: session, queue: .main
-        ) { [weak self] notification in
-            guard let value = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-                  let type = AVAudioSession.InterruptionType(rawValue: value) else { return }
-            let options = AVAudioSession.InterruptionOptions(
-                rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
-            )
-            let routeDisconnected = notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
-                == AVAudioSession.InterruptionReason.routeDisconnected.rawValue
-            MainActor.assumeIsolated {
-                self?.handleInterruption(type, options: options, routeDisconnected: routeDisconnected)
-            }
-        })
-        audioObservers.append(center.addObserver(
-            forName: AVAudioSession.routeChangeNotification, object: session, queue: .main
-        ) { [weak self] notification in
-            guard let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-                  reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else { return }
-            MainActor.assumeIsolated { self?.pause() }
-        })
-    }
-
-    private func handleInterruption(
-        _ type: AVAudioSession.InterruptionType,
-        options: AVAudioSession.InterruptionOptions,
-        routeDisconnected: Bool
-    ) {
-        switch type {
-        case .began:
-            resumeTask?.cancel()
-            playbackIntent.interruptionBegan()
-            // MusicKit already paused the player. Asking it to pause would
-            // erase `.interrupted` and with it the reason to resume later.
-            if routeDisconnected { pause() }
-        case .ended:
-            guard playbackIntent.isInterrupted else { return }
-            playbackIntent.interruptionEnded()
-            guard playbackIntent.shouldResume(
-                systemRecommendsResume: options.contains(.shouldResume)
-            ) else {
-                pause()
-                return
-            }
-            resumeTask = Task { [weak self] in
-                guard let self else { return }
-                try? await self.play()
-            }
-        @unknown default:
-            break
-        }
     }
 
     private var currentEntrySongID: String? {

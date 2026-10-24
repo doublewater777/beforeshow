@@ -14,8 +14,9 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     private let nowPlaying: MPNowPlayingSession
     private var queue: [ListeningPlaybackItem] = []
     private var itemIndexes: [ObjectIdentifier: Int] = [:]
+    private var isInterrupted = false
     // User intent is needed while AVPlayer is paused by an interruption.
-    private var playbackIntent = ListeningPlaybackIntent()
+    private var playbackRequested = false
     private var playerRevision = 0
     @ObservationIgnored private var playerObservers: [NSKeyValueObservation] = []
     @ObservationIgnored private var ownsAudioSession = false
@@ -58,7 +59,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         switch player.timeControlStatus {
         case .playing: return .playing
         case .waitingToPlayAtSpecifiedRate: return .waiting
-        case .paused: return playbackIntent.isInterrupted && playbackIntent.wantsPlayback ? .interrupted : .paused
+        case .paused: return isInterrupted && playbackRequested ? .interrupted : .paused
         @unknown default: return .paused
         }
     }
@@ -100,9 +101,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws {
-        playbackIntent.stopped()
-        resumeTask?.cancel()
-        player.pause()
+        pause()
         let playable = items.filter { $0.previewURL != nil }
         guard !playable.isEmpty else { throw ListeningPlaybackError.emptyQueue }
         queue = playable
@@ -121,22 +120,22 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         guard let item = player.currentItem, item.status != .failed else {
             throw ListeningPlaybackError.emptyQueue
         }
-        playbackIntent.requestedPlay()
+        playbackRequested = true
         ownsAudioSession = true
         AppAudioSession.lease(owner)
         await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
-        guard playbackIntent.wantsPlayback else { return }
+        guard playbackRequested else { return }
         AppAudioSession.claimFocus(owner)
         player.play()
         Task { [weak self] in
-            guard let self, self.playbackIntent.wantsPlayback else { return }
+            guard let self, self.playbackRequested else { return }
             _ = await self.nowPlaying.becomeActiveIfPossible()
         }
     }
 
     func pause() {
-        playbackIntent.requestedPause()
+        playbackRequested = false
         resumeTask?.cancel()
         player.pause()
     }
@@ -163,9 +162,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func stop() {
-        playbackIntent.stopped()
-        resumeTask?.cancel()
-        player.pause()
+        pause()
         player.removeAllItems()
         queue = []
         itemIndexes = [:]
@@ -297,16 +294,13 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         switch type {
         case .began:
             resumeTask?.cancel()
-            playbackIntent.interruptionBegan()
+            isInterrupted = true
             player.pause()
             if routeDisconnected { pause() }
         case .ended:
-            guard playbackIntent.isInterrupted else { return }
-            playbackIntent.interruptionEnded()
-            guard playbackIntent.shouldResume(
-                systemRecommendsResume: options.contains(.shouldResume),
-                canResume: player.currentItem != nil
-            ) else {
+            guard isInterrupted else { return }
+            isInterrupted = false
+            guard playbackRequested, player.currentItem != nil, options.contains(.shouldResume) else {
                 pause()
                 return
             }
