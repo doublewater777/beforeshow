@@ -602,10 +602,10 @@ enum ListeningDisplayProjector {
             phase: transport.phase,
             source: transport.source,
             previewRemaining: previewRemaining(from: transport),
-            // The control shows what the player was asked to do, so a tap
-            // reads back instantly even while the source is still loading. An
-            // interrupted session resumes on its own unless it is paused.
-            playPauseAction: transport.phase.isPlaybackActive || transport.phase == .interrupted ? .pause : .play,
+            // Pending commands give immediate feedback while preparing or buffering.
+            // Interrupted playback offers Play; automatic resumption is not guaranteed.
+            // Preserve the interrupted phase for the control and disc animation.
+            playPauseAction: transport.phase.isPlaybackActive ? .pause : .play,
             blockingReason: lidReason,
             recoveryAction: nil,
             errorText: nil,

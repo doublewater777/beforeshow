@@ -216,6 +216,24 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertEqual(factory.last.playCount, 1)
     }
 
+    func testPlayRequestedDuringInterruptionReadsAsInterruptedNotPlaying() async throws {
+        let factory = PlayerFactory()
+        let deck = ListeningDeck(makeEngine: factory.make)
+        defer { deck.eject() }
+        deck.load([album("a", songs: ["a1"])], cursor: "a1")
+        deck.play(source: .fullCatalog)
+        try await waitUntil { deck.isPlaying }
+
+        factory.last.phase = .interrupted
+        factory.last.acknowledgesCommands = false
+        try await waitUntil { deck.phase == .interrupted }
+
+        deck.play(source: .fullCatalog)
+
+        XCTAssertEqual(deck.phase, .interrupted)
+        XCTAssertFalse(deck.wantsPlayback, "nothing is sounding until the interruption ends")
+    }
+
     func testPlayingThroughTheLastTrackStopsAtTheFirstTrack() async throws {
         let factory = PlayerFactory()
         let deck = ListeningDeck(makeEngine: factory.make)
@@ -297,20 +315,36 @@ final class ListeningDeckTests: XCTestCase {
     // MARK: - Listening evidence
 
     func testFullPlaybackPastHalfConfirmsActualListening() async throws {
+        try await checkFullPlaybackPastHalfConfirmsActualListening(resynchronize: false)
+    }
+
+    func testForegroundResynchronizationSamplesUnchangedPlayingTransport() async throws {
+        try await checkFullPlaybackPastHalfConfirmsActualListening(resynchronize: true)
+    }
+
+    private func checkFullPlaybackPastHalfConfirmsActualListening(resynchronize: Bool) async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
         let factory = PlayerFactory()
         let deck = ListeningDeck(makeEngine: factory.make)
+        defer { deck.eject() }
+        deck.progressInterval = .seconds(60)
         deck.evidenceProvider = { evidence }
         var committed: [String] = []
         deck.onEvidence = { result, _ in committed += result.committedSongIDs }
         deck.load([album("a", songs: ["short"], duration: 2)], cursor: "short")
         deck.play(source: .fullCatalog)
         try await waitUntil { deck.isPlaying }
+        await deck.settle()
 
         factory.last.currentTime = 1.2
-        deck.pause()
+        if resynchronize {
+            deck.resynchronize()
+            XCTAssertEqual(deck.phase, .playing)
+        } else {
+            deck.pause()
+        }
 
         XCTAssertEqual(committed, ["short"])
         let record = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<SongFamiliarityRecord>()).first)

@@ -26,6 +26,8 @@
 
 锁屏、控制中心、耳机控制继续使用原生播放器和系统 Remote Command Center。演出时间表试听通过原生 Observation 接收状态变化，不轮询播放器。
 
+中断状态下，播放按钮提供播放操作，唱片保持静止；用户点击一次即可请求恢复，直到原生播放器确认恢复前仍显示中断。MusicKit 文档说明中断后可能自动恢复，实际未续播的原因需真机验证，不据此新增全曲续播状态或定时猜测。
+
 ## 依据
 
 - [HIG: Playing audio](https://developer.apple.com/design/human-interface-guidelines/playing-audio)

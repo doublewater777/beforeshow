@@ -39,6 +39,12 @@
 
 这一层只表达用户意图，不复制播放器状态；传输状态始终读自播放器。
 
+## 中断时的播放控制
+
+`.interrupted` 保留为原生中断状态，唱片停止旋转，按钮提供播放操作。用户点击一次就请求 `play()`；请求尚未被播放器确认时仍显示中断，不投影为缓冲或播放。
+
+准备、缓冲、快进中的暂停操作保留现有命令反馈。完整播放暂由 MusicKit 处理自动续播；Apple 文档只说中断后「可能自动恢复」，没有保证一定会或一定不会。新增全曲主动续播策略前，先用真机确认缺失行为；不通过延时猜测暂停来源，也不因回到前台而强制播放。
+
 ## 迁移
 
 iOS 27 SDK 将 `AVAudioSession.interruptionNotification` 的 type、option、reason 键标为弃用，改用 `didBecomeInactiveNotification` 与 `resumptionRecommendationNotification`。部署目标为 iOS 17.0（ADR 0043），暂用旧 API，不写两套并存的实现；最低版本升到 iOS 27 时整体迁移试听服务的中断处理。
