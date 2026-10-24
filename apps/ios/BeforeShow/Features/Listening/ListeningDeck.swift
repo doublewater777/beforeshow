@@ -100,6 +100,9 @@ final class ListeningDeck {
             switch engine.phase {
             case .playing: return .playing
             case .seeking: return .seeking
+            // A play request during an interruption is only a request; the
+            // player cannot sound until the interruption ends.
+            case .interrupted: return .interrupted
             default: return .waiting
             }
         case nil:
@@ -465,8 +468,10 @@ final class ListeningDeck {
         acknowledgementTimeout = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
             guard let self, !Task.isCancelled, generation == self.commandGeneration,
-                  self.commandTask == nil, self.command != nil,
-                  self.engine?.phase != .interrupted else { return }
+                  self.commandTask == nil, self.command != nil else { return }
+            // A pause must outlast the system's auto-resume. An unconfirmed
+            // play during an interruption must not keep the UI claiming sound.
+            guard self.command != .pause || self.engine?.phase != .interrupted else { return }
             self.command = nil
             self.onTransportChange()
         }

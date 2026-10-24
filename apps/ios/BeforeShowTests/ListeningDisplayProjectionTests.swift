@@ -260,7 +260,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(projection.player.playPauseAction, .pause, "Pause must be available while the source loads")
     }
 
-    func testInterruptedPendingPlayUsesPauseControlWhilePhysicalPlaybackStops() {
+    func testInterruptedSessionOffersPlaySoOneTapResumes() {
         let disc = ListeningDisc(
             id: "interrupted",
             title: "Interrupted",
@@ -284,8 +284,8 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(projection.player.phase, .interrupted)
         XCTAssertFalse(projection.player.isPlaybackActive)
         XCTAssertFalse(projection.player.shouldRotateDisc)
-        XCTAssertEqual(projection.player.playPauseAction, .pause)
-        XCTAssertTrue(projection.player.showsPauseControl)
+        XCTAssertEqual(projection.player.playPauseAction, .play)
+        XCTAssertFalse(projection.player.showsPauseControl)
     }
 
     func testPendingPauseIntentStopsPresentationBeforeTransportAcknowledges() {
