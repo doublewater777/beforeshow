@@ -35,7 +35,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShowWidgets/CountdownWidgetViews.swift": 728,
     "BeforeShow/Supporting/Debug/LiveAndWidgetShowcaseView.swift": 725,
     "BeforeShow/Features/Timetable/TimetableSheet.swift": 701,
-    "BeforeShow/Features/Listening/Views/ListeningPolishedBottomChrome.swift": 696,
+    "BeforeShow/Features/Listening/Views/ListeningPolishedBottomChrome.swift": 688,
     "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 680,
     "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 662,
     "Shared/CurrentShowTimeState.swift": 636,

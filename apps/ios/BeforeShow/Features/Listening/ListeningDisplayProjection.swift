@@ -602,10 +602,10 @@ enum ListeningDisplayProjector {
             phase: transport.phase,
             source: transport.source,
             previewRemaining: previewRemaining(from: transport),
-            // The control shows what the player was asked to do, so a tap
-            // reads back instantly even while the source is still loading. An
-            // interrupted session resumes on its own unless it is paused.
-            playPauseAction: transport.phase.isPlaybackActive || transport.phase == .interrupted ? .pause : .play,
+            // Reads back on the tap even while loading. Interrupted playback is
+            // not playing, so it offers Play and one tap resumes, as Apple's
+            // MusicKit sample does.
+            playPauseAction: transport.phase.isPlaybackActive ? .pause : .play,
             blockingReason: lidReason,
             recoveryAction: nil,
             errorText: nil,

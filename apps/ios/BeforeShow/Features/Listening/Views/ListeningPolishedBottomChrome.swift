@@ -6,14 +6,6 @@ enum ListeningMiniPlayerPlaybackAppearance {
     static func showsPlayingState(for phase: ListeningPlayerPhase) -> Bool {
         phase.isPlaybackActive
     }
-
-    static func statusText(for player: ListeningPlayerPresentation) -> String {
-        switch player.phase {
-        case .preparing, .waiting, .playing, .seeking: return BSLocalization.text("播放中")
-        case .paused, .interrupted: return BSLocalization.text("暂停")
-        case .noDisc, .stopped, .failed: return player.statusText
-        }
-    }
 }
 
 enum ListeningMiniPlayerArtworkSource {

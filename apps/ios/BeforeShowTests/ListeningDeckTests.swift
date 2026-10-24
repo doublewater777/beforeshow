@@ -216,6 +216,23 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertEqual(factory.last.playCount, 1)
     }
 
+    func testPlayRequestedDuringInterruptionReadsAsInterruptedNotPlaying() async throws {
+        let factory = PlayerFactory()
+        let deck = ListeningDeck(makeEngine: factory.make)
+        deck.load([album("a", songs: ["a1"])], cursor: "a1")
+        deck.play(source: .fullCatalog)
+        try await waitUntil { deck.isPlaying }
+
+        factory.last.phase = .interrupted
+        factory.last.acknowledgesCommands = false
+        try await waitUntil { deck.phase == .interrupted }
+
+        deck.play(source: .fullCatalog)
+
+        XCTAssertEqual(deck.phase, .interrupted)
+        XCTAssertFalse(deck.wantsPlayback, "nothing is sounding until the interruption ends")
+    }
+
     func testPlayingThroughTheLastTrackStopsAtTheFirstTrack() async throws {
         let factory = PlayerFactory()
         let deck = ListeningDeck(makeEngine: factory.make)

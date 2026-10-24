@@ -162,6 +162,60 @@ enum ListeningPlayPauseAction: Equatable, Sendable {
     case disabled
 }
 
+/// Whether the user still wants sound, kept across a system interruption.
+///
+/// Apple's `shouldResume` is a recommendation, not a command: the system says
+/// playback may resume, and the app decides from its own intent.
+///
+/// Only an explicit action or a pause that outlives the interruption race
+/// clears the intent. A player that goes `.paused` while the system is taking
+/// the session must not be mistaken for a user pause — that mistake is why
+/// interrupted playback never came back.
+struct ListeningPlaybackIntent: Equatable, Sendable {
+    private(set) var wantsPlayback = false
+    private(set) var isInterrupted = false
+
+    mutating func requestedPlay() {
+        wantsPlayback = true
+    }
+
+    mutating func requestedPause() {
+        wantsPlayback = false
+    }
+
+    mutating func stopped() {
+        wantsPlayback = false
+        isInterrupted = false
+    }
+
+    mutating func interruptionBegan() {
+        isInterrupted = true
+    }
+
+    mutating func interruptionEnded() {
+        isInterrupted = false
+    }
+
+    mutating func playerDidChange(to phase: ListeningPlaybackTransportPhase) {
+        // Playback started outside the app (Lock Screen, Control Center) is
+        // still the user's intent to keep playing.
+        if phase == .playing { wantsPlayback = true }
+    }
+
+    /// A pause reported outside an interruption has settled, e.g. the user
+    /// paused from the Lock Screen. The system's own interruption pause is
+    /// excluded so it cannot cancel the resume.
+    mutating func confirmedPause() {
+        guard !isInterrupted else { return }
+        wantsPlayback = false
+    }
+
+    /// Both the user and the system must agree before playback comes back.
+    func shouldResume(systemRecommendsResume: Bool, canResume: Bool = true) -> Bool {
+        wantsPlayback && canResume && systemRecommendsResume
+    }
+}
+
 enum ListeningPlaybackEvidenceUpdate: Equatable {
     case none
     case becameFamiliar(songID: String)
