@@ -319,8 +319,8 @@ final class ListeningDeck {
 
     /// Re-reads the player after the process could not consume observations.
     func resynchronize() {
-        lastTransport = nil
-        syncWithPlayer()
+        guard let engine else { return }
+        apply(Transport(engine), from: engine, resynchronizing: true)
     }
 
     /// Commands act on the player's current state, even before its
@@ -362,7 +362,9 @@ final class ListeningDeck {
         }
     }
 
-    private func apply(_ change: Transport, from engine: any ListeningPlaybackServicing) {
+    private func apply(
+        _ change: Transport, from engine: any ListeningPlaybackServicing, resynchronizing: Bool = false
+    ) {
         guard engine === self.engine, isQueueLoaded else { return }
         if change.failed {
             fail()
@@ -392,7 +394,7 @@ final class ListeningDeck {
         default:
             break
         }
-        guard change != lastTransport else {
+        guard resynchronizing || change != lastTransport else {
             if command != commandBefore { onTransportChange() }
             return
         }
@@ -402,7 +404,7 @@ final class ListeningDeck {
             if previous?.phase != .playing {
                 ProductAnalytics.capture(.listenPlaybackStarted(source: engine.source))
             }
-            if previous?.phase != .playing || previous?.songID != change.songID {
+            if resynchronizing || previous?.phase != .playing || previous?.songID != change.songID {
                 // Baseline for this stretch of listening.
                 recordSample(immediate: false)
             }

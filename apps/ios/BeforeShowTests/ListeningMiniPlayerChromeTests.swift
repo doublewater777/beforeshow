@@ -13,7 +13,14 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         try await checkInterruptedPlay(endingPhase: .paused)
     }
 
-    private func checkInterruptedPlay(endingPhase: ListeningPlaybackTransportPhase) async throws {
+    func testForegroundResynchronizesInterruptedPlayEndingPausedAfterAcknowledgementTimeout() async throws {
+        try await checkInterruptedPlay(endingPhase: .paused, returnsToForeground: true)
+    }
+
+    private func checkInterruptedPlay(
+        endingPhase: ListeningPlaybackTransportPhase,
+        returnsToForeground: Bool = false
+    ) async throws {
         resetChromeGlobals()
         defer { resetChromeGlobals() }
 
@@ -75,7 +82,10 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             XCTAssertEqual(room.deck.command, .play)
             XCTAssertEqual(playback.pauseCount, pauseCount)
         }
+        if returnsToForeground { room.setForeground(false) }
         playback.phase = endingPhase
+        // Stay on the main actor: foreground sync must precede the queued observation.
+        if returnsToForeground { room.setForeground(true) }
         let expectedPhase: ListeningPlayerPhase = endingPhase == .playing ? .playing : .paused
         try await waitUntil { room.display.player.phase == expectedPhase }
         XCTAssertEqual(room.display.player.showsPauseControl, endingPhase == .playing)
