@@ -249,6 +249,7 @@ enum ShowMutationCoordinator {
     static func commitClosingRitual(
         rating: Int?,
         note: String?,
+        generatesCard: Bool? = nil,
         show: Show,
         shows: [Show],
         selections: [CurrentShowSelection],
@@ -268,7 +269,8 @@ enum ShowMutationCoordinator {
             try show.setClosingRitual(
                 rating: rating,
                 note: note,
-                markCeremonyCompleted: true
+                markCeremonyCompleted: true,
+                generatesCard: generatesCard
             )
         }
     }
@@ -315,7 +317,8 @@ extension Show {
     func setClosingRitual(
         rating: Int?,
         note: String?,
-        markCeremonyCompleted: Bool = false
+        markCeremonyCompleted: Bool = false,
+        generatesCard: Bool? = nil
     ) throws {
         if let rating, !(1...5).contains(rating) {
             throw ShowValidationError.ratingOutOfRange
@@ -325,7 +328,8 @@ extension Show {
         let completesCeremony = markCeremonyCompleted && !hasCompletedDispersalCeremony
         guard self.rating != rating
                 || closingNote != normalized
-                || completesCeremony else {
+                || completesCeremony
+                || (generatesCard != nil && hasGeneratedDispersalCard != generatesCard) else {
             return
         }
 
@@ -333,6 +337,9 @@ extension Show {
         closingNote = normalized
         if markCeremonyCompleted {
             hasCompletedDispersalCeremony = true
+        }
+        if let generatesCard {
+            hasGeneratedDispersalCard = generatesCard
         }
         updatedAt = Date()
     }
