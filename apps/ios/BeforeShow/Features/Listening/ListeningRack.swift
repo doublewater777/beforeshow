@@ -78,6 +78,12 @@ enum ListeningDailyFeaturedDiscPolicy {
         let recentIDs: [String]
     }
 
+    static func clearSelections(defaults: UserDefaults = .standard) {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("listening.dailyFeatured.") {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
     static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
