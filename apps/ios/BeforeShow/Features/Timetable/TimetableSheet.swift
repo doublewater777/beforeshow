@@ -324,7 +324,6 @@ struct TimetableSheet: View {
         .onAppear { orientation.setViewingEnabled(showsTimetable && !isPhotosPickerPresented && !isManagingDays) }
         .onDisappear {
             orientation.setViewingEnabled(false)
-            TimetablePreviewPlayer.shared.stop()
         }
         .task(id: avatarArtistNames + artistLinker.avatarLineup.map { $0.name + ($0.avatarURL ?? "") }) {
             await avatars.load(artistNames: avatarArtistNames, lineup: artistLinker.avatarLineup + (currentShow?.artists ?? []))
@@ -352,7 +351,6 @@ struct TimetableSheet: View {
     // MARK: - Subviews
 
     private func openManagement() {
-        TimetablePreviewPlayer.shared.stop()
         isManagingDays = true
     }
 
