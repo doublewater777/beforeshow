@@ -282,7 +282,7 @@ struct FootprintDetailView: View {
                 initialStep: .combined,
                 headerTitle: BSLocalization.text("散场评价"),
                 presentsShareAfterCommit: false,
-                onCommit: { rating, note in
+                onCommit: { rating, note, _ in
                     try await commitCeremonyData(rating: rating, note: note)
                 }
             )

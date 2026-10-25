@@ -22,7 +22,7 @@ struct CurrentShowManagementSection: View {
     var onHomeArrivalFinished: () -> Void = {}
     @Binding var ceremonyLightsOutShowID: UUID?
     @Binding var ceremonySheetShowID: UUID?
-    var onCeremonyCommit: (_ rating: Int?, _ note: String?) async throws -> Void
+    var onCeremonyCommit: (_ rating: Int?, _ note: String?, _ generatesCard: Bool?) async throws -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) var modelContext

@@ -78,8 +78,11 @@ final class Show {
     var rating: Int? = nil
     /// 散场后留下的私人感受，nil = 未填写。trim 后的纯空白视为未填。
     var closingNote: String? = nil
-    /// 用户至少主动生成过一次散场卡。与情绪/文字独立，只增不退。
+    /// 用户主动完成了散场仪式（无论是否生成卡片）。与情绪/文字独立，只增不退。
     var hasCompletedDispersalCeremony: Bool = false
+    /// 本机卡片选择：true = 生成过，false = 明确跳过，nil = 升级前旧记录。
+    /// 旧的已完成记录按生成过卡片处理，避免升级后改变原来的进入路径。
+    var hasGeneratedDispersalCard: Bool? = nil
 
     private var companionStatusRawValue: String?
     private(set) var companionNames: [String] = []

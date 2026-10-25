@@ -3896,6 +3896,22 @@
         }
       }
     },
+    "不生成，直接完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish Without a Card"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不產生，直接完成"
+          }
+        }
+      }
+    },
     "保存并查看" : {
       "localizations" : {
         "en" : {
@@ -11332,6 +11348,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "散場"
+          }
+        }
+      }
+    },
+    "生成散场卡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create After-show Card"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "產生散場卡"
           }
         }
       }
