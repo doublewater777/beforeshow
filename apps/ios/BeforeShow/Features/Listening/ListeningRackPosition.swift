@@ -14,7 +14,11 @@ final class ListeningRackPosition {
         key = showID.map { "listening.rackPosition.\($0.uuidString)" }
         let saved = key.flatMap { defaults.dictionary(forKey: $0) }
         expandedGroupID = saved?["expandedGroupID"] as? String
-        focusedID = saved?["focusedID"] as? String
+        // On a new local day, a collapsed shelf should start at its new featured sleeve.
+        let savedFocus = saved?["focusedID"] as? String
+        let focusDay = saved?["focusedDay"] as? String
+        focusedID = expandedGroupID != nil || focusDay == ListeningDailyFeaturedDiscPolicy.dayKey(for: Date())
+            ? savedFocus : nil
     }
 
     private func save() {
@@ -22,6 +26,7 @@ final class ListeningRackPosition {
         var saved: [String: String] = [:]
         saved["expandedGroupID"] = expandedGroupID
         saved["focusedID"] = focusedID
+        saved["focusedDay"] = ListeningDailyFeaturedDiscPolicy.dayKey(for: Date())
         defaults.set(saved, forKey: key)
     }
 }
