@@ -752,10 +752,9 @@ final class ProSubscriptionTests: XCTestCase {
             NotificationSettingsPresentation(authorizationState: .authorized).action,
             .openSystemSettings
         )
-        XCTAssertEqual(
-            NotificationSettingsPresentation(authorizationState: .provisional).action,
-            .openSystemSettings
-        )
+        XCTAssertEqual(NotificationSettingsPresentation(authorizationState: .provisional).action, .openSystemSettings)
+        // 这一行控制的是整套本地通知，标题不能退回「开场提醒」——那会读成只影响开场那一条。
+        XCTAssertEqual(NotificationSettingsPresentation(authorizationState: .notDetermined).title, "通知")
     }
 
     func testAppVersionInformationBuildsDisplayCopyFromInfoDictionary() {

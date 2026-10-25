@@ -969,7 +969,9 @@ final class LocalizableCompletenessTests: XCTestCase {
         "结束现场",
         "记一段记忆",
         "继续添加",
-        "走过的现场，慢慢长成你的档案"
+        "走过的现场，慢慢长成你的档案",
+        "通知",
+        "通知，%@"
     ]
 
     func testRequiredKeysExistInEveryLocalization() {

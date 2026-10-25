@@ -2699,7 +2699,20 @@
       }
     },
     "一次解锁，永久保留" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One-Time Unlock, Kept Forever"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次解鎖，永久保留"
+          }
+        }
+      }
     },
     "一起去 %@" : {
       "localizations" : {
@@ -9258,38 +9271,6 @@
         }
       }
     },
-    "开场提醒" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Reminder"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開場提醒"
-          }
-        }
-      }
-    },
-    "开场提醒，%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show reminder, %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開場提醒，%@"
-          }
-        }
-      }
-    },
     "开场日期" : {
       "localizations" : {
         "en" : {
@@ -15720,7 +15701,20 @@
       }
     },
     "现场与回忆保留" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows & Memories Kept"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現場與回憶保留"
+          }
+        }
+      }
     },
     "现场体验" : {
       "localizations" : {
@@ -21078,6 +21072,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇這場演出目前的延期狀態。"
+          }
+        }
+      }
+    },
+    "通知" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        }
+      }
+    },
+    "通知，%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications, %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知，%@"
           }
         }
       }
