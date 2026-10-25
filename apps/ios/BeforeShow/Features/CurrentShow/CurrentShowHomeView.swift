@@ -142,11 +142,12 @@ struct CurrentShowHomeView: View {
                         },
                         ceremonyLightsOutShowID: $ceremonyLightsOutShowID,
                         ceremonySheetShowID: $ceremonySheetShowID,
-                        onCeremonyCommit: { rating, note in
+                        onCeremonyCommit: { rating, note, generatesCard in
                             try await commitCeremonyData(
                                 show: show,
                                 rating: rating,
-                                note: note
+                                note: note,
+                                generatesCard: generatesCard
                             )
                         }
                     )
@@ -422,10 +423,16 @@ struct CurrentShowHomeView: View {
         )
     }
 
-    private func commitCeremonyData(show: Show, rating: Int?, note: String?) async throws {
+    private func commitCeremonyData(
+        show: Show,
+        rating: Int?,
+        note: String?,
+        generatesCard: Bool?
+    ) async throws {
         _ = try await ShowMutationCoordinator.commitClosingRitual(
             rating: rating,
             note: note,
+            generatesCard: generatesCard,
             show: show,
             shows: shows,
             selections: selections,
