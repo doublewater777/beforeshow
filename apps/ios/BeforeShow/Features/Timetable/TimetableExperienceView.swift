@@ -132,9 +132,6 @@ struct TimetableExperienceView: View {
                 addPerformance(to: stage)
             }
         }
-        .onChange(of: selectedDayID) { _, _ in
-            TimetablePreviewPlayer.shared.stop()
-        }
     }
 
     // MARK: - Dock
