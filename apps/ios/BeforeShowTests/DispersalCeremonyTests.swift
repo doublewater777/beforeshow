@@ -95,6 +95,47 @@ final class DispersalCeremonyTests: XCTestCase {
         XCTAssertTrue(show.hasCompletedDispersalCeremony)
     }
 
+    @MainActor
+    func testSkippingCardCompletesCeremonyAndReopensEditor() throws {
+        let show = try Self.makeShow()
+        try show.setClosingRitual(
+            rating: 4,
+            note: "值得",
+            markCeremonyCompleted: true,
+            generatesCard: false
+        )
+        XCTAssertTrue(show.hasCompletedDispersalCeremony)
+        XCTAssertEqual(show.hasGeneratedDispersalCard, false)
+        XCTAssertEqual(DispersalCeremonySheet.defaultStep(for: show), .combined)
+
+        // Editing the saved emotion/note must not silently opt back into card creation.
+        try show.setClosingRitual(rating: 5, note: "很值得", markCeremonyCompleted: true)
+        XCTAssertEqual(show.hasGeneratedDispersalCard, false)
+        XCTAssertEqual(DispersalCeremonySheet.defaultStep(for: show), .combined)
+    }
+
+    @MainActor
+    func testGeneratingCardAfterSkippingRestoresShareLanding() throws {
+        let show = try Self.makeShow()
+        try show.setClosingRitual(
+            rating: nil, note: nil, markCeremonyCompleted: true, generatesCard: false
+        )
+        try show.setClosingRitual(
+            rating: nil, note: nil, markCeremonyCompleted: true, generatesCard: true
+        )
+        XCTAssertTrue(show.hasCompletedDispersalCeremony)
+        XCTAssertEqual(show.hasGeneratedDispersalCard, true)
+        XCTAssertEqual(DispersalCeremonySheet.defaultStep(for: show), .share)
+    }
+
+    @MainActor
+    func testLegacyCompletedCeremonyStillOpensShareStep() throws {
+        let show = try Self.makeShow()
+        try show.setClosingRitual(rating: 3, note: nil, markCeremonyCompleted: true)
+        XCTAssertNil(show.hasGeneratedDispersalCard)
+        XCTAssertEqual(DispersalCeremonySheet.defaultStep(for: show), .share)
+    }
+
     // MARK: - DispersalCeremonyPolicy
 
     func testPolicySnapRoundsAndClamps() {
@@ -216,6 +257,21 @@ final class DispersalCeremonyTests: XCTestCase {
         )
     }
 
+    func testSheetSkipCardDismissesOnlyAfterSuccessfulCommit() {
+        XCTAssertEqual(
+            DispersalCeremonySheet.nextDestination(after: .combined, generatesCard: false),
+            .dismiss
+        )
+        XCTAssertEqual(
+            DispersalCeremonySheet.nextDestination(
+                after: .combined,
+                commitSucceeded: false,
+                generatesCard: false
+            ),
+            .combined
+        )
+    }
+
     func testFootprintEditDismissesInsteadOfPresentingShare() {
         XCTAssertEqual(
             DispersalCeremonySheet.nextDestination(
@@ -248,7 +304,7 @@ final class DispersalCeremonyTests: XCTestCase {
             initialStep: .combined,
             headerTitle: "编辑散场评价",
             presentsShareAfterCommit: false,
-            onCommit: { _, _ in }
+            onCommit: { _, _, _ in }
         )
         XCTAssertNotNil(sheet)
     }
