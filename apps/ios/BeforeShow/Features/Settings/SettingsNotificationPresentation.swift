@@ -4,6 +4,9 @@ enum NotificationSettingsAction: Equatable {
 }
 
 struct NotificationSettingsPresentation: Equatable {
+    /// 设置里这一行的标题：这是整套本地通知的权限入口，不只是开场那一条。
+    var title: String { BSLocalization.text("通知") }
+
     let status: String
     let action: NotificationSettingsAction
 

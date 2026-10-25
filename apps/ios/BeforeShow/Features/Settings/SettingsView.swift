@@ -426,7 +426,7 @@ private struct NotificationSettingsRow: View {
                         .foregroundStyle(BSColor.Stage.glowBlue)
                 }
 
-                Text(BSLocalization.text("开场提醒"))
+                Text(presentation.title)
                     .font(BSFont.V3.body)
                     .foregroundStyle(BSColor.Stage.foreground)
 
@@ -453,7 +453,7 @@ private struct NotificationSettingsRow: View {
         }
         .buttonStyle(.plain)
         .disabled(isPerformingAction)
-        .accessibilityLabel(BSLocalization.format("开场提醒，%@", presentation.status))
+        .accessibilityLabel(BSLocalization.format("通知，%@", presentation.status))
         .task {
             await refreshAuthorizationState()
         }
