@@ -188,6 +188,28 @@ final class TimetableExperienceTests: XCTestCase {
         }
     }
 
+    func testTimetablePreviewOnlyResumesTheOriginalPausedTrack() {
+        func canResume(song: String? = "song-a", disc: String? = "disc-a", phase: ListeningPlayerPhase = .paused) -> Bool {
+            TimetablePreviewResumePolicy.shouldResume(
+                originalSongID: "song-a",
+                originalDiscID: "disc-a",
+                currentSongID: song,
+                currentDiscID: disc,
+                phase: phase
+            )
+        }
+
+        XCTAssertTrue(canResume())
+        XCTAssertFalse(canResume(song: "song-b"))
+        XCTAssertFalse(canResume(disc: "disc-b"))
+        XCTAssertFalse(canResume(song: nil))
+        XCTAssertFalse(canResume(disc: nil))
+        XCTAssertFalse(canResume(phase: .playing))
+        XCTAssertFalse(canResume(phase: .waiting))
+        XCTAssertFalse(canResume(phase: .interrupted))
+        XCTAssertFalse(canResume(phase: .stopped))
+    }
+
     override func setUp() async throws {
         try await super.setUp()
         container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
