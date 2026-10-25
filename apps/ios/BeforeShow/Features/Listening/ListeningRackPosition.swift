@@ -21,6 +21,14 @@ final class ListeningRackPosition {
             ? savedFocus : nil
     }
 
+    func refreshDayIfNeeded() {
+        guard let key, expandedGroupID == nil else { return }
+        let day = ListeningDailyFeaturedDiscPolicy.dayKey(for: Date())
+        guard defaults.dictionary(forKey: key)?["focusedDay"] as? String != day else { return }
+        focusedID = nil
+        save()
+    }
+
     private func save() {
         guard let key else { return }
         var saved: [String: String] = [:]
