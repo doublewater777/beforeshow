@@ -134,6 +134,29 @@ final class ListeningRackPositionTests: XCTestCase {
         XCTAssertEqual(Set(picks).count, 3)
     }
 
+    func testClearingLocalDataAlsoClearsSavedFeaturedSleeves() throws {
+        let suite = "DailyFeaturedDiscTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let showID = UUID(), calendar = utcCalendar()
+        let disc = sampleDisc("a", songIDs: ["top"])
+        XCTAssertEqual(
+            ListeningDailyFeaturedDiscPolicy.featuredDiscID(
+                showID: showID, artistID: "artist", discs: [disc],
+                topSongIDs: ["top"], familiarSongIDs: [],
+                now: day(25, calendar: calendar), calendar: calendar, defaults: defaults
+            ),
+            "a"
+        )
+        XCTAssertTrue(defaults.dictionaryRepresentation().keys.contains {
+            $0.hasPrefix("listening.dailyFeatured.")
+        })
+        ListeningDailyFeaturedDiscPolicy.clearSelections(defaults: defaults)
+        XCTAssertFalse(defaults.dictionaryRepresentation().keys.contains {
+            $0.hasPrefix("listening.dailyFeatured.")
+        })
+    }
+
     func testCollapsedRackFocusExpiresAcrossDaysButExpandedFocusSurvives() throws {
         let suite = "DailyRackFocusTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
