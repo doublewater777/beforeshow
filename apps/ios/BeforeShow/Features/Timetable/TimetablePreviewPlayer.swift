@@ -21,8 +21,21 @@ final class TimetablePreviewPlayer {
     @ObservationIgnored private var cache: [String: ListeningPlaybackItem] = [:]
     @ObservationIgnored private var activeTask: Task<Void, Never>?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    @ObservationIgnored private var interruptedListening: InterruptedListening?
+    @ObservationIgnored private var focusObserver: NSObjectProtocol?
 
-    private init() {}
+    private struct InterruptedListening {
+        weak var room: ListeningRoomCoordinator?
+        let songID: String
+        let discID: String
+    }
+
+    private init() {
+        focusObserver = AppAudioSession.observeFocusLoss(of: .timetablePreview) { [weak self] in
+            // Another in-app source won focus: do not resurrect the old session.
+            self?.interruptedListening = nil
+        }
+    }
 
     func isPlaying(performanceID: UUID) -> Bool {
         activePerformanceID == performanceID && isPlaying
@@ -58,7 +71,7 @@ final class TimetablePreviewPlayer {
             return
         }
 
-        stop()
+        stop(resumeListening: false)
         activePerformanceID = performanceID
         isLoading = true
         activeTask = Task {
@@ -81,7 +94,7 @@ final class TimetablePreviewPlayer {
         }
     }
 
-    func stop() {
+    func stop(resumeListening: Bool = true) {
         activeTask?.cancel()
         activeTask = nil
         dismissToast()
@@ -92,6 +105,34 @@ final class TimetablePreviewPlayer {
         failedPerformanceID = nil
         failureMessage = nil
         activeTrackTitle = nil
+        if resumeListening {
+            restoreInterruptedListening()
+        }
+    }
+
+    private func rememberInterruptedListening() {
+        guard interruptedListening == nil,
+              let room = ListeningRoomSessionStore.shared.room,
+              room.deck.wantsPlayback,
+              let songID = room.deck.cursorSongID,
+              let discID = room.deck.currentDisc?.id else { return }
+        interruptedListening = InterruptedListening(room: room, songID: songID, discID: discID)
+    }
+
+    private func restoreInterruptedListening() {
+        defer { interruptedListening = nil }
+        guard let interruptedListening,
+              let room = interruptedListening.room,
+              ListeningRoomSessionStore.shared.room === room,
+              TimetablePreviewResumePolicy.shouldResume(
+                originalSongID: interruptedListening.songID,
+                originalDiscID: interruptedListening.discID,
+                currentSongID: room.deck.cursorSongID,
+                currentDiscID: room.deck.currentDisc?.id,
+                phase: room.deck.phase
+              ),
+              room.playPauseAction == .play else { return }
+        room.playPause()
     }
 
     private func showToast(for performanceID: UUID, title: String) {
@@ -117,6 +158,7 @@ final class TimetablePreviewPlayer {
 
     private func playAndMonitor(performanceID: UUID) async {
         do {
+            rememberInterruptedListening()
             try await playback.play()
             let changes = BSObservationValues { [playback] in
                 (phase: playback.phase, failed: playback.failure != nil, ended: playback.hasEnded)
@@ -170,5 +212,19 @@ final class TimetablePreviewPlayer {
         let item = decoded.preview(artistName: name, artistID: id)
         if let item { cache[key] = item }
         return item
+    }
+}
+
+enum TimetablePreviewResumePolicy {
+    static func shouldResume(
+        originalSongID: String,
+        originalDiscID: String,
+        currentSongID: String?,
+        currentDiscID: String?,
+        phase: ListeningPlayerPhase
+    ) -> Bool {
+        originalSongID == currentSongID
+            && originalDiscID == currentDiscID
+            && phase == .paused
     }
 }
