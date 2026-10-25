@@ -130,11 +130,6 @@ struct TimetableAddPerformanceSheet: View {
                     TimetablePreviewPlayer.shared.stop()
                 }
             }
-            .onDisappear {
-                if TimetablePreviewPlayer.shared.activePerformanceID == previewSessionID {
-                    TimetablePreviewPlayer.shared.stop()
-                }
-            }
             .navigationTitle(BSLocalization.text("添加演出"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)

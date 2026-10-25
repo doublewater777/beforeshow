@@ -10,7 +10,8 @@ import AVFoundation
 ///
 /// Inside the app, owners behave like separate apps do under iOS: one sounds at
 /// a time. An owner claims focus right before it sounds, every other owner
-/// pauses, and nothing resumes on its own.
+/// pauses. The focus mechanism never auto-resumes; a completed timetable preview
+/// may explicitly restore the listening session it interrupted.
 @MainActor
 enum AppAudioSession {
     enum Owner: Hashable {
