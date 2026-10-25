@@ -235,6 +235,8 @@ struct ListeningRackView: View {
             }
         }
         .onAppear {
+            position.refreshDayIfNeeded()
+            if position.focusedID == nil { position.focusedID = initialFocusID(in: row) }
             if case .artist = room.browser.scope,
                let group = groups.first(where: { $0.scope == room.browser.scope }) {
                 position.expandedGroupID = group.id
