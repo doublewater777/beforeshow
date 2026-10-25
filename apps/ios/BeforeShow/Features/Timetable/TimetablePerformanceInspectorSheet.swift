@@ -129,11 +129,6 @@ struct TimetablePerformanceInspectorSheet: View {
                     TimetablePreviewPlayer.shared.stop()
                 }
             }
-            .onDisappear {
-                if TimetablePreviewPlayer.shared.activePerformanceID == performance.id {
-                    TimetablePreviewPlayer.shared.stop()
-                }
-            }
             .navigationTitle(isEditing ? BSLocalization.text("编辑演出") : BSLocalization.text("演出详情"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
