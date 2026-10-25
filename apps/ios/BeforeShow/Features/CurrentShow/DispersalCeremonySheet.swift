@@ -3,7 +3,7 @@ import SwiftUI
 struct DispersalCeremonySheet: View {
     let show: Show
     let identity: FootprintDetailIdentity
-    let onCommit: (_ rating: Int?, _ note: String?) async throws -> Void
+    let onCommit: (_ rating: Int?, _ note: String?, _ generatesCard: Bool?) async throws -> Void
 
     enum Step: Equatable {
         case combined
@@ -36,17 +36,22 @@ struct DispersalCeremonySheet: View {
         initialStep: Step? = nil,
         headerTitle: String? = nil,
         presentsShareAfterCommit: Bool = true,
-        onCommit: @escaping (_ rating: Int?, _ note: String?) async throws -> Void
+        onCommit: @escaping (_ rating: Int?, _ note: String?, _ generatesCard: Bool?) async throws -> Void
     ) {
         self.show = show
         self.identity = identity
         self.customHeaderTitle = headerTitle
         self.presentsShareAfterCommit = presentsShareAfterCommit
         self.onCommit = onCommit
-        let defaultStep = show.hasCompletedDispersalCeremony ? Step.share : Step.combined
-        _step = State(initialValue: initialStep ?? defaultStep)
+        _step = State(initialValue: initialStep ?? Self.defaultStep(for: show))
         _draftRating = State(initialValue: show.rating)
         _draftNote = State(initialValue: show.closingNote ?? "")
+    }
+
+    /// Legacy completed records have no card-choice field, so retain their old share landing.
+    static func defaultStep(for show: Show) -> Step {
+        show.hasCompletedDispersalCeremony && show.hasGeneratedDispersalCard != false
+            ? .share : .combined
     }
 
     var body: some View {
@@ -69,15 +74,18 @@ struct DispersalCeremonySheet: View {
                     note: $draftNote,
                     headerTitle: customHeaderTitle,
                     commitTitle: presentsShareAfterCommit
-                        ? BSLocalization.text("保存并查看")
+                        ? BSLocalization.text("生成散场卡")
                         : BSLocalization.text("保存"),
                     isSaving: saving,
                     commitError: commitError,
                     transitionNamespace: reduceMotion ? nil : cardNamespace,
                     onClose: closeWithoutSaving,
                     onGenerate: {
-                        Task { await advanceCombined() }
-                    }
+                        Task { await advanceCombined(generatesCard: true) }
+                    },
+                    onFinishWithoutCard: presentsShareAfterCommit ? {
+                        Task { await advanceCombined(generatesCard: false) }
+                    } : nil
                 )
                 .transition(.opacity)
 
@@ -103,7 +111,7 @@ struct DispersalCeremonySheet: View {
     }
 
     @MainActor
-    private func advanceCombined() async {
+    private func advanceCombined(generatesCard: Bool) async {
         guard !saving else { return }
         saving = true
         commitError = nil
@@ -112,14 +120,19 @@ struct DispersalCeremonySheet: View {
         let noteToSave = trimmedNote.isEmpty ? nil : draftNote
 
         do {
-            try await onCommit(draftRating, noteToSave)
+            try await onCommit(
+                draftRating,
+                noteToSave,
+                presentsShareAfterCommit ? generatesCard : nil
+            )
             ProductAnalytics.capture(.dispersalCeremonyCompleted(
                 showID: show.id, rating: draftRating, hasNote: noteToSave != nil
             ))
             switch Self.nextDestination(
                 after: .combined,
                 commitSucceeded: true,
-                presentsShareAfterCommit: presentsShareAfterCommit
+                presentsShareAfterCommit: presentsShareAfterCommit,
+                generatesCard: generatesCard
             ) {
             case .share:
                 transition(to: .share, producesCardFeedback: true)
@@ -159,12 +172,13 @@ struct DispersalCeremonySheet: View {
     nonisolated static func nextDestination(
         after current: Step,
         commitSucceeded: Bool = true,
-        presentsShareAfterCommit: Bool = true
+        presentsShareAfterCommit: Bool = true,
+        generatesCard: Bool = true
     ) -> Destination {
         switch current {
         case .combined:
             guard commitSucceeded else { return .combined }
-            return presentsShareAfterCommit ? .share : .dismiss
+            return presentsShareAfterCommit && generatesCard ? .share : .dismiss
         case .share:
             return .share
         }
@@ -183,6 +197,7 @@ struct DispersalCombinedStep: View {
     let transitionNamespace: Namespace.ID?
     let onClose: () -> Void
     let onGenerate: () -> Void
+    var onFinishWithoutCard: (() -> Void)? = nil
 
     @State private var raw: Double = 3
     @State private var emojiBump = false
@@ -217,19 +232,35 @@ struct DispersalCombinedStep: View {
             }
             .scrollDismissesKeyboard(.interactively)
 
-            Button(action: generate) {
-                HStack(spacing: BSSpacing.sm) {
-                    if isSaving {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(BSColor.Stage.background)
+            VStack(spacing: 4) {
+                Button(action: generate) {
+                    HStack(spacing: BSSpacing.sm) {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(BSColor.Stage.background)
+                        }
+                        Text(commitTitle)
                     }
-                    Text(commitTitle)
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+                .buttonStyle(BSPrimaryButtonStyle())
+                .disabled(isSaving)
+
+                if let onFinishWithoutCard {
+                    Button {
+                        isNoteFocused = false
+                        onFinishWithoutCard()
+                    } label: {
+                        Text(BSLocalization.text("不生成，直接完成"))
+                            .font(BSFont.caption)
+                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.72))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving)
+                }
             }
-            .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(isSaving)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
