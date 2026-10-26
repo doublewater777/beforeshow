@@ -13,10 +13,11 @@ struct ListeningRackGroup: Identifiable, Equatable {
     let name: String
     let artworkURL: URL?
     let discs: [ListeningDisc]
+    var featuredDiscID: String? = nil
     var catalogStatus: ListeningArtistCatalogStatus?
     var hasCatalog = true
 
-    var head: ListeningDisc? { discs.first }
+    var head: ListeningDisc? { discs.first(where: { $0.id == featuredDiscID }) ?? discs.first }
     var isConnectedArtist: Bool {
         if case .artist(_, _, true) = kind { return true }
         return false
@@ -69,6 +70,98 @@ enum ListeningRackOrdering {
     }
 }
 
+/// Selects a daily sleeve without reordering releases or changing the seated CD.
+enum ListeningDailyFeaturedDiscPolicy {
+    private struct Selection: Codable {
+        let day: String
+        let discID: String
+        let recentIDs: [String]
+    }
+
+    static func clearSelections(defaults: UserDefaults = .standard) {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("listening.dailyFeatured.") {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+    }
+
+    static func featuredDiscID(
+        showID: UUID,
+        artistID: String,
+        discs: [ListeningDisc],
+        topSongIDs: [String],
+        familiarSongIDs: Set<String>,
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        defaults: UserDefaults = .standard
+    ) -> String? {
+        let key = "listening.dailyFeatured.\(showID.uuidString).\(artistID)"
+        let day = dayKey(for: now, calendar: calendar)
+        let saved = defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(Selection.self, from: $0) }
+        if let saved, saved.day == day, discs.contains(where: { $0.id == saved.discID }) {
+            return saved.discID
+        }
+
+        let albums = discs.filter { $0.origin == .album && $0.isSingle != true && !$0.tracks.isEmpty }
+        let singles = discs.filter { $0.origin == .album && $0.isSingle == true && !$0.tracks.isEmpty }
+        let playlists = discs.filter {
+            if case .featuredPlaylist = $0.origin { return !$0.tracks.isEmpty }
+            return false
+        }
+        let pool = !albums.isEmpty ? albums : (!singles.isEmpty ? singles : playlists)
+        let withArtwork = pool.filter { $0.artworkURL != nil }
+        let candidates = withArtwork.isEmpty ? pool : withArtwork
+        guard !candidates.isEmpty else { return nil }
+
+        let recentIDs: [String]
+        if let saved {
+            recentIDs = saved.day == day
+                ? saved.recentIDs
+                : Array((saved.recentIDs + [saved.discID]).suffix(2))
+        } else {
+            recentIDs = []
+        }
+        let excluded = Set(recentIDs.suffix(min(2, candidates.count - 1)))
+        let fresh = candidates.filter { !excluded.contains($0.id) }
+        let available = fresh.isEmpty ? candidates : fresh
+
+        var topRanks: [String: Int] = [:]
+        for (index, id) in topSongIDs.prefix(10).enumerated() where topRanks[id] == nil {
+            topRanks[id] = 10 - index
+        }
+        func score(_ disc: ListeningDisc) -> Double {
+            let tracks = Set(disc.tracks.map(\.id))
+            let popular = min(40, tracks.reduce(0) { $0 + (topRanks[$1] ?? 0) * 2 })
+            let unexplored = Double(tracks.filter { !familiarSongIDs.contains($0) }.count)
+                / Double(max(tracks.count, 1))
+            let recentRelease = disc.releaseDate.map {
+                now.timeIntervalSince($0) >= 0 && now.timeIntervalSince($0) < 366 * 86_400
+            } == true
+            return Double(popular) + unexplored * 6 + (recentRelease ? 1.5 : 0)
+        }
+        // Unlike Hasher, FNV-1a is stable across app launches.
+        func tieBreak(_ disc: ListeningDisc) -> UInt64 {
+            var hash: UInt64 = 14_695_981_039_346_656_037
+            for byte in "\(artistID)|\(day)|\(disc.id)".utf8 {
+                hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211
+            }
+            return hash
+        }
+        guard let featured = available.max(by: {
+            let left = score($0), right = score($1)
+            return left == right ? tieBreak($0) < tieBreak($1) : left < right
+        }) else { return nil }
+        if let data = try? JSONEncoder().encode(Selection(day: day, discID: featured.id, recentIDs: recentIDs)) {
+            defaults.set(data, forKey: key)
+        }
+        return featured.id
+    }
+}
+
 @MainActor extension ListeningRoomCoordinator {
     /// Artists stay on the shelf before their discs arrive.
     var showsRack: Bool {
@@ -107,13 +200,22 @@ enum ListeningRackOrdering {
             // Singles trail full releases.
             let releases = allReleases.filter { $0.isSingle != true } + allReleases.filter { $0.isSingle == true }
             let releaseIDs = Set(releases.map(\.id))
+            let orderedDiscs = releases + discs.filter { !releaseIDs.contains($0.id) }
+            let featuredID = show.flatMap {
+                ListeningDailyFeaturedDiscPolicy.featuredDiscID(
+                    showID: $0.id, artistID: artist.id, discs: orderedDiscs,
+                    topSongIDs: artistPresentations[artist.id]?.top.map(\.id) ?? [],
+                    familiarSongIDs: familiarSongIDs
+                )
+            }
             groups.append(ListeningRackGroup(
                 // Keyed by lineup slot so connecting an artist keeps the rack's place on it.
                 id: "slot-\(artist.slotIndex)",
                 kind: .artist(id: artist.id, slotIndex: artist.slotIndex, isConnected: artist.isConnected),
                 name: artist.name,
                 artworkURL: artist.artworkURL,
-                discs: releases + discs.filter { !releaseIDs.contains($0.id) },
+                discs: orderedDiscs,
+                featuredDiscID: featuredID,
                 catalogStatus: artistCatalogStatus[artist.id],
                 hasCatalog: !artist.isConnected || catalogSnapshots.contains { $0.artistID == artist.id }
             ))

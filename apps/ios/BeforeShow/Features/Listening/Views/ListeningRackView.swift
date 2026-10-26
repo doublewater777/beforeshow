@@ -57,6 +57,11 @@ struct ListeningRackView: View {
         (group.id == position.expandedGroupID || group.id == flatArtist?.id) && group.catalogStatus == .loading && group.discs.count <= 1
     }
 
+    private func headID(for group: ListeningRackGroup) -> String? {
+        guard let index = group.discs.firstIndex(where: { $0.id == group.head?.id }) else { return nil }
+        return "\(group.id)#\(index)"
+    }
+
     /// Every case that could be on screen; ids are positional so a blank case turns into the album that fills it.
     private var entries: [Entry] {
         groups.enumerated().flatMap { gi, group in
@@ -74,7 +79,9 @@ struct ListeningRackView: View {
         if flatArtist != nil {
             return entries.filter { !$0.isPlaceholder || placeholderGroupID == $0.group.id }
         }
-        guard let open = openIndex else { return entries.filter { $0.index == 0 } }
+        guard let open = openIndex else {
+            return entries.filter { $0.id == headID(for: $0.group) || ($0.group.head == nil && $0.index == 0) }
+        }
         return entries.filter { $0.groupIndex == open && (!$0.isPlaceholder || placeholderGroupID == position.expandedGroupID) }
     }
 
@@ -127,8 +134,8 @@ struct ListeningRackView: View {
         let anchor = openIndex ?? focusGroup ?? 0
         return entries.filter { entry in
             if let pos = rowIDs[entry.id] { return abs(pos - c) <= L.renderReach }
-            if openIndex != nil { return entry.index == 0 && abs(entry.groupIndex - anchor) <= L.renderReach }
-            return entry.groupIndex == focusGroup && entry.index <= L.renderReach
+            if openIndex != nil { return entry.id == headID(for: entry.group) && abs(entry.groupIndex - anchor) <= L.renderReach }
+            return entry.groupIndex == focusGroup && (entry.id == headID(for: entry.group) || entry.index <= L.renderReach)
         }
     }
 
@@ -159,7 +166,7 @@ struct ListeningRackView: View {
                                 artworkURL: entry.group.artworkURL,
                                 isLive: entry.group.kind == .live,
                                 isPlaceholder: entry.isPlaceholder,
-                                marked: entry.index == 0 && openIndex == entry.groupIndex && entry.group.discs.count > 1,
+                                marked: entry.id == headID(for: entry.group) && openIndex == entry.groupIndex && entry.group.discs.count > 1,
                                 showsDisc: entry.id == focused?.id && out && carriedDisc == nil
                             ),
                             width: width,
@@ -228,6 +235,8 @@ struct ListeningRackView: View {
             }
         }
         .onAppear {
+            position.refreshDayIfNeeded()
+            if position.focusedID == nil { position.focusedID = initialFocusID(in: row) }
             if case .artist = room.browser.scope,
                let group = groups.first(where: { $0.scope == room.browser.scope }) {
                 position.expandedGroupID = group.id
@@ -244,7 +253,7 @@ struct ListeningRackView: View {
             guard let group = groups.first(where: { $0.scope == scope }) else { return }
             guard position.expandedGroupID != group.id else { return }
             position.expandedGroupID = group.id
-            position.focusedID = "\(group.id)#0"
+            position.focusedID = headID(for: group) ?? "\(group.id)#0"
             revealedID = position.focusedID
         }
         .onChange(of: position.focusedID) { _, id in
@@ -340,7 +349,7 @@ struct ListeningRackView: View {
     private func togglePlate(_ group: ListeningRackGroup) {
         if openIndex != nil {
             withAnimation(reduceMotion ? nil : L.motion) {
-                position.focusedID = "\(group.id)#0"
+                position.focusedID = headID(for: group) ?? "\(group.id)#0"
                 position.expandedGroupID = nil
                 room.selectScope(.all)
             }
@@ -353,7 +362,7 @@ struct ListeningRackView: View {
         guard flatArtist == nil, group.canExpand else { return }
         withAnimation(reduceMotion ? nil : L.motion) {
             position.expandedGroupID = group.id
-            position.focusedID = "\(group.id)#0"
+            position.focusedID = headID(for: group) ?? "\(group.id)#0"
             room.selectScope(group.scope)
         }
     }
@@ -467,6 +476,14 @@ struct ListeningRackView: View {
         if let discID = room.display.hardware.discID,
            let match = row.first(where: { $0.disc?.id == discID }) {
             return match.id
+        }
+        if let oldGroupID = position.focusedID?.split(separator: "#").first,
+           let sameGroup = row.first(where: { $0.group.id == String(oldGroupID) }) {
+            return sameGroup.id
+        }
+        if let flatArtist, let featured = headID(for: flatArtist),
+           row.contains(where: { $0.id == featured }) {
+            return featured
         }
         return row.first?.id
     }
