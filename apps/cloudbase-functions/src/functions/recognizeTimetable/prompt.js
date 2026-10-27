@@ -3,13 +3,13 @@
  */
 export const RECOGNITION_PROMPT_ZH_HANS = `请识别我上传的音乐节时刻表图片，只输出一个 JSON 对象，不要任何解释、标题或 Markdown 代码块。
 
-格式（字段名保持英文）：
-{"version":1,"timeZone":null,"days":[{"date":"2026-10-17","stages":[{"name":"STAGE","performances":[{"artist":"ARTIST","start":"18:00","end":"19:00"}]}]}]}
+格式（字段名保持英文，注意多天与多舞台的闭合括号结构）：
+{"version":1,"timeZone":null,"days":[{"date":"2026-10-17","stages":[{"name":"STAGE","performances":[{"artist":"ARTIST","start":"18:00","end":"19:00"}]}]},{"date":"2026-10-18","stages":[{"name":"STAGE","performances":[{"artist":"ARTIST","start":"18:00","end":"19:00"}]}]}]}
 
 规则：
 1. 提取图片中的每一场演出：日期、舞台、艺人、开始时间、结束时间。
-2. 艺人名和舞台名按图片原文照抄，不要翻译、改写或纠正。
-3. 先按日期、再按舞台归组，演出按图片中的顺序排列。
+2. 艺人名和舞台名按图片原文照抄，不要翻译、改写或纠正。若图片未标注舞台名，舞台名填写 "主舞台" 或 null。
+3. 先按日期、再按舞台归组，演出按图片中的顺序排列。注意每个 day 包含独立的 stages 数组，不同天必须是 days 数组中的独立元素，不要把一天的内容嵌套进另一天的 stages 中。
 4. 时间使用 24 小时制 HH:mm。属于前一天排期的午夜后演出，仍放在前一天，时间照图片写（例如 "00:30"）。
 5. 日期写成 YYYY-MM-DD；图片没有年份时写成 MM-DD。
 6. 任何无法确定的值写 null，不要猜测。图片写 END / TBA 时 end 用 null。

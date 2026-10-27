@@ -42,6 +42,37 @@ describe("recognizeTimetable document helpers", () => {
     assert.equal(result.document.days[0].stages[0].performances[1].end, null);
   });
 
+  it("repairs unclosed brackets and trailing commas", () => {
+    const unclosed = `{"version":1,"timeZone":null,"days":[{"date":"2026-10-16","stages":[{"name":"Main","performances":[{"artist":"A","start":"20:00","end":"21:00"}]`;
+    const result = parseExchangeDocument(unclosed);
+    assert.equal(result.ok, true);
+    assert.equal(result.document.days[0].stages[0].performances[0].artist, "A");
+  });
+
+  it("unnests days accidentally placed in stages", () => {
+    const nested = JSON.stringify({
+      version: 1,
+      timeZone: null,
+      days: [
+        {
+          date: "10-31",
+          stages: [
+            { name: "Main", performances: [{ artist: "A", start: "15:00", end: "16:00" }] },
+            {
+              date: "11-01",
+              stages: [{ name: "Main", performances: [{ artist: "B", start: "16:00", end: "17:00" }] }]
+            }
+          ]
+        }
+      ]
+    });
+    const result = parseExchangeDocument(nested);
+    assert.equal(result.ok, true);
+    assert.equal(result.document.days.length, 2);
+    assert.equal(result.document.days[0].date, "10-31");
+    assert.equal(result.document.days[1].date, "11-01");
+  });
+
   it("rejects unsupported version", () => {
     const result = parseExchangeDocument(JSON.stringify({ version: 2, days: [] }));
     assert.equal(result.ok, false);

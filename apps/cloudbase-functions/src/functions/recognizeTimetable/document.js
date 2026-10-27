@@ -15,6 +15,58 @@ export function extractObject(text) {
   return trimmed.slice(open, close + 1);
 }
 
+/** Attempt to repair common JSON malformations like trailing commas or unclosed brackets. */
+export function repairJson(str) {
+  if (typeof str !== "string") {
+    return null;
+  }
+  try {
+    return JSON.parse(str);
+  } catch {}
+
+  const cleaned = str.replace(/,\s*([}\]])/g, "$1");
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  let inString = false;
+  let escape = false;
+  const stack = [];
+  for (let i = 0; i < cleaned.length; i++) {
+    const c = cleaned[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (c === "\\") {
+      escape = true;
+      continue;
+    }
+    if (c === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (c === "{" || c === "[") {
+      stack.push(c);
+    } else if (c === "}" || c === "]") {
+      stack.pop();
+    }
+  }
+
+  let suffix = "";
+  while (stack.length > 0) {
+    const top = stack.pop();
+    suffix += top === "{" ? "}" : "]";
+  }
+
+  try {
+    return JSON.parse(cleaned + suffix);
+  } catch {}
+
+  return null;
+}
+
 /**
  * Parse and lightly normalize a TimetableExchangeDocument.
  * Mirrors TimetableImportParser version/shape gates; normalizes END/TBA ends.
@@ -32,15 +84,9 @@ export function parseExchangeDocument(rawText) {
     return { ok: false, code: "INVALID_MODEL_OUTPUT", message: "Model output is not a JSON object." };
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(jsonText);
-  } catch {
-    return { ok: false, code: "INVALID_MODEL_OUTPUT", message: "Model output is not valid JSON." };
-  }
-
+  const parsed = repairJson(jsonText);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, code: "INVALID_MODEL_OUTPUT", message: "Model output must be a JSON object." };
+    return { ok: false, code: "INVALID_MODEL_OUTPUT", message: "Model output is not valid JSON." };
   }
 
   if (parsed.version !== SUPPORTED_VERSION) {
@@ -59,11 +105,34 @@ export function parseExchangeDocument(rawText) {
   return { ok: true, document };
 }
 
+function unnestDays(rawDays) {
+  if (!Array.isArray(rawDays)) return [];
+  const days = [];
+  for (const day of rawDays) {
+    if (!day || typeof day !== "object") continue;
+    const directStages = [];
+    const nestedDays = [];
+    for (const stage of (day.stages || [])) {
+      if (stage && typeof stage === "object" && stage.date && Array.isArray(stage.stages)) {
+        nestedDays.push(stage);
+      } else {
+        directStages.push(stage);
+      }
+    }
+    days.push({ ...day, stages: directStages });
+    for (const nested of nestedDays) {
+      days.push(...unnestDays([nested]));
+    }
+  }
+  return days;
+}
+
 function normalizeDocument(doc) {
+  const flattenedDays = unnestDays(doc.days);
   return {
     version: 1,
     timeZone: normalizeNullableString(doc.timeZone),
-    days: (doc.days || []).map((day) => ({
+    days: flattenedDays.map((day) => ({
       date: normalizeNullableString(day?.date),
       stages: Array.isArray(day?.stages)
         ? day.stages.map((stage) => ({
