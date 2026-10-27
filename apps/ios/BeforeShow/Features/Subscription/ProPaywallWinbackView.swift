@@ -32,7 +32,7 @@ struct ProPaywallWinbackView: View {
                 Text(BSLocalization.text("再想一下？"))
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(BSColor.Stage.foreground)
-                Text(BSLocalization.text("以特惠价升级，错过恢复原价；免费版仍会每个自然月增加 1 场容量。"))
+                Text(BSLocalization.text("以特惠价升级，错过恢复原价；免费版仍可免费保存 20 场现场。"))
                     .font(BSFont.caption)
                     .foregroundStyle(BSColor.Stage.muted)
                     .fixedSize(horizontal: false, vertical: true)

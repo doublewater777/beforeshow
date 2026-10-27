@@ -62,7 +62,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(restored.isProActive)
     }
 
-    func testFreeCapacityStartsWithFiveBaseAndAllowsSixthInFirstMonth() throws {
+    func testFreeCapacityAllowsAddingUpToTwentyShows() throws {
         let defaults = temporaryQuotaDefaults()
         let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
         let calendar = quotaCalendar()
@@ -76,34 +76,7 @@ final class ProSubscriptionTests: XCTestCase {
         )
 
         XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 5, date: now),
-            entitlement: .free,
-            now: now,
-            calendar: calendar
-        ))
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 6, date: now),
-            entitlement: .free,
-            now: now,
-            calendar: calendar
-        ))
-    }
-
-    func testFreeCapacityDeletionReleasesSpaceWithinSameMonth() throws {
-        let defaults = temporaryQuotaDefaults()
-        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
-        let calendar = quotaCalendar()
-        let now = quotaDate(2026, 9, 10, calendar: calendar)
-
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 5, date: now),
-            entitlement: .free,
-            now: now,
-            calendar: calendar
-        )
-
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 6, date: now),
+            from: try quotaShows(count: 0, date: now),
             entitlement: .free,
             now: now,
             calendar: calendar
@@ -114,189 +87,132 @@ final class ProSubscriptionTests: XCTestCase {
             now: now,
             calendar: calendar
         ))
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 19, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 21, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
     }
 
-    func testFreeCapacityDoesNotRollUnusedGrowthIntoNextMonth() throws {
+    func testFreeCapacityDeletionReleasesSpace() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 20, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        // Deleting a show frees space, allowing an add up to 20.
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 19, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testFreeCapacityDoesNotGrowPastTwentyAcrossMonths() throws {
         let defaults = temporaryQuotaDefaults()
         let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
         let calendar = quotaCalendar()
         let september = quotaDate(2026, 9, 10, calendar: calendar)
         let october = quotaDate(2026, 10, 2, calendar: calendar)
-        let fiveShows = try quotaShows(count: 5, date: september)
 
         capacity.synchronizeFreeCapacity(
-            from: fiveShows,
+            from: try quotaShows(count: 20, date: september),
             entitlement: .free,
             now: september,
             calendar: calendar
         )
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        ))
+
+        // Crossing into October must NOT grant additional capacity for free users.
         capacity.synchronizeFreeCapacity(
-            from: fiveShows,
+            from: try quotaShows(count: 20, date: october),
             entitlement: .free,
             now: october,
             calendar: calendar
         )
-
-        XCTAssertTrue(capacity.canAddShow(
-            from: fiveShows,
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        ))
         XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 6, date: october),
+            from: try quotaShows(count: 20, date: october),
             entitlement: .free,
             now: october,
             calendar: calendar
         ))
     }
 
-    func testFreeCapacityDoesNotRemintGrowthWhenCalendarRollsBackToEarlierMonth() throws {
-        let defaults = temporaryQuotaDefaults()
-        let capacity = FreeShowCapacityCoordinator(
-            stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
-        )
-        let calendar = quotaCalendar()
-        let september = quotaDate(2026, 9, 10, calendar: calendar)
-        let october = quotaDate(2026, 10, 10, calendar: calendar)
-
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 5, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        )
-
-        // September reaches its limit of 6.
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 6, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        ))
-
-        // October legitimately grants the next growth step, reaching 7.
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 6, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        )
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 7, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        ))
-
-        // Rolling the device calendar back to September must not initialize
-        // September again from the latest retained count and mint an eighth slot.
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 7, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        ))
-    }
-
-    func testFreeCapacityIgnoresSystemCalendarIdentifierChanges() throws {
-        let defaults = temporaryQuotaDefaults()
-        let capacity = FreeShowCapacityCoordinator(
-            stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
-        )
-
-        var gregorian = Calendar(identifier: .gregorian)
-        gregorian.timeZone = TimeZone(secondsFromGMT: 8 * 60 * 60)!
-        var buddhist = Calendar(identifier: .buddhist)
-        buddhist.timeZone = gregorian.timeZone
-
-        let september = quotaDate(2026, 9, 10, calendar: gregorian)
-        let october = quotaDate(2026, 10, 10, calendar: gregorian)
-
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 5, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: gregorian
-        )
-
-        // Switching the system calendar must still refer to the same Gregorian
-        // civil month rather than persisting Buddhist year 2569 as a future boundary.
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 6, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: buddhist
-        )
-
-        // After switching back, October must still receive its normal +1 step.
-        XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 6, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: gregorian
-        ))
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 7, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: gregorian
-        ))
-    }
-
-    func testExpiredProStartsMonthlyGrowthFromExpirationCount() throws {
-        let defaults = temporaryQuotaDefaults()
-        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
-        let calendar = quotaCalendar()
-        let now = quotaDate(2026, 9, 15, calendar: calendar)
-        let active = ProEntitlementState.active(productID: "pro", expirationDate: nil)
-        let expired = ProEntitlementState.expired(productID: "pro", expirationDate: now)
-        let twelve = try quotaShows(count: 12, date: now)
-
-        capacity.synchronizeFreeCapacity(
-            from: twelve,
-            entitlement: active,
-            now: now,
-            calendar: calendar
-        )
-
-        XCTAssertTrue(capacity.canAddShow(
-            from: twelve,
-            entitlement: expired,
-            now: now,
-            calendar: calendar
-        ))
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 13, date: now),
-            entitlement: expired,
-            now: now,
-            calendar: calendar
-        ))
-    }
-
-    func testSameMonthProRoundTripDoesNotGrantAnotherMonthlyGrowthStep() throws {
+    func testActiveProAllowsUnlimitedShows() throws {
         let defaults = temporaryQuotaDefaults()
         let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
         let calendar = quotaCalendar()
         let now = quotaDate(2026, 9, 10, calendar: calendar)
-        let freeTwenty = try quotaShows(count: 20, date: now)
+        let active = ProEntitlementState.active(productID: "pro", expirationDate: nil)
 
-        capacity.synchronizeFreeCapacity(
-            from: freeTwenty,
-            entitlement: .free,
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: now),
+            entitlement: active,
             now: now,
             calendar: calendar
-        )
-        capacity.synchronizeFreeCapacity(
+        ))
+        XCTAssertTrue(capacity.canAddShow(
             from: try quotaShows(count: 25, date: now),
-            entitlement: .active(productID: "pro", expirationDate: nil),
+            entitlement: active,
             now: now,
             calendar: calendar
-        )
+        ))
+    }
+
+    func testExpiredProBlocksAddingWhenAtOrAboveTwenty() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+        let expired = ProEntitlementState.expired(productID: "pro", expirationDate: now)
 
         XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 20, date: now),
+            entitlement: expired,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
             from: try quotaShows(count: 25, date: now),
-            entitlement: .expired(productID: "pro", expirationDate: now),
+            entitlement: expired,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 19, date: now),
+            entitlement: expired,
             now: now,
             calendar: calendar
         ))
@@ -320,166 +236,15 @@ final class ProSubscriptionTests: XCTestCase {
             stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
         )
         XCTAssertTrue(freshCapacity.canAddShow(
-            from: try quotaShows(count: 5, date: now),
+            from: try quotaShows(count: 19, date: now),
             entitlement: .free,
             now: now,
             calendar: calendar
         ))
         XCTAssertFalse(freshCapacity.canAddShow(
-            from: try quotaShows(count: 6, date: now),
+            from: try quotaShows(count: 20, date: now),
             entitlement: .free,
             now: now,
-            calendar: calendar
-        ))
-    }
-
-    func testExistingFreeUserMigrationUsesCurrentRetainedCountAsBaseline() throws {
-        let defaults = temporaryQuotaDefaults()
-        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
-        let calendar = quotaCalendar()
-        let now = quotaDate(2026, 9, 10, calendar: calendar)
-
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 8, date: now),
-            entitlement: .free,
-            now: now,
-            calendar: calendar
-        )
-
-        XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 8, date: now),
-            entitlement: .free,
-            now: now,
-            calendar: calendar
-        ))
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 9, date: now),
-            entitlement: .free,
-            now: now,
-            calendar: calendar
-        ))
-    }
-
-    func testNextMonthRebasesFromRetainedSelfAddedShows() throws {
-        let defaults = temporaryQuotaDefaults()
-        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
-        let calendar = quotaCalendar()
-        let september = quotaDate(2026, 9, 10, calendar: calendar)
-        let october = quotaDate(2026, 10, 2, calendar: calendar)
-
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 10, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        )
-        // Production synchronizes immediately after a successful add. Preserve
-        // September's retained count before crossing the month boundary.
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 11, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        )
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 11, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        )
-
-        XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 11, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        ))
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 12, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        ))
-    }
-
-    func testFreeCapacityHardCapAtTwentyShows() throws {
-        let defaults = temporaryQuotaDefaults()
-        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
-        let calendar = quotaCalendar()
-        let september = quotaDate(2026, 9, 10, calendar: calendar)
-        let october = quotaDate(2026, 10, 2, calendar: calendar)
-
-        // 19 shows in September with baseline 19 allows adding the 20th show.
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 19, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        )
-        XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 19, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        ))
-
-        // Once 20 shows are reached, adding is blocked.
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 20, date: september),
-            entitlement: .free,
-            now: september,
-            calendar: calendar
-        ))
-
-        // Crossing into October must NOT grant a 21st slot for free users.
-        capacity.synchronizeFreeCapacity(
-            from: try quotaShows(count: 20, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        )
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 20, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        ))
-
-        // Deleting a show frees space back to 19, allowing an add up to 20.
-        XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 19, date: october),
-            entitlement: .free,
-            now: october,
-            calendar: calendar
-        ))
-
-        // Pro subscribers are not bound by the 20-show cap.
-        let active = ProEntitlementState.active(productID: "pro", expirationDate: nil)
-        XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 20, date: october),
-            entitlement: active,
-            now: october,
-            calendar: calendar
-        ))
-        XCTAssertTrue(capacity.canAddShow(
-            from: try quotaShows(count: 25, date: october),
-            entitlement: active,
-            now: october,
-            calendar: calendar
-        ))
-
-        // Expired Pro users with >= 20 shows cannot add more shows.
-        let expired = ProEntitlementState.expired(productID: "pro", expirationDate: october)
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 20, date: october),
-            entitlement: expired,
-            now: october,
-            calendar: calendar
-        ))
-        XCTAssertFalse(capacity.canAddShow(
-            from: try quotaShows(count: 25, date: october),
-            entitlement: expired,
-            now: october,
             calendar: calendar
         ))
     }
@@ -675,10 +440,10 @@ final class ProSubscriptionTests: XCTestCase {
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
-        XCTAssertEqual(ProLimitReason.saveLimit.title, "本月免费容量已用完")
+        XCTAssertEqual(ProLimitReason.saveLimit.title, "已达到免费 20 场上限")
         XCTAssertEqual(
             ProLimitReason.saveLimit.message,
-            "免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。"
+            "免费版最多可添加 20 场现场；删除现场可释放容量。开通 Pro 后不限制新增场次。"
         )
         XCTAssertEqual(ProLimitReason.hardCapLimit.title, "已达到免费 20 场上限")
         XCTAssertEqual(
@@ -719,7 +484,7 @@ final class ProSubscriptionTests: XCTestCase {
     func testSettingsMembershipSummaryUsesTruthfulEntitlementCopy() {
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .free),
-            SettingsMembershipSummary(title: "免费版", subtitle: "基础 5 场 · 每月容量 +1")
+            SettingsMembershipSummary(title: "免费版", subtitle: "免费 20 场容量")
         )
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .active(productID: "pro", expirationDate: nil)),
@@ -729,7 +494,7 @@ final class ProSubscriptionTests: XCTestCase {
             SettingsMembershipSummary(
                 entitlement: .expired(productID: "pro", expirationDate: Date(timeIntervalSince1970: 0))
             ),
-            SettingsMembershipSummary(title: "Pro 已过期", subtitle: "已有现场保留 · 每月容量 +1")
+            SettingsMembershipSummary(title: "Pro 已过期", subtitle: "已有现场保留 · 免费 20 场容量")
         )
     }
 
@@ -876,13 +641,17 @@ final class ProSubscriptionTests: XCTestCase {
             "无限添加现场",
             "一次买断，永久有效",
             "基础 5 场 · 每月容量 +1",
+            "免费 20 场容量",
             "已有现场保留 · 每月容量 +1",
+            "已有现场保留 · 免费 20 场容量",
             "本月免费容量已用完",
             "免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。",
             "以特惠价升级，错过恢复原价；免费版仍会每个自然月增加 1 场容量。",
+            "以特惠价升级，错过恢复原价；免费版仍可免费保存 20 场现场。",
             "已达到免费 20 场上限",
             "免费版最多可添加 20 场现场；删除现场可释放容量。开通 Pro 后不限制新增场次。",
             "免费版基础 5 场容量（每月 +1，最多 20 场）与 2 次智能识别。Pro 解锁无限场次与不限次时刻表智能识别。",
+            "免费版包含 20 场现场容量与 2 次智能识别。Pro 解锁无限场次与不限次时刻表智能识别。",
             "突破免费版 20 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。",
             "免费智能识别次数已用完",
             "普通用户赠送 2 次时刻表智能识别；开通 Pro 后不限使用次数。自行导入排期与原图保存始终免费。",

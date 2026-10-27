@@ -23,6 +23,7 @@ struct TimetableStageMatrixView: View {
     @State private var scrolledDayID: UUID?
     /// A tap on empty lane space only proposes a slot; nothing is saved until the form is.
     @State private var ghost: Ghost?
+    @State private var ghostDismissTask: Task<Void, Never>?
     @State private var viewport = TimetableMatrixViewport()
 
     private struct Ghost: Equatable {
@@ -36,6 +37,7 @@ struct TimetableStageMatrixView: View {
     private static let minLane = TimetableStyle.matrixMinimumLaneWidth
     private static let capHeight = TimetableStyle.matrixHeaderHeight
     private static let addStageWidth = TimetableStyle.matrixAddStageWidth
+    private static let ghostAutoDismissNanoseconds: UInt64 = 3_500_000_000
 
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -253,11 +255,27 @@ struct TimetableStageMatrixView: View {
         .animation(.easeOut(duration: 0.35), value: wantOnly)
         .onChange(of: day.id) { _, _ in ghost = nil }
         .onChange(of: wantOnly) { _, _ in ghost = nil }
+        .onChange(of: ghost) { _, newGhost in
+            ghostDismissTask?.cancel()
+            guard newGhost != nil else { return }
+            ghostDismissTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: Self.ghostAutoDismissNanoseconds)
+                guard !Task.isCancelled else { return }
+                withAnimation(.snappy(duration: 0.25)) {
+                    ghost = nil
+                }
+            }
+        }
+        .onDisappear {
+            ghostDismissTask?.cancel()
+            ghost = nil
+        }
     }
 
     private func ghostSlot(_ ghost: Ghost, stage: TimetableStage, lane: CGFloat, layout: TimetableMatrixLayout) -> some View {
         let tint = TimetableStageLight.color(stage.sortOrder)
         return Button {
+            ghostDismissTask?.cancel()
             self.ghost = nil
             onAddPerformance(stage, ghost.start)
         } label: {

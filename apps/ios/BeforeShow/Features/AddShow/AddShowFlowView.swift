@@ -196,8 +196,7 @@ struct AddShowFlowView: View {
         .sheet(item: $paywallSheet) { sheet in
             switch sheet {
             case .limit:
-                let isHardCap = ProFeatureGate().selfAddedShowCount(from: shows) >= ProFeatureGate.maxFreeShowCapacity
-                let reason: ProLimitReason = isHardCap ? .hardCapLimit : .saveLimit
+                let reason: ProLimitReason = .hardCapLimit
                 BSProLimitSheet(
                     title: reason.title,
                     message: reason.message

@@ -2,6 +2,7 @@
 
 ## Status
 
+Superseded by [ADR 0046](0046-free-twenty-shows-flat-capacity.md) — 2026-10-27
 Accepted — 2026-09-26
 
 ## Context
