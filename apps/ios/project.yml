@@ -89,7 +89,7 @@ targets:
           fi
           export POSTHOG_CLI_HOST=https://us.posthog.com
           export POSTHOG_CLI_PROJECT_ID=461647
-          "${BUILD_DIR%/Build/*}/SourcePackages/checkouts/posthog-ios/build-tools/upload-symbols.sh"
+          "${BUILD_DIR%/Build/*}/SourcePackages/checkouts/posthog-ios/build-tools/upload-symbols.sh" || true
     scheme:
       testTargets:
         - BeforeShowTests

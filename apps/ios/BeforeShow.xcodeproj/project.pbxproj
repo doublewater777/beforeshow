@@ -2485,7 +2485,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"$CONFIGURATION\" != \"Release\" ] || [ \"$PLATFORM_NAME\" != \"iphoneos\" ]; then\n  exit 0\nfi\nexport POSTHOG_CLI_HOST=https://us.posthog.com\nexport POSTHOG_CLI_PROJECT_ID=461647\n\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/posthog-ios/build-tools/upload-symbols.sh\"\n";
+			shellScript = "if [ \"$CONFIGURATION\" != \"Release\" ] || [ \"$PLATFORM_NAME\" != \"iphoneos\" ]; then\n  exit 0\nfi\nexport POSTHOG_CLI_HOST=https://us.posthog.com\nexport POSTHOG_CLI_PROJECT_ID=461647\n\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/posthog-ios/build-tools/upload-symbols.sh\" || true\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
