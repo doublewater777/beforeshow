@@ -379,11 +379,12 @@ struct ListeningRoomView: View {
     }
 
     private var canOfferDiscPick: Bool {
-        room.showsRack && !reviewPickCandidates().isEmpty
+        room.showsRack && !pickCandidates(allowUnplayable: true).isEmpty
     }
 
     private var canRedrawDiscPick: Bool {
-        reviewPickCandidates().count > 1
+        let allowUnplayable = pickDisc.map { !room.discPresentation(for: $0).canLoad } ?? false
+        return pickCandidates(allowUnplayable: allowUnplayable).count > 1
     }
 
     private func beginDiscPick(allowUnplayable: Bool = false) {
@@ -395,14 +396,15 @@ struct ListeningRoomView: View {
 
     private func redrawDiscPick() {
         guard let current = pickDisc else { return }
+        let allowUnplayable = !room.discPresentation(for: current).canLoad
         pickSessionExcluded.insert(current.id)
-        let candidates = reviewPickCandidates()
+        let candidates = pickCandidates(allowUnplayable: allowUnplayable)
         let candidateIDs = Set(candidates.map(\.id))
         if candidateIDs.isSubset(of: pickSessionExcluded) {
             pickSessionExcluded = [current.id]
         }
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            revealPickedDisc(allowUnplayable: !room.discPresentation(for: current).canLoad)
+            revealPickedDisc(allowUnplayable: allowUnplayable)
         }
     }
 
@@ -420,7 +422,7 @@ struct ListeningRoomView: View {
     }
 
     private func revealPickedDisc(allowUnplayable: Bool = false) {
-        let candidates = allowUnplayable ? reviewPickCandidates() : loadablePickCandidates()
+        let candidates = pickCandidates(allowUnplayable: allowUnplayable)
         guard let picked = ListeningDiscPickPolicy.pick(
             showID: show.id,
             scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
@@ -440,6 +442,14 @@ struct ListeningRoomView: View {
         )
         pickExhausted = false
         pickDisc = picked
+    }
+
+    private func pickCandidates(allowUnplayable: Bool = false) -> [ListeningDisc] {
+        if !allowUnplayable {
+            let loadable = loadablePickCandidates()
+            if !loadable.isEmpty { return loadable }
+        }
+        return reviewPickCandidates()
     }
 
     private func loadablePickCandidates() -> [ListeningDisc] {

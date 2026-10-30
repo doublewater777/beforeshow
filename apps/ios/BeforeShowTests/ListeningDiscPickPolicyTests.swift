@@ -115,15 +115,64 @@ final class ListeningDiscPickPolicyTests: XCTestCase {
         XCTAssertEqual(artistPick?.id, "a")
     }
 
-    func testPoolPrefersAlbumsOverSingles() throws {
+    func testContinuousRedrawCyclesAndLoopsFromBeginning() throws {
+        let suite = "DiscPickPolicy.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let showID = UUID()
+        let discs = [
+            sampleDisc("d1", songIDs: ["s1"]),
+            sampleDisc("d2", songIDs: ["s2"]),
+            sampleDisc("d3", songIDs: ["s3"]),
+        ]
+        let candidateIDs = Set(discs.map(\.id))
+
+        var sessionExcluded: Set<String> = []
+        var current = try XCTUnwrap(ListeningDiscPickPolicy.pick(
+            showID: showID,
+            scopeKey: "all",
+            candidates: discs,
+            familiarSongIDs: [],
+            excluding: sessionExcluded,
+            defaults: defaults
+        ))
+        ListeningDiscPickPolicy.recordDraw(showID: showID, scopeKey: "all", discID: current.id, defaults: defaults)
+
+        var drawnOrder = [current.id]
+
+        for _ in 1...6 {
+            sessionExcluded.insert(current.id)
+            if candidateIDs.isSubset(of: sessionExcluded) {
+                sessionExcluded = [current.id]
+            }
+            let next = try XCTUnwrap(ListeningDiscPickPolicy.pick(
+                showID: showID,
+                scopeKey: "all",
+                candidates: discs,
+                familiarSongIDs: [],
+                excluding: sessionExcluded,
+                defaults: defaults
+            ))
+            XCTAssertNotEqual(next.id, current.id, "Consecutive redraws must never repeat the same disc")
+            ListeningDiscPickPolicy.recordDraw(showID: showID, scopeKey: "all", discID: next.id, defaults: defaults)
+            drawnOrder.append(next.id)
+            current = next
+        }
+
+        XCTAssertEqual(Set(drawnOrder[0..<3]), candidateIDs)
+        XCTAssertEqual(Set(drawnOrder[3..<6]), candidateIDs)
+    }
+
+    func testPoolIncludesSinglesCompilationsAndAlbums() throws {
         let suite = "DiscPickPolicy.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let showID = UUID()
         let album = sampleDisc("album", songIDs: ["a1"])
         let single = sampleDisc("single", songIDs: ["top"], isSingle: true)
+        let compilation = sampleDisc("comp", songIDs: ["c1", "c2"], origin: .compilation(showID: showID, number: 1))
 
-        let picked = ListeningDiscPickPolicy.pick(
+        let pickedSingle = ListeningDiscPickPolicy.pick(
             showID: showID,
             scopeKey: "artist",
             candidates: [single, album],
@@ -131,8 +180,17 @@ final class ListeningDiscPickPolicyTests: XCTestCase {
             topSongIDs: ["top"],
             defaults: defaults
         )
+        XCTAssertEqual(pickedSingle?.id, "single", "Singles must be included in the pool and scored fairly")
 
-        XCTAssertEqual(picked?.id, "album")
+        let pickedComp = ListeningDiscPickPolicy.pick(
+            showID: showID,
+            scopeKey: "all",
+            candidates: [compilation, album],
+            familiarSongIDs: [],
+            excluding: ["album"],
+            defaults: defaults
+        )
+        XCTAssertEqual(pickedComp?.id, "comp", "Live rehearsal compilations must be in the candidate pool")
     }
 
     func testEmptyCandidatesReturnNil() throws {

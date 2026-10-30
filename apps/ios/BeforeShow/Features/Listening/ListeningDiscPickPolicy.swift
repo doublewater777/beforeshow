@@ -99,25 +99,12 @@ enum ListeningDiscPickPolicy {
     }
 
     private static func prioritizedPool(from candidates: [ListeningDisc]) -> [ListeningDisc] {
-        let nonempty = candidates.filter { !$0.tracks.isEmpty }
-        let albums = nonempty.filter { $0.origin == .album && $0.isSingle != true }
-        let compilationsAndPlaylists = nonempty.filter {
-            switch $0.origin {
-            case .compilation, .featuredPlaylist: true
-            case .album: false
-            }
+        var seen = Set<String>()
+        return candidates.filter { disc in
+            guard !disc.tracks.isEmpty, !seen.contains(disc.id) else { return false }
+            seen.insert(disc.id)
+            return true
         }
-        let singles = nonempty.filter { $0.origin == .album && $0.isSingle == true }
-        let ordered: [ListeningDisc]
-        if !albums.isEmpty {
-            ordered = albums
-        } else if !compilationsAndPlaylists.isEmpty {
-            ordered = compilationsAndPlaylists
-        } else {
-            ordered = singles
-        }
-        let withArtwork = ordered.filter { $0.artworkURL != nil }
-        return withArtwork.isEmpty ? ordered : withArtwork
     }
 
     private static func score(
