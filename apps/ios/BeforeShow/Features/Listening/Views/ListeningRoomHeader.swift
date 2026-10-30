@@ -49,24 +49,35 @@ struct ListeningRoomHeader: View {
     let notice: ListeningHeaderNotice?
     let onRecovery: (ListeningRecoveryAction) -> Void
     var onSearch: (() -> Void)?
+    var onPickDisc: (() -> Void)?
     @State private var showsExplanation = false
 
     init(
         mode: ListeningRoomPlaybackMode,
         notice: ListeningHeaderNotice? = nil,
         onRecovery: @escaping (ListeningRecoveryAction) -> Void = { _ in },
-        onSearch: (() -> Void)? = nil
+        onSearch: (() -> Void)? = nil,
+        onPickDisc: (() -> Void)? = nil
     ) {
         self.mode = mode
         self.notice = notice
         self.onRecovery = onRecovery
         self.onSearch = onSearch
+        self.onPickDisc = onPickDisc
     }
 
     var body: some View {
         ListeningPageHeader {
             HStack(spacing: BSSpacing.sm) {
                 headerStatus
+                if let onPickDisc {
+                    ListeningHeaderActionButton(
+                        icon: "square.stack",
+                        accessibilityLabel: ListeningCopy.text("帮我挑一张"),
+                        action: onPickDisc
+                    )
+                    .accessibilityIdentifier("listening.pickDisc")
+                }
                 if let onSearch {
                     ListeningHeaderActionButton(
                         icon: "magnifyingglass",

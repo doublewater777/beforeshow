@@ -197,6 +197,17 @@ struct ListeningFeatureRootView: View {
                     try? await Task.sleep(for: .milliseconds(200))
                 }
             }
+            // `--listen-open-pick` reveals the cabinet pick sheet for simulator design review.
+            .task {
+                guard ProcessInfo.processInfo.arguments.contains("--listen-open-pick") else { return }
+                while !Task.isCancelled {
+                    if let room = ListeningRoomSessionStore.shared.room, room.show != nil, !room.discs.isEmpty {
+                        NotificationCenter.default.post(name: .listeningOpenPickDisc, object: nil)
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+            }
         } else {
             ListenRootView(isActive: isActive)
         }

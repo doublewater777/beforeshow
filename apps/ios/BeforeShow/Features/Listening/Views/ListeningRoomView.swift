@@ -197,6 +197,9 @@ struct ListeningRoomView: View {
     @State private var matchingSlotIndex: Int?
     @State private var matchingArtistName: String = ""
     @State private var isSearching = false
+    @State private var pickDisc: ListeningDisc?
+    @State private var pickExhausted = false
+    @State private var pickSessionExcluded: Set<String> = []
 
     var body: some View {
         GeometryReader { proxy in
@@ -205,7 +208,8 @@ struct ListeningRoomView: View {
                     mode: room.display.roomMode,
                     notice: room.display.headerNotice,
                     onRecovery: { room.performListeningRecovery($0) },
-                    onSearch: room.discs.isEmpty ? nil : { isSearching = true }
+                    onSearch: room.discs.isEmpty ? nil : { isSearching = true },
+                    onPickDisc: canOfferDiscPick ? { beginDiscPick() } : nil
                 )
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -270,6 +274,23 @@ struct ListeningRoomView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: Binding(
+            get: { pickDisc != nil || pickExhausted },
+            set: { if !$0 { dismissDiscPick() } }
+        )) {
+            ListeningDiscPickSheet(
+                disc: pickDisc,
+                show: show,
+                canConfirm: !(room.busy || room.mechanism.isAutomatic),
+                canRedraw: canRedrawDiscPick,
+                exhausted: pickExhausted,
+                onConfirm: confirmDiscPick,
+                onRedraw: redrawDiscPick,
+                onClose: dismissDiscPick
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: Binding(
             get: { matchingSlotIndex != nil },
             set: { if !$0 { matchingSlotIndex = nil } }
         )) {
@@ -294,6 +315,15 @@ struct ListeningRoomView: View {
             while !Task.isCancelled {
                 room.tickMechanism()
                 try? await Task.sleep(for: .milliseconds(1000))
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .listeningOpenPickDisc)) { _ in
+            beginDiscPick(allowUnplayable: true)
+        }
+        .task {
+            if ProcessInfo.processInfo.arguments.contains("--listen-open-pick") {
+                try? await Task.sleep(for: .milliseconds(500))
+                beginDiscPick(allowUnplayable: true)
             }
         }
     }
@@ -347,6 +377,100 @@ struct ListeningRoomView: View {
             ListeningCopy.text("Apple Music 访问受到系统限制，无法在此更改。")
         }
     }
+
+    private var canOfferDiscPick: Bool {
+        room.showsRack && !reviewPickCandidates().isEmpty
+    }
+
+    private var canRedrawDiscPick: Bool {
+        reviewPickCandidates().count > 1
+    }
+
+    private func beginDiscPick(allowUnplayable: Bool = false) {
+        pickSessionExcluded = seatedPickExclusion()
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+            revealPickedDisc(allowUnplayable: allowUnplayable)
+        }
+    }
+
+    private func redrawDiscPick() {
+        guard let current = pickDisc else { return }
+        pickSessionExcluded.insert(current.id)
+        let candidates = reviewPickCandidates()
+        let candidateIDs = Set(candidates.map(\.id))
+        if candidateIDs.isSubset(of: pickSessionExcluded) {
+            pickSessionExcluded = [current.id]
+        }
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+            revealPickedDisc(allowUnplayable: !room.discPresentation(for: current).canLoad)
+        }
+    }
+
+    private func confirmDiscPick() {
+        guard let pickDisc else { return }
+        let disc = pickDisc
+        dismissDiscPick()
+        room.loadPlayableDisc(disc)
+    }
+
+    private func dismissDiscPick() {
+        pickDisc = nil
+        pickExhausted = false
+        pickSessionExcluded = []
+    }
+
+    private func revealPickedDisc(allowUnplayable: Bool = false) {
+        let candidates = allowUnplayable ? reviewPickCandidates() : loadablePickCandidates()
+        guard let picked = ListeningDiscPickPolicy.pick(
+            showID: show.id,
+            scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
+            candidates: candidates,
+            familiarSongIDs: room.familiarSongIDs,
+            topSongIDs: topSongIDsForPick(),
+            excluding: pickSessionExcluded
+        ) else {
+            pickDisc = nil
+            pickExhausted = true
+            return
+        }
+        ListeningDiscPickPolicy.recordDraw(
+            showID: show.id,
+            scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
+            discID: picked.id
+        )
+        pickExhausted = false
+        pickDisc = picked
+    }
+
+    private func loadablePickCandidates() -> [ListeningDisc] {
+        ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
+            .filter { room.discPresentation(for: $0).canLoad }
+    }
+
+    private func reviewPickCandidates() -> [ListeningDisc] {
+        let loadable = loadablePickCandidates()
+        if !loadable.isEmpty { return loadable }
+        return ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
+            .filter { !$0.tracks.isEmpty }
+    }
+
+    private func seatedPickExclusion() -> Set<String> {
+        guard let id = room.mechanism.disc?.id else { return [] }
+        return [id]
+    }
+
+    private func topSongIDsForPick() -> [String] {
+        switch room.browser.scope {
+        case .all:
+            room.artistPresentations.values.flatMap { $0.top.prefix(5).map(\.id) }
+        case let .artist(id):
+            room.artistPresentations[id]?.top.map(\.id) ?? []
+        }
+    }
+}
+
+extension Notification.Name {
+    static let listeningOpenPickDisc = Notification.Name("listening.openPickDisc")
 }
 
 extension View {

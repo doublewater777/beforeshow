@@ -1020,7 +1020,60 @@
           }
         }
       }
+    },
+
+    "帮我挑一张" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a disc for me"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "幫我挑一張"
+          }
+        }
+      }
+    },
+    "换一张" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw another"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "換一張"
+          }
+        }
+      }
+    },
+    "这排柜子暂时没有可挑的唱片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No discs left to pick from this shelf."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這排櫃子暫時沒有可挑的唱片"
+          }
+        }
+      }
     }
+
   },
   "version" : "1.0"
 }
