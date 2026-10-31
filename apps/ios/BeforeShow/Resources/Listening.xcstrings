@@ -1,6 +1,34 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "专辑" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Albums" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "專輯" } }
+      }
+    },
+    "单曲和 EP" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Singles & EPs" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單曲和 EP" } }
+      }
+    },
+    "筛选唱片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Filter Discs" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "篩選唱片" } }
+      }
+    },
+    "没有符合筛选条件的唱片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No discs match this filter" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有符合篩選條件的唱片" } }
+      }
+    },
     "%@ 等 %d 位艺人" : {
       "extractionState" : "manual",
       "localizations" : {

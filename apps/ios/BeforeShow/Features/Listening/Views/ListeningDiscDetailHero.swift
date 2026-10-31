@@ -39,6 +39,7 @@ struct ListeningDiscDetailHero: View {
                     .foregroundStyle(BSColor.Stage.foreground)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("listening.discDetail.title")
                 ListeningDiscArtistCredits(links: artistLinks)
                 HStack(spacing: BSSpacing.xs) {
                     Text(metadata)

@@ -133,8 +133,9 @@ enum ListeningFixtureScenario: String, CaseIterable {
         if scenario == .artistLibrary {
             let albumIDs = (1...4).map { "fixture-library-\($0)" }
             for (index, id) in albumIDs.enumerated() {
-                context.insert(CatalogAlbum(appleMusicAlbumID: id, title: "Aimer · Album \(index + 1)",
-                    artistIDs: ["fixture-artist-0"], artistNames: ["Aimer"],
+                let title = index == 2 ? "Aimer · Single" : index == 3 ? "Aimer - EP" : "Aimer · Album \(index + 1)"
+                context.insert(CatalogAlbum(appleMusicAlbumID: id, title: title,
+                    artistIDs: ["fixture-artist-0"], artistNames: ["Aimer"], isSingle: index == 2,
                     orderedTrackIDs: (0..<4).map { "fixture-song-0-\($0)" }))
             }
             let predicate = #Predicate<ArtistCatalogSnapshot> { $0.artistID == "fixture-artist-0" }

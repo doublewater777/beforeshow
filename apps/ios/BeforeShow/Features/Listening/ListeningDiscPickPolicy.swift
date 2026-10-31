@@ -19,8 +19,30 @@ enum ListeningDiscPickCandidates {
     }
 }
 
+enum ListeningDiscPickFilter: String, CaseIterable {
+    case all, albums, singlesAndEPs
+
+    var title: String {
+        switch self {
+        case .all: BSLocalization.text("全部")
+        case .albums: ListeningCopy.text("专辑")
+        case .singlesAndEPs: ListeningCopy.text("单曲和 EP")
+        }
+    }
+
+    func includes(_ disc: ListeningDisc) -> Bool {
+        guard self != .all else { return true }
+        guard disc.origin == .album else { return false }
+        // MusicKit exposes isSingle; EP releases also carry a catalog title suffix.
+        let isShortRelease = disc.isSingle == true || disc.title.range(
+            of: #"\s[-–—]\s*EP\s*$"#, options: [.regularExpression, .caseInsensitive]
+        ) != nil
+        return self == .singlesAndEPs ? isShortRelease : !isShortRelease
+    }
+}
+
 /// On-demand disc pick from the current Listening browse scope.
-/// Prefers unexplored sleeves; never changes daily featured heads or reminder queues.
+/// Random draws avoid recent sleeves without changing daily featured heads or reminder queues.
 enum ListeningDiscPickPolicy {
     private struct Selection: Codable {
         var recentIDs: [String]
@@ -58,79 +80,41 @@ enum ListeningDiscPickPolicy {
         showID: UUID,
         scopeKey: String,
         candidates: [ListeningDisc],
-        familiarSongIDs: Set<String>,
-        topSongIDs: [String] = [],
         excluding excludedIDs: Set<String> = [],
-        now: Date = Date(),
         defaults: UserDefaults = .standard
     ) -> ListeningDisc? {
-        let pool = prioritizedPool(from: candidates)
+        var generator = SystemRandomNumberGenerator()
+        return pick(showID: showID, scopeKey: scopeKey, candidates: candidates,
+                    excluding: excludedIDs, defaults: defaults, using: &generator)
+    }
+
+    static func pick<R: RandomNumberGenerator>(
+        showID: UUID,
+        scopeKey: String,
+        candidates: [ListeningDisc],
+        excluding excludedIDs: Set<String> = [],
+        defaults: UserDefaults = .standard,
+        using generator: inout R
+    ) -> ListeningDisc? {
+        let pool = candidatePool(from: candidates)
         guard !pool.isEmpty else { return nil }
 
         let key = storageKey(showID: showID, scopeKey: scopeKey)
         let recentIDs = load(key: key, defaults: defaults).recentIDs
-        let blocked = excludedIDs.union(recentIDs)
-        let fresh = pool.filter { !blocked.contains($0.id) }
         let unexcluded = pool.filter { !excludedIDs.contains($0.id) }
-        let available: [ListeningDisc]
-        if !fresh.isEmpty {
-            available = fresh
-        } else if !unexcluded.isEmpty {
-            available = unexcluded
-        } else {
-            available = pool
-        }
+        let available = unexcluded.isEmpty ? pool : unexcluded
 
-        var topRanks: [String: Int] = [:]
-        for (index, id) in topSongIDs.prefix(10).enumerated() where topRanks[id] == nil {
-            topRanks[id] = 10 - index
-        }
-
-        let nonce = UInt64(recentIDs.count)
-        return available.max(by: {
-            let left = score($0, familiarSongIDs: familiarSongIDs, topRanks: topRanks, now: now)
-            let right = score($1, familiarSongIDs: familiarSongIDs, topRanks: topRanks, now: now)
-            if left == right {
-                return tieBreak($0, scopeKey: scopeKey, nonce: nonce)
-                    < tieBreak($1, scopeKey: scopeKey, nonce: nonce)
-            }
-            return left < right
-        })
+        let withoutLastDraw = available.filter { $0.id != recentIDs.last }
+        return (withoutLastDraw.isEmpty ? available : withoutLastDraw).randomElement(using: &generator)
     }
 
-    private static func prioritizedPool(from candidates: [ListeningDisc]) -> [ListeningDisc] {
+    private static func candidatePool(from candidates: [ListeningDisc]) -> [ListeningDisc] {
         var seen = Set<String>()
         return candidates.filter { disc in
             guard !disc.tracks.isEmpty, !seen.contains(disc.id) else { return false }
             seen.insert(disc.id)
             return true
         }
-    }
-
-    private static func score(
-        _ disc: ListeningDisc,
-        familiarSongIDs: Set<String>,
-        topRanks: [String: Int],
-        now: Date
-    ) -> Double {
-        let tracks = Set(disc.tracks.map(\.id))
-        let popular = min(40, tracks.reduce(0) { $0 + (topRanks[$1] ?? 0) * 2 })
-        let unexplored = Double(tracks.filter { !familiarSongIDs.contains($0) }.count)
-            / Double(max(tracks.count, 1))
-        let recentRelease = disc.releaseDate.map {
-            now.timeIntervalSince($0) >= 0 && now.timeIntervalSince($0) < 366 * 86_400
-        } == true
-        return Double(popular) + unexplored * 6 + (recentRelease ? 1.5 : 0)
-    }
-
-    /// Unlike Hasher, FNV-1a is stable across app launches.
-    private static func tieBreak(_ disc: ListeningDisc, scopeKey: String, nonce: UInt64) -> UInt64 {
-        var hash: UInt64 = 14_695_981_039_346_656_037
-        for byte in "\(scopeKey)|\(nonce)|\(disc.id)".utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1_099_511_628_211
-        }
-        return hash
     }
 
     private static func storageKey(showID: UUID, scopeKey: String) -> String {

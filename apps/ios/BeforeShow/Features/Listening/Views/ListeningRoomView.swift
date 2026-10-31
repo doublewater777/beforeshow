@@ -198,6 +198,10 @@ struct ListeningRoomView: View {
     @State private var matchingArtistName: String = ""
     @State private var isSearching = false
     @State private var pickDisc: ListeningDisc?
+    @State private var pickFilter: ListeningDiscPickFilter = .all
+    @State private var nextPickDisc: ListeningDisc?
+    @State private var pickHistory: [ListeningDisc] = []
+    @State private var pickForward: [ListeningDisc] = []
     @State private var pickExhausted = false
     @State private var pickSessionExcluded: Set<String> = []
 
@@ -279,12 +283,16 @@ struct ListeningRoomView: View {
         )) {
             ListeningDiscPickSheet(
                 disc: pickDisc,
+                nextDisc: pickForward.last ?? nextPickDisc,
+                previousDisc: pickHistory.last ?? nextPickDisc,
                 show: show,
+                filter: $pickFilter,
                 canConfirm: !(room.busy || room.mechanism.isAutomatic),
                 canRedraw: canRedrawDiscPick,
                 exhausted: pickExhausted,
                 onConfirm: confirmDiscPick,
                 onRedraw: redrawDiscPick,
+                onPrevious: previousDiscPick,
                 onClose: dismissDiscPick
             )
             .presentationDetents([.large])
@@ -310,6 +318,9 @@ struct ListeningRoomView: View {
             Text(room.errorText ?? "")
         }
         .listeningPlaybackFailureAlert(room)
+        .onChange(of: pickFilter) { _, _ in
+            beginDiscPick()
+        }
         .onChange(of: reduceMotion, initial: true) { _, value in room.setReducedMotion(value) }
         .task {
             while !Task.isCancelled {
@@ -318,12 +329,12 @@ struct ListeningRoomView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .listeningOpenPickDisc)) { _ in
-            beginDiscPick(allowUnplayable: true)
+            beginDiscPick()
         }
         .task {
             if ProcessInfo.processInfo.arguments.contains("--listen-open-pick") {
                 try? await Task.sleep(for: .milliseconds(500))
-                beginDiscPick(allowUnplayable: true)
+                beginDiscPick()
             }
         }
     }
@@ -379,33 +390,53 @@ struct ListeningRoomView: View {
     }
 
     private var canOfferDiscPick: Bool {
-        room.showsRack && !pickCandidates(allowUnplayable: true).isEmpty
+        room.showsRack && ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
+            .contains { !$0.tracks.isEmpty }
     }
 
     private var canRedrawDiscPick: Bool {
-        let allowUnplayable = pickDisc.map { !room.discPresentation(for: $0).canLoad } ?? false
-        return pickCandidates(allowUnplayable: allowUnplayable).count > 1
+        pickCandidates().count > 1
     }
 
-    private func beginDiscPick(allowUnplayable: Bool = false) {
+    private func beginDiscPick() {
+        pickHistory = []
+        pickForward = []
         pickSessionExcluded = seatedPickExclusion()
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            revealPickedDisc(allowUnplayable: allowUnplayable)
+            revealPickedDisc()
         }
+    }
+
+    private func previousDiscPick() {
+        guard let current = pickDisc else { return }
+        if let previous = pickHistory.popLast() {
+            pickDisc = previous
+            if pickHistory.isEmpty { preparePickPreview(after: previous) }
+        } else {
+            drawNewDisc(after: current)
+        }
+        pickForward.append(current)
     }
 
     private func redrawDiscPick() {
         guard let current = pickDisc else { return }
-        let allowUnplayable = !room.discPresentation(for: current).canLoad
+        pickHistory.append(current)
+        if let forward = pickForward.popLast() {
+            pickDisc = forward
+            if pickForward.isEmpty { preparePickPreview(after: forward) }
+            return
+        }
+        drawNewDisc(after: current)
+    }
+
+    private func drawNewDisc(after current: ListeningDisc) {
         pickSessionExcluded.insert(current.id)
-        let candidates = pickCandidates(allowUnplayable: allowUnplayable)
+        let candidates = pickCandidates()
         let candidateIDs = Set(candidates.map(\.id))
         if candidateIDs.isSubset(of: pickSessionExcluded) {
-            pickSessionExcluded = [current.id]
+            pickSessionExcluded = []
         }
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            revealPickedDisc(allowUnplayable: allowUnplayable)
-        }
+        revealPickedDisc(prepared: nextPickDisc)
     }
 
     private func confirmDiscPick() {
@@ -417,21 +448,24 @@ struct ListeningRoomView: View {
 
     private func dismissDiscPick() {
         pickDisc = nil
+        nextPickDisc = nil
+        pickHistory = []
+        pickForward = []
         pickExhausted = false
         pickSessionExcluded = []
     }
 
-    private func revealPickedDisc(allowUnplayable: Bool = false) {
-        let candidates = pickCandidates(allowUnplayable: allowUnplayable)
-        guard let picked = ListeningDiscPickPolicy.pick(
+    private func revealPickedDisc(prepared: ListeningDisc? = nil) {
+        let candidates = pickCandidates()
+        let prepared = prepared.flatMap { next in candidates.first { $0.id == next.id } }
+        guard let picked = prepared ?? ListeningDiscPickPolicy.pick(
             showID: show.id,
             scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
             candidates: candidates,
-            familiarSongIDs: room.familiarSongIDs,
-            topSongIDs: topSongIDsForPick(),
             excluding: pickSessionExcluded
         ) else {
             pickDisc = nil
+            nextPickDisc = nil
             pickExhausted = true
             return
         }
@@ -442,26 +476,28 @@ struct ListeningRoomView: View {
         )
         pickExhausted = false
         pickDisc = picked
+        preparePickPreview(after: picked)
     }
 
-    private func pickCandidates(allowUnplayable: Bool = false) -> [ListeningDisc] {
-        if !allowUnplayable {
-            let loadable = loadablePickCandidates()
-            if !loadable.isEmpty { return loadable }
+    private func preparePickPreview(after picked: ListeningDisc) {
+        let candidates = pickCandidates()
+        var nextExcluded = pickSessionExcluded.union([picked.id])
+        if Set(candidates.map(\.id)).isSubset(of: nextExcluded) {
+            nextExcluded = [picked.id]
         }
-        return reviewPickCandidates()
+        nextPickDisc = candidates.count > 1 ? ListeningDiscPickPolicy.pick(
+            showID: show.id,
+            scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
+            candidates: candidates,
+            excluding: nextExcluded
+        ) : nil
     }
 
-    private func loadablePickCandidates() -> [ListeningDisc] {
-        ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
-            .filter { room.discPresentation(for: $0).canLoad }
-    }
-
-    private func reviewPickCandidates() -> [ListeningDisc] {
-        let loadable = loadablePickCandidates()
-        if !loadable.isEmpty { return loadable }
-        return ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
-            .filter { !$0.tracks.isEmpty }
+    private func pickCandidates() -> [ListeningDisc] {
+        let candidates = ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
+            .filter { !$0.tracks.isEmpty && pickFilter.includes($0) }
+        let loadable = candidates.filter { room.discPresentation(for: $0).canLoad }
+        return loadable.isEmpty ? candidates : loadable
     }
 
     private func seatedPickExclusion() -> Set<String> {
@@ -469,14 +505,6 @@ struct ListeningRoomView: View {
         return [id]
     }
 
-    private func topSongIDsForPick() -> [String] {
-        switch room.browser.scope {
-        case .all:
-            room.artistPresentations.values.flatMap { $0.top.prefix(5).map(\.id) }
-        case let .artist(id):
-            room.artistPresentations[id]?.top.map(\.id) ?? []
-        }
-    }
 }
 
 extension Notification.Name {
