@@ -71,7 +71,11 @@ enum ListeningRackOrdering {
 }
 
 /// Selects a daily sleeve without reordering releases or changing the seated CD.
+/// Artist shelves and the live-preview compilation shelf share this policy.
 enum ListeningDailyFeaturedDiscPolicy {
+    /// Stable key for the live-preview compilation shelf (matches rack group id `"live"`).
+    static let liveArtistID = "live"
+
     private struct Selection: Codable {
         let day: String
         let discID: String
@@ -112,7 +116,12 @@ enum ListeningDailyFeaturedDiscPolicy {
             if case .featuredPlaylist = $0.origin { return !$0.tracks.isEmpty }
             return false
         }
-        let pool = !albums.isEmpty ? albums : (!singles.isEmpty ? singles : playlists)
+        let compilations = discs.filter {
+            if case .compilation = $0.origin { return !$0.tracks.isEmpty }
+            return false
+        }
+        // Prefer artist releases; compilations only fill the live-preview shelf pool.
+        let pool = [albums, singles, playlists, compilations].first { !$0.isEmpty } ?? []
         let withArtwork = pool.filter { $0.artworkURL != nil }
         let candidates = withArtwork.isEmpty ? pool : withArtwork
         guard !candidates.isEmpty else { return nil }
@@ -177,12 +186,22 @@ enum ListeningDailyFeaturedDiscPolicy {
     var rackGroups: [ListeningRackGroup] {
         var groups: [ListeningRackGroup] = []
         if !compilationDiscs.isEmpty {
+            let featuredID = show.flatMap {
+                ListeningDailyFeaturedDiscPolicy.featuredDiscID(
+                    showID: $0.id,
+                    artistID: ListeningDailyFeaturedDiscPolicy.liveArtistID,
+                    discs: compilationDiscs,
+                    topSongIDs: browseArtists.flatMap { artistPresentations[$0.id]?.top.map(\.id) ?? [] },
+                    familiarSongIDs: familiarSongIDs
+                )
+            }
             groups.append(ListeningRackGroup(
                 id: "live",
                 kind: .live,
                 name: ListeningCopy.text("现场预习"),
                 artworkURL: nil,
-                discs: compilationDiscs
+                discs: compilationDiscs,
+                featuredDiscID: featuredID
             ))
         }
         let performances = (show?.timetable?.orderedDays ?? []).flatMap(\.performances).map {

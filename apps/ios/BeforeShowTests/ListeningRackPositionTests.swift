@@ -134,6 +134,47 @@ final class ListeningRackPositionTests: XCTestCase {
         XCTAssertEqual(Set(picks).count, 3)
     }
 
+    func testLiveCompilationFeaturedSleeveRotatesAcrossDays() throws {
+        let suite = "DailyFeaturedDiscTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let showID = UUID(), calendar = utcCalendar()
+        let discs = [
+            sampleDisc("singalong", songIDs: ["top-1", "top-2"], origin: .compilation(showID: showID, number: 1)),
+            sampleDisc("latest", songIDs: ["new"], origin: .compilation(showID: showID, number: 2)),
+            sampleDisc("deep", songIDs: ["cut"], origin: .compilation(showID: showID, number: 3))
+        ]
+
+        let first = ListeningDailyFeaturedDiscPolicy.featuredDiscID(
+            showID: showID, artistID: ListeningDailyFeaturedDiscPolicy.liveArtistID, discs: discs,
+            topSongIDs: ["top-1", "top-2"], familiarSongIDs: [],
+            now: day(25, calendar: calendar), calendar: calendar, defaults: defaults
+        )
+        XCTAssertEqual(first, "singalong")
+        let sameDay = ListeningDailyFeaturedDiscPolicy.featuredDiscID(
+            showID: showID, artistID: ListeningDailyFeaturedDiscPolicy.liveArtistID, discs: discs,
+            topSongIDs: ["new"], familiarSongIDs: ["top-1"],
+            now: day(25, calendar: calendar), calendar: calendar, defaults: defaults
+        )
+        XCTAssertEqual(sameDay, "singalong", "Live preview must keep today's compilation sleeve")
+
+        let picks = [25, 26, 27].compactMap { number in
+            ListeningDailyFeaturedDiscPolicy.featuredDiscID(
+                showID: showID, artistID: ListeningDailyFeaturedDiscPolicy.liveArtistID, discs: discs,
+                topSongIDs: ["top-1", "top-2"], familiarSongIDs: [],
+                now: day(number, calendar: calendar), calendar: calendar, defaults: defaults
+            )
+        }
+        XCTAssertEqual(Set(picks).count, 3)
+
+        let group = ListeningRackGroup(
+            id: "live", kind: .live, name: "现场预习", artworkURL: nil,
+            discs: discs, featuredDiscID: picks.last
+        )
+        XCTAssertEqual(group.head?.id, picks.last)
+        XCTAssertEqual(group.discs.map(\.id), ["singalong", "latest", "deep"])
+    }
+
     func testClearingLocalDataAlsoClearsSavedFeaturedSleeves() throws {
         let suite = "DailyFeaturedDiscTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -183,13 +224,19 @@ final class ListeningRackPositionTests: XCTestCase {
         calendar.date(from: DateComponents(year: 2026, month: 10, day: number, hour: 12))!
     }
 
-    private func sampleDisc(_ id: String, songIDs: [String], isSingle: Bool = false) -> ListeningDisc {
+    private func sampleDisc(
+        _ id: String,
+        songIDs: [String],
+        isSingle: Bool = false,
+        origin: ListeningDisc.Origin = .album
+    ) -> ListeningDisc {
         ListeningDisc(
             id: id, title: id, artworkURL: URL(string: "https://example.com/\(id).png"),
             tracks: songIDs.map {
                 ListeningDiscTrack(CatalogSong(appleMusicSongID: $0, title: $0, artistName: "Artist"))
             },
-            isSingle: isSingle
+            isSingle: isSingle,
+            origin: origin
         )
     }
 
