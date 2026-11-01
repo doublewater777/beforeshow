@@ -1,8 +1,8 @@
 import Foundation
 
 struct ProFeatureGate {
-    static let freeShowCapacity = 20
-    static let maxFreeShowCapacity = 20
+    static let freeShowCapacity = 15
+    static let maxFreeShowCapacity = 15
 
     func canAddShow(
         from shows: [Show],
@@ -14,7 +14,7 @@ struct ProFeatureGate {
         return currentCount < Self.freeShowCapacity
     }
 
-    /// Free show capacity is 20 shows.
+    /// Free show capacity is 15 shows.
     /// Retained for coordinator and maintenance synchronization without monthly growth calculations.
     func synchronizedState(
         from shows: [Show],

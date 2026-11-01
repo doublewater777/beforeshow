@@ -129,7 +129,7 @@ struct ProPaywallBenefitCard: View {
             benefitRow(
                 icon: "infinity",
                 title: BSLocalization.text("无限添加现场"),
-                subtitle: BSLocalization.text("突破免费版 20 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。")
+                subtitle: BSLocalization.text("突破免费版 15 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。")
             )
             Divider().overlay(BSColor.Stage.border)
             benefitRow(

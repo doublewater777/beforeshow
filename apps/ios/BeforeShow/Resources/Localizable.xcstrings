@@ -4306,18 +4306,18 @@
         }
       }
     },
-    "免费版最多可添加 20 场现场；删除现场可释放容量。开通 Pro 后不限制新增场次。": {
+    "免费版最多可添加 15 场现场；删除现场可释放容量。开通 Pro 后不限制新增场次。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free tier supports up to 20 shows. Deleting shows frees up capacity. Upgrade to Pro for unlimited shows."
+            "value": "Free tier supports up to 15 shows. Deleting shows frees up capacity. Upgrade to Pro for unlimited shows."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "免費版最多可新增 20 場現場；刪除現場可釋放容量。開通 Pro 後不限制新增場次。"
+            "value": "免費版最多可新增 15 場現場；刪除現場可釋放容量。開通 Pro 後不限制新增場次。"
           }
         }
       }
@@ -9015,18 +9015,18 @@
         }
       }
     },
-    "已达到免费 20 场上限": {
+    "已达到免费 15 场上限": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free 20-Show Limit Reached"
+            "value": "Free 15-Show Limit Reached"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已達到免費 20 場上限"
+            "value": "已達到免費 15 場上限"
           }
         }
       }
@@ -16915,18 +16915,18 @@
         }
       }
     },
-    "突破免费版 20 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。": {
+    "突破免费版 15 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Break through the free 20-show cap. Every upcoming show can join Current and Footprints."
+            "value": "Break through the free 15-show cap. Every upcoming show can join Current and Footprints."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "突破免費版 20 場上限，未來的每一場都可以繼續進入「目前」並留進「足跡」。"
+            "value": "突破免費版 15 場上限，未來的每一場都可以繼續進入「目前」並留進「足跡」。"
           }
         }
       }
@@ -21801,66 +21801,66 @@
     "🎭": {
       "shouldTranslate": false
     },
-    "免费 20 场容量": {
+    "免费 15 场容量": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "20 free shows"
+            "value": "15 free shows"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "免費 20 場容量"
+            "value": "免費 15 場容量"
           }
         }
       }
     },
-    "已有现场保留 · 免费 20 场容量": {
+    "已有现场保留 · 免费 15 场容量": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Existing shows stay · 20 free shows"
+            "value": "Existing shows stay · 15 free shows"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已有現場保留 · 免費 20 場容量"
+            "value": "已有現場保留 · 免費 15 場容量"
           }
         }
       }
     },
-    "免费版包含 20 场现场容量与 2 次智能识别。Pro 解锁无限场次与不限次时刻表智能识别。": {
+    "免费版包含 15 场现场容量与 2 次智能识别。Pro 解锁无限场次与不限次时刻表智能识别。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free tier includes 20 shows and 2 smart recognitions. Pro unlocks unlimited shows and timetable recognition."
+            "value": "Free tier includes 15 shows and 2 smart recognitions. Pro unlocks unlimited shows and timetable recognition."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "免費版包含 20 場現場容量與 2 次智慧辨識。Pro 解鎖無限場次與不限次時刻表智慧辨識。"
+            "value": "免費版包含 15 場現場容量與 2 次智慧辨識。Pro 解鎖無限場次與不限次時刻表智慧辨識。"
           }
         }
       }
     },
-    "以特惠价升级，错过恢复原价；免费版仍可免费保存 20 场现场。": {
+    "以特惠价升级，错过恢复原价；免费版仍可免费保存 15 场现场。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Upgrade at a discount before it returns to full price; free tier still supports 20 saved shows."
+            "value": "Upgrade at a discount before it returns to full price; free tier still supports 15 saved shows."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "以特惠價升級，錯過恢復原價；免費版仍可免費保存 20 場現場。"
+            "value": "以特惠價升級，錯過恢復原價；免費版仍可免費保存 15 場現場。"
           }
         }
       }
