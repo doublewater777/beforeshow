@@ -2,7 +2,7 @@
 
 现状（见 `docs/observability/product-analytics.md` 与 `apps/ios/BeforeShow/Infrastructure/Analytics/`）：
 
-- SDK 已接入（3.69.6），生命周期事件、错误自动捕获、session replay、dSYM 上传、opt-in/out 开关均已就位。
+- SDK 已接入（3.93.1），生命周期事件、错误自动捕获、session replay、dSYM 上传、opt-in/out 开关均已就位。
 - 已通过 `ProductAnalytics.capture` 埋了 34 个产品事件，覆盖引导、导入、付费墙、陪伴核心动作、同行诊断。隐私纪律到位：不含姓名 / 艺人 / token / 用户输入。
 - **但 PostHog 的上层能力一块没用**：没有 `identify`、没有 `$screen`、购买事件不带 `$revenue`、session replay 没做脱敏调优、feature flag / experiment 闲置。
 

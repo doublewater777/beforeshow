@@ -7,7 +7,7 @@ name: BeforeShow
 packages:
   PostHog:
     url: https://github.com/PostHog/posthog-ios
-    from: 3.64.1
+    from: 3.93.1
   RevenueCat:
     url: https://github.com/RevenueCat/purchases-ios
     from: 5.40.0
