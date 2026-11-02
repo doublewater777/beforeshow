@@ -1,5 +1,8 @@
 # App Store Connect Prep
 
+Current submission: version `1.0.6`, build `50`, `WAITING_FOR_REVIEW` (submitted 2026-11-02). See
+[Submission Records](#submission-records).
+
 ## Completed
 
 - App Store Connect app record created:
@@ -125,6 +128,24 @@ Created with these fields:
 - [x] Confirm StoreKit products are created in App Store Connect with the exact monthly/yearly prices and no trial.
 - [x] Confirm the shared Xcode scheme uses `BeforeShow/Resources/BeforeShow.storekit` for local simulator purchase testing.
 - [ ] Paste review notes covering on-device OCR, local-first storage, no lyrics, Pro subscription behavior, and feedback/privacy boundaries.
+
+## Submission Records
+
+### 1.0.6 — 2026-11-02
+
+- Version ID: `88df8d41-0a6c-46b4-a33c-8df59ceb979a`, build `50` / build ID `5177804c-4374-4523-a703-4e9e7862cf13` (VALID, uploaded 2026-11-01).
+- Submission ID: `7c57fb00-34aa-4247-bca5-6e24ed4c6e39`, submitted `2026-11-02T04:39:37Z`, state `WAITING_FOR_REVIEW`.
+- Staged with `asc release stage` from canonical `./metadata` (directory must be the metadata root, not `metadata/version/<version>`).
+- `asc validate --app 6780078298 --version 1.0.6` before submission: `0` errors, `0` warnings, `1` info.
+- Remaining manual check: `privacy.publish_state.unverified` — App Privacy publish state is not verifiable through the public API; confirm at <https://appstoreconnect.apple.com/apps/6780078298/appPrivacy>.
+- Release notes rewritten after submission (three locales, pushed in place with `asc metadata push`; no new submission needed):
+  - Lead line sets the mood: `直到太阳落进野餐垫。` / `Until the sun sinks into your picnic blanket.`
+  - Then free flat capacity `15` shows, listening `帮我挑一张` disc pick with All / Albums / Singles & EPs filters and daily Live Prep rotation, and timetable ghost-card auto-dismiss plus multi-day lineup recognition.
+
+### 1.0.5 — 2026-10-26
+
+- Version ID: `ba342e1d-2fe5-4ac1-9cf0-dbf3d4a18444`, submitted `2026-10-26T12:41:31Z`, outcome `approved`, now `READY_FOR_SALE`.
+- Stale submission `7dc62ec5-da78-4739-8a3a-fba695ce69a4` still reports `READY_FOR_REVIEW` and is not exclusively usable for 1.0.6; cancel it explicitly only when intended.
 
 ## TestFlight Manual QA
 
