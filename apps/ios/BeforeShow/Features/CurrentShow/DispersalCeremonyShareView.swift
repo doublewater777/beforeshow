@@ -83,10 +83,26 @@ struct DispersalShareStep: View {
         .toolbar { toolbarContent }
         .bsToastOverlay(toast, bottomPadding: 24)
         .background {
-            if let onBack {
-                BSNavigationBackSwipeRestorer {
-                    guard !isBusy else { return }
-                    onBack()
+            ZStack {
+                BSColor.Stage.background.ignoresSafeArea()
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    enforcesAspectRatio: false,
+                    cornerRadius: 0,
+                    restoresPersistedImageOnFirstFrame: true
+                )
+                .blur(radius: 55)
+                .scaleEffect(1.25)
+                .overlay(Color.black.opacity(0.55))
+                .ignoresSafeArea()
+
+                if let onBack {
+                    BSNavigationBackSwipeRestorer {
+                        guard !isBusy else { return }
+                        onBack()
+                    }
                 }
             }
         }

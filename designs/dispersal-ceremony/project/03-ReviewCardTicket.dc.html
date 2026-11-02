@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>现场短评图 · 影评卡暗调版（真实数据）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+.device-shell {
+  width: 390px;
+  height: 844px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #05070D;
+}
+/* Full-Screen Gaussian-Blurred Background */
+.screen-blur-backdrop {
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(circle at 50% 35%, rgba(232, 199, 142, 0.45) 0%, rgba(255, 107, 117, 0.35) 35%, rgba(45, 26, 53, 0.95) 80%);
+  filter: blur(55px);
+  transform: scale(1.15);
+  pointer-events: none;
+  z-index: 1;
+}
+.screen-dark-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 7, 13, 0.55);
+  pointer-events: none;
+  z-index: 2;
+}
+/* Device Chrome */
+.status-bar {
+  height: 48px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: #FFFFFF;
+  z-index: 20;
+}
+.dynamic-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 32px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 30;
+}
+.home-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+  z-index: 20;
+}
+/* Nav */
+.nav-bar {
+  height: 44px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+}
+.nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  cursor: pointer;
+}
+.nav-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+/* Card Stage */
+.card-stage-container {
+  flex: 1;
+  padding: 6px 24px 10px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 10;
+}
+/* Floating Dark Frosted Review Card */
+.dark-review-card {
+  width: 100%;
+  max-width: 334px;
+  border-radius: 24px;
+  background: rgba(18, 22, 33, 0.88);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(232, 199, 142, 0.12);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Part A: 3:4 Poster Section */
+.card-poster-section {
+  width: 100%;
+  height: 440px; aspect-ratio: 3 / 4;
+  position: relative;
+  overflow: hidden;
+  background: #151821;
+}
+.poster-main-art {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 65% 25%, rgba(255, 107, 117, 0.65) 0%, rgba(82, 127, 201, 0.45) 45%, rgba(15, 18, 27, 0.98) 100%);
+  background-size: cover;
+}
+.poster-top-slogan {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 5px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  z-index: 3;
+}
+.poster-middle-title {
+  position: absolute;
+  bottom: 64px;
+  left: 16px;
+  right: 16px;
+  z-index: 3;
+}
+.director-line {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.5px;
+}
+.poster-tour-headline {
+  font-size: 24px;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: 0.5px;
+  line-height: 1.15;
+  margin-top: 3px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+/* Translucent Rating Overlay: Real BeforeShow Rating */
+.poster-bottom-rating-strip {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  right: 14px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.rating-pill-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.rating-pill-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+.rating-pill-status {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FF6B75;
+  letter-spacing: 0.5px;
+}
+.rating-pill-fact {
+  font-size: 11px;
+  color: #E8C78E;
+  font-weight: 500;
+}
+/* Part B: Dark Frosted Review Section */
+.card-review-section {
+  padding: 16px 18px 12px 18px;
+  background: rgba(18, 22, 33, 0.75);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.user-review-text {
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: #F2F3F7;
+  letter-spacing: -0.2px;
+}
+.user-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #9399AA;
+  padding-top: 4px;
+}
+.user-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-name-label {
+  font-weight: 600;
+  color: #F2F3F7;
+}
+.milestone-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #E8C78E;
+  color: #05070D;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.companion-sub-tag {
+  color: #9399AA;
+  font-size: 11.5px;
+}
+/* Part C: Perforated Divider with Notches */
+.ticket-perforation-divider {
+  position: relative;
+  height: 16px;
+  background: rgba(18, 22, 33, 0.75);
+}
+.dashed-cut-line {
+  position: absolute;
+  top: 7px;
+  left: 14px;
+  right: 14px;
+  border-bottom: 1.5px dashed rgba(255, 255, 255, 0.14);
+}
+.notch-circle-left {
+  position: absolute;
+  top: 0;
+  left: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #0B0E14;
+}
+.notch-circle-right {
+  position: absolute;
+  top: 0;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #0B0E14;
+}
+/* Part D: Bottom Branding Footer (No QR code) */
+.card-footer-section {
+  padding: 8px 18px 16px 18px;
+  background: rgba(18, 22, 33, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer-text-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.footer-brand-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #F2F3F7;
+  letter-spacing: 1.2px;
+}
+.footer-sub-note {
+  font-size: 11px;
+  color: #646B7D;
+}
+.footer-trailing-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #E8C78E;
+  background: rgba(232, 199, 142, 0.12);
+  border: 1px solid rgba(232, 199, 142, 0.25);
+  padding: 4px 10px;
+  border-radius: 12px;
+  letter-spacing: 1px;
+}
+/* Actions Area */
+.actions-wrap {
+  padding: 6px 24px 26px 24px;
+  display: flex;
+  gap: 10px;
+  z-index: 20;
+}
+.btn-save-album {
+  flex: 1;
+  height: 48px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(14px);
+  color: #FFFFFF;
+  font-size: 14.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.btn-share-image {
+  flex: 1.3;
+  height: 48px;
+  border-radius: 24px;
+  background: #E8C78E;
+  border: none;
+  color: #05070D;
+  font-size: 14.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(232, 199, 142, 0.25);
+}
+</style>
+</helmet>
+
+<div class="device-shell">
+  <div class="dynamic-island"></div>
+  <div class="screen-blur-backdrop"></div>
+  <div class="screen-dark-overlay"></div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>22:20</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <svg width="15" height="11" viewBox="0 0 15 11" fill="none" aria-hidden="true">
+        <path d="M1 9.5C1 8.67 1.67 8 2.5 8H3.5C4.33 8 5 8.67 5 9.5V10.5H1V9.5Z" fill="white"></path>
+        <path d="M6 6.5C6 5.67 6.67 5 7.5 5H8.5C9.33 5 10 5.67 10 6.5V10.5H6V6.5Z" fill="white"></path>
+        <path d="M11 2.5C11 1.67 11.67 1 12.5 1H13.5C14.33 1 15 1.67 15 2.5V10.5H11V2.5Z" fill="white"></path>
+      </svg>
+      <svg width="22" height="11" viewBox="0 0 22 11" fill="none" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="18" height="10" rx="3" stroke="white" stroke-opacity="0.35"></rect>
+        <rect x="2" y="2" width="15" height="7" rx="1.5" fill="white"></rect>
+        <path d="M20 3.5V7.5" stroke="white" stroke-opacity="0.35" stroke-linecap="round"></path>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav-bar">
+    <div class="nav-btn" role="button" aria-label="返回">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+    </div>
+    <div class="nav-title">影评卡片 · 暗调版</div>
+    <div class="nav-btn" role="button" aria-label="完成">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Card Stage -->
+  <div class="card-stage-container">
+    <!-- Floating Dark Review Card -->
+    <div class="dark-review-card">
+      <!-- Part A: 3:4 Poster Section with Overlays -->
+      <div class="card-poster-section">
+        <div class="poster-main-art"></div>
+        <div class="poster-top-slogan">现 场 落 幕 · 留 住 今 晚</div>
+
+        <div class="poster-middle-title">
+          <div class="director-line">2026.11.02 · 杭州奥体中心体育馆</div>
+          <div class="poster-tour-headline">{{showName}}</div>
+        </div>
+
+        <!-- Rating & Fact Pill Overlay (Actual BeforeShow data: Emotion + Facts) -->
+        <div class="poster-bottom-rating-strip">
+          <div class="rating-pill-left">
+            <span class="rating-pill-label">我的感受</span>
+            <span class="rating-pill-status">🔥 夯爆了</span>
+          </div>
+          <span class="rating-pill-fact">22:15 散场 · 历时 2h45m</span>
+        </div>
+      </div>
+
+      <!-- Part B: Dark Review Text Block -->
+      <div class="card-review-section">
+        <div class="user-review-text">“{{reviewText}}”</div>
+        <div class="user-info-row">
+          <div class="user-meta-left">
+            <span class="user-name-label">Doublewater</span>
+            <span class="milestone-badge">第 {{ordinal}} 场现场</span>
+          </div>
+          <span class="companion-sub-tag">与阿泽同行</span>
+        </div>
+      </div>
+
+      <!-- Part C: Perforated Divider with Notches -->
+      <div class="ticket-perforation-divider">
+        <div class="dashed-cut-line"></div>
+        <div class="notch-circle-left"></div>
+        <div class="notch-circle-right"></div>
+      </div>
+
+      <!-- Part D: Footer with Brand & Facts (No QR code) -->
+      <div class="card-footer-section">
+        <div class="footer-text-col">
+          <div class="footer-brand-title">BEFORESHOW · 散场记录</div>
+          <div class="footer-sub-note">草东没有派对 · 2026.11.02 · 杭州</div>
+        </div>
+
+        <div class="footer-trailing-badge">开场前</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Actions -->
+  <div class="actions-wrap">
+    <button class="btn-save-album" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      <span>保存图片</span>
+    </button>
+
+    <button class="btn-share-image" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+      </svg>
+      <span>分享图片</span>
+    </button>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844},"showName":{"editor":"text","default":"草东没有派对 · 如常"},"ordinal":{"editor":"int","default":12},"reviewText":{"editor":"text","default":"最后一首歌结束的时候，灯亮得特别慢。全场都在喊安可，舍不得走。"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      showName: this.props.showName ?? "草东没有派对 · 如常",
+      ordinal: this.props.ordinal ?? 12,
+      reviewText: this.props.reviewText ?? "最后一首歌结束的时候，灯亮得特别慢。全场都在喊安可，舍不得走。"
+    };
+  }
+}
+</script>
+</body>
+</html>

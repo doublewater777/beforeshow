@@ -70,6 +70,8 @@ struct DispersalCeremonySheet: View {
             switch step {
             case .combined:
                 DispersalCombinedStep(
+                    show: show,
+                    identity: identity,
                     rating: $draftRating,
                     note: $draftNote,
                     headerTitle: customHeaderTitle,
@@ -188,6 +190,8 @@ struct DispersalCeremonySheet: View {
 // MARK: - Emotion + note
 
 struct DispersalCombinedStep: View {
+    let show: Show
+    let identity: FootprintDetailIdentity
     @Binding var rating: Int?
     @Binding var note: String
     var headerTitle: String? = nil
@@ -207,66 +211,39 @@ struct DispersalCombinedStep: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(BSLocalization.text("这一场怎么样？"))
-                        .font(.system(size: 26, weight: .semibold))
-                        .tracking(-0.5)
-                        .foregroundStyle(BSColor.Stage.foreground)
+                VStack(alignment: .leading, spacing: 18) {
+                    showMiniCard
 
-                    ratingHero
-                        .padding(.top, 18)
+                    moodSelectorSection
 
-                    noteBlock
-                        .padding(.top, 18)
+                    noteSection
 
                     if let commitError {
                         Text(commitError)
                             .font(BSFont.caption)
                             .foregroundStyle(BSColor.Stage.danger)
-                            .padding(.top, BSSpacing.sm)
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 6)
+                .padding(.top, 12)
                 .padding(.bottom, BSSpacing.lg)
             }
             .scrollDismissesKeyboard(.interactively)
 
-            VStack(spacing: 4) {
-                Button(action: generate) {
-                    HStack(spacing: BSSpacing.sm) {
-                        if isSaving {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(BSColor.Stage.background)
-                        }
-                        Text(commitTitle)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(BSPrimaryButtonStyle())
-                .disabled(isSaving)
-
-                if let onFinishWithoutCard {
-                    Button {
-                        isNoteFocused = false
-                        onFinishWithoutCard()
-                    } label: {
-                        Text(BSLocalization.text("不生成，直接完成"))
-                            .font(BSFont.caption)
-                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.72))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isSaving)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            actionDock
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
         }
-        .navigationTitle(headerTitle ?? BSLocalization.text("散场了"))
+        .navigationTitle(headerTitle ?? BSLocalization.text("散场短评"))
         .toolbar {
-            BSChromeToolbarCloseButton(accessibilityLabel: "关闭散场仪式", action: onClose)
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.muted)
+                }
+                .accessibilityLabel(BSLocalization.text("关闭散场仪式"))
+            }
         }
         .onAppear {
             raw = Double(rating ?? 3)
@@ -276,197 +253,231 @@ struct DispersalCombinedStep: View {
         }
     }
 
-    private var ratingHero: some View {
-        VStack(spacing: 0) {
-            if let current {
-                HStack(spacing: 10) {
-                    Text(current.emoji)
-                        .font(.system(size: 44))
-                    Text(current.label)
-                        .font(.system(size: 30, weight: .bold))
-                        .tracking(0.3)
-                        .foregroundStyle(current.tint)
-                        .minimumScaleFactor(0.78)
+    private var formattedDateAndCity: String {
+        let dateStr = BSDateFormat.dottedDate(show.effectiveDate, calendar: show.timingCalendar())
+        let cityStr = FootprintTextNormalizer.nonEmptyTrimmed(show.city)
+        return [dateStr, cityStr].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private var dispersalTimeSummary: String? {
+        guard let endedAt = show.endedAt else { return nil }
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        timeFormatter.timeZone = show.timingCalendar().timeZone
+        return BSLocalization.format("%@ 散场", timeFormatter.string(from: endedAt))
+    }
+
+    private var showDurationSummary: String? {
+        let start = show.startTime
+        let end = show.endedAt ?? Date()
+        let minutes = max(0, Int(end.timeIntervalSince(start) / 60))
+        guard minutes > 0 else { return nil }
+        return BSLocalization.format("历时 %@", ShowDurationFormatter.single(totalMinutes: minutes))
+    }
+
+    private var showMiniCard: some View {
+        HStack(spacing: 12) {
+            ShowCoverImageView(
+                urlString: show.coverImageURL,
+                aspectRatio: 3.0 / 4.0,
+                contentMode: .fill,
+                enforcesAspectRatio: true,
+                cornerRadius: 8,
+                restoresPersistedImageOnFirstFrame: true
+            )
+            .frame(width: 54, height: 72)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(show.name)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .lineLimit(2)
+
+                if !formattedDateAndCity.isEmpty {
+                    Text(formattedDateAndCity)
+                        .font(.system(size: 12))
+                        .foregroundStyle(BSColor.Stage.muted)
                         .lineLimit(1)
                 }
-                .scaleEffect(emojiBump ? 1.08 : 1)
-                .shadow(color: .black.opacity(0.28), radius: 12, y: 6)
-                .frame(maxWidth: .infinity, minHeight: 58)
-                .dispersalMatchedGeometry(
-                    id: "dispersal.rating",
-                    namespace: transitionNamespace
-                )
 
-            } else {
-                Text("🎭")
-                    .font(.system(size: 46))
-                    .opacity(0.72)
-                    .frame(height: 58)
-                    .accessibilityHidden(true)
-
+                HStack(spacing: 5) {
+                    if let duration = showDurationSummary {
+                        Text(duration)
+                        Text("·")
+                    }
+                    if let ended = dispersalTimeSummary {
+                        Text(ended)
+                        Text("·")
+                    }
+                    Text(BSLocalization.format("第 %lld 场", identity.showOrdinal))
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(BSColor.Stage.accent)
+                .lineLimit(1)
             }
-
-            snapSlider
-                .padding(.top, 18)
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 14)
-        .padding(.top, 18)
-        .padding(.bottom, 16)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.065),
-                            Color.white.opacity(0.025)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 16)
+                .fill(BSColor.Stage.surface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24)
+                    RoundedRectangle(cornerRadius: 16)
                         .stroke(BSColor.Stage.border, lineWidth: 1)
                 )
         )
     }
 
-    private var snapSlider: some View {
-        ZStack(alignment: .top) {
-            GeometryReader { proxy in
-                let inset = DispersalSnapSliderLayout.trackInset(width: proxy.size.width)
-                let track = max(proxy.size.width - inset * 2, 1)
-                let progress = CGFloat((rating ?? 1) - 1) / 4
-
-                ZStack(alignment: .topLeading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: track, height: 4)
-
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    (current?.tint ?? BSColor.Stage.accent).opacity(0.55),
-                                    current?.tint ?? BSColor.Stage.accent
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(
-                            width: rating == nil ? 0 : track * progress,
-                            height: 4
-                        )
+    private var moodSelectorSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(BSLocalization.text("现场感受"))
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                Spacer()
+                if let current {
+                    Text(BSLocalization.format("%@，%@", current.label, current.sub))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(current.tint)
+                        .lineLimit(1)
                 }
-                .padding(.leading, inset)
-                .padding(.top, 17)
             }
 
-            HStack(spacing: 0) {
+            HStack(spacing: 7) {
                 ForEach(DispersalRating.allCases) { node in
                     let selected = node.rawValue == rating
                     Button {
                         rating = node.rawValue
                         raw = Double(node.rawValue)
                     } label: {
-                        VStack(spacing: 5) {
-                            Circle()
-                                .fill(
-                                    selected
-                                        ? node.tint
-                                        : Color(red: 0.165, green: 0.188, blue: 0.251)
-                                )
-                                .frame(width: 14, height: 14)
-                                .overlay(
-                                    Circle()
-                                        .stroke(
-                                            selected
-                                                ? node.tint
-                                                : Color.white.opacity(0.14),
-                                            lineWidth: 2
-                                        )
-                                )
-                                .shadow(
-                                    color: selected
-                                        ? node.tint.opacity(0.28)
-                                        : .clear,
-                                    radius: selected ? 7 : 0
-                                )
-                                .padding(.top, 12)
-
+                        VStack(spacing: 4) {
                             Text(node.emoji)
-                                .font(.system(size: selected ? 20 : 18))
-                                .opacity(selected ? 1 : 0.55)
-                                .grayscale(selected ? 0 : 0.75)
-
+                                .font(.system(size: selected ? 19 : 17))
+                                .scaleEffect(selected ? 1.08 : 1.0)
                             Text(node.label)
                                 .font(.system(size: 10, weight: selected ? .bold : .medium))
-                                .foregroundStyle(
-                                    selected
-                                        ? BSColor.Stage.foreground
-                                        : BSColor.Stage.dim
-                                )
-                                .lineLimit(1)
+                                .foregroundStyle(selected ? BSColor.Stage.foreground : BSColor.Stage.dim)
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 11)
+                                .fill(selected ? node.tint.opacity(0.18) : Color.white.opacity(0.04))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 11)
+                                .stroke(selected ? node.tint : BSColor.Stage.border, lineWidth: selected ? 1.5 : 1)
+                        )
                     }
                     .buttonStyle(.plain)
-                    .animation(
-                        .spring(response: 0.32, dampingFraction: 0.7),
-                        value: rating
-                    )
+                    .animation(.spring(response: 0.32, dampingFraction: 0.7), value: rating)
                     .accessibilityLabel(node.accessibilityLabel)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
-
-            Slider(
-                value: Binding(
-                    get: { raw },
-                    set: { newValue in
-                        let snapped = DispersalCeremonyPolicy.snap(newValue)
-                        raw = Double(snapped)
-                        rating = snapped
-                    }
-                ),
-                in: 1...5,
-                step: 1
-            )
-            .opacity(0.02)
-            .tint(.clear)
-            .padding(.top, 4)
-            .sensoryFeedback(.selection, trigger: rating)
-            .accessibilityHidden(true)
         }
-        .frame(height: 86)
     }
 
-    private var noteBlock: some View {
-        BSSurfacePanel {
-            TextField(
-                BSLocalization.text("还想记点什么？"),
-                text: $note,
-                axis: .vertical
-            )
-            .lineLimit(10...16)
-            .font(BSFont.body)
-            .foregroundStyle(BSColor.Stage.foreground)
-            .tint(BSColor.Stage.accent)
-            .focused($isNoteFocused)
-            .onChange(of: note) { _, newValue in
-                if newValue.count > DispersalCeremonyPolicy.maximumNoteLength {
-                    note = String(
-                        newValue.prefix(DispersalCeremonyPolicy.maximumNoteLength)
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(BSLocalization.text("散场短评（可选）"))
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.foreground)
+
+            BSSurfacePanel {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField(
+                        BSLocalization.text("写点今晚的记忆或安可时刻..."),
+                        text: $note,
+                        axis: .vertical
                     )
+                    .lineLimit(4...7)
+                    .font(BSFont.body)
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .tint(BSColor.Stage.accent)
+                    .focused($isNoteFocused)
+                    .onChange(of: note) { _, newValue in
+                        if newValue.count > DispersalCeremonyPolicy.maximumNoteLength {
+                            note = String(newValue.prefix(DispersalCeremonyPolicy.maximumNoteLength))
+                        }
+                    }
+                    .dispersalMatchedGeometry(
+                        id: "dispersal.note",
+                        namespace: transitionNamespace
+                    )
+                    .accessibilityLabel(BSLocalization.text("散场文字"))
+
+                    HStack {
+                        Spacer()
+                        Text("\(note.count)/\(DispersalCeremonyPolicy.maximumNoteLength)")
+                            .font(BSFont.caption)
+                            .foregroundStyle(BSColor.Stage.dim)
+                    }
                 }
             }
-            .dispersalMatchedGeometry(
-                id: "dispersal.note",
-                namespace: transitionNamespace
-            )
-            .accessibilityLabel("散场文字")
+        }
+    }
+
+    private var actionDock: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                if let onFinishWithoutCard {
+                    Button {
+                        isNoteFocused = false
+                        onFinishWithoutCard()
+                    } label: {
+                        Text(BSLocalization.text("直接完成"))
+                            .font(.system(size: 13.5, weight: .medium))
+                            .foregroundStyle(BSColor.Stage.muted)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(Color.white.opacity(0.06))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving)
+                }
+
+                Button(action: generate) {
+                    HStack(spacing: 5) {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(BSColor.Stage.background)
+                        } else {
+                            Image(systemName: "rectangle.portrait.on.rectangle.portrait")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        Text(commitTitle)
+                    }
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.background)
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(BSColor.Stage.accent)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaving)
+            }
+
+            if onFinishWithoutCard != nil {
+                Text(BSLocalization.text("直接完成仅保存到足迹，稍后也可随时生成散场卡"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(BSColor.Stage.dim)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 
@@ -494,3 +505,4 @@ struct DispersalCombinedStep: View {
         }
     }
 }
+

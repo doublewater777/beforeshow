@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>现场短评 · 直接进评价</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+.device-shell {
+  width: 390px;
+  height: 844px;
+  background: #05070D;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #F2F3F7;
+}
+/* Device Chrome */
+.status-bar {
+  height: 40px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  z-index: 20;
+}
+.dynamic-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 32px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 30;
+}
+.home-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  z-index: 20;
+}
+/* Ambient blurred backdrop from cover */
+.ambient-glow {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(255, 107, 117, 0.18) 0%, rgba(82, 127, 201, 0.12) 50%, transparent 75%);
+  filter: blur(50px);
+  pointer-events: none;
+  z-index: 1;
+}
+/* Sheet Nav Bar: Clear, focused header without duplicate save button */
+.sheet-nav {
+  height: 40px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  z-index: 20;
+}
+.nav-btn-cancel {
+  font-size: 15px;
+  color: #9399AA;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.nav-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #F2F3F7;
+}
+.nav-placeholder-right {
+  width: 32px;
+}
+/* Review Content Body */
+.review-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 10;
+}
+/* Show Info Frosted Card with 3:4 Cover */
+.show-info-card {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(17, 17, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+/* 3:4 Aspect Ratio Cover Thumbnail */
+.show-poster-thumb {
+  width: 66px;
+  height: 88px;
+  border-radius: 10px;
+  background: linear-gradient(150deg, #2A1F30 0%, #0D111B 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+.thumb-art {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 65% 30%, rgba(255, 107, 117, 0.5) 0%, rgba(82, 127, 201, 0.35) 50%, rgba(13, 17, 27, 0.95) 100%);
+}
+.thumb-ratio-tag {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #E8C78E;
+  background: rgba(0, 0, 0, 0.65);
+  padding: 1px 4px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.show-meta-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.show-name-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #F2F3F7;
+  line-height: 1.3;
+}
+.show-venue-text {
+  font-size: 12px;
+  color: #9399AA;
+  margin-top: 2px;
+}
+.dispersal-fact-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #E8C78E;
+  margin-top: 6px;
+}
+.fact-bullet {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #E8C78E;
+}
+/* Rating Section: The 5 Mood Levels */
+.rating-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #F2F3F7;
+}
+.rating-active-desc {
+  font-size: 12px;
+  color: #FF6B75;
+  font-weight: 600;
+}
+.mood-selector-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.mood-btn {
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(17, 17, 20, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mood-btn.selected {
+  background: linear-gradient(180deg, rgba(255, 107, 117, 0.18) 0%, rgba(232, 199, 142, 0.1) 100%);
+  border: 1.5px solid #FF6B75;
+  box-shadow: 0 4px 14px rgba(255, 107, 117, 0.2);
+}
+.mood-emoji {
+  font-size: 18px;
+}
+.mood-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9399AA;
+}
+.mood-btn.selected .mood-name {
+  color: #F2F3F7;
+}
+/* Short Review Textarea */
+.review-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.review-textarea-card {
+  background: rgba(17, 17, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  backdrop-filter: blur(16px);
+}
+.review-text-content {
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #E2E8F0;
+  min-height: 90px;
+  white-space: pre-wrap;
+}
+.textarea-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+  font-size: 11.5px;
+  color: #646B7D;
+}
+/* Bottom Action Area: Crystal Clear Two-Action Dock */
+.action-container {
+  padding: 12px 20px 24px 20px;
+  background: linear-gradient(180deg, transparent 0%, #05070D 35%, #05070D 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 20;
+}
+.action-button-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Left Action: Direct Save / Complete */
+.btn-direct-complete {
+  flex: 1;
+  height: 40px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #F2F3F7;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+/* Right Action: Generate Review Card */
+.btn-generate-card {
+  flex: 1.35;
+  height: 40px;
+  border-radius: 20px;
+  background: #E8C78E;
+  color: #05070D;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(232, 199, 142, 0.28);
+}
+.action-reassure-note {
+  text-align: center;
+  font-size: 11.5px;
+  color: #646B7D;
+}
+</style>
+</helmet>
+
+<div class="device-shell">
+  <div class="dynamic-island"></div>
+  <div class="ambient-glow"></div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>22:18</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <svg width="15" height="11" viewBox="0 0 15 11" fill="none" aria-hidden="true">
+        <path d="M1 9.5C1 8.67 1.67 8 2.5 8H3.5C4.33 8 5 8.67 5 9.5V10.5H1V9.5Z" fill="white"></path>
+        <path d="M6 6.5C6 5.67 6.67 5 7.5 5H8.5C9.33 5 10 5.67 10 6.5V10.5H6V6.5Z" fill="white"></path>
+        <path d="M11 2.5C11 1.67 11.67 1 12.5 1H13.5C14.33 1 15 1.67 15 2.5V10.5H11V2.5Z" fill="white"></path>
+      </svg>
+      <svg width="22" height="11" viewBox="0 0 22 11" fill="none" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="18" height="10" rx="3" stroke="white" stroke-opacity="0.35"></rect>
+        <rect x="2" y="2" width="15" height="7" rx="1.5" fill="white"></rect>
+        <path d="M20 3.5V7.5" stroke="white" stroke-opacity="0.35" stroke-linecap="round"></path>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Sheet Nav Bar: Clear, single-exit header -->
+  <div class="sheet-nav">
+    <div class="nav-btn-cancel">取消</div>
+    <div class="nav-title">散场短评</div>
+    <div class="nav-placeholder-right"></div>
+  </div>
+
+  <!-- Review Body -->
+  <div class="review-body">
+    <!-- Show Info Frosted Card with 3:4 Cover -->
+    <div class="show-info-card">
+      <div class="show-poster-thumb">
+        <div class="thumb-art"></div>
+        <div class="thumb-ratio-tag">3:4</div>
+      </div>
+      <div class="show-meta-col">
+        <div>
+          <div class="show-name-text">{{showName}}</div>
+          <div class="show-venue-text">2026.11.02 · 杭州奥体中心</div>
+        </div>
+        <div class="dispersal-fact-tag">
+          <span>历时 2h45m</span>
+          <div class="fact-bullet"></div>
+          <span>22:15 散场</span>
+          <div class="fact-bullet"></div>
+          <span>第 {{ordinal}} 场</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rating Section: 5 Moods -->
+    <div class="rating-section">
+      <div class="section-label-row">
+        <div class="section-label">现场感受</div>
+        <div class="rating-active-desc">🔥 夯爆了 · 今晚直接封神</div>
+      </div>
+
+      <div class="mood-selector-row">
+        <div class="mood-btn">
+          <div class="mood-emoji">🥀</div>
+          <div class="mood-name">拉完了</div>
+        </div>
+        <div class="mood-btn">
+          <div class="mood-emoji">😐</div>
+          <div class="mood-name">NPC</div>
+        </div>
+        <div class="mood-btn">
+          <div class="mood-emoji">😎</div>
+          <div class="mood-name">人上人</div>
+        </div>
+        <div class="mood-btn">
+          <div class="mood-emoji">🤯</div>
+          <div class="mood-name">顶级</div>
+        </div>
+        <div class="mood-btn selected">
+          <div class="mood-emoji">🔥</div>
+          <div class="mood-name">夯爆了</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Review Textarea Section -->
+    <div class="review-input-section">
+      <div class="section-label-row">
+        <div class="section-label">散场短评（可选）</div>
+      </div>
+
+      <div class="review-textarea-card">
+        <div class="review-text-content">“{{reviewText}}”</div>
+        <div class="textarea-footer">
+          <span>写点今晚的记忆或安可时刻</span>
+          <span>31 / 500</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Action Dock: Crystal clear dual choices -->
+  <div class="action-container">
+    <div class="action-button-row">
+      <button class="btn-direct-complete" type="button">
+        <span>直接完成</span>
+      </button>
+
+      <button class="btn-generate-card" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <span>生成影评卡</span>
+      </button>
+    </div>
+    <div class="action-reassure-note">直接完成仅保存到足迹，稍后也可随时生成影评卡</div>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844},"showName":{"editor":"text","default":"草东没有派对 · 如常"},"ordinal":{"editor":"int","default":12},"reviewText":{"editor":"text","default":"最后一首歌结束的时候，灯亮得特别慢。全场都在喊安可，舍不得走。"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      showName: this.props.showName ?? "草东没有派对 · 如常",
+      ordinal: this.props.ordinal ?? 12,
+      reviewText: this.props.reviewText ?? "最后一首歌结束的时候，灯亮得特别慢。全场都在喊安可，舍不得走。"
+    };
+  }
+}
+</script>
+</body>
+</html>

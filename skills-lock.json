@@ -1,6 +1,36 @@
 {
   "version": 1,
   "skills": {
+    "claude-dashboard": {
+      "source": "JimLiu/baoyu-design",
+      "sourceType": "github",
+      "skillPath": "skills/claude-dashboard/SKILL.md",
+      "computedHash": "77c38437f4c0c04b03b67b1116e8775a0317c97cc99537b3f9ba92e63db6c7bc"
+    },
+    "claude-design": {
+      "source": "JimLiu/baoyu-design",
+      "sourceType": "github",
+      "skillPath": "skills/claude-design/SKILL.md",
+      "computedHash": "15126e93e899c4c0e4a6ccf02f53267b5da336bab06ae069b58095896fe23cfd"
+    },
+    "claude-design-system": {
+      "source": "JimLiu/baoyu-design",
+      "sourceType": "github",
+      "skillPath": "skills/claude-design-system/SKILL.md",
+      "computedHash": "12377bf4c1d735a005c9f68db3aacc75778c6e1359a3bb8662d32a3adfbe862c"
+    },
+    "claude-slides": {
+      "source": "JimLiu/baoyu-design",
+      "sourceType": "github",
+      "skillPath": "skills/claude-slides/SKILL.md",
+      "computedHash": "981f5054fb1b2c02c18a60aa46aa0d39c52a0c5505933bb6d39da8366861ae57"
+    },
+    "dataviz": {
+      "source": "JimLiu/baoyu-design",
+      "sourceType": "github",
+      "skillPath": "skills/dataviz/SKILL.md",
+      "computedHash": "e0a2acae54130e9eb977a496ac156a362d39f39e168161a46b4a88ebf6f76d9f"
+    },
     "domain-modeling": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -30,6 +60,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/pr/SKILL.md",
       "computedHash": "22a15d4d469344b38e03eb0e95772478393975836289393b1bad3c0febcdc679"
+    },
+    "release-skills": {
+      "source": "JimLiu/baoyu-design",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/release-skills/SKILL.md",
+      "computedHash": "fd4616d141589bcd23621b9ff1be30b29985f86566acf9bca7d55f0a894ab79e"
     },
     "retro": {
       "source": "mattpocock/skills",

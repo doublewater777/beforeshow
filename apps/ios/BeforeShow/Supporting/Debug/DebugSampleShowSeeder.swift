@@ -313,12 +313,12 @@ enum DebugSampleShowSeeder {
     private static func appStorePrimaryDraft(coverURL: String) -> ShowDraft {
         let start = appStorePrimaryStartDate()
         return ShowDraft(
-            name: "「夜航」巡演 · 上海站",
+            name: "草东没有派对 · 如常",
             date: start,
             startTime: start,
-            city: "上海",
-            venueName: "回声剧场",
-            artists: [ArtistSlot(name: "夜航", avatarURL: nil)],
+            city: "杭州",
+            venueName: "杭州奥体中心体育馆",
+            artists: [ArtistSlot(name: "草东没有派对", avatarURL: nil)],
             coverImageURL: coverURL,
             source: .link,
             recognizedFields: [.name, .date, .startTime, .city, .venueName, .artist]

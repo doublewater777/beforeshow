@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>散场收束 · 停留期首页（App 现状）</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+.device-shell {
+  width: 390px;
+  height: 844px;
+  background: #05070D;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #F2F3F7;
+}
+/* Device Chrome */
+.status-bar {
+  height: 48px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  z-index: 20;
+}
+.dynamic-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 32px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 30;
+}
+.home-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  z-index: 20;
+}
+/* App Header: Shipped CurrentShowHomeHeader */
+.app-header {
+  height: 52px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 15;
+}
+.header-title-large {
+  font-size: 32px;
+  font-weight: 700;
+  color: #F2F3F7;
+  letter-spacing: -0.5px;
+}
+.header-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-circle-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F2F3F7;
+  cursor: pointer;
+}
+/* Ambient Lighting from Poster */
+.ambient-stage-glow {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 330px;
+  height: 330px;
+  background: radial-gradient(circle, rgba(232, 199, 142, 0.2) 0%, rgba(82, 127, 201, 0.12) 45%, transparent 70%);
+  filter: blur(48px);
+  pointer-events: none;
+  z-index: 1;
+}
+/* Scrollable Home Page */
+.home-scroll-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 20px 96px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 5;
+}
+/* Shipped HomeHeroStage: 3:4 Poster */
+.hero-stage-center {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+.poster-3x4-frame {
+  width: 256px;
+  height: 341px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #1A1F2C 0%, #0D111B 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 24px rgba(232, 199, 142, 0.12);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+}
+.poster-artwork {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 65% 30%, rgba(255, 107, 117, 0.38) 0%, rgba(82, 127, 201, 0.28) 45%, rgba(13, 17, 27, 0.98) 100%);
+  z-index: 1;
+}
+.poster-scrim-bottom {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(5, 7, 13, 0.85) 100%);
+  z-index: 2;
+}
+.poster-serial-tag {
+  position: relative;
+  z-index: 3;
+  font-size: 10px;
+  font-weight: 700;
+  color: #E8C78E;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.poster-meta-title-block {
+  position: relative;
+  z-index: 3;
+}
+.poster-artist-heading {
+  font-size: 20px;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+}
+.poster-venue-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  margin-top: 3px;
+}
+/* Shipped CurrentShowCountdownCard / HomeCountdownLockup */
+.countdown-card-shipped {
+  background: #111114;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  padding: 14px 16px 14px 16px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.card-top-wash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 55%;
+  background: linear-gradient(180deg, rgba(232, 199, 142, 0.07) 0%, transparent 100%);
+  pointer-events: none;
+}
+.card-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 2;
+}
+.card-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 9px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.65px;
+}
+.status-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+}
+.card-mode-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #5C5C64;
+  letter-spacing: 1.45px;
+}
+.card-identity-name {
+  font-size: 22px;
+  font-weight: 600;
+  color: #F2F3F7;
+  letter-spacing: -0.45px;
+  line-height: 1.25;
+  position: relative;
+  z-index: 2;
+}
+.card-identity-venue {
+  font-size: 12.5px;
+  color: #9399AA;
+  margin-top: 5px;
+  position: relative;
+  z-index: 2;
+}
+/* Shipped endedStatus: "这一场结束了" */
+.ended-status-block {
+  margin-top: 10px;
+  position: relative;
+  z-index: 2;
+}
+.ended-hero-text {
+  font-size: 44px;
+  font-weight: 300;
+  color: #F2F3F7;
+  letter-spacing: 1px;
+  line-height: 1.1;
+}
+/* Shipped Primary Action Button */
+.card-primary-action-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 12px 0;
+  border-radius: 14px;
+  background: rgba(232, 199, 142, 0.1);
+  border: 1px solid rgba(232, 199, 142, 0.32);
+  color: #E8C78E;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+/* Shipped Quick Action Row */
+.quick-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: -2px;
+}
+.quick-action-tile {
+  min-height: 72px;
+  border-radius: 16px;
+  background: rgba(17, 17, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #F2F3F7;
+  cursor: pointer;
+}
+.action-icon {
+  color: #E8C78E;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.action-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #F2F3F7;
+}
+/* Shipped Follow-Up Shows Summary Tile */
+.followup-tile {
+  border-radius: 16px;
+  background: rgba(17, 17, 20, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.followup-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.followup-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #E8C78E;
+}
+.followup-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #F2F3F7;
+}
+.followup-meta {
+  font-size: 11.5px;
+  color: #9399AA;
+}
+.followup-right {
+  font-size: 13px;
+  font-weight: 600;
+  color: #E8C78E;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Shipped Root Bottom Chrome (bsRootBottomChrome: 3 detached Liquid Glass controls) */
+.bottom-glass-nav {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 25;
+}
+.nav-tab-capsule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: rgba(21, 26, 39, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  backdrop-filter: blur(24px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+  color: #E8C78E;
+  font-size: 13px;
+  font-weight: 600;
+}
+.nav-tab-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(21, 26, 39, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9399AA;
+}
+</style>
+</helmet>
+
+<div class="device-shell">
+  <div class="dynamic-island"></div>
+  <div class="ambient-stage-glow"></div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>22:25</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <svg width="15" height="11" viewBox="0 0 15 11" fill="none" aria-hidden="true">
+        <path d="M1 9.5C1 8.67 1.67 8 2.5 8H3.5C4.33 8 5 8.67 5 9.5V10.5H1V9.5Z" fill="white"></path>
+        <path d="M6 6.5C6 5.67 6.67 5 7.5 5H8.5C9.33 5 10 5.67 10 6.5V10.5H6V6.5Z" fill="white"></path>
+        <path d="M11 2.5C11 1.67 11.67 1 12.5 1H13.5C14.33 1 15 1.67 15 2.5V10.5H11V2.5Z" fill="white"></path>
+      </svg>
+      <svg width="22" height="11" viewBox="0 0 22 11" fill="none" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="18" height="10" rx="3" stroke="white" stroke-opacity="0.35"></rect>
+        <rect x="2" y="2" width="15" height="7" rx="1.5" fill="white"></rect>
+        <path d="M20 3.5V7.5" stroke="white" stroke-opacity="0.35" stroke-linecap="round"></path>
+      </svg>
+    </div>
+  </div>
+
+  <!-- App Header: Shipped CurrentShowHomeHeader -->
+  <div class="app-header">
+    <div class="header-title-large">当前</div>
+    <div class="header-action-group">
+      <div class="header-circle-btn" role="button" aria-label="设置">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </div>
+      <div class="header-circle-btn" role="button" aria-label="添加现场">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scroll View -->
+  <div class="home-scroll-view">
+    <!-- HomeHeroStage: 3:4 Poster -->
+    <div class="hero-stage-center">
+      <div class="poster-3x4-frame">
+        <div class="poster-artwork"></div>
+        <div class="poster-scrim-bottom"></div>
+        <div class="poster-serial-tag">Live · 2026</div>
+        <div class="poster-meta-title-block">
+          <div class="poster-artist-heading">{{showName}}</div>
+          <div class="poster-venue-sub">2026.11.02 · 杭州奥体中心</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Countdown Card: Exact Shipped Structure -->
+    <div class="countdown-card-shipped">
+      <div class="card-top-wash"></div>
+      <div class="card-status-row">
+        <div class="card-status-pill">
+          <div class="status-pill-dot"></div>
+          <span>散场后</span>
+        </div>
+        <div class="card-mode-label">ENDED</div>
+      </div>
+
+      <div class="card-identity-name">{{showName}}</div>
+      <div class="card-identity-venue">2026.11.02 · 杭州奥体中心体育馆</div>
+
+      <div class="ended-status-block">
+        <div class="ended-hero-text">这一场结束了</div>
+      </div>
+
+      <button class="card-primary-action-btn" type="button">
+        <span>散场记录</span>
+      </button>
+    </div>
+
+    <!-- Quick Action Grid: Shipped Actions for PostShow -->
+    <div class="quick-action-grid">
+      <div class="quick-action-tile" role="button">
+        <div class="action-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="5" y="2" width="14" height="20" rx="2"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+          </svg>
+        </div>
+        <div class="action-label">散场记录</div>
+      </div>
+
+      <div class="quick-action-tile" role="button">
+        <div class="action-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        </div>
+        <div class="action-label">记忆碎片</div>
+      </div>
+
+      <div class="quick-action-tile" role="button">
+        <div class="action-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </div>
+        <div class="action-label">同行</div>
+      </div>
+
+      <div class="quick-action-tile" role="button">
+        <div class="action-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+        </div>
+        <div class="action-label">时刻表</div>
+      </div>
+    </div>
+
+    <!-- Follow-Up Show Tile: Shipped FollowUpSummary -->
+    <div class="followup-tile">
+      <div class="followup-left">
+        <div class="followup-badge">下一场现场 · 还有 48 天</div>
+        <div class="followup-name">告五人 · 宇宙的有趣</div>
+        <div class="followup-meta">2026.12.20 · 上海梅赛德斯-奔驰文化中心</div>
+      </div>
+      <div class="followup-right">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Glass Nav: Shipped 3 Liquid Glass Controls -->
+  <div class="bottom-glass-nav">
+    <div class="nav-tab-capsule">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+      </svg>
+      <span>现场</span>
+    </div>
+
+    <div class="nav-tab-circle" role="button" aria-label="听">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"></circle>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+    </div>
+
+    <div class="nav-tab-circle" role="button" aria-label="足迹">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M12 2a5 5 0 0 0-5 5c0 5 5 13 5 13s5-8 5-13a5 5 0 0 0-5-5z"></path>
+        <circle cx="12" cy="7" r="1.5"></circle>
+      </svg>
+    </div>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844},"showName":{"editor":"text","default":"草东没有派对 · 人生大合唱"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      showName: this.props.showName ?? "草东没有派对 · 人生大合唱"
+    };
+  }
+}
+</script>
+</body>
+</html>

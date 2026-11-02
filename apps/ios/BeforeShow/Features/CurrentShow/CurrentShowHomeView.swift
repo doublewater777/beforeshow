@@ -295,20 +295,23 @@ struct CurrentShowHomeView: View {
                     isShowingWidgetPreview = true
                 }
                 // 截图 / 验证用:跳过熄灯动画，直接打开散场评分分档页（默认选中「夯爆了」）。
-                if ProcessInfo.processInfo.arguments.contains("--open-dispersal-rating"),
-                   let target = shows.first(where: { $0.name == "「夜航」巡演 · 上海站" })
-                    ?? shows.first(where: { $0.endedAt == nil })
-                    ?? shows.first {
-                    try? await Task.sleep(for: .milliseconds(900))
-                    target.markEnded(at: Date())
-                    try? target.setClosingRitual(
-                        rating: 5,
-                        note: "最后一首歌结束的时候，灯亮得特别慢，舍不得走。"
-                    )
-                    try? modelContext.save()
-                    ceremonySheetShowID = target.id
+                if ProcessInfo.processInfo.arguments.contains("--open-dispersal-rating") {
+                    try? await Task.sleep(for: .milliseconds(1200))
+                    if let target = currentShow {
+                        let cal = Calendar(identifier: .gregorian)
+                        target.name = "草东没有派对 · 如常"
+                        target.city = "杭州"
+                        target.venueName = "杭州奥体中心体育馆"
+                        target.startTime = cal.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 19, minute: 30)) ?? Date()
+                        target.markEnded(at: cal.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 22, minute: 15)) ?? Date())
+                        let card = ProcessInfo.processInfo.arguments.contains("--open-dispersal-card")
+                        target.hasCompletedDispersalCeremony = card
+                        target.hasGeneratedDispersalCard = card ? true : nil
+                        try? target.setClosingRitual(rating: 5, note: "最后一首歌结束的时候，灯亮得特别慢，全场都在喊安可，舍不得走。", markCeremonyCompleted: card, generatesCard: card ? true : nil)
+                        try? modelContext.save()
+                        ceremonySheetShowID = target.id
+                    }
                 }
-                // 截图 / 验证用:对当前 live 现场直接拉起散场仪式,跳过手动点「结束现场」。
                 if ProcessInfo.processInfo.arguments.contains("--auto-fire-dispersal"),
                    let live = shows.first(where: { $0.endedAt == nil }) {
                     try? await Task.sleep(for: .milliseconds(600))

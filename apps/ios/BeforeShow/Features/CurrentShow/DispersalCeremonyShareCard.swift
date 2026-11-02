@@ -3,48 +3,32 @@ import UIKit
 
 // MARK: - 渲染 token
 
-/// 「散场卡」渲染 token。对齐 V2 原型 editorial 构图。
-/// `baseWidth = 360`,所有 metrics × `proxy.size.width / baseWidth`,
-/// 渲染到 `ImageRenderer(scale: 3)` 时得到 1080×1350 PNG。
 private enum DispersalCeremonyCardTokens {
     static let baseWidth: CGFloat = 360
-    static let cardPadding: CGFloat = 25
+    static let baseHeight: CGFloat = 500
 
-    static let brandTopTracking: CGFloat = 1.5
-    static let dateTopPadding: CGFloat = 20
-    static let eventTopPadding: CGFloat = 7
-    static let eventLineSpacing: CGFloat = 2
-    static let ratingTopPadding: CGFloat = 30
-    static let quoteTopPadding: CGFloat = 22
-    static let quoteLineSpacing: CGFloat = 6
-
-    static let footerMinSpacing: CGFloat = 10
-
-    static let goldGlow = Color(red: 0.910, green: 0.780, blue: 0.557).opacity(0.26)
-    static let blueGlow = Color(red: 0.910, green: 0.780, blue: 0.557).opacity(0.12)
-    static let gradientTop = Color(red: 0.075, green: 0.075, blue: 0.085)
-    static let gradientMid = Color(red: 0.040, green: 0.040, blue: 0.045)
-    static let gradientBottom = Color(red: 0.024, green: 0.024, blue: 0.027)
     static let brand = BSColor.Stage.accent
-    static let date = Color.white.opacity(0.62)
-    static let quote = Color(red: 0.898, green: 0.906, blue: 0.929)
-    static let footer = Color.white.opacity(0.38)
-    static let neutralHeader = BSColor.Stage.muted
+    static let quote = Color(red: 0.94, green: 0.94, blue: 0.96)
+    static let footer = Color.white.opacity(0.45)
 
-    static func brandFont(scale: CGFloat) -> Font {
-        .system(size: 10.5 * scale, weight: .semibold)
+    static func sloganFont(scale: CGFloat) -> Font {
+        .system(size: 10 * scale, weight: .semibold)
     }
 
-    static func dateFont(scale: CGFloat) -> Font {
-        .system(size: 12 * scale, weight: .medium)
+    static func brandFont(scale: CGFloat) -> Font {
+        .system(size: 11 * scale, weight: .bold)
     }
 
     static func eventFont(scale: CGFloat) -> Font {
-        .system(size: 25 * scale, weight: .bold)
+        .system(size: 22 * scale, weight: .heavy)
     }
 
-    static func ratingFont(scale: CGFloat) -> Font {
-        .system(size: 42 * scale, weight: .bold)
+    static func dateFont(scale: CGFloat) -> Font {
+        .system(size: 11 * scale, weight: .medium)
+    }
+
+    static func pillFont(scale: CGFloat) -> Font {
+        .system(size: 11 * scale, weight: .semibold)
     }
 
     static func quoteFont(scale: CGFloat) -> Font {
@@ -52,13 +36,12 @@ private enum DispersalCeremonyCardTokens {
     }
 
     static func footerFont(scale: CGFloat) -> Font {
-        .system(size: 10.5 * scale, weight: .medium)
+        .system(size: 11 * scale, weight: .medium)
     }
 }
 
-
 enum DispersalCeremonyShareExport {
-    static let renderSize = CGSize(width: 360, height: 450)
+    static let renderSize = CGSize(width: 360, height: 640)
     static let renderScale: CGFloat = 3
 
     @MainActor
@@ -98,19 +81,8 @@ enum DispersalCeremonyShareExport {
     }
 }
 
-// MARK: - 散场卡
+// MARK: - 散场影评卡（暗调磨砂版）
 
-/// V2 editorial 构图,左对齐,评分词是主视觉,不是居中大 emoji。
-///
-///   BEFORESHOW · 散场记录
-///   2026.07.28 · 杭州
-///   陈绮贞
-///   漫漫长夜 Cheer20
-///   🔥 夯爆了
-///   “最后一首歌结束的时候,灯亮得特别慢。”
-///   我的第 12 场现场                         开场前
-///
-/// 无评分时:评分行替换为 "已落幕"。无散场文字时:quote 整段隐藏。
 struct DispersalCeremonyShareCard: View {
     let show: Show
     let identity: FootprintDetailIdentity
@@ -155,176 +127,260 @@ struct DispersalCeremonyShareCard: View {
         )
     }
 
-    var body: some View {
-        GeometryReader { proxy in
-            let scale = proxy.size.width / DispersalCeremonyCardTokens.baseWidth
-            ZStack {
-                background
-
-                ViewThatFits(in: .vertical) {
-                    cardBody(scale: scale, eventLineLimit: 2, quoteMaxLines: 6)
-                    cardBody(scale: scale, eventLineLimit: 2, quoteMaxLines: 3)
-                    cardBody(scale: scale, eventLineLimit: 2, quoteMaxLines: 0)
-                    cardBody(scale: scale, eventLineLimit: 1, quoteMaxLines: 0)
-                }
-                .padding(DispersalCeremonyCardTokens.cardPadding * scale)
-            }
-        }
-    }
-
-    // MARK: 子区块
-
-    private var background: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    DispersalCeremonyCardTokens.gradientTop,
-                    DispersalCeremonyCardTokens.gradientMid,
-                    DispersalCeremonyCardTokens.gradientBottom
-                ],
-                startPoint: UnitPoint(x: 0.15, y: 0),
-                endPoint: UnitPoint(x: 0.9, y: 1)
-            )
-
-            if let ambientColor {
-                LinearGradient(
-                    colors: [
-                        ambientColor.opacity(0.16),
-                        ambientColor.opacity(0.06),
-                        .clear
-                    ],
-                    startPoint: .topTrailing,
-                    endPoint: .bottomLeading
-                )
-            }
-
-            GeometryReader { proxy in
-                ZStack {
-                    Ellipse()
-                        .fill(
-                            ambientColor?.opacity(0.30)
-                                ?? DispersalCeremonyCardTokens.goldGlow
-                        )
-                        .frame(
-                            width: proxy.size.width * 1.10,
-                            height: proxy.size.height * 0.85
-                        )
-                        .position(
-                            x: proxy.size.width * 0.80,
-                            y: proxy.size.height * 0.05
-                        )
-                        .blur(radius: 36)
-
-                    Ellipse()
-                        .fill(
-                            ambientColor?.opacity(0.13)
-                                ?? DispersalCeremonyCardTokens.blueGlow
-                        )
-                        .frame(
-                            width: proxy.size.width * 1.05,
-                            height: proxy.size.height * 0.90
-                        )
-                        .position(
-                            x: proxy.size.width * 0.10,
-                            y: proxy.size.height * 0.25
-                        )
-                        .blur(radius: 40)
-                }
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private func cardBody(scale: CGFloat, eventLineLimit: Int, quoteMaxLines: Int) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(DispersalCeremonyCardCopy.brand)
-                .font(DispersalCeremonyCardTokens.brandFont(scale: scale))
-                .tracking(DispersalCeremonyCardTokens.brandTopTracking * scale)
-                .foregroundStyle(DispersalCeremonyCardTokens.brand)
-
-            Text(dateLine)
-                .font(DispersalCeremonyCardTokens.dateFont(scale: scale))
-                .foregroundStyle(DispersalCeremonyCardTokens.date)
-                .padding(.top, DispersalCeremonyCardTokens.dateTopPadding * scale)
-
-            eventBlock(scale: scale, lineLimit: eventLineLimit)
-            ratingBlock(scale: scale)
-
-            if let trimmedNote, quoteMaxLines > 0 {
-                quoteBlock(text: trimmedNote, scale: scale, lineLimit: quoteMaxLines)
-            }
-
-            Spacer(minLength: DispersalCeremonyCardTokens.footerMinSpacing * scale)
-            footerBlock(scale: scale)
-        }
-    }
-
-    private func eventBlock(scale: CGFloat, lineLimit: Int) -> some View {
-        VStack(alignment: .leading, spacing: DispersalCeremonyCardTokens.eventLineSpacing * scale) {
-            ForEach(Array(eventLines.enumerated()), id: \.offset) { _, line in
-                Text(line)
-                    .font(DispersalCeremonyCardTokens.eventFont(scale: scale))
-                    .foregroundStyle(.white)
-                    .lineLimit(lineLimit)
-                    .minimumScaleFactor(0.72)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.top, DispersalCeremonyCardTokens.eventTopPadding * scale)
-    }
-
-    private func ratingBlock(scale: CGFloat) -> some View {
-        Group {
-            if let currentRating {
-                Text(DispersalCeremonyCardCopy.ratingTitle(currentRating))
-                    .font(DispersalCeremonyCardTokens.ratingFont(scale: scale))
-                    .foregroundStyle(currentRating.tint)
-                    .minimumScaleFactor(0.72)
-                    .lineLimit(1)
-                    .dispersalMatchedGeometry(
-                        id: "dispersal.rating",
-                        namespace: transitionNamespace
-                    )
-            } else {
-                Text(BSLocalization.text("已落幕"))
-                    .font(DispersalCeremonyCardTokens.ratingFont(scale: scale))
-                    .foregroundStyle(DispersalCeremonyCardTokens.neutralHeader)
-            }
-        }
-        .padding(.top, DispersalCeremonyCardTokens.ratingTopPadding * scale)
-    }
-
-    private func quoteBlock(text: String, scale: CGFloat, lineLimit: Int) -> some View {
-        Text("\u{201C}\(text)\u{201D}")
-            .font(DispersalCeremonyCardTokens.quoteFont(scale: scale))
-            .foregroundStyle(DispersalCeremonyCardTokens.quote)
-            .lineSpacing(DispersalCeremonyCardTokens.quoteLineSpacing * scale)
-            .multilineTextAlignment(.leading)
-            .lineLimit(lineLimit)
-            .padding(.top, DispersalCeremonyCardTokens.quoteTopPadding * scale)
-            .dispersalMatchedGeometry(
-                id: "dispersal.note",
-                namespace: transitionNamespace
-            )
-    }
-
-    private func footerBlock(scale: CGFloat) -> some View {
-        HStack {
-            Text(DispersalCeremonyCardCopy.footerLeading(identity: identity))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-            Spacer(minLength: 8)
-            Text(DispersalCeremonyCardCopy.footerTrailing)
-        }
-        .font(DispersalCeremonyCardTokens.footerFont(scale: scale))
-        .foregroundStyle(DispersalCeremonyCardTokens.footer)
-    }
-
-    // MARK: 派生文本
-
     private var dateLine: String {
         let calendar = show.timingCalendar()
         let date = BSDateFormat.dottedDate(show.effectiveDate, calendar: calendar)
         return [date, cityText].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private var durationText: String? {
+        let start = show.startTime
+        let end = show.endedAt ?? Date()
+        let minutes = max(0, Int(end.timeIntervalSince(start) / 60))
+        guard minutes > 0 else { return nil }
+        return ShowDurationFormatter.single(totalMinutes: minutes)
+    }
+
+    private var dispersalTimeText: String? {
+        guard let endedAt = show.endedAt else { return nil }
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        timeFormatter.timeZone = show.timingCalendar().timeZone
+        return timeFormatter.string(from: endedAt)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let scale = proxy.size.width / DispersalCeremonyCardTokens.baseWidth
+            VStack(spacing: 0) {
+                posterHeader(scale: scale)
+
+                reviewSection(scale: scale)
+
+                ticketDivider(scale: scale)
+
+                footerSection(scale: scale)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 24 * scale)
+                    .fill(Color(red: 0.07, green: 0.09, blue: 0.13).opacity(0.92))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24 * scale))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24 * scale)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
+        }
+    }
+
+    // MARK: - Poster Header (3:4 Ratio Poster Top)
+
+    private func posterHeader(scale: CGFloat) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            // Poster Artwork Background
+            ZStack {
+                Color(red: 0.09, green: 0.11, blue: 0.16)
+                if let ambientColor {
+                    ambientColor.opacity(0.35)
+                }
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    enforcesAspectRatio: true,
+                    cornerRadius: 0,
+                    restoresPersistedImageOnFirstFrame: true
+                )
+            }
+            .frame(height: 480 * scale)
+            .clipped()
+
+            // Scrims
+            LinearGradient(
+                colors: [Color.black.opacity(0.55), .clear, Color.black.opacity(0.85)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            // Top Slogan
+            VStack {
+                HStack {
+                    Spacer()
+                    Text("现 场 落 幕 · 留 住 今 晚")
+                        .font(DispersalCeremonyCardTokens.sloganFont(scale: scale))
+                        .tracking(4 * scale)
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .shadow(color: .black.opacity(0.6), radius: 3)
+                    Spacer()
+                }
+                .padding(.top, 14 * scale)
+                Spacer()
+            }
+
+            // Bottom Overlays in Poster
+            VStack(alignment: .leading, spacing: 6 * scale) {
+                if !dateLine.isEmpty {
+                    Text(dateLine)
+                        .font(DispersalCeremonyCardTokens.dateFont(scale: scale))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                }
+
+                ForEach(Array(eventLines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(DispersalCeremonyCardTokens.eventFont(scale: scale))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .shadow(color: .black.opacity(0.7), radius: 4)
+                }
+
+                // Translucent pill with Rating + Dispersal Facts
+                HStack(spacing: 6 * scale) {
+                    Text(BSLocalization.text("我的感受"))
+                        .font(.system(size: 9.5 * scale, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.65))
+
+                    if let currentRating {
+                        Text(DispersalCeremonyCardCopy.ratingTitle(currentRating))
+                            .font(DispersalCeremonyCardTokens.pillFont(scale: scale))
+                            .foregroundStyle(currentRating.tint)
+                            .dispersalMatchedGeometry(
+                                id: "dispersal.rating",
+                                namespace: transitionNamespace
+                            )
+                    } else {
+                        Text(BSLocalization.text("已落幕"))
+                            .font(DispersalCeremonyCardTokens.pillFont(scale: scale))
+                            .foregroundStyle(BSColor.Stage.muted)
+                    }
+
+                    if let timeText = dispersalTimeText {
+                        Text("·")
+                            .foregroundStyle(Color.white.opacity(0.4))
+                        Text(BSLocalization.format("%@ 散场", timeText))
+                            .font(.system(size: 10 * scale, weight: .medium))
+                            .foregroundStyle(BSColor.Stage.accent)
+                    }
+
+                    if let dur = durationText {
+                        Text("·")
+                            .foregroundStyle(Color.white.opacity(0.4))
+                        Text(BSLocalization.format("历时 %@", dur))
+                            .font(.system(size: 10 * scale, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 10 * scale)
+                .padding(.vertical, 5 * scale)
+                .background(
+                    RoundedRectangle(cornerRadius: 8 * scale)
+                        .fill(Color.black.opacity(0.72))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8 * scale)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                )
+            }
+            .padding(.horizontal, 16 * scale)
+            .padding(.bottom, 12 * scale)
+        }
+        .frame(height: 480 * scale)
+    }
+
+    // MARK: - Review Section
+
+    private func reviewSection(scale: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 8 * scale) {
+            if let trimmedNote {
+                Text("\u{201C}\(trimmedNote)\u{201D}")
+                    .font(DispersalCeremonyCardTokens.quoteFont(scale: scale))
+                    .foregroundStyle(DispersalCeremonyCardTokens.quote)
+                    .lineSpacing(4 * scale)
+                    .lineLimit(4)
+                    .dispersalMatchedGeometry(
+                        id: "dispersal.note",
+                        namespace: transitionNamespace
+                    )
+            } else {
+                Text(BSLocalization.text("散场了，现场的心跳收进这里。"))
+                    .font(DispersalCeremonyCardTokens.quoteFont(scale: scale))
+                    .foregroundStyle(BSColor.Stage.dim)
+            }
+
+            HStack {
+                Text(DispersalCeremonyCardCopy.footerLeading(identity: identity))
+                    .font(.system(size: 11 * scale, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.accent)
+                Spacer()
+            }
+            .padding(.top, 2 * scale)
+        }
+        .padding(.horizontal, 18 * scale)
+        .padding(.vertical, 14 * scale)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Ticket Divider
+
+    private func ticketDivider(scale: CGFloat) -> some View {
+        ZStack {
+            Rectangle()
+                .fill(Color.clear)
+                .frame(height: 14 * scale)
+
+            HStack {
+                Circle()
+                    .fill(Color(red: 0.03, green: 0.03, blue: 0.04))
+                    .frame(width: 14 * scale, height: 14 * scale)
+                    .offset(x: -7 * scale)
+                Spacer()
+                Circle()
+                    .fill(Color(red: 0.03, green: 0.03, blue: 0.04))
+                    .frame(width: 14 * scale, height: 14 * scale)
+                    .offset(x: 7 * scale)
+            }
+
+            Rectangle()
+                .stroke(style: StrokeStyle(lineWidth: 1, dash: [4 * scale, 3 * scale]))
+                .foregroundStyle(Color.white.opacity(0.14))
+                .frame(height: 1)
+                .padding(.horizontal, 14 * scale)
+        }
+        .frame(height: 14 * scale)
+    }
+
+    // MARK: - Footer Section
+
+    private func footerSection(scale: CGFloat) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2 * scale) {
+                Text(DispersalCeremonyCardCopy.brand)
+                    .font(DispersalCeremonyCardTokens.brandFont(scale: scale))
+                    .tracking(1 * scale)
+                    .foregroundStyle(Color.white)
+                Text(dateLine)
+                    .font(.system(size: 10 * scale))
+                    .foregroundStyle(Color.white.opacity(0.45))
+            }
+
+            Spacer()
+
+            Text(DispersalCeremonyCardCopy.footerTrailing)
+                .font(.system(size: 10.5 * scale, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.accent)
+                .padding(.horizontal, 8 * scale)
+                .padding(.vertical, 3 * scale)
+                .background(
+                    Capsule()
+                        .fill(BSColor.Stage.accent.opacity(0.14))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 1)
+                )
+        }
+        .padding(.horizontal, 18 * scale)
+        .padding(.top, 8 * scale)
+        .padding(.bottom, 14 * scale)
     }
 }
