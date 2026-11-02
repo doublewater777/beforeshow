@@ -134,7 +134,8 @@ Created with these fields:
 ### 1.0.6 — 2026-11-02
 
 - Version ID: `88df8d41-0a6c-46b4-a33c-8df59ceb979a`, build `50` / build ID `5177804c-4374-4523-a703-4e9e7862cf13` (VALID, uploaded 2026-11-01).
-- Submission ID: `7c57fb00-34aa-4247-bca5-6e24ed4c6e39`, submitted `2026-11-02T04:39:37Z`, state `WAITING_FOR_REVIEW`.
+- First submission `7c57fb00-34aa-4247-bca5-6e24ed4c6e39` (2026-11-02T04:39:37Z) was cancelled by the developer after the release notes were rewritten in place; the version returned to `DEVELOPER_REJECTED`.
+- Resubmitted: ID `93db7d74-ba85-465e-b170-98dd2196f831`, submitted `2026-11-02T04:52:06Z`, state `WAITING_FOR_REVIEW`. This is the active submission.
 - Staged with `asc release stage` from canonical `./metadata` (directory must be the metadata root, not `metadata/version/<version>`).
 - `asc validate --app 6780078298 --version 1.0.6` before submission: `0` errors, `0` warnings, `1` info.
 - Remaining manual check: `privacy.publish_state.unverified` — App Privacy publish state is not verifiable through the public API; confirm at <https://appstoreconnect.apple.com/apps/6780078298/appPrivacy>.
