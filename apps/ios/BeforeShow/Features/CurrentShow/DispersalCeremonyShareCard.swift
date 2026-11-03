@@ -11,9 +11,6 @@ private enum DispersalCeremonyCardTokens {
     static let quote = Color(red: 0.94, green: 0.94, blue: 0.96)
     static let footer = Color.white.opacity(0.45)
 
-    static func sloganFont(scale: CGFloat) -> Font {
-        .system(size: 10 * scale, weight: .semibold)
-    }
 
     static func brandFont(scale: CGFloat) -> Font {
         .system(size: 11 * scale, weight: .bold)
@@ -202,20 +199,6 @@ struct DispersalCeremonyShareCard: View {
                 endPoint: .bottom
             )
 
-            // Top Slogan
-            VStack {
-                HStack {
-                    Spacer()
-                    Text("现 场 落 幕 · 留 住 今 晚")
-                        .font(DispersalCeremonyCardTokens.sloganFont(scale: scale))
-                        .tracking(4 * scale)
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .shadow(color: .black.opacity(0.6), radius: 3)
-                    Spacer()
-                }
-                .padding(.top, 14 * scale)
-                Spacer()
-            }
 
             // Bottom Overlays in Poster
             VStack(alignment: .leading, spacing: 6 * scale) {
