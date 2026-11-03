@@ -426,4 +426,27 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertNil(LocalNotificationScheduler.weatherTip(unavailable, now: unavailable.fetchedAt, fireDate: unavailable.fetchedAt))
     }
 
+    func testForecastCarriesEventTimeZoneAndFormatsSunsetThere() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 20)))
+        let sunset = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 3, hour: 17, minute: 3)))
+        let day = RawDayForecast(date: start, highCelsius: 20, lowCelsius: 15, condition: .clear, conditionDescription: "晴", sunsetTime: sunset, precipitationChance: 0, uvIndex: 1)
+        let result = try policy.resolveForecast(for: UUID(), showDate: start, showStartTime: start, showEndTime: start.addingTimeInterval(7200), calendar: calendar, dailyForecasts: [day], hourlyForecasts: [], now: start.addingTimeInterval(-86400))
+        XCTAssertEqual(result.timeZoneIdentifier, "Asia/Shanghai")
+        XCTAssertTrue(result.summaryCallout.contains("17:03"))
+    }
+
+    func testWeatherCalendarUsesVenueTimeZoneWhenShowHasNone() throws {
+        let now = Date()
+        var timing = ShowTimingFields(date: now, startTime: now, endDate: nil, endTime: nil, postponedDate: nil, changeStatus: .scheduled)
+        var fallback = Calendar(identifier: .gregorian)
+        fallback.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let shanghai = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        XCTAssertEqual(try policy.weatherCalendar(timing: timing, locationTimeZone: shanghai, fallback: fallback).timeZone.identifier, "Asia/Shanghai")
+        XCTAssertThrowsError(try policy.weatherCalendar(timing: timing, locationTimeZone: nil, fallback: fallback))
+        timing.timeZoneIdentifier = "Europe/London"
+        XCTAssertEqual(try policy.weatherCalendar(timing: timing, locationTimeZone: shanghai, fallback: fallback).timeZone.identifier, "Europe/London")
+    }
+
 }

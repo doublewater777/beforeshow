@@ -34,6 +34,18 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         }
     }
 
+    func weatherCalendar(timing: ShowTimingFields, locationTimeZone: TimeZone?, fallback: Calendar) throws -> Calendar {
+        let identifiers = [timing.sessionTimeZoneIdentifier, timing.timeZoneIdentifier].compactMap { $0 }
+        let explicitTimeZone = identifiers.compactMap(TimeZone.init(identifier:)).first
+            ?? timing.timeZoneSecondsFromGMT.flatMap(TimeZone.init(secondsFromGMT:))
+        guard let timeZone = explicitTimeZone ?? locationTimeZone else {
+            throw ShowWeatherError.timeZoneUnavailable
+        }
+        var calendar = fallback
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
     /// 场地观演环境识别分类
     enum VenueEnvironment: Sendable, Equatable {
         case indoor
@@ -238,7 +250,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
 
         let temperature = representativeHour?.temperatureCelsius ?? dayForecast.highCelsius
         let condition = representativeHour?.condition ?? dayForecast.condition
-        let conditionDesc = dayForecast.conditionDescription
+        let conditionDesc = representativeHour?.conditionDescription ?? dayForecast.conditionDescription
         let feelsLike = representativeHour?.apparentTemperatureCelsius ?? temperature
         let uv = representativeHour?.uvIndex ?? dayForecast.uvIndex
         let wind = representativeHour.map { "\($0.windDirectionDescription) \($0.windSpeedMps) m/s" } ?? "--"
@@ -290,6 +302,8 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         return ShowWeatherDTO(
             showID: showID,
             fetchedAt: now,
+            timeZoneIdentifier: calendar.timeZone.identifier,
+            forecastTime: representativeHour?.date,
             temperatureCelsius: temperature,
             highCelsius: dayForecast.highCelsius,
             lowCelsius: dayForecast.lowCelsius,

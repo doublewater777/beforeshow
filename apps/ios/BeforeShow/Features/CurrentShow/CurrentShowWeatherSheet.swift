@@ -1,4 +1,5 @@
 import SwiftUI
+import WeatherKit
 
 struct CurrentShowWeatherSheet: View {
     let show: Show
@@ -6,6 +7,7 @@ struct CurrentShowWeatherSheet: View {
     let city: String?
 
     @State private var weather: ShowWeatherDTO?
+    @State private var weatherAttribution: WeatherAttribution?
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     @State private var packedItemIDs: Set<String> = []
@@ -24,7 +26,8 @@ struct CurrentShowWeatherSheet: View {
     }
 
     private var eventTimeZone: TimeZone {
-        show.timingFields.eventCalendar(fallback: .current).timeZone
+        weather?.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+            ?? show.timingFields.eventCalendar(fallback: .current).timeZone
     }
 
     private var storageKey: String {
@@ -37,11 +40,10 @@ struct CurrentShowWeatherSheet: View {
                 VStack(spacing: 20) {
                     if let weather {
                         heroCard(weather)
+                        hourlyMilestoneSection(weather)
                         packingChecklistSection(weather)
-                        if !weather.hourly.isEmpty {
-                            hourlyMilestoneSection(weather)
-                        }
-                        weatherMetricsGrid(weather)
+                        ultravioletSection(weather)
+                        attributionFooter
                     } else if isLoading {
                         loadingPlaceholder
                     } else if let errorMessage {
@@ -66,6 +68,9 @@ struct CurrentShowWeatherSheet: View {
                 }
             }
             .task {
+                weatherAttribution = try? await WeatherService.shared.attribution
+            }
+            .task {
                 loadPackedItems()
                 if weather == nil {
                     await loadWeather()
@@ -81,66 +86,59 @@ struct CurrentShowWeatherSheet: View {
     // MARK: - Hero Weather Card
 
     private func heroCard(_ weather: ShowWeatherDTO) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: weather.condition.systemSymbolName)
-                            .foregroundStyle(weather.tone.primaryTint)
-                            .font(.system(size: 15, weight: .semibold))
+        VStack(alignment: .leading, spacing: 16) {
+            Label(venueOrCityText, systemImage: "mappin")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(BSColor.textSecondary)
+                .lineLimit(2)
 
-                        Text(verbatim: venueOrCityText)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.85))
-                    }
-
-                    Text(weather.conditionDescription)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.6))
-                }
-
-                Spacer()
-
+            HStack(alignment: .center, spacing: 14) {
                 Text(verbatim: "\(weather.temperatureCelsius)°")
-                    .font(.system(size: 60, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.white)
+                    .font(.system(size: 54, weight: .light, design: .rounded))
+                    .foregroundStyle(BSColor.textPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 7) {
+                        Image(systemName: weather.condition.systemSymbolName)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(weather.tone.primaryTint)
+                        Text(weather.conditionDescription)
+                            .foregroundStyle(BSColor.textPrimary)
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    if let forecastTime = weather.forecastTime {
+                        Text(BSLocalization.format("%1$@ 预报 · 体感 %2$lld°", formatHour(forecastTime), Int64(weather.feelsLikeCelsius)))
+                            .font(.system(size: 12))
+                            .foregroundStyle(BSColor.textSecondary)
+                    } else {
+                        Text(BSLocalization.text("当天最高气温"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(BSColor.textSecondary)
+                    }
+                }
+                Spacer(minLength: 0)
             }
 
-            HStack(spacing: 12) {
-                Label(
-                    title: { Text(verbatim: "最高 \(weather.highCelsius)°") },
-                    icon: { Image(systemName: "arrow.up") }
-                )
-                Label(
-                    title: { Text(verbatim: "最低 \(weather.lowCelsius)°") },
-                    icon: { Image(systemName: "arrow.down") }
-                )
-                Label(
-                    title: { Text(verbatim: "体感 \(weather.feelsLikeCelsius)°") },
-                    icon: { Image(systemName: "thermometer.medium") }
-                )
+            if let advice = weather.packingList.first(where: { $0.id == "rainwear" || $0.id == "jacket" })?.subtitle {
+                Text(advice)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(BSColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(Color.white.opacity(0.75))
 
-            if !weather.summaryCallout.isEmpty {
-                Text(weather.summaryCallout)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Color.white.opacity(0.9))
-                    .lineSpacing(3)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white.opacity(0.04))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
-                            )
-                    )
+            Rectangle()
+                .fill(BSColor.border)
+                .frame(height: 0.5)
+
+            HStack(alignment: .top, spacing: 12) {
+                heroMetric(BSLocalization.text("全天降水概率"), value: "\(Int(weather.precipitationProbability * 100))%")
+                heroMetric(BSLocalization.text("风速"), value: weather.windDescription)
+                heroMetric(BSLocalization.text("日落"), value: sunsetTimeString(weather))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 20)
@@ -150,6 +148,20 @@ struct CurrentShowWeatherSheet: View {
                         .strokeBorder(BSColor.borderProminent, lineWidth: 0.5)
                 )
         )
+    }
+
+    private func heroMetric(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(size: 11))
+                .foregroundStyle(BSColor.textSecondary)
+            Text(value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BSColor.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var venueOrCityText: String {
@@ -231,13 +243,19 @@ struct CurrentShowWeatherSheet: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(weather.hourly) { item in
-                        hourlyItemView(item, weather: weather)
+            if weather.hourly.isEmpty {
+                Text(BSLocalization.text("暂无演出时段预报"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(BSColor.textSecondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(weather.hourly) { item in
+                            hourlyItemView(item, weather: weather)
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
             }
         }
     }
@@ -292,48 +310,15 @@ struct CurrentShowWeatherSheet: View {
         return formatter.string(from: date)
     }
 
-    // MARK: - 2x2 Metric Grid
+    // MARK: - Additional Weather Details
 
-    private func weatherMetricsGrid(_ weather: ShowWeatherDTO) -> some View {
-        let precipSubtitle: String = {
-            if weather.precipitationProbability <= 0.20 {
-                return BSLocalization.text("下雨可能性较小")
-            } else if weather.precipitationProbability <= 0.60 {
-                return BSLocalization.text("当天可能有降水")
-            } else {
-                return BSLocalization.text("当天降水概率较高")
-            }
-        }()
-
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            metricTile(
-                title: BSLocalization.text("当天降水概率"),
-                value: "\(Int(weather.precipitationProbability * 100))%",
-                subtitle: precipSubtitle,
-                systemIcon: "umbrella.fill"
-            )
-
-            metricTile(
-                title: BSLocalization.text("日落时间"),
-                value: sunsetTimeString(weather),
-                subtitle: BSLocalization.text("想看日落，可以提前留意舞台方向"),
-                systemIcon: "sunset.fill"
-            )
-
-            metricTile(
-                title: BSLocalization.text("紫外线指数"),
-                value: "\(weather.uvIndex)",
-                subtitle: weather.uvIndex >= 5 ? BSLocalization.text("白天日晒较强，注意防晒") : BSLocalization.text("紫外线较弱"),
-                systemIcon: "sun.max.fill"
-            )
-
-            metricTile(
-                title: BSLocalization.text("风速"),
-                value: weather.windDescription,
-                subtitle: BSLocalization.text("演出时段预报"),
-                systemIcon: "wind"
-            )
-        }
+    private func ultravioletSection(_ weather: ShowWeatherDTO) -> some View {
+        metricTile(
+            title: BSLocalization.text("紫外线指数"),
+            value: "\(weather.uvIndex)",
+            subtitle: weather.uvIndex >= 5 ? BSLocalization.text("白天日晒较强，注意防晒") : BSLocalization.text("紫外线较弱"),
+            systemIcon: "sun.max.fill"
+        )
     }
 
     private func metricTile(title: String, value: String, subtitle: String, systemIcon: String) -> some View {
@@ -377,6 +362,38 @@ struct CurrentShowWeatherSheet: View {
         formatter.timeZone = eventTimeZone
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: sunset)
+    }
+
+    private var attributionFooter: some View {
+        HStack(spacing: 6) {
+            Text(BSLocalization.text("数据来源："))
+            if let attribution = weatherAttribution {
+                AsyncImage(url: attribution.combinedMarkDarkURL) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    appleWeatherLabel
+                }
+                .frame(width: 82, height: 18, alignment: .leading)
+            } else {
+                appleWeatherLabel
+            }
+            Spacer(minLength: 8)
+            Link(
+                BSLocalization.text("法律补充"),
+                destination: weatherAttribution?.legalPageURL
+                    ?? URL(string: "https://developer.apple.com/weatherkit/data-source-attribution/")!
+            )
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(BSColor.textSecondary)
+        .padding(.vertical, 8)
+    }
+
+    private var appleWeatherLabel: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "apple.logo")
+            Text(BSLocalization.text("天气"))
+        }
     }
 
     // MARK: - Loading & Error States
@@ -432,7 +449,8 @@ struct CurrentShowWeatherSheet: View {
             let fetched = try await LiveShowWeatherService.shared.fetchWeather(for: show)
             weather = fetched
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = (error as? ShowWeatherError)?.localizedDescription
+                ?? BSLocalization.text("暂时无法获取天气，请稍后重试")
         }
         isLoading = false
     }

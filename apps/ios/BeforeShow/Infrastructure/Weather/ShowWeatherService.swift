@@ -47,7 +47,8 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
         try Task.checkCancellation()
 
         // 1. 地理编码场地地址或城市
-        let location = try await resolveLocation(city: show.city, venueName: show.venueName, venueAddress: show.venueAddress)
+        let placemark = try await resolveLocation(city: show.city, venueName: show.venueName, venueAddress: show.venueAddress)
+        guard let location = placemark.location else { throw ShowWeatherError.locationUnavailable }
 
         try Task.checkCancellation()
 
@@ -79,11 +80,14 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
                 uvIndex: hour.uvIndex.value,
                 windSpeedMps: Int(round(hour.wind.speed.converted(to: .metersPerSecond).value)),
                 windDirectionDescription: hour.wind.compassDirection.description,
-                precipitationChance: hour.precipitationChance
+                precipitationChance: hour.precipitationChance,
+                conditionDescription: hour.condition.description
             )
         }
 
-        let eventCalendar = show.timingFields.eventCalendar(fallback: .current)
+        let eventCalendar = try policy.weatherCalendar(
+            timing: show.timingFields, locationTimeZone: placemark.timeZone, fallback: .current
+        )
         let effectiveDate = show.timingFields.effectiveDate
         let startTime = CurrentShowTimeState.dailyStartTime(on: effectiveDate, show: show, calendar: eventCalendar)
         let endTime = CurrentShowTimeState.dailyEndTime(on: effectiveDate, show: show, calendar: eventCalendar)
@@ -111,17 +115,17 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
         return dto
     }
 
-    private func resolveLocation(city: String?, venueName: String?, venueAddress: String?) async throws -> CLLocation {
+    private func resolveLocation(city: String?, venueName: String?, venueAddress: String?) async throws -> CLPlacemark {
         let queryParts = [city, venueName, venueAddress].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         guard !queryParts.isEmpty else {
             throw ShowWeatherError.locationUnavailable
         }
         let query = queryParts.joined(separator: " ")
         let placemarks = try await geocoder.geocodeAddressString(query)
-        guard let location = placemarks.first?.location else {
+        guard let placemark = placemarks.first, placemark.location != nil else {
             throw ShowWeatherError.locationUnavailable
         }
-        return location
+        return placemark
     }
 
     private func mapCondition(from weatherCondition: WeatherKit.WeatherCondition) -> ShowWeatherCondition {

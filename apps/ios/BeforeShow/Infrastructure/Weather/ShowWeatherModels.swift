@@ -82,6 +82,8 @@ public struct ShowWeatherPackingItemDTO: Codable, Sendable, Identifiable, Equata
 public struct ShowWeatherDTO: Codable, Sendable, Equatable {
     public let showID: UUID
     public let fetchedAt: Date
+    public let timeZoneIdentifier: String?
+    public let forecastTime: Date?
     public let temperatureCelsius: Int
     public let highCelsius: Int
     public let lowCelsius: Int
@@ -101,6 +103,8 @@ public struct ShowWeatherDTO: Codable, Sendable, Equatable {
     public init(
         showID: UUID,
         fetchedAt: Date = Date(),
+        timeZoneIdentifier: String? = nil,
+        forecastTime: Date? = nil,
         temperatureCelsius: Int,
         highCelsius: Int,
         lowCelsius: Int,
@@ -119,6 +123,8 @@ public struct ShowWeatherDTO: Codable, Sendable, Equatable {
     ) {
         self.showID = showID
         self.fetchedAt = fetchedAt
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.forecastTime = forecastTime
         self.temperatureCelsius = temperatureCelsius
         self.highCelsius = highCelsius
         self.lowCelsius = lowCelsius
@@ -140,6 +146,7 @@ public struct ShowWeatherDTO: Codable, Sendable, Equatable {
 public enum ShowWeatherError: LocalizedError, Equatable, Sendable {
     case locationUnavailable
     case forecastUnavailable
+    case timeZoneUnavailable
     case cancelled
 
     public var errorDescription: String? {
@@ -148,6 +155,8 @@ public enum ShowWeatherError: LocalizedError, Equatable, Sendable {
             return BSLocalization.text("无法定位演出场地")
         case .forecastUnavailable:
             return BSLocalization.text("暂时无法获取演出当天的天气预报")
+        case .timeZoneUnavailable:
+            return BSLocalization.text("暂时无法确定演出地时区，请稍后重试")
         case .cancelled:
             return BSLocalization.text("天气获取已取消")
         }
@@ -194,6 +203,7 @@ public struct RawHourForecast: Sendable {
     public let windSpeedMps: Int
     public let windDirectionDescription: String
     public let precipitationChance: Double?
+    public let conditionDescription: String?
 
     public init(
         date: Date,
@@ -203,7 +213,8 @@ public struct RawHourForecast: Sendable {
         uvIndex: Int,
         windSpeedMps: Int,
         windDirectionDescription: String,
-        precipitationChance: Double? = nil
+        precipitationChance: Double? = nil,
+        conditionDescription: String? = nil
     ) {
         self.date = date
         self.temperatureCelsius = temperatureCelsius
@@ -213,5 +224,6 @@ public struct RawHourForecast: Sendable {
         self.windSpeedMps = windSpeedMps
         self.windDirectionDescription = windDirectionDescription
         self.precipitationChance = precipitationChance
+        self.conditionDescription = conditionDescription
     }
 }
