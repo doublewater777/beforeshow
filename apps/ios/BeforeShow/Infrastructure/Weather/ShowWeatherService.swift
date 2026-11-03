@@ -78,7 +78,8 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
                 condition: mapCondition(from: hour.condition),
                 uvIndex: hour.uvIndex.value,
                 windSpeedMps: Int(round(hour.wind.speed.converted(to: .metersPerSecond).value)),
-                windDirectionDescription: hour.wind.compassDirection.description
+                windDirectionDescription: hour.wind.compassDirection.description,
+                precipitationChance: hour.precipitationChance
             )
         }
 

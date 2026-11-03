@@ -367,9 +367,9 @@ struct LocalNotificationScheduler {
 
     static func weatherTip(_ weather: ShowWeatherDTO, now: Date, fireDate: Date) -> String? {
         guard fireDate >= now, fireDate.timeIntervalSince(now) <= 1800,
-              weather.fetchedAt <= now, now.timeIntervalSince(weather.fetchedAt) <= 1800 else { return nil }
-        if weather.precipitationProbability >= 0.6 {
-            return BSLocalization.text("当天降水概率较高，出门记得准备雨具。")
+              weather.fetchedAt <= now, fireDate.timeIntervalSince(weather.fetchedAt) <= 1800 else { return nil }
+        if let chance = weather.showPeriodPrecipitationProbability, chance >= 0.6 {
+            return BSLocalization.text("出行及演出时段降水概率较高，出门记得准备雨具。")
         }
         return nil
     }

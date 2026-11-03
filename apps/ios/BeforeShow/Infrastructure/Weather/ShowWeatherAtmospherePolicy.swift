@@ -105,7 +105,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
                     id: "rainwear",
                     emoji: "🧥",
                     title: env == .outdoor ? BSLocalization.text("雨衣") : BSLocalization.text("雨具"),
-                    subtitle: env == .outdoor ? BSLocalization.text("当天可能有降水，记得带雨衣") : BSLocalization.text("当天可能有降水，建议准备雨具")
+                    subtitle: env == .outdoor ? BSLocalization.text("出行及演出时段可能有降水，记得带雨衣") : BSLocalization.text("出行及演出时段可能有降水，建议准备雨具")
                 )
             )
         }
@@ -167,8 +167,8 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             ShowWeatherPackingItemDTO(
                 id: "water_bottle",
                 emoji: "💧",
-                title: BSLocalization.text("便携水杯"),
-                subtitle: BSLocalization.text("及时补充水分（入场前请确认场馆携带规定）")
+                title: BSLocalization.text("及时补水"),
+                subtitle: BSLocalization.text("如需携带水杯，请先确认场馆规定")
             )
         )
 
@@ -266,9 +266,11 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         let dispersalCelsius = dispersalHour?.temperatureCelsius
         let dispersalFeelsLike = dispersalHour?.apparentTemperatureCelsius
 
+        let showPeriodRain = relevantHours.compactMap(\.precipitationChance).max()
+        let packingCondition: ShowWeatherCondition = relevantHours.contains { $0.condition == .rain || $0.condition == .heavyRain } ? .rain : .clear
         let packing = generatePackingList(
-            condition: condition,
-            precipitationProbability: dayForecast.precipitationChance,
+            condition: packingCondition,
+            precipitationProbability: showPeriodRain ?? 0,
             uvIndex: uv,
             lowCelsius: dayForecast.lowCelsius,
             highCelsius: dayForecast.highCelsius,
@@ -296,6 +298,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             summaryCallout: summary,
             hourly: hourlyDTOs,
             precipitationProbability: dayForecast.precipitationChance,
+            showPeriodPrecipitationProbability: showPeriodRain,
             sunsetTime: dayForecast.sunsetTime,
             uvIndex: uv,
             feelsLikeCelsius: feelsLike,

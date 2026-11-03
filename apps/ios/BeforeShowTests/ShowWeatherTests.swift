@@ -398,10 +398,32 @@ final class ShowWeatherTests: XCTestCase {
 
     func testWeatherNotificationRequiresFreshForecastNearDelivery() {
         let now = Date()
-        let weather = ShowWeatherDTO(showID: UUID(), fetchedAt: now, temperatureCelsius: 20, highCelsius: 25, lowCelsius: 16, condition: .rain, conditionDescription: "雨", summaryCallout: "", hourly: [], precipitationProbability: 0.8, sunsetTime: nil, uvIndex: 1, feelsLikeCelsius: 20, windDescription: "--", packingList: [], tone: .rainBlue)
+        let weather = ShowWeatherDTO(showID: UUID(), fetchedAt: now, temperatureCelsius: 20, highCelsius: 25, lowCelsius: 16, condition: .rain, conditionDescription: "雨", summaryCallout: "", hourly: [], precipitationProbability: 0.8, showPeriodPrecipitationProbability: 0.8, sunsetTime: nil, uvIndex: 1, feelsLikeCelsius: 20, windDescription: "--", packingList: [], tone: .rainBlue)
         XCTAssertNotNil(LocalNotificationScheduler.weatherTip(weather, now: now, fireDate: now.addingTimeInterval(1800)))
         XCTAssertNil(LocalNotificationScheduler.weatherTip(weather, now: now, fireDate: now.addingTimeInterval(1801)))
         XCTAssertNil(LocalNotificationScheduler.weatherTip(weather, now: now.addingTimeInterval(1801), fireDate: now.addingTimeInterval(1801)))
+    }
+
+    func testShowPeriodRainAdviceUsesHourlyForecastNotDailyRain() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let end = start.addingTimeInterval(7200)
+        let day = RawDayForecast(date: start, highCelsius: 25, lowCelsius: 20, condition: .rain, conditionDescription: "雨", sunsetTime: nil, precipitationChance: 0.9, uvIndex: 0)
+        func hour(_ chance: Double) -> RawHourForecast {
+            RawHourForecast(date: start, temperatureCelsius: 23, apparentTemperatureCelsius: 23, condition: .clear, uvIndex: 0, windSpeedMps: 1, windDirectionDescription: "", precipitationChance: chance)
+        }
+        func resolve(_ hours: [RawHourForecast]) throws -> ShowWeatherDTO {
+            try policy.resolveForecast(for: UUID(), showDate: start, showStartTime: start, showEndTime: end, calendar: .current, dailyForecasts: [day], hourlyForecasts: hours, now: start.addingTimeInterval(-3600))
+        }
+        let dry = try resolve([hour(0.05)])
+        XCTAssertEqual(dry.precipitationProbability, 0.9)
+        XCTAssertFalse(dry.packingList.contains { $0.id == "rainwear" })
+        XCTAssertNil(LocalNotificationScheduler.weatherTip(dry, now: dry.fetchedAt, fireDate: dry.fetchedAt))
+        let wet = try resolve([hour(0.8)])
+        XCTAssertTrue(wet.packingList.contains { $0.id == "rainwear" })
+        XCTAssertNotNil(LocalNotificationScheduler.weatherTip(wet, now: wet.fetchedAt, fireDate: wet.fetchedAt))
+        let unavailable = try resolve([])
+        XCTAssertFalse(unavailable.packingList.contains { $0.id == "rainwear" })
+        XCTAssertNil(LocalNotificationScheduler.weatherTip(unavailable, now: unavailable.fetchedAt, fireDate: unavailable.fetchedAt))
     }
 
 }

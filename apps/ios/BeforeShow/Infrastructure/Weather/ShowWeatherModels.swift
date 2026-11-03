@@ -90,6 +90,7 @@ public struct ShowWeatherDTO: Codable, Sendable, Equatable {
     public let summaryCallout: String
     public let hourly: [ShowWeatherHourlyDTO]
     public let precipitationProbability: Double
+    public let showPeriodPrecipitationProbability: Double?
     public let sunsetTime: Date?
     public let uvIndex: Int
     public let feelsLikeCelsius: Int
@@ -108,6 +109,7 @@ public struct ShowWeatherDTO: Codable, Sendable, Equatable {
         summaryCallout: String,
         hourly: [ShowWeatherHourlyDTO],
         precipitationProbability: Double,
+        showPeriodPrecipitationProbability: Double? = nil,
         sunsetTime: Date?,
         uvIndex: Int,
         feelsLikeCelsius: Int,
@@ -125,6 +127,7 @@ public struct ShowWeatherDTO: Codable, Sendable, Equatable {
         self.summaryCallout = summaryCallout
         self.hourly = hourly
         self.precipitationProbability = precipitationProbability
+        self.showPeriodPrecipitationProbability = showPeriodPrecipitationProbability
         self.sunsetTime = sunsetTime
         self.uvIndex = uvIndex
         self.feelsLikeCelsius = feelsLikeCelsius
@@ -144,7 +147,7 @@ public enum ShowWeatherError: LocalizedError, Equatable, Sendable {
         case .locationUnavailable:
             return BSLocalization.text("无法定位演出场地")
         case .forecastUnavailable:
-            return BSLocalization.text("演出日期暂无气象预报（仅支持开演前 10 天内）")
+            return BSLocalization.text("暂时无法获取演出当天的天气预报")
         case .cancelled:
             return BSLocalization.text("天气获取已取消")
         }
@@ -190,6 +193,7 @@ public struct RawHourForecast: Sendable {
     public let uvIndex: Int
     public let windSpeedMps: Int
     public let windDirectionDescription: String
+    public let precipitationChance: Double?
 
     public init(
         date: Date,
@@ -198,7 +202,8 @@ public struct RawHourForecast: Sendable {
         condition: ShowWeatherCondition,
         uvIndex: Int,
         windSpeedMps: Int,
-        windDirectionDescription: String
+        windDirectionDescription: String,
+        precipitationChance: Double? = nil
     ) {
         self.date = date
         self.temperatureCelsius = temperatureCelsius
@@ -207,5 +212,6 @@ public struct RawHourForecast: Sendable {
         self.uvIndex = uvIndex
         self.windSpeedMps = windSpeedMps
         self.windDirectionDescription = windDirectionDescription
+        self.precipitationChance = precipitationChance
     }
 }
