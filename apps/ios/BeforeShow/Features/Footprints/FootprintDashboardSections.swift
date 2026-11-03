@@ -1,9 +1,8 @@
 import Foundation
 import SwiftUI
 
-/// Dashboard sections shared by the live dashboard (`LazyVStack`) and the
-/// long-image export view (plain `VStack`). A pure value type: stateful
-/// subviews own their own state so offscreen export renders stay consistent.
+/// Sections of the long-image footprint export. A pure value type: stateful
+/// subviews own their own state so offscreen renders stay consistent.
 @MainActor
 struct FootprintDashboardSections {
     let archive: FootprintArchiveSnapshot
@@ -23,14 +22,7 @@ struct FootprintDashboardSections {
         let visibleMonth = activity?.year == currentYear ? calendar.component(.month, from: Date()) : nil
         return dashboardSection(
             title: BSLocalization.text("现场轨迹"),
-            subtitle: nil,
-            action: isForExport || archive.years.isEmpty ? nil : BSLocalization.text("查看全部 →"),
-            actionDestination: archive.years.isEmpty ? nil : AnyView(
-                FootprintYearArchiveView(
-                    archive: archive,
-                    covers: covers
-                )
-            )
+            subtitle: nil
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
@@ -74,7 +66,7 @@ struct FootprintDashboardSections {
             if items.isEmpty {
                 EmptyView()
             } else {
-        dashboardSection(title: BSLocalization.text("艺人足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintArtistArchiveView(archive: archive, covers: covers)), contentPadding: 0) {
+        dashboardSection(title: BSLocalization.text("艺人足迹"), contentPadding: 0) {
             if let first = items.first {
                 FootprintTopArtistCard(
                     items: items,
@@ -95,15 +87,8 @@ struct FootprintDashboardSections {
             if items.isEmpty {
                 EmptyView()
             } else {
-        dashboardSection(title: BSLocalization.text("城市足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintCityArchiveView(archive: archive, covers: covers)), contentPadding: 0) {
-            if isForExport {
-                FootprintGeoMap(items: items, showsControls: false)
-            } else {
-                NavigationLink {
-                    FootprintCityArchiveView(archive: archive, covers: covers)
-                } label: { FootprintGeoMap(items: items) }
-                .buttonStyle(.plain)
-            }
+        dashboardSection(title: BSLocalization.text("城市足迹"), contentPadding: 0) {
+            FootprintGeoMap(items: items, showsControls: false)
         }
             }
         }
@@ -115,16 +100,9 @@ struct FootprintDashboardSections {
             if items.isEmpty {
                 EmptyView()
             } else {
-        dashboardSection(title: BSLocalization.text("场馆足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintVenueArchiveView(archive: archive, covers: covers)), contentPadding: 0) {
+        dashboardSection(title: BSLocalization.text("场馆足迹"), contentPadding: 0) {
             if let first = items.first {
-                if isForExport {
-                    venueFootprintCard(items: items, first: first)
-                } else {
-                    NavigationLink {
-                        FootprintVenueArchiveView(archive: archive, covers: covers)
-                    } label: { venueFootprintCard(items: items, first: first) }
-                    .buttonStyle(.plain)
-                }
+                venueFootprintCard(items: items, first: first)
             }
         }
             }
@@ -370,7 +348,7 @@ struct FootprintDashboardSections {
         archive.shows.firstIndex(where: { $0.id == show.id }).map { archive.shows.count - $0 } ?? 1
     }
 
-    private func dashboardSection<Content: View>(title: String, subtitle: String? = nil, description: String? = nil, action: String? = nil, actionDestination: AnyView? = nil, contentPadding: CGFloat = 15, @ViewBuilder content: () -> Content) -> some View {
+    private func dashboardSection<Content: View>(title: String, subtitle: String? = nil, description: String? = nil, contentPadding: CGFloat = 15, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -378,18 +356,6 @@ struct FootprintDashboardSections {
                     if let description { Text(description).font(.system(size: 10)).foregroundStyle(BSColor.Stage.muted).lineSpacing(2) }
                 }
                 Spacer(minLength: 8)
-                if let action {
-                    if isForExport {
-                        Text(action).font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent).lineLimit(1)
-                    } else if let actionDestination {
-                        NavigationLink { actionDestination } label: {
-                            Text(action).font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent).lineLimit(1)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Text(action).font(.system(size: 10)).foregroundStyle(BSColor.Stage.accent).lineLimit(1)
-                    }
-                }
             }
             content().padding(contentPadding)
                 .background(LinearGradient(colors: [Color.white.opacity(0.042), Color.white.opacity(0.015)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 20, style: .continuous))

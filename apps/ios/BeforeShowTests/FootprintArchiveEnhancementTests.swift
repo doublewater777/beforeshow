@@ -305,28 +305,6 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertGreaterThan(try! XCTUnwrap(projected["西南"]?.y), try! XCTUnwrap(projected["东北"]?.y))
     }
 
-    func testYearArchiveSummaryDerivesNewArtistsCitiesAndDuration() throws {
-        let first = try makeShow("第一场", year: 2025, month: 12, durationHours: 2, artist: "旧艺人", venue: "场馆一")
-        let second = try makeShow("年度现场", year: 2026, month: 2, durationHours: 3, artist: "新艺人", venue: "场馆二")
-        let repeatArtist = try makeShow("再次相遇", year: 2026, month: 4, durationHours: 1, artist: "旧艺人", venue: "场馆一")
-        for show in [first, second, repeatArtist] {
-            show.markEnded(at: show.startTime.addingTimeInterval(3 * 60 * 60))
-        }
-        second.city = "杭州"
-        repeatArtist.city = "上海"
-
-        let archive = FootprintArchiveBuilder.make(
-            shows: [first, second, repeatArtist],
-            now: date(2026, 8, 1, 12),
-            calendar: calendar
-        )
-
-        XCTAssertEqual(
-            archive.yearArchiveSummary(for: 2026),
-            FootprintYearArchiveSummary(year: 2026, showCount: 2, durationMinutes: 360)
-        )
-    }
-
     func testVisibilityEnablesTrendWithOneShow() throws {
         let show = try makeShow("唯一现场", year: 2026, month: 1, durationHours: 2)
         show.markEnded(at: date(2026, 1, 10, 22))
