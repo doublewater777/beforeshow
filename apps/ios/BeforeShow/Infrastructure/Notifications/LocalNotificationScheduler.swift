@@ -67,7 +67,7 @@ struct LocalNotificationScheduler {
         var recommendationDays = Set<Date>()
         for node in nodes.sorted(by: { $0.fireDate < $1.fireDate }) {
             guard let content = content(
-                for: node.milestone, fireDate: node.fireDate, show: show, timeState: timeState,
+                for: node.milestone, fireDate: node.fireDate, now: now, show: show, timeState: timeState,
                 calendar: eventCalendar, copy: copy, scope: scope, plannedExposures: plannedExposures
             ) else {
                 continue
@@ -289,6 +289,7 @@ struct LocalNotificationScheduler {
     private func content(
         for milestone: ShowNotificationMilestone,
         fireDate: Date,
+        now: Date,
         show: Show,
         timeState: CurrentShowTimeState,
         calendar: Calendar,
@@ -335,14 +336,17 @@ struct LocalNotificationScheduler {
             let roster = scope.includesAllMilestones && !isBackfill ? scope.listeningRoster : nil
             let disc = roster?.isMultiArtist == true
                 ? roster?.wanted ?? roster?.singalong : roster?.rehearsal ?? roster?.singalong
+            let weather = LiveShowWeatherService.shared.cachedWeather(for: show.id)
+            let weatherTip = weather.flatMap { Self.weatherTip($0, now: now, fireDate: fireDate) }
             let sunsetArtist = sunsetArtistForShowDay(show: show, timeState: timeState, calendar: calendar)
             return NotificationNodeContent(
                 body: copy.showDay(
                     remainingSeconds: isBackfill ? remaining : nil,
                     hasMusic: disc != nil,
+                    weatherTip: weatherTip,
                     sunsetArtist: sunsetArtist
                 ),
-                destination: .route, discID: disc?.id
+                destination: weatherTip == nil ? .route : .weatherDetail, discID: weatherTip == nil ? disc?.id : nil
             )
         case .postShowRitual:
             return NotificationNodeContent(body: copy.postShowRitual(isConfirmed: isConfirmed), destination: .dispersal)
@@ -359,6 +363,15 @@ struct LocalNotificationScheduler {
         case .listeningReminder, .addedFollowUp, .fourteenDaysBefore, .openingMemory, .sevenDaysBefore, .threeDaysBefore, .interestedPerformance:
             return nil
         }
+    }
+
+    static func weatherTip(_ weather: ShowWeatherDTO, now: Date, fireDate: Date) -> String? {
+        guard fireDate >= now, fireDate.timeIntervalSince(now) <= 1800,
+              weather.fetchedAt <= now, now.timeIntervalSince(weather.fetchedAt) <= 1800 else { return nil }
+        if weather.precipitationProbability >= 0.6 {
+            return BSLocalization.text("当天降水概率较高，出门记得准备雨具。")
+        }
+        return nil
     }
 
     private func sunsetArtistForShowDay(

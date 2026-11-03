@@ -34,18 +34,45 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         }
     }
 
+    /// 场地观演环境识别分类
+    enum VenueEnvironment: Sendable, Equatable {
+        case indoor
+        case outdoor
+        case unspecified
+    }
+
+    /// 结合场馆名称、地址与演出名称，更精确地推断观演环境（室内、露天或未明确）
+    static func resolveVenueEnvironment(name: String, venueName: String?, venueAddress: String?) -> VenueEnvironment {
+        let venue = "\(venueName ?? "") \(venueAddress ?? "")".lowercased()
+        let eventName = name.lowercased()
+
+        let indoorVenueKeywords = ["livehouse", "live house", "liveshop", "剧场", "剧院", "室内", "club", "bar", "演艺中心", "展馆", "大剧院", "音乐厅"]
+        let outdoorVenueKeywords = ["公园", "露天", "海滩", "海滨", "沙滩", "草地", "营地", "户外", "体育场", "stadium"]
+
+        let hasIndoorVenue = indoorVenueKeywords.contains(where: { venue.contains($0) })
+        let hasOutdoorVenue = outdoorVenueKeywords.contains(where: { venue.contains($0) })
+
+        if hasIndoorVenue && !hasOutdoorVenue {
+            return .indoor
+        }
+        if hasOutdoorVenue && !hasIndoorVenue {
+            return .outdoor
+        }
+
+        let outdoorEventKeywords = ["露天", "户外"]
+        if outdoorEventKeywords.contains(where: { eventName.contains($0) }) && !hasIndoorVenue {
+            return .outdoor
+        }
+        let indoorEventKeywords = ["室内", "livehouse", "剧场"]
+        if indoorEventKeywords.contains(where: { eventName.contains($0) }) && !hasOutdoorVenue {
+            return .indoor
+        }
+        return .unspecified
+    }
+
     /// 场地室内/露天属性启发式判断
     static func isLikelyOutdoorVenue(name: String, venueName: String?, venueAddress: String?) -> Bool {
-        let combined = "\(name) \(venueName ?? "") \(venueAddress ?? "")".lowercased()
-        let indoorKeywords = ["livehouse", "live house", "liveshop", "剧场", "剧院", "室内", "空间", "厂房", "展馆", "体育馆", "演艺中心", "club", "bar"]
-        let outdoorKeywords = ["音乐节", "公园", "露天", "海滩", "海滨", "沙滩", "草地", "营地", "户外", "体育场", "stadium", "fest"]
-        if outdoorKeywords.contains(where: { combined.contains($0) }) {
-            return true
-        }
-        if indoorKeywords.contains(where: { combined.contains($0) }) {
-            return false
-        }
-        return true
+        resolveVenueEnvironment(name: name, venueName: venueName, venueAddress: venueAddress) != .indoor
     }
 
     /// 根据现场气象指标生成针对性观演行装建议清单
@@ -56,43 +83,57 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         lowCelsius: Int,
         highCelsius: Int,
         dispersalCelsius: Int? = nil,
-        isOutdoor: Bool = true
+        dispersalFeelsLike: Int? = nil,
+        venueEnvironment: VenueEnvironment? = nil,
+        isOutdoor: Bool? = nil
     ) -> [ShowWeatherPackingItemDTO] {
+        let env: VenueEnvironment = {
+            if let explicitEnv = venueEnvironment {
+                return explicitEnv
+            }
+            if let outdoorBool = isOutdoor {
+                return outdoorBool ? .outdoor : .indoor
+            }
+            return .unspecified
+        }()
         var items: [ShowWeatherPackingItemDTO] = []
 
-        // 1. 雨天携带雨具
+        // 1. 雨天携带雨具（露天/未明确场景重点提示雨衣，室内提示便携雨伞）
         if precipitationProbability >= 0.25 || condition == .rain || condition == .heavyRain {
             items.append(
                 ShowWeatherPackingItemDTO(
                     id: "rainwear",
                     emoji: "🧥",
-                    title: BSLocalization.text("雨衣与防水鞋"),
-                    subtitle: BSLocalization.text("现场有降水可能 · 建议备好雨具与轻便防滑鞋")
+                    title: env == .outdoor ? BSLocalization.text("雨衣") : BSLocalization.text("雨具"),
+                    subtitle: env == .outdoor ? BSLocalization.text("当天可能有降水，记得带雨衣") : BSLocalization.text("当天可能有降水，建议准备雨具")
                 )
             )
         }
 
-        // 2. 强紫外线防晒（仅户外演出）
-        if uvIndex >= 5 && isOutdoor {
+        // 2. 强紫外线防晒（仅明确户外演出提示）
+        if uvIndex >= 5 && env == .outdoor {
             items.append(
                 ShowWeatherPackingItemDTO(
                     id: "sunglasses",
                     emoji: "🕶️",
-                    title: BSLocalization.text("墨镜与遮阳帽"),
-                    subtitle: BSLocalization.text("紫外线偏强 · 建议佩戴墨镜保护双眼")
+                    title: BSLocalization.text("墨镜、防晒帽"),
+                    subtitle: BSLocalization.text("白天日晒较强，注意防晒")
                 )
             )
         }
 
-        // 3. 散场夜温与昼夜温差加衣
+        // 3. 散场夜温与昼夜温差加衣（区分体感与实际气温，避免错误语义与过度推断）
         let needsJacket: Bool
         let jacketSubtitle: String
-        if let dispersal = dispersalCelsius, dispersal <= 19 {
+        if let feelsLike = dispersalFeelsLike, feelsLike <= 19 {
             needsJacket = true
-            jacketSubtitle = BSLocalization.format("深夜散场体感约 %1$lld°C 较凉 · 观演大汗易着凉，备一件外套", Int64(dispersal))
-        } else if (highCelsius - lowCelsius >= 6) || lowCelsius <= 20 {
+            jacketSubtitle = BSLocalization.format("散场预计体感约 %1$lld°C，带件薄外套更稳妥", Int64(feelsLike))
+        } else if dispersalFeelsLike == nil, let dispersal = dispersalCelsius, dispersal <= 19 {
             needsJacket = true
-            jacketSubtitle = BSLocalization.text("晚间散场气温走低 · 建议备一件保暖外套")
+            jacketSubtitle = BSLocalization.format("散场预计约 %1$lld°C，带件薄外套更稳妥", Int64(dispersal))
+        } else if dispersalFeelsLike == nil && dispersalCelsius == nil && highCelsius - lowCelsius >= 6 {
+            needsJacket = true
+            jacketSubtitle = BSLocalization.text("昼夜温差较大，建议带件薄外套")
         } else {
             needsJacket = false
             jacketSubtitle = ""
@@ -103,42 +144,42 @@ struct ShowWeatherAtmospherePolicy: Sendable {
                 ShowWeatherPackingItemDTO(
                     id: "jacket",
                     emoji: "🧥",
-                    title: BSLocalization.text("防风轻便外套"),
+                    title: BSLocalization.text("薄外套"),
                     subtitle: jacketSubtitle
                 )
             )
         }
 
-        // 4. 室内轻装观演存包提示
-        if !isOutdoor {
+        // 4. 室内轻装观演提示（仅明确室内场馆提示，不承诺场馆存包服务）
+        if env == .indoor {
             items.append(
                 ShowWeatherPackingItemDTO(
                     id: "light_pack",
                     emoji: "🎒",
-                    title: BSLocalization.text("轻装轻便出行"),
-                    subtitle: BSLocalization.text("室内站席体感温热 · 避免携带大包，提前存好行李")
+                    title: BSLocalization.text("轻装观演"),
+                    subtitle: BSLocalization.text("少带非必要随身物品，大件行李请提前确认场馆存放规定")
                 )
             )
         }
 
-        // 5. 便携补水
+        // 5. 便携补水（提示以场馆规定为准）
         items.append(
             ShowWeatherPackingItemDTO(
                 id: "water_bottle",
                 emoji: "💧",
                 title: BSLocalization.text("便携水杯"),
-                subtitle: BSLocalization.text("适时补充水分 · 保持观演体力")
+                subtitle: BSLocalization.text("及时补充水分（入场前请确认场馆携带规定）")
             )
         )
 
-        // 6. 露天防蚊防尘（仅户外演出）
-        if isOutdoor {
+        // 6. 露天长时间观演湿巾清洁（仅明确户外演出提示）
+        if env == .outdoor {
             items.append(
                 ShowWeatherPackingItemDTO(
-                    id: "repellent",
-                    emoji: "🧴",
-                    title: BSLocalization.text("驱蚊喷雾与湿巾"),
-                    subtitle: BSLocalization.text("露天入夜蚊虫活跃 · 便携打理随身物品")
+                    id: "wipes",
+                    emoji: "🧻",
+                    title: BSLocalization.text("便携湿巾"),
+                    subtitle: BSLocalization.text("长时间观演，带包湿巾更方便")
                 )
             )
         }
@@ -155,9 +196,11 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         calendar: Calendar,
         dailyForecasts: [RawDayForecast],
         hourlyForecasts: [RawHourForecast],
-        isOutdoor: Bool = true,
+        venueEnvironment: VenueEnvironment? = nil,
+        isOutdoor: Bool? = nil,
         now: Date = Date()
     ) throws -> ShowWeatherDTO {
+        let env = venueEnvironment ?? (isOutdoor.map { $0 ? .outdoor : .indoor } ?? .unspecified)
         // 1. 查找演出所在日期的日预报
         guard let dayForecast = dailyForecasts.first(where: {
             calendar.isDate($0.date, inSameDayAs: showDate)
@@ -217,10 +260,11 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             temperatureCelsius: temperature
         )
 
-        let dispersalHour = selectedHours.min(by: {
+        let dispersalHour = hourlyForecasts.filter { abs($0.date.timeIntervalSince(showEndTime)) <= 1800 }.min(by: {
             abs($0.date.timeIntervalSince(showEndTime)) < abs($1.date.timeIntervalSince(showEndTime))
         })
         let dispersalCelsius = dispersalHour?.temperatureCelsius
+        let dispersalFeelsLike = dispersalHour?.apparentTemperatureCelsius
 
         let packing = generatePackingList(
             condition: condition,
@@ -229,14 +273,16 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             lowCelsius: dayForecast.lowCelsius,
             highCelsius: dayForecast.highCelsius,
             dispersalCelsius: dispersalCelsius,
-            isOutdoor: isOutdoor
+            dispersalFeelsLike: dispersalFeelsLike,
+            venueEnvironment: env
         )
 
         let summary = generateSummary(
             conditionDesc: conditionDesc,
             sunsetTime: dayForecast.sunsetTime,
             high: dayForecast.highCelsius,
-            low: dayForecast.lowCelsius
+            low: dayForecast.lowCelsius,
+            timeZone: calendar.timeZone
         )
 
         return ShowWeatherDTO(
@@ -282,13 +328,17 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         conditionDesc: String,
         sunsetTime: Date?,
         high: Int,
-        low: Int
+        low: Int,
+        timeZone: TimeZone = .current
     ) -> String {
-        var text = BSLocalization.format("演出日气温 %1$lld°~%2$lld°，气候较适宜观演。", Int64(low), Int64(high))
+        let text: String
         if let sunset = sunsetTime {
             let formatter = DateFormatter()
+            formatter.timeZone = timeZone
             formatter.dateFormat = "HH:mm"
-            text += BSLocalization.format(" 预计 %@ 迎来落日晚霞时段。", formatter.string(from: sunset))
+            text = BSLocalization.format("演出当天预计 %1$lld°~%2$lld°。预计 %3$@ 日落，想看日落可提前留意舞台方向。", Int64(low), Int64(high), formatter.string(from: sunset))
+        } else {
+            text = BSLocalization.format("演出当天预计 %1$lld°~%2$lld°。", Int64(low), Int64(high))
         }
         return text
     }

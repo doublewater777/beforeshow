@@ -173,7 +173,7 @@ struct CurrentShowWeatherSheet: View {
 
     private func packingChecklistSection(_ weather: ShowWeatherDTO) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(BSLocalization.text("装备与穿搭建议"))
+            Text(BSLocalization.text("出门前记得带"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
 
@@ -234,7 +234,7 @@ struct CurrentShowWeatherSheet: View {
 
     private func hourlyMilestoneSection(_ weather: ShowWeatherDTO) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(BSLocalization.text("演出时段天气"))
+            Text(BSLocalization.text("演出时段"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
 
@@ -302,32 +302,42 @@ struct CurrentShowWeatherSheet: View {
     // MARK: - 2x2 Metric Grid
 
     private func weatherMetricsGrid(_ weather: ShowWeatherDTO) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+        let precipSubtitle: String = {
+            if weather.precipitationProbability <= 0.20 {
+                return BSLocalization.text("下雨可能性较小")
+            } else if weather.precipitationProbability <= 0.60 {
+                return BSLocalization.text("当天可能有降水")
+            } else {
+                return BSLocalization.text("当天降水概率较高")
+            }
+        }()
+
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
             metricTile(
-                title: BSLocalization.text("降水概率"),
+                title: BSLocalization.text("当天降水概率"),
                 value: "\(Int(weather.precipitationProbability * 100))%",
-                subtitle: weather.precipitationProbability > 0.3 ? BSLocalization.text("建议备好雨具") : BSLocalization.text("降水概率较低 · 预计无雨"),
+                subtitle: precipSubtitle,
                 systemIcon: "umbrella.fill"
             )
 
             metricTile(
-                title: BSLocalization.text("日落时刻"),
+                title: BSLocalization.text("日落时间"),
                 value: sunsetTimeString(weather),
-                subtitle: BSLocalization.text("日落时段"),
+                subtitle: BSLocalization.text("想看日落，可以提前留意舞台方向"),
                 systemIcon: "sunset.fill"
             )
 
             metricTile(
                 title: BSLocalization.text("紫外线指数"),
                 value: "\(weather.uvIndex)",
-                subtitle: weather.uvIndex >= 5 ? BSLocalization.text("紫外线偏强 · 建议防晒") : BSLocalization.text("紫外线温和"),
+                subtitle: weather.uvIndex >= 5 ? BSLocalization.text("白天日晒较强，注意防晒") : BSLocalization.text("紫外线较弱"),
                 systemIcon: "sun.max.fill"
             )
 
             metricTile(
-                title: BSLocalization.text("现场风力"),
+                title: BSLocalization.text("风速"),
                 value: weather.windDescription,
-                subtitle: BSLocalization.text("散场气温走低 · 留意晚风"),
+                subtitle: BSLocalization.text("演出时段预报"),
                 systemIcon: "wind"
             )
         }
@@ -379,7 +389,7 @@ struct CurrentShowWeatherSheet: View {
     // MARK: - Bottom Action Button
 
     private var bottomActionButton: some View {
-        Button(BSLocalization.text("完成")) {
+        Button(BSLocalization.text("关闭")) {
             dismiss()
         }
         .buttonStyle(BSPrimaryButtonStyle())
@@ -393,7 +403,7 @@ struct CurrentShowWeatherSheet: View {
             ProgressView()
                 .scaleEffect(1.2)
                 .tint(Color.white.opacity(0.8))
-            Text(BSLocalization.text("正在获取现场天气…"))
+            Text(BSLocalization.text("正在查看演出当天的天气…"))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.7))
         }

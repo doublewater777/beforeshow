@@ -87,7 +87,7 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
         let startTime = CurrentShowTimeState.dailyStartTime(on: effectiveDate, show: show, calendar: eventCalendar)
         let endTime = CurrentShowTimeState.dailyEndTime(on: effectiveDate, show: show, calendar: eventCalendar)
 
-        let isOutdoor = ShowWeatherAtmospherePolicy.isLikelyOutdoorVenue(
+        let venueEnv = ShowWeatherAtmospherePolicy.resolveVenueEnvironment(
             name: show.name,
             venueName: show.venueName,
             venueAddress: show.venueAddress
@@ -101,7 +101,7 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
             calendar: eventCalendar,
             dailyForecasts: rawDaily,
             hourlyForecasts: rawHourly,
-            isOutdoor: isOutdoor,
+            venueEnvironment: venueEnv,
             now: Date()
         )
 
@@ -165,7 +165,7 @@ final class MockShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
             lowCelsius: 20,
             condition: .clear,
             conditionDescription: "晴空晚霞",
-            summaryCallout: "演出日气温 20°~28°，气候较适宜观演。预计 18:34 迎来落日晚霞时段。",
+            summaryCallout: "演出当天预计 20°~28°。预计 18:34 日落。",
             hourly: [
                 ShowWeatherHourlyDTO(time: Date(), temperatureCelsius: 27, condition: .clear, milestoneLabel: "排队入场"),
                 ShowWeatherHourlyDTO(time: Date().addingTimeInterval(7200), temperatureCelsius: 28, condition: .partlyCloudy, milestoneLabel: "刺猬乐队"),
@@ -179,10 +179,10 @@ final class MockShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
             feelsLikeCelsius: 24,
             windDescription: "东南风 3 m/s",
             packingList: [
-                ShowWeatherPackingItemDTO(id: "sunglasses", emoji: "🕶️", title: "墨镜与遮阳帽", subtitle: "紫外线偏强 · 建议佩戴墨镜保护双眼"),
-                ShowWeatherPackingItemDTO(id: "jacket", emoji: "🧥", title: "防风轻便外套", subtitle: "晚间散场气温走低 · 建议备一件保暖外套"),
-                ShowWeatherPackingItemDTO(id: "water", emoji: "💧", title: "便携水杯", subtitle: "适时补充水分 · 保持观演体力"),
-                ShowWeatherPackingItemDTO(id: "repellent", emoji: "🧴", title: "驱蚊喷雾与湿巾", subtitle: "露天入夜蚊虫活跃 · 便携打理随身物品")
+                ShowWeatherPackingItemDTO(id: "sunglasses", emoji: "🕶️", title: "墨镜、防晒帽", subtitle: "白天日晒较强，注意防晒"),
+                ShowWeatherPackingItemDTO(id: "jacket", emoji: "🧥", title: "薄外套", subtitle: "散场预计约 20°C，带件薄外套更稳妥"),
+                ShowWeatherPackingItemDTO(id: "water_bottle", emoji: "💧", title: "便携水杯", subtitle: "及时补充水分（入场前请确认场馆携带规定）"),
+                ShowWeatherPackingItemDTO(id: "wipes", emoji: "🧻", title: "便携湿巾", subtitle: "长时间观演，带包湿巾更方便")
             ],
             tone: .sunsetGold
         )

@@ -94,6 +94,9 @@ struct NotificationCopy {
         guard let remainingSeconds else {
             let lead = context.startClock.map { BSLocalization.format("%@ 开场", $0) }
                 ?? BSLocalization.text("今天开场")
+            if let weatherTip, !weatherTip.isEmpty {
+                return lead + placeSuffix + BSLocalization.text("。还有 3 小时，准备出门。 ") + weatherTip
+            }
             return lead + placeSuffix + (hasMusic
                 ? BSLocalization.text("。还有 3 小时，准备出门，路上让这些歌陪你出发。")
                 : BSLocalization.text("。还有 3 小时，准备出门。")) + extraSuffix

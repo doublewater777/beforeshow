@@ -386,4 +386,22 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertEqual(result.temperatureCelsius, 27)
         XCTAssertEqual(result.condition, .clear)
     }
+    func testVenueAndJacketAdviceAvoidUnsupportedAssumptions() throws {
+        XCTAssertEqual(ShowWeatherAtmospherePolicy.resolveVenueEnvironment(name: "音乐节", venueName: "大剧院", venueAddress: nil), .indoor)
+        XCTAssertEqual(ShowWeatherAtmospherePolicy.resolveVenueEnvironment(name: "音乐节", venueName: nil, venueAddress: nil), .unspecified)
+        let list = policy.generatePackingList(condition: .clear, precipitationProbability: 0, uvIndex: 8, lowCelsius: 15, highCelsius: 27, dispersalCelsius: 16, dispersalFeelsLike: 14, venueEnvironment: .unspecified)
+        XCTAssertTrue(try XCTUnwrap(list.first { $0.id == "jacket" }).subtitle.contains("14°C"))
+        XCTAssertFalse(list.contains { $0.id == "sunglasses" })
+        let warm = policy.generatePackingList(condition: .clear, precipitationProbability: 0, uvIndex: 1, lowCelsius: 15, highCelsius: 27, dispersalCelsius: 16, dispersalFeelsLike: 23)
+        XCTAssertFalse(warm.contains { $0.id == "jacket" })
+    }
+
+    func testWeatherNotificationRequiresFreshForecastNearDelivery() {
+        let now = Date()
+        let weather = ShowWeatherDTO(showID: UUID(), fetchedAt: now, temperatureCelsius: 20, highCelsius: 25, lowCelsius: 16, condition: .rain, conditionDescription: "雨", summaryCallout: "", hourly: [], precipitationProbability: 0.8, sunsetTime: nil, uvIndex: 1, feelsLikeCelsius: 20, windDescription: "--", packingList: [], tone: .rainBlue)
+        XCTAssertNotNil(LocalNotificationScheduler.weatherTip(weather, now: now, fireDate: now.addingTimeInterval(1800)))
+        XCTAssertNil(LocalNotificationScheduler.weatherTip(weather, now: now, fireDate: now.addingTimeInterval(1801)))
+        XCTAssertNil(LocalNotificationScheduler.weatherTip(weather, now: now.addingTimeInterval(1801), fireDate: now.addingTimeInterval(1801)))
+    }
+
 }
