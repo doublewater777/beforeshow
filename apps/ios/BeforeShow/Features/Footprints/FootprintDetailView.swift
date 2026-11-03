@@ -43,6 +43,7 @@ struct FootprintDetailView: View {
     @State private var isShowingCeremonyEditor = false
     @State private var isShowingEditor = false
     @State private var isShowingMemoryPage = false
+    @State private var memoryCreate: MemoryCreateSourceOption?
     @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
@@ -174,7 +175,14 @@ struct FootprintDetailView: View {
                     FootprintContactSheet(
                         fragments: fragments,
                         onOpen: openMemoryFragment,
-                        onManage: { isShowingMemoryPage = true }
+                        onOpenList: {
+                            memoryCreate = nil
+                            isShowingMemoryPage = true
+                        },
+                        onCreate: { option in
+                            memoryCreate = option
+                            isShowingMemoryPage = true
+                        }
                     )
                     FootprintKeepsakeShelf(
                         entries: ShowAssetManagementPolicy.entries(for: show, assets: assets),
@@ -182,7 +190,7 @@ struct FootprintDetailView: View {
                         onSelect: { showingAssetKind = $0 }
                     )
                     if show.companionStatus == .confirmed {
-                        companionSection
+                        FootprintCompanionSection(show: show, archive: archive)
                     }
                     FootprintProgrammeInfo(rows: infoRows)
                 }
@@ -255,7 +263,7 @@ struct FootprintDetailView: View {
             )
         }
         .sheet(isPresented: $isShowingMemoryPage) {
-            MemoryFragmentsSheet(show: show)
+            MemoryFragmentsSheet(show: show, pendingCreate: memoryCreate)
         }
         .sheet(isPresented: $isShowingEditor) {
             ShowDraftEditorView(
@@ -368,66 +376,6 @@ struct FootprintDetailView: View {
         case (.keepsake, .local(let url)):
             coverViewer = .image(.file(url))
         }
-    }
-
-    private var companionSection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader(BSLocalization.text("同行"))
-            VStack(spacing: 8) {
-                ForEach(Array(companionRows.enumerated()), id: \.offset) { _, row in
-                    companionRow(name: row.name, count: row.count)
-                }
-            }
-        }
-    }
-
-    private func companionRow(name: String, count: Int) -> some View {
-        HStack(spacing: BSSpacing.compact) {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [FootprintDetailTokens.companionAccent, FootprintDetailTokens.companionGlow],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: FootprintDetailTokens.avatarSize, height: FootprintDetailTokens.avatarSize)
-                .overlay(
-                    Text(String(name.prefix(1)))
-                        .font(BSFont.headline)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                )
-            VStack(alignment: .leading, spacing: 4) {
-                Text(name)
-                    .font(BSFont.headline)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Text(BSLocalization.format("共同留下 %lld 场足迹", count))
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
-            }
-            Spacer()
-        }
-        .padding(BSSpacing.compact)
-        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-        .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
-    }
-
-    private var companionRows: [(name: String, count: Int)] {
-        let names = CompanionNameList.normalized(show.companionNames)
-        if names.isEmpty {
-            return [(BSLocalization.text("同行者"), 1)]
-        }
-        return names.map { name in
-            (name, pairwiseCount(for: name))
-        }
-    }
-
-    private func pairwiseCount(for name: String) -> Int {
-        max(1, archive.shows.filter {
-            $0.companionStatus == .confirmed
-                && $0.endedAt != nil
-                && CompanionNameList.normalized($0.companionNames).contains(name)
-        }.count)
     }
 
     private var infoRows: [FootprintProgrammeInfo.Row] {
@@ -569,20 +517,6 @@ struct FootprintDetailView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
             if toast == payload { toast = nil }
-        }
-    }
-
-    private func sectionHeader(_ title: String, trailing: String? = nil) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(FootprintDetailTokens.sectionFont)
-                .foregroundStyle(BSColor.Stage.foreground)
-            Spacer()
-            if let trailing {
-                Text(trailing)
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(BSColor.Stage.dim)
-            }
         }
     }
 

@@ -34,11 +34,6 @@ struct FootprintStageHero: View {
                 .padding(.horizontal, -BSSpacing.roomy)
             info.padding(.top, 18)
             reunionChips.padding(.top, 14)
-            if showsFullLineup {
-                ArtistLineupStrip(artists: show.artists)
-                    .padding(.top, 12)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
             FootprintTicketStub(show: show, ordinal: identity.showOrdinal, lights: colors, reunionLine: reunionLine)
                 .padding(.top, 22)
         }
@@ -65,15 +60,31 @@ struct FootprintStageHero: View {
                     .opacity(powered ? 1 : 0)
                     .allowsHitTesting(false)
                 truss(width: width)
+                // Light spilling onto the floor in front of the crowd.
+                Ellipse()
+                    .fill(RadialGradient(colors: [colors[0].opacity(0.22), .clear], center: .center, startRadius: 0, endRadius: width * 0.5))
+                    .frame(width: width * 1.1, height: 90)
+                    .position(x: width / 2, y: Self.stageHeight - 66)
+                    .allowsHitTesting(false)
                 FootprintCrowdSilhouette()
                     .fill(Color(red: 0.024, green: 0.02, blue: 0.02))
-                    .frame(height: 70)
-                    .position(x: width / 2, y: Self.stageHeight - 35)
+                    .overlay {
+                        // Stage light catching the tops of heads and hands.
+                        FootprintCrowdSilhouette()
+                            .stroke(colors[0].opacity(powered ? 0.3 : 0), lineWidth: 1)
+                            .blur(radius: 0.6)
+                    }
+                    .frame(height: 78)
+                    .position(x: width / 2, y: Self.stageHeight - 39)
                     .allowsHitTesting(false)
             }
         }
         .frame(height: Self.stageHeight)
         .clipped()
+        // The stage dissolves into the page instead of ending on a hard edge.
+        .mask {
+            LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.86), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom)
+        }
     }
 
     @ViewBuilder
@@ -162,12 +173,16 @@ struct FootprintStageHero: View {
 
     private var info: some View {
         let calendar = show.timingCalendar()
-        let date = footprintFullDateText(show.effectiveDate, calendar: calendar)
-        let weekday = Self.weekday(show.effectiveDate, calendar: calendar)
+        var date = footprintFullDateText(show.effectiveDate, calendar: calendar) + " " + Self.weekday(show.effectiveDate, calendar: calendar)
+        // Multi-day shows name their last day too.
+        if let end = show.endDate, !calendar.isDate(end, inSameDayAs: show.effectiveDate), end > show.effectiveDate {
+            let endCalendar = show.endTimingCalendar()
+            date += " — " + footprintDayText(end, calendar: endCalendar) + " " + Self.weekday(end, calendar: endCalendar)
+        }
         let place = [FootprintTextNormalizer.nonEmptyTrimmed(show.venueName), FootprintTextNormalizer.nonEmptyTrimmed(show.city)]
             .compactMap { $0 }.joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 6) {
-            Text(String(format: "No. %03d · %@ %@", identity.showOrdinal, date, weekday))
+            Text(String(format: "No. %03d · %@", identity.showOrdinal, date))
                 .font(.system(size: 12, weight: .medium).width(.condensed).monospacedDigit())
                 .tracking(2.5)
                 .foregroundStyle(colors[1])
@@ -199,7 +214,7 @@ struct FootprintStageHero: View {
             .map(\.element)
         if !reunions.isEmpty {
             FootprintFlowLayout(spacing: 6) {
-                ForEach(reunions.prefix(Self.chipLimit), id: \.name) { reunion in
+                ForEach(reunions.prefix(showsFullLineup ? reunions.count : Self.chipLimit), id: \.name) { reunion in
                     Button {
                         if let link = show.artists.first(where: { $0.name == reunion.name })?.appleMusicURL,
                            let url = URL(string: link) {
@@ -223,12 +238,12 @@ struct FootprintStageHero: View {
                     }
                     .buttonStyle(.plain)
                 }
-                if show.artists.count > Self.chipLimit {
+                if reunions.count > Self.chipLimit {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { showsFullLineup.toggle() }
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { showsFullLineup.toggle() }
                     } label: {
                         HStack(spacing: 2) {
-                            Text(BSLocalization.format("全部 %lld 位", show.artists.count))
+                            Text(showsFullLineup ? BSLocalization.text("收起") : BSLocalization.format("全部 %lld 位", reunions.count))
                             Image(systemName: showsFullLineup ? "chevron.up" : "chevron.down")
                                 .font(.system(size: 9, weight: .bold))
                         }
@@ -291,29 +306,32 @@ private struct FootprintBeam: Shape {
 private struct FootprintCrowdSilhouette: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
+        var hands: [CGPoint] = []
         path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.5))
         let heads = 14
         let step = rect.width / CGFloat(heads)
-        for index in 0...heads {
+        func y(_ fraction: CGFloat) -> CGFloat { rect.minY + rect.height * fraction }
+        for index in 0..<heads {
             let x = rect.minX + CGFloat(index) * step
-            let lift: CGFloat = index % 3 == 0 ? 0.25 : index % 2 == 0 ? 0.45 : 0.4
-            path.addQuadCurve(to: CGPoint(x: x + step / 2, y: rect.minY + rect.height * lift),
-                              control: CGPoint(x: x + step * 0.1, y: rect.minY + rect.height * (lift - 0.15)))
+            let lift: CGFloat = index % 3 == 0 ? 0.3 : index % 2 == 0 ? 0.45 : 0.38
+            // One continuous outline: shoulder, head, (arm up and back down), shoulder.
+            path.addQuadCurve(to: CGPoint(x: x + step * 0.5, y: y(lift)), control: CGPoint(x: x + step * 0.12, y: y(lift - 0.05)))
             if index % 4 == 1 {
-                // A raised arm with a hand.
-                let wrist = CGPoint(x: x + step * 0.62, y: rect.minY + rect.height * 0.12)
-                path.addLine(to: CGPoint(x: x + step * 0.52, y: rect.minY + rect.height * lift))
-                path.addQuadCurve(to: wrist, control: CGPoint(x: x + step * 0.5, y: rect.minY + rect.height * 0.2))
-                path.addEllipse(in: CGRect(x: wrist.x - 3, y: wrist.y - 5, width: 6, height: 8))
-                path.move(to: wrist)
-                path.addQuadCurve(to: CGPoint(x: x + step * 0.7, y: rect.minY + rect.height * lift),
-                                  control: CGPoint(x: x + step * 0.7, y: rect.minY + rect.height * 0.25))
+                let wrist = CGPoint(x: x + step * 0.62, y: y(0.1))
+                path.addLine(to: CGPoint(x: x + step * 0.56, y: y(lift)))
+                path.addLine(to: CGPoint(x: wrist.x - 1.5, y: wrist.y))
+                path.addLine(to: CGPoint(x: wrist.x + 1.5, y: wrist.y))
+                path.addLine(to: CGPoint(x: x + step * 0.66, y: y(lift + 0.02)))
+                hands.append(wrist)
             }
-            path.addQuadCurve(to: CGPoint(x: x + step, y: rect.minY + rect.height * 0.5),
-                              control: CGPoint(x: x + step * 0.9, y: rect.minY + rect.height * (lift - 0.1)))
+            path.addQuadCurve(to: CGPoint(x: x + step, y: y(0.52)), control: CGPoint(x: x + step * 0.88, y: y(lift - 0.05)))
         }
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
         path.closeSubpath()
+        for wrist in hands {
+            path.addEllipse(in: CGRect(x: wrist.x - 3.5, y: wrist.y - 7, width: 7, height: 9))
+        }
         return path
     }
 }

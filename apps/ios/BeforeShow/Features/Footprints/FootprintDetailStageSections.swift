@@ -1,53 +1,109 @@
 import SwiftUI
 
-/// Memory fragments as a strip of film: one frame per fragment, tagged with when it was taken.
+/// Memory fragments as a strip of film, cut into chapters by when they were taken.
 struct FootprintContactSheet: View {
     let fragments: [MemoryFragment]
     let onOpen: (MemoryFragment) -> Void
-    let onManage: () -> Void
+    let onOpenList: () -> Void
+    let onCreate: (MemoryCreateSourceOption) -> Void
 
     private static let frameSize = CGSize(width: 132, height: 168)
 
+    /// Chapters in the order the night happened; each phase is marked once.
+    private var chapters: [(phase: MemoryFragmentPhase, fragments: [MemoryFragment])] {
+        [MemoryFragmentPhase.before, .live, .after].compactMap { phase in
+            let items = fragments.filter { $0.phase == phase }
+            return items.isEmpty ? nil : (phase, items)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center) {
                 Text(BSLocalization.text("记忆碎片"))
                     .font(FootprintDetailTokens.sectionFont)
                     .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
-                Text(BSLocalization.format("%lld 条", fragments.count))
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(BSColor.Stage.dim)
-                FootprintRoundIconButton(systemName: "plus", label: BSLocalization.text("添加记忆碎片"), action: onManage)
+                if !fragments.isEmpty {
+                    Button(action: onOpenList) {
+                        HStack(spacing: 3) {
+                            Text(BSLocalization.format("%lld 条", fragments.count))
+                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                        }
+                        .font(BSFont.V3.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .frame(minHeight: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(BSLocalization.text("查看全部记忆碎片"))
+                }
+                createMenu {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground.opacity(0.8))
+                        .frame(width: 36, height: 36)
+                        .background(Color.white.opacity(0.06), in: Circle())
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                }
+                .accessibilityLabel(BSLocalization.text("添加记忆碎片"))
             }
             VStack(spacing: 8) {
                 sprockets
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
                         if fragments.isEmpty {
                             emptyFrame
                         }
-                        ForEach(Array(fragments.enumerated()), id: \.element.id) { index, fragment in
-                            Button { onOpen(fragment) } label: { frame(for: fragment) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(
-                                    FootprintAccessibilityPolicy.memoryLabel(
-                                        ordinal: index + 1,
-                                        kind: fragment.orderedMediaItems.first.map { $0.kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片") } ?? BSLocalization.text("文字"),
-                                        recordedAt: fragment.createdAt,
-                                        text: fragment.text
+                        ForEach(chapters, id: \.phase) { chapter in
+                            chapterMark(chapter.phase)
+                            ForEach(chapter.fragments) { fragment in
+                                Button { onOpen(fragment) } label: { frame(for: fragment) }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(
+                                        FootprintAccessibilityPolicy.memoryLabel(
+                                            ordinal: (fragments.firstIndex { $0.id == fragment.id } ?? 0) + 1,
+                                            kind: fragment.orderedMediaItems.first.map { $0.kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片") } ?? BSLocalization.text("文字"),
+                                            recordedAt: fragment.createdAt,
+                                            text: fragment.text
+                                        )
                                     )
-                                )
+                            }
                         }
                     }
+                    .scrollTargetLayout()
                     .padding(.horizontal, BSSpacing.roomy)
                 }
+                .scrollTargetBehavior(.viewAligned)
                 sprockets
             }
             .padding(.vertical, 10)
             .background(Color(white: 0.043))
             .padding(.horizontal, -BSSpacing.roomy)
         }
+    }
+
+    private func createMenu<Label: View>(@ViewBuilder label: () -> Label) -> some View {
+        Menu {
+            ForEach(MemoryCreateSourceOption.allCases, id: \.self) { option in
+                Button(option.title, systemImage: option.iconName) { onCreate(option) }
+            }
+        } label: {
+            label()
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A chapter label printed sideways on the film edge, like a frame number.
+    private func chapterMark(_ phase: MemoryFragmentPhase) -> some View {
+        Text(phase.title)
+            .font(.system(size: 11, weight: .semibold).width(.condensed))
+            .tracking(3)
+            .foregroundStyle(phase == .live ? BSColor.Stage.accent : BSColor.Stage.muted)
+            .fixedSize()
+            .rotationEffect(.degrees(-90))
+            .frame(width: 18, height: Self.frameSize.height)
+            .accessibilityHidden(true)
     }
 
     private func frame(for fragment: MemoryFragment) -> some View {
@@ -88,20 +144,15 @@ struct FootprintContactSheet: View {
             }
             .frame(width: Self.frameSize.width, height: Self.frameSize.height)
             .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            HStack {
-                Text(fragment.phase.title)
-                    .foregroundStyle(fragment.phase == .live ? BSColor.Stage.accent : BSColor.Stage.muted)
-                Spacer(minLength: 4)
-                Text(Self.time(fragment.createdAt))
-                    .foregroundStyle(BSColor.Stage.dim)
-            }
-            .font(.system(size: 10, weight: .medium).width(.condensed).monospacedDigit())
-            .frame(width: Self.frameSize.width)
+            Text(Self.time(fragment.createdAt))
+                .font(.system(size: 10, weight: .medium).width(.condensed).monospacedDigit())
+                .foregroundStyle(BSColor.Stage.dim)
+                .frame(width: Self.frameSize.width, alignment: .leading)
         }
     }
 
     private var emptyFrame: some View {
-        Button(action: onManage) {
+        createMenu {
             VStack(spacing: 8) {
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .light))
@@ -114,7 +165,6 @@ struct FootprintContactSheet: View {
             .frame(width: Self.frameSize.width, height: Self.frameSize.height)
             .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.white.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
         }
-        .buttonStyle(.plain)
     }
 
     /// Film sprocket holes.
@@ -283,5 +333,73 @@ private struct FootprintTapedImage: View {
         .task(id: url) {
             image = await Task.detached(priority: .userInitiated) { UIImage(contentsOfFile: url.path) }.value
         }
+    }
+}
+
+/// Who came along, and how many nights you have shared.
+struct FootprintCompanionSection: View {
+    let show: Show
+    let archive: FootprintArchiveSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.compact) {
+            Text(BSLocalization.text("同行"))
+                .font(FootprintDetailTokens.sectionFont)
+                .foregroundStyle(BSColor.Stage.foreground)
+            VStack(spacing: 8) {
+                ForEach(Array(companionRows.enumerated()), id: \.offset) { _, row in
+                    companionRow(name: row.name, count: row.count)
+                }
+            }
+        }
+    }
+
+    private func companionRow(name: String, count: Int) -> some View {
+        HStack(spacing: BSSpacing.compact) {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [FootprintDetailTokens.companionAccent, FootprintDetailTokens.companionGlow],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: FootprintDetailTokens.avatarSize, height: FootprintDetailTokens.avatarSize)
+                .overlay(
+                    Text(String(name.prefix(1)))
+                        .font(BSFont.headline)
+                        .foregroundStyle(BSColor.Stage.foreground)
+                )
+            VStack(alignment: .leading, spacing: 4) {
+                Text(name)
+                    .font(BSFont.headline)
+                    .foregroundStyle(BSColor.Stage.foreground)
+                Text(BSLocalization.format("共同留下 %lld 场足迹", count))
+                    .font(BSFont.V3.caption)
+                    .foregroundStyle(BSColor.Stage.muted)
+            }
+            Spacer()
+        }
+        .padding(BSSpacing.compact)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+        .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
+    }
+
+    private var companionRows: [(name: String, count: Int)] {
+        let names = CompanionNameList.normalized(show.companionNames)
+        if names.isEmpty {
+            return [(BSLocalization.text("同行者"), 1)]
+        }
+        return names.map { name in
+            (name, pairwiseCount(for: name))
+        }
+    }
+
+    private func pairwiseCount(for name: String) -> Int {
+        max(1, archive.shows.filter {
+            $0.companionStatus == .confirmed
+                && $0.endedAt != nil
+                && CompanionNameList.normalized($0.companionNames).contains(name)
+        }.count)
     }
 }

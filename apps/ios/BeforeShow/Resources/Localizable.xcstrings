@@ -23321,6 +23321,22 @@
           }
         }
       }
+    },
+    "查看全部记忆碎片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See all memories"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看全部記憶碎片"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
