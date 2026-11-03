@@ -42,7 +42,6 @@ struct CurrentShowWeatherSheet: View {
                             hourlyMilestoneSection(weather)
                         }
                         weatherMetricsGrid(weather)
-                        bottomActionButton
                     } else if isLoading {
                         loadingPlaceholder
                     } else if let errorMessage {
@@ -55,21 +54,15 @@ struct CurrentShowWeatherSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
-            .background(Color(red: 22/255, green: 22/255, blue: 26/255).ignoresSafeArea())
+            .background(BSColor.surface.ignoresSafeArea())
             .navigationTitle(BSLocalization.text("现场天气与穿搭"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(0.7))
-                            .frame(width: 30, height: 30)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
-                    }
-                    .accessibilityLabel(BSLocalization.text("关闭"))
+                BSChromeToolbarCloseButton(
+                    accessibilityLabel: BSLocalization.text("关闭"),
+                    placement: .topBarTrailing
+                ) {
+                    dismiss()
                 }
             }
             .task {
@@ -81,7 +74,7 @@ struct CurrentShowWeatherSheet: View {
         }
         .presentationDetents([.fraction(0.88), .large])
         .presentationDragIndicator(.visible)
-        .presentationCornerRadius(28)
+        .presentationBackground(BSColor.surface)
         .preferredColorScheme(.dark)
     }
 
@@ -151,10 +144,10 @@ struct CurrentShowWeatherSheet: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.06))
+                .fill(BSColor.surfaceElevated)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                        .strokeBorder(BSColor.borderProminent, lineWidth: 0.5)
                 )
         )
     }
@@ -220,10 +213,10 @@ struct CurrentShowWeatherSheet: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(isPacked ? 0.02 : 0.04))
+                    .fill(BSColor.surfaceElevated.opacity(isPacked ? 0.6 : 1))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                            .strokeBorder(BSColor.borderProminent, lineWidth: 0.5)
                     )
             )
         }
@@ -384,16 +377,6 @@ struct CurrentShowWeatherSheet: View {
         formatter.timeZone = eventTimeZone
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: sunset)
-    }
-
-    // MARK: - Bottom Action Button
-
-    private var bottomActionButton: some View {
-        Button(BSLocalization.text("关闭")) {
-            dismiss()
-        }
-        .buttonStyle(BSPrimaryButtonStyle())
-        .padding(.top, 4)
     }
 
     // MARK: - Loading & Error States
