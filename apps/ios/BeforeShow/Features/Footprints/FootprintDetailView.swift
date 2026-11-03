@@ -172,8 +172,17 @@ struct FootprintDetailView: View {
                         onClear: { Task { await clearCeremonyData() } }
                     )
                     FootprintListeningMemorySection(show: show)
-                    FootprintContactSheet(
+                    MemoryContactSheet(
                         fragments: fragments,
+                        currentPhase: .after,
+                        fragmentLabel: { fragment, ordinal in
+                            FootprintAccessibilityPolicy.memoryLabel(
+                                ordinal: ordinal,
+                                kind: fragment.orderedMediaItems.first.map { $0.kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片") } ?? BSLocalization.text("文字"),
+                                recordedAt: fragment.createdAt,
+                                text: fragment.text
+                            )
+                        },
                         onOpen: openMemoryFragment,
                         onOpenList: {
                             memoryCreate = nil
@@ -192,7 +201,7 @@ struct FootprintDetailView: View {
                     if show.companionStatus == .confirmed {
                         FootprintCompanionSection(show: show, archive: archive)
                     }
-                    FootprintProgrammeInfo(rows: infoRows)
+                    BSProgrammeInfo(rows: infoRows)
                 }
                 .padding(.horizontal, BSSpacing.roomy)
                 .padding(.top, BSSpacing.sm)
@@ -378,8 +387,8 @@ struct FootprintDetailView: View {
         }
     }
 
-    private var infoRows: [FootprintProgrammeInfo.Row] {
-        var rows = [FootprintProgrammeInfo.Row(label: BSLocalization.text("时间"), value: formatter.dateText(for: show))]
+    private var infoRows: [BSProgrammeInfo.Row] {
+        var rows = [BSProgrammeInfo.Row(label: BSLocalization.text("时间"), value: formatter.dateText(for: show))]
         if let durationText {
             rows.append(.init(label: BSLocalization.text("时长"), value: durationText))
         }

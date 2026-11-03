@@ -20,8 +20,8 @@ struct FootprintDispersalRitualSection: View {
                     .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 if hasContent {
-                    FootprintRoundIconButton(systemName: "square.and.arrow.up", label: BSLocalization.text("分享卡片"), action: onShare)
-                    FootprintRoundIconButton(systemName: "pencil", label: BSLocalization.text("编辑评价"), action: onEdit)
+                    BSRoundIconButton(systemName: "square.and.arrow.up", label: BSLocalization.text("分享卡片"), action: onShare)
+                    BSRoundIconButton(systemName: "pencil", label: BSLocalization.text("编辑评价"), action: onEdit)
                 }
             }
 

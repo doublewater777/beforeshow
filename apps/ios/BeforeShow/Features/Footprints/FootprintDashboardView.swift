@@ -131,7 +131,7 @@ private struct FootprintPosterWallYear: View {
                             .foregroundStyle(BSColor.Stage.muted)
                         }
                     }
-                    .buttonStyle(FootprintPressStyle())
+                    .buttonStyle(BSPressStyle())
                     .accessibilityLabel(show.name)
                 }
             }

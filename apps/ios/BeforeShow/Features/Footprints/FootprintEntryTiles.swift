@@ -27,25 +27,25 @@ struct FootprintEntryTiles: View {
         switch door {
         case .years:
             NavigationLink { FootprintVinylYearsView(archive: archive, covers: covers) } label: { yearsTile }
-                .buttonStyle(FootprintPressStyle())
+                .buttonStyle(BSPressStyle())
         case .artists:
             NavigationLink { FootprintConstellationView(archive: archive) } label: { artistsTile }
-                .buttonStyle(FootprintPressStyle())
+                .buttonStyle(BSPressStyle())
         case .venues:
             NavigationLink { FootprintNeonVenuesView(archive: archive) } label: { venuesTile }
-                .buttonStyle(FootprintPressStyle())
+                .buttonStyle(BSPressStyle())
         case .cities:
             NavigationLink { FootprintTourShirtView(archive: archive, covers: covers, allShows: allShows) } label: { citiesTile }
-                .buttonStyle(FootprintPressStyle())
+                .buttonStyle(BSPressStyle())
         case .pass:
             NavigationLink { FootprintBackstagePassView(archive: archive, covers: covers) } label: { passTile }
-                .buttonStyle(FootprintPressStyle())
+                .buttonStyle(BSPressStyle())
         case .candle:
             if let anniversary {
                 NavigationLink {
                     FootprintCandleView(archive: archive, covers: covers, anniversary: anniversary)
                 } label: { candleTile(anniversary) }
-                    .buttonStyle(FootprintPressStyle())
+                    .buttonStyle(BSPressStyle())
             }
         }
     }

@@ -161,17 +161,17 @@ final class FootprintStageTests: XCTestCase {
     }
 
     func testStageLightsFollowThePostersTwoStrongestHues() {
-        let orange = FootprintStageLight(red: 0.94, green: 0.54, blue: 0.14)
-        let yellow = FootprintStageLight(red: 0.95, green: 0.76, blue: 0.19)
-        let black = FootprintStageLight(red: 0.05, green: 0.05, blue: 0.05)
+        let orange = BSStageLight(red: 0.94, green: 0.54, blue: 0.14)
+        let yellow = BSStageLight(red: 0.95, green: 0.76, blue: 0.19)
+        let black = BSStageLight(red: 0.05, green: 0.05, blue: 0.05)
         let pixels = Array(repeating: orange, count: 120) + Array(repeating: yellow, count: 60) + Array(repeating: black, count: 76)
 
-        let lights = FootprintStageLights.pick(from: pixels)
+        let lights = BSStageLights.pick(from: pixels)
 
         XCTAssertEqual(lights.count, 2)
         XCTAssertGreaterThan(lights[0].red, lights[0].blue, "first light is the orange majority")
         XCTAssertGreaterThan(lights[1].green, lights[0].green, "second light is the yellower hue")
-        XCTAssertEqual(FootprintStageLights.pick(from: Array(repeating: black, count: 256)), FootprintStageLights.fallback)
+        XCTAssertEqual(BSStageLights.pick(from: Array(repeating: black, count: 256)), BSStageLights.fallback)
     }
 
     // MARK: Helpers
