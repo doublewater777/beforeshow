@@ -65,6 +65,125 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertTrue(list.contains(where: { $0.id == "jacket" }))
     }
 
+    func testForecastResolutionMatchesShowDateAndNotCurrentDate() throws {
+        let calendar = Calendar.current
+        let today = Date()
+        let showDate = calendar.date(byAdding: .day, value: 3, to: today)!
+        let showStartTime = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: showDate)!
+        let showEndTime = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: showDate)!
+
+        let todayForecast = RawDayForecast(
+            date: today,
+            highCelsius: 32,
+            lowCelsius: 24,
+            condition: .heavyRain,
+            conditionDescription: "大暴雨",
+            sunsetTime: calendar.date(bySettingHour: 18, minute: 10, second: 0, of: today),
+            precipitationChance: 0.9,
+            uvIndex: 1
+        )
+        let showDayForecast = RawDayForecast(
+            date: showDate,
+            highCelsius: 25,
+            lowCelsius: 18,
+            condition: .clear,
+            conditionDescription: "晴天",
+            sunsetTime: calendar.date(bySettingHour: 18, minute: 20, second: 0, of: showDate),
+            precipitationChance: 0.05,
+            uvIndex: 5
+        )
+
+        let hour1 = RawHourForecast(
+            date: calendar.date(bySettingHour: 18, minute: 0, second: 0, of: showDate)!,
+            temperatureCelsius: 23,
+            apparentTemperatureCelsius: 23,
+            condition: .clear,
+            uvIndex: 2,
+            windSpeedMps: 2,
+            windDirectionDescription: "东风"
+        )
+        let hour2 = RawHourForecast(
+            date: calendar.date(bySettingHour: 19, minute: 0, second: 0, of: showDate)!,
+            temperatureCelsius: 22,
+            apparentTemperatureCelsius: 22,
+            condition: .clear,
+            uvIndex: 0,
+            windSpeedMps: 2,
+            windDirectionDescription: "东风"
+        )
+
+        let result = try policy.resolveForecast(
+            for: UUID(),
+            showDate: showDate,
+            showStartTime: showStartTime,
+            showEndTime: showEndTime,
+            calendar: calendar,
+            dailyForecasts: [todayForecast, showDayForecast],
+            hourlyForecasts: [hour1, hour2],
+            now: today
+        )
+
+        // Must match show day (25/18, clear), NOT today (32/24, heavyRain)
+        XCTAssertEqual(result.highCelsius, 25)
+        XCTAssertEqual(result.lowCelsius, 18)
+        XCTAssertEqual(result.condition, .clear)
+        XCTAssertEqual(result.conditionDescription, "晴天")
+        XCTAssertEqual(result.temperatureCelsius, 22) // Uses showStartTime hour (19:00), not now
+    }
+
+    func testForecastResolutionThrowsWhenOutOfRange() {
+        let calendar = Calendar.current
+        let today = Date()
+        let showDate = calendar.date(byAdding: .day, value: 20, to: today)!
+        let showStartTime = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: showDate)!
+        let showEndTime = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: showDate)!
+
+        let todayForecast = RawDayForecast(
+            date: today,
+            highCelsius: 30,
+            lowCelsius: 22,
+            condition: .clear,
+            conditionDescription: "晴",
+            sunsetTime: nil,
+            precipitationChance: 0.0,
+            uvIndex: 4
+        )
+
+        XCTAssertThrowsError(
+            try policy.resolveForecast(
+                for: UUID(),
+                showDate: showDate,
+                showStartTime: showStartTime,
+                showEndTime: showEndTime,
+                calendar: calendar,
+                dailyForecasts: [todayForecast],
+                hourlyForecasts: [],
+                now: today
+            )
+        ) { error in
+            XCTAssertEqual(error as? ShowWeatherError, .forecastUnavailable)
+        }
+    }
+
+    @MainActor
+    func testMockWeatherServiceThrowsWhenConfigured() async throws {
+        let show = try Show(
+            name: "不止音乐节",
+            date: Date(),
+            startTime: Date(),
+            city: "深圳",
+            venueName: "大梅沙海滨公园"
+        )
+        let service = MockShowWeatherService(shouldThrowError: ShowWeatherError.forecastUnavailable)
+
+        do {
+            _ = try await service.fetchWeather(for: show)
+            XCTFail("Expected fetchWeather to throw error")
+        } catch {
+            XCTAssertEqual(error as? ShowWeatherError, .forecastUnavailable)
+        }
+    }
+
     @MainActor
     func testMockWeatherServiceReturnsStubbedDTO() async throws {
         let show = try Show(
@@ -106,9 +225,9 @@ final class ShowWeatherTests: XCTestCase {
         let showDayCopy = copy.showDay(
             remainingSeconds: nil,
             hasMusic: false,
-            weatherTip: "气温 26°，适合海滨观演。"
+            weatherTip: "气温 26°，适合观演。"
         )
-        XCTAssertTrue(showDayCopy.contains("气温 26°，适合海滨观演。"))
+        XCTAssertTrue(showDayCopy.contains("气温 26°，适合观演。"))
 
         let sunsetCopy = copy.showDay(
             remainingSeconds: nil,
@@ -142,7 +261,7 @@ final class ShowWeatherTests: XCTestCase {
         let matched = policy.findSunsetPerformance(in: [p1, pSunset, pNight], sunsetTime: sunset)
         XCTAssertEqual(matched?.artistName, "落日飞车")
 
-        // No sunset match for a late night festival
+        // No sunset match for a late night performance
         let lateSunset = cal.date(bySettingHour: 17, minute: 0, second: 0, of: baseDate)!
         let noneMatched = policy.findSunsetPerformance(in: [pNight], sunsetTime: lateSunset)
         XCTAssertNil(noneMatched)
@@ -169,11 +288,11 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertEqual(link?.destination, .weatherDetail)
     }
 
-    func testLocalNotificationSchedulerWithSunsetPerformanceAppendsBand() throws {
+    func testLocalNotificationSchedulerWithoutCachedSunsetWeatherDoesNotAppendBand() throws {
         let calendar = Calendar.current
         let baseDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 20))!
         let startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: baseDate)!
-        let show = try Show(name: "落日音乐节", date: baseDate, startTime: startTime)
+        let show = try Show(name: "夜场演出", date: baseDate, startTime: startTime)
 
         let pSunset = try TimetablePerformance(
             artistName: "落日飞车",
@@ -184,28 +303,7 @@ final class ShowWeatherTests: XCTestCase {
         let day = try TimetableDay(date: baseDate, stages: [stage])
         show.timetable = try Timetable(timeZoneIdentifier: calendar.timeZone.identifier, days: [day])
 
-        let now = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: baseDate)!
-        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(for: show, now: now)
-        let showDayRequest = requests.first(where: { $0.milestone == .showDay })
-        XCTAssertNotNil(showDayRequest)
-        XCTAssertTrue(showDayRequest?.body.contains("今天的日落现场是落日飞车。") == true)
-    }
-
-    func testLocalNotificationSchedulerWithoutSunsetPerformanceDoesNotAppendSunsetBand() throws {
-        let calendar = Calendar.current
-        let baseDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 20))!
-        let startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: baseDate)!
-        let show = try Show(name: "夜场演出", date: baseDate, startTime: startTime)
-
-        let pNight = try TimetablePerformance(
-            artistName: "夜间乐队",
-            startsAt: calendar.date(bySettingHour: 20, minute: 0, second: 0, of: baseDate)!,
-            endsAt: calendar.date(bySettingHour: 21, minute: 30, second: 0, of: baseDate)!
-        )
-        let stage = try TimetableStage(name: "Main", performances: [pNight])
-        let day = try TimetableDay(date: baseDate, stages: [stage])
-        show.timetable = try Timetable(timeZoneIdentifier: calendar.timeZone.identifier, days: [day])
-
+        // Without cached weather sunset, requests must not guess 18:30
         let now = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: baseDate)!
         let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(for: show, now: now)
         let showDayRequest = requests.first(where: { $0.milestone == .showDay })

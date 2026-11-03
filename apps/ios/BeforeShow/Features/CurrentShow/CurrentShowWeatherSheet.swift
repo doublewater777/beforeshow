@@ -1,26 +1,54 @@
 import SwiftUI
 
 struct CurrentShowWeatherSheet: View {
-    let weather: ShowWeatherDTO
+    let show: Show
     let venueName: String?
     let city: String?
 
-    @Environment(\.dismiss) private var dismiss
+    @State private var weather: ShowWeatherDTO?
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String? = nil
     @State private var packedItemIDs: Set<String> = []
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        show: Show,
+        initialWeather: ShowWeatherDTO? = nil,
+        venueName: String? = nil,
+        city: String? = nil
+    ) {
+        self.show = show
+        self._weather = State(initialValue: initialWeather)
+        self.venueName = venueName ?? show.venueName
+        self.city = city ?? show.city
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 20) {
-                    heroCard
-                    hourlyMilestoneSection
-                    weatherMetricsGrid
-                    packingChecklistSection
-                    bottomActionButton
+                    if let weather {
+                        heroCard(weather)
+                        hourlyMilestoneSection(weather)
+                        weatherMetricsGrid(weather)
+                        packingChecklistSection(weather)
+                        bottomActionButton
+                    } else if isLoading {
+                        loadingPlaceholder
+                    } else if let errorMessage {
+                        errorPlaceholder(errorMessage)
+                    } else {
+                        loadingPlaceholder
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
+            }
+            .task {
+                if weather == nil {
+                    await loadWeather()
+                }
             }
             .background(Color(red: 22/255, green: 22/255, blue: 26/255).ignoresSafeArea())
             .navigationTitle(BSLocalization.text("现场微气候与穿搭"))
@@ -48,7 +76,7 @@ struct CurrentShowWeatherSheet: View {
 
     // MARK: - Hero Weather Card
 
-    private var heroCard: some View {
+    private func heroCard(_ weather: ShowWeatherDTO) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -132,7 +160,7 @@ struct CurrentShowWeatherSheet: View {
 
     // MARK: - Hourly Milestone Track
 
-    private var hourlyMilestoneSection: some View {
+    private func hourlyMilestoneSection(_ weather: ShowWeatherDTO) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(BSLocalization.text("演出现场时刻气象"))
                 .font(.system(size: 14, weight: .semibold))
@@ -141,7 +169,7 @@ struct CurrentShowWeatherSheet: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(weather.hourly) { item in
-                        hourlyItemView(item)
+                        hourlyItemView(item, weather: weather)
                     }
                 }
                 .padding(.vertical, 2)
@@ -149,7 +177,7 @@ struct CurrentShowWeatherSheet: View {
         }
     }
 
-    private func hourlyItemView(_ item: ShowWeatherHourlyDTO) -> some View {
+    private func hourlyItemView(_ item: ShowWeatherHourlyDTO, weather: ShowWeatherDTO) -> some View {
         VStack(spacing: 6) {
             Text(formatHour(item.time))
                 .font(.system(size: 11, weight: .medium))
@@ -200,7 +228,7 @@ struct CurrentShowWeatherSheet: View {
 
     // MARK: - 2x2 Metric Grid
 
-    private var weatherMetricsGrid: some View {
+    private func weatherMetricsGrid(_ weather: ShowWeatherDTO) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
             metricTile(
                 title: BSLocalization.text("降水概率"),
@@ -211,7 +239,7 @@ struct CurrentShowWeatherSheet: View {
 
             metricTile(
                 title: BSLocalization.text("日落时刻"),
-                value: sunsetTimeString,
+                value: sunsetTimeString(weather),
                 subtitle: BSLocalization.text("黄金日落晚霞"),
                 systemIcon: "sunset.fill"
             )
@@ -265,7 +293,7 @@ struct CurrentShowWeatherSheet: View {
         )
     }
 
-    private var sunsetTimeString: String {
+    private func sunsetTimeString(_ weather: ShowWeatherDTO) -> String {
         guard let sunset = weather.sunsetTime else {
             return "--:--"
         }
@@ -276,7 +304,7 @@ struct CurrentShowWeatherSheet: View {
 
     // MARK: - Packing Checklist Section
 
-    private var packingChecklistSection: some View {
+    private func packingChecklistSection(_ weather: ShowWeatherDTO) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(BSLocalization.text("观演携带与穿搭建议"))
                 .font(.system(size: 14, weight: .semibold))
@@ -349,5 +377,63 @@ struct CurrentShowWeatherSheet: View {
         }
         .buttonStyle(BSPrimaryButtonStyle())
         .padding(.top, 4)
+    }
+
+    // MARK: - Loading & Error States
+
+    private var loadingPlaceholder: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.2)
+                .tint(Color.white.opacity(0.8))
+            Text(BSLocalization.text("正在获取现场天气…"))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 80)
+    }
+
+    private func errorPlaceholder(_ message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "cloud.sun.rain.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(Color.white.opacity(0.4))
+
+            Text(message)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.8))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+
+            Button {
+                Task { await loadWeather() }
+            } label: {
+                Text(BSLocalization.text("重试"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.15))
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
+    }
+
+    private func loadWeather() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            let fetched = try await LiveShowWeatherService.shared.fetchWeather(for: show)
+            weather = fetched
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
     }
 }

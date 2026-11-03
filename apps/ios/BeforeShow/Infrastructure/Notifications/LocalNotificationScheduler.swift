@@ -375,9 +375,9 @@ struct LocalNotificationScheduler {
         let perfs = day.orderedStages.flatMap(\.orderedPerformances)
         guard !perfs.isEmpty else { return nil }
 
-        let weatherSunset = LiveShowWeatherService.shared.cachedWeather(for: show.id)?.sunsetTime
-        let targetSunset = weatherSunset ?? calendar.date(bySettingHour: 18, minute: 30, second: 0, of: effectiveDate)
-        guard let sunset = targetSunset else { return nil }
+        guard let sunset = LiveShowWeatherService.shared.cachedWeather(for: show.id)?.sunsetTime else {
+            return nil
+        }
 
         return ShowWeatherAtmospherePolicy().findSunsetPerformance(in: perfs, sunsetTime: sunset)?.artistName
     }

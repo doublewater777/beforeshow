@@ -130,9 +130,12 @@ struct CurrentShowFeatureRootView: View {
                 case .timetable:
                     ShowAssetSheet(showID: show.id, showName: show.name, kind: .timetable)
                 case .weatherDetail:
-                    if let weather = LiveShowWeatherService.shared.cachedWeather(for: show.id) {
-                        CurrentShowWeatherSheet(weather: weather, venueName: show.venueName, city: show.city)
-                    }
+                    CurrentShowWeatherSheet(
+                        show: show,
+                        initialWeather: LiveShowWeatherService.shared.cachedWeather(for: show.id),
+                        venueName: show.venueName,
+                        city: show.city
+                    )
                 default:
                     CurrentShowClosableSheet {
                         ShowDetailView(show: show, onDetailVisibilityChange: { _ in })

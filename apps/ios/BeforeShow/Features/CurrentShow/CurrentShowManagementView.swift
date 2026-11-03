@@ -169,13 +169,12 @@ struct CurrentShowManagementSection: View {
                     )
                 }
             case .weatherDetail:
-                if let weather {
-                    CurrentShowWeatherSheet(
-                        weather: weather,
-                        venueName: show.venueName,
-                        city: show.city
-                    )
-                }
+                CurrentShowWeatherSheet(
+                    show: show,
+                    initialWeather: weather,
+                    venueName: show.venueName,
+                    city: show.city
+                )
             }
         }
         .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {

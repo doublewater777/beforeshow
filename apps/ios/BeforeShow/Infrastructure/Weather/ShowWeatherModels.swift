@@ -133,3 +133,79 @@ public struct ShowWeatherDTO: Codable, Sendable, Equatable {
         self.tone = tone
     }
 }
+
+public enum ShowWeatherError: LocalizedError, Equatable, Sendable {
+    case locationUnavailable
+    case forecastUnavailable
+    case cancelled
+
+    public var errorDescription: String? {
+        switch self {
+        case .locationUnavailable:
+            return BSLocalization.text("无法定位演出场地")
+        case .forecastUnavailable:
+            return BSLocalization.text("演出日期暂无气象预报（仅支持开演前 10 天内）")
+        case .cancelled:
+            return BSLocalization.text("天气获取已取消")
+        }
+    }
+}
+
+public struct RawDayForecast: Sendable {
+    public let date: Date
+    public let highCelsius: Int
+    public let lowCelsius: Int
+    public let condition: ShowWeatherCondition
+    public let conditionDescription: String
+    public let sunsetTime: Date?
+    public let precipitationChance: Double
+    public let uvIndex: Int
+
+    public init(
+        date: Date,
+        highCelsius: Int,
+        lowCelsius: Int,
+        condition: ShowWeatherCondition,
+        conditionDescription: String,
+        sunsetTime: Date?,
+        precipitationChance: Double,
+        uvIndex: Int
+    ) {
+        self.date = date
+        self.highCelsius = highCelsius
+        self.lowCelsius = lowCelsius
+        self.condition = condition
+        self.conditionDescription = conditionDescription
+        self.sunsetTime = sunsetTime
+        self.precipitationChance = precipitationChance
+        self.uvIndex = uvIndex
+    }
+}
+
+public struct RawHourForecast: Sendable {
+    public let date: Date
+    public let temperatureCelsius: Int
+    public let apparentTemperatureCelsius: Int
+    public let condition: ShowWeatherCondition
+    public let uvIndex: Int
+    public let windSpeedMps: Int
+    public let windDirectionDescription: String
+
+    public init(
+        date: Date,
+        temperatureCelsius: Int,
+        apparentTemperatureCelsius: Int,
+        condition: ShowWeatherCondition,
+        uvIndex: Int,
+        windSpeedMps: Int,
+        windDirectionDescription: String
+    ) {
+        self.date = date
+        self.temperatureCelsius = temperatureCelsius
+        self.apparentTemperatureCelsius = apparentTemperatureCelsius
+        self.condition = condition
+        self.uvIndex = uvIndex
+        self.windSpeedMps = windSpeedMps
+        self.windDirectionDescription = windDirectionDescription
+    }
+}

@@ -261,8 +261,11 @@ struct CurrentShowHomeView: View {
                 }
                 currentWeather = LiveShowWeatherService.shared.cachedWeather(for: show.id)
                 do {
-                    currentWeather = try await LiveShowWeatherService.shared.fetchWeather(for: show)
+                    let fetched = try await LiveShowWeatherService.shared.fetchWeather(for: show)
+                    guard !Task.isCancelled, currentShow?.id == show.id else { return }
+                    currentWeather = fetched
                 } catch {
+                    guard !Task.isCancelled, currentShow?.id == show.id else { return }
                     // retain cached value if available
                 }
             }
