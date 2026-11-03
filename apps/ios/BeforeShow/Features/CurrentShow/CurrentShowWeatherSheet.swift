@@ -29,7 +29,9 @@ struct CurrentShowWeatherSheet: View {
                 VStack(spacing: 20) {
                     if let weather {
                         heroCard(weather)
-                        hourlyMilestoneSection(weather)
+                        if !weather.hourly.isEmpty {
+                            hourlyMilestoneSection(weather)
+                        }
                         weatherMetricsGrid(weather)
                         packingChecklistSection(weather)
                         bottomActionButton

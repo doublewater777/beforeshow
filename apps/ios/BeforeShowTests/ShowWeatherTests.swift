@@ -310,4 +310,58 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertNotNil(showDayRequest)
         XCTAssertFalse(showDayRequest?.body.contains("今天的日落现场是") == true)
     }
+
+    func testSummaryCalloutInterpolatesTemperaturesCorrectly() throws {
+        let summary = policy.generateSummary(
+            conditionDesc: "晴",
+            sunsetTime: nil,
+            high: 28,
+            low: 19
+        )
+        XCTAssertTrue(summary.contains("19°~28°"), "Expected summary to contain formatted temperature range, got: \(summary)")
+    }
+
+    func testForecastWithoutMatchingWindowHoursDegradesGracefullyWithoutFakeHourly() throws {
+        let calendar = Calendar.current
+        let showDate = calendar.date(byAdding: .day, value: 2, to: Date())!
+        let showStartTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: showDate)!
+        let showEndTime = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: showDate)!
+
+        let dayForecast = RawDayForecast(
+            date: showDate,
+            highCelsius: 27,
+            lowCelsius: 16,
+            condition: .clear,
+            conditionDescription: "晴朗",
+            sunsetTime: calendar.date(bySettingHour: 18, minute: 30, second: 0, of: showDate),
+            precipitationChance: 0.0,
+            uvIndex: 4
+        )
+        // Morning-only hour (08:00), unrelated to night show window (18:00-24:00)
+        let morningHour = RawHourForecast(
+            date: calendar.date(bySettingHour: 8, minute: 0, second: 0, of: showDate)!,
+            temperatureCelsius: 17,
+            apparentTemperatureCelsius: 17,
+            condition: .cloudy,
+            uvIndex: 1,
+            windSpeedMps: 1,
+            windDirectionDescription: "北风"
+        )
+
+        let result = try policy.resolveForecast(
+            for: UUID(),
+            showDate: showDate,
+            showStartTime: showStartTime,
+            showEndTime: showEndTime,
+            calendar: calendar,
+            dailyForecasts: [dayForecast],
+            hourlyForecasts: [morningHour],
+            now: Date()
+        )
+
+        // Must NOT use the 08:00 morning hour as show weather; hourly must be empty and temperature falls back to day high
+        XCTAssertTrue(result.hourly.isEmpty)
+        XCTAssertEqual(result.temperatureCelsius, 27)
+        XCTAssertEqual(result.condition, .clear)
+    }
 }

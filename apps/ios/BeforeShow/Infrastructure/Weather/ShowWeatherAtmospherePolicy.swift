@@ -132,20 +132,24 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         if !relevantHours.isEmpty {
             selectedHours = Array(relevantHours.prefix(8))
         } else {
-            let dayHours = hourlyForecasts.filter { calendar.isDate($0.date, inSameDayAs: showDate) }
-            selectedHours = Array(dayHours.prefix(8))
+            // 没有覆盖演出时段的小时预报时，不拿无关时段冒充演出时段，降级为空列表
+            selectedHours = []
         }
 
         // 3. 选择代表性时刻的气温与状况
         let representativeHour: RawHourForecast?
-        if calendar.isDate(now, inSameDayAs: showDate) && now >= windowStart {
-            representativeHour = selectedHours.min(by: {
-                abs($0.date.timeIntervalSince(now)) < abs($1.date.timeIntervalSince(now))
-            })
+        if !selectedHours.isEmpty {
+            if calendar.isDate(now, inSameDayAs: showDate) && now >= windowStart {
+                representativeHour = selectedHours.min(by: {
+                    abs($0.date.timeIntervalSince(now)) < abs($1.date.timeIntervalSince(now))
+                })
+            } else {
+                representativeHour = selectedHours.min(by: {
+                    abs($0.date.timeIntervalSince(showStartTime)) < abs($1.date.timeIntervalSince(showStartTime))
+                })
+            }
         } else {
-            representativeHour = selectedHours.min(by: {
-                abs($0.date.timeIntervalSince(showStartTime)) < abs($1.date.timeIntervalSince(showStartTime))
-            })
+            representativeHour = nil
         }
 
         let temperature = representativeHour?.temperatureCelsius ?? dayForecast.highCelsius
@@ -232,7 +236,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         high: Int,
         low: Int
     ) -> String {
-        var text = BSLocalization.format("演出日气温 %1°~%2°，气候较适宜观演。", Int64(low), Int64(high))
+        var text = BSLocalization.format("演出日气温 %1$lld°~%2$lld°，气候较适宜观演。", Int64(low), Int64(high))
         if let sunset = sunsetTime {
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
