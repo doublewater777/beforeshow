@@ -21881,6 +21881,630 @@
           }
         }
       }
+    },
+    "现场天气": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Weather"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現場天氣"
+          }
+        }
+      }
+    },
+    "%1$@ 预报 · 体感 %2$lld°": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ forecast · Feels like %2$lld°"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 預報 · 體感 %2$lld°"
+          }
+        }
+      }
+    },
+    "当天最高气温": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily high"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "當天最高氣溫"
+          }
+        }
+      }
+    },
+    "全天降水概率": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily precipitation"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全天降水機率"
+          }
+        }
+      }
+    },
+    "风速": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wind speed"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風速"
+          }
+        }
+      }
+    },
+    "日落": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunset"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日落"
+          }
+        }
+      }
+    },
+    "出门前记得带": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What to bring"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出門前記得帶"
+          }
+        }
+      }
+    },
+    "暂无演出时段预报": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show-time forecast unavailable"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無演出時段預報"
+          }
+        }
+      }
+    },
+    "紫外线指数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UV index"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "紫外線指數"
+          }
+        }
+      }
+    },
+    "白天日晒较强，注意防晒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strong daytime sun. Protect your skin."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "白天日曬較強，注意防曬"
+          }
+        }
+      }
+    },
+    "紫外线较弱": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Low UV"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "紫外線較弱"
+          }
+        }
+      }
+    },
+    "数据来源：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data source: "
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料來源："
+          }
+        }
+      }
+    },
+    "法律补充": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legal information"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "法律補充"
+          }
+        }
+      }
+    },
+    "天气": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weather"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天氣"
+          }
+        }
+      }
+    },
+    "正在查看演出当天的天气…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking the forecast for show day…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在查看演出當天的天氣…"
+          }
+        }
+      }
+    },
+    "雨衣": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raincoat"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雨衣"
+          }
+        }
+      }
+    },
+    "雨具": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rain gear"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雨具"
+          }
+        }
+      }
+    },
+    "出行及演出时段可能有降水，记得带雨衣": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rain is possible around the show. Bring a raincoat."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出行及演出時段可能有降水，記得帶雨衣"
+          }
+        }
+      }
+    },
+    "出行及演出时段可能有降水，建议准备雨具": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rain is possible around the show. Bring rain gear."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出行及演出時段可能有降水，建議準備雨具"
+          }
+        }
+      }
+    },
+    "墨镜、防晒帽": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunglasses and sun hat"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太陽眼鏡、防曬帽"
+          }
+        }
+      }
+    },
+    "散场预计体感约 %1$lld°C，带件薄外套更稳妥": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It may feel like %1$lld°C after the show. Bring a light jacket."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "散場預計體感約 %1$lld°C，帶件薄外套更穩妥"
+          }
+        }
+      }
+    },
+    "散场预计约 %1$lld°C，带件薄外套更稳妥": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It may be around %1$lld°C after the show. Bring a light jacket."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "散場預計約 %1$lld°C，帶件薄外套更穩妥"
+          }
+        }
+      }
+    },
+    "昼夜温差较大，建议带件薄外套": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temperatures vary throughout the day. Bring a light jacket."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "晝夜溫差較大，建議帶件薄外套"
+          }
+        }
+      }
+    },
+    "薄外套": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light jacket"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "薄外套"
+          }
+        }
+      }
+    },
+    "轻装观演": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pack light"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕裝觀演"
+          }
+        }
+      }
+    },
+    "少带非必要随身物品，大件行李请提前确认场馆存放规定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bring only what you need and check the venue’s luggage policy in advance."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "少帶非必要隨身物品，大件行李請提前確認場館存放規定"
+          }
+        }
+      }
+    },
+    "及时补水": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stay hydrated"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "及時補水"
+          }
+        }
+      }
+    },
+    "如需携带水杯，请先确认场馆规定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check venue rules before bringing a water bottle."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如需攜帶水杯，請先確認場館規定"
+          }
+        }
+      }
+    },
+    "便携湿巾": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wipes"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "便攜濕巾"
+          }
+        }
+      }
+    },
+    "长时间观演，带包湿巾更方便": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wipes can be handy during a long show."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長時間觀演，帶包濕巾更方便"
+          }
+        }
+      }
+    },
+    "开场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show starts"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開場"
+          }
+        }
+      }
+    },
+    "演出当天预计 %1$lld°~%2$lld°。预计 %3$@ 日落，想看日落可提前留意舞台方向。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show-day forecast: %1$lld°–%2$lld°. Sunset is at %3$@; check the stage direction if you want to see it."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出當天預計 %1$lld°~%2$lld°。預計 %3$@ 日落，想看日落可提前留意舞台方向。"
+          }
+        }
+      }
+    },
+    "演出当天预计 %1$lld°~%2$lld°。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show-day forecast: %1$lld°–%2$lld°."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出當天預計 %1$lld°~%2$lld°。"
+          }
+        }
+      }
+    },
+    "无法定位演出场地": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unable to locate the venue"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法定位演出場地"
+          }
+        }
+      }
+    },
+    "暂时无法获取演出当天的天气预报": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The show-day forecast is unavailable right now."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時無法取得演出當天的天氣預報"
+          }
+        }
+      }
+    },
+    "暂时无法确定演出地时区，请稍后重试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unable to determine the venue’s time zone. Try again later."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時無法確定演出地時區，請稍後重試"
+          }
+        }
+      }
+    },
+    "天气获取已取消": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weather request cancelled"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天氣取得已取消"
+          }
+        }
+      }
+    },
+    "出行及演出时段降水概率较高，出门记得准备雨具。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rain is likely around the show. Bring rain gear."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出行及演出時段降水機率較高，出門記得準備雨具。"
+          }
+        }
+      }
+    },
+    "暂时无法获取天气，请稍后重试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weather is unavailable right now. Please try again later."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時無法取得天氣，請稍後重試"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

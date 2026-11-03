@@ -23,6 +23,7 @@ struct CurrentShowManagementSection: View {
     @Binding var ceremonyLightsOutShowID: UUID?
     @Binding var ceremonySheetShowID: UUID?
     var onCeremonyCommit: (_ rating: Int?, _ note: String?, _ generatesCard: Bool?) async throws -> Void
+    var weather: ShowWeatherDTO? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) var modelContext
@@ -46,7 +47,7 @@ struct CurrentShowManagementSection: View {
     /// Keep this raised until the corresponding onDismiss fires so a pending
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
-    let notificationRouter = NotificationDeepLinkRouter.shared
+    @State var notificationRouter = NotificationDeepLinkRouter.shared
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -167,6 +168,13 @@ struct CurrentShowManagementSection: View {
                         archive: FootprintArchiveSnapshot.identityOnly(shows: attachedCandidateShows)
                     )
                 }
+            case .weatherDetail:
+                CurrentShowWeatherSheet(
+                    show: show,
+                    initialWeather: weather,
+                    venueName: show.venueName,
+                    city: show.city
+                )
             }
         }
         .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {
@@ -473,7 +481,9 @@ struct CurrentShowManagementSection: View {
                 coverNamespace: coverNamespace,
                 onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { expandedCoverShowID = CurrentShowCoverPreference.toggled(storedShowID: expandedCoverShowID, showID: show.id) } },
                 onOpenSettings: onOpenSettings,
-                onAddShow: onAddShow
+                onAddShow: onAddShow,
+                weather: weather,
+                onOpenWeather: openWeatherDetail
             )
                 .padding(.horizontal, contentInset)
                 .padding(.top, BSLayout.pageHeaderTopPadding)
@@ -646,17 +656,4 @@ struct CurrentShowManagementSection: View {
         )
     }
 
-}
-
-private struct HomeHeaderScrollObserver: ViewModifier {
-    @Binding var isOverContent: Bool
-
-    func body(content: Content) -> some View {
-        content.bsOnScrollOffset { offset in
-            let next = offset.y > 10
-            if isOverContent != next {
-                isOverContent = next
-            }
-        }
-    }
 }

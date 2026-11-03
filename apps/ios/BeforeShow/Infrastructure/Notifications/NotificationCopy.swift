@@ -48,9 +48,11 @@ struct NotificationCopy {
         return BSLocalization.format("还有 %lld 天。", Int64(max(0, daysLeft))) + line
     }
 
-    func oneDayBefore(hasDisc: Bool, isWanted: Bool) -> String {
+    func oneDayBefore(hasDisc: Bool, isWanted: Bool, weatherTip: String? = nil) -> String {
         let tail: String
-        if isWanted {
+        if let weatherTip, !weatherTip.isEmpty {
+            tail = weatherTip
+        } else if isWanted {
             tail = BSLocalization.text("听听你标记的那些艺人吧。")
         } else if hasDisc {
             tail = BSLocalization.text("挑几首常演的热门歌预热一下。")
@@ -79,20 +81,31 @@ struct NotificationCopy {
     }
 
     /// `remainingSeconds` 只在临时补发时给出，按真实剩余时间写。
-    func showDay(remainingSeconds: Int?, hasMusic: Bool) -> String {
+    func showDay(remainingSeconds: Int?, hasMusic: Bool, weatherTip: String? = nil, sunsetArtist: String? = nil) -> String {
         let placeSuffix = context.place.map { " · \($0)" } ?? ""
+        let extraSuffix: String
+        if let weatherTip, !weatherTip.isEmpty {
+            extraSuffix = " \(weatherTip)"
+        } else if let sunsetArtist, !sunsetArtist.isEmpty {
+            extraSuffix = BSLocalization.format(" 今天的日落现场是%@。", sunsetArtist)
+        } else {
+            extraSuffix = ""
+        }
         guard let remainingSeconds else {
             let lead = context.startClock.map { BSLocalization.format("%@ 开场", $0) }
                 ?? BSLocalization.text("今天开场")
+            if let weatherTip, !weatherTip.isEmpty {
+                return lead + placeSuffix + BSLocalization.text("。还有 3 小时，准备出门。 ") + weatherTip
+            }
             return lead + placeSuffix + (hasMusic
                 ? BSLocalization.text("。还有 3 小时，准备出门，路上让这些歌陪你出发。")
-                : BSLocalization.text("。还有 3 小时，准备出门。"))
+                : BSLocalization.text("。还有 3 小时，准备出门。")) + extraSuffix
         }
         let remaining = max(60, remainingSeconds)
         let lead = remaining >= 3_600
             ? BSLocalization.format("%lld 小时后开场", Int64(remaining / 3_600))
             : BSLocalization.format("%lld 分钟后开场", Int64(remaining / 60))
-        return lead + placeSuffix + BSLocalization.text("。别错过开场。")
+        return lead + placeSuffix + BSLocalization.text("。别错过开场。") + extraSuffix
     }
 
     func postShowRitual(isConfirmed: Bool) -> String {

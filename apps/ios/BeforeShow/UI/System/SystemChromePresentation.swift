@@ -10,6 +10,7 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
     case mapChooser
     case widgetGuide
     case footprint
+    case weatherDetail
 
     var id: String {
         switch self {
@@ -21,6 +22,7 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
         case .mapChooser: return "mapChooser"
         case .widgetGuide: return "widgetGuide"
         case .footprint: return "footprint"
+        case .weatherDetail: return "weatherDetail"
         }
     }
 }

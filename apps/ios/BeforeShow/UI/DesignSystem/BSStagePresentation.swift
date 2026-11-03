@@ -176,6 +176,7 @@ struct BSStageScaffold<Content: View>: View {
 
 struct CurrentShowAmbientBackground: View {
     let coverImageURL: String?
+    var weatherTone: WeatherAtmosphereTone? = nil
 
     /// 封面主色（CIAreaAverage 提取后提饱和压亮度）；换封面经 .task(id:) 自动重取。
     @State private var ambientColor: Color?
@@ -191,6 +192,12 @@ struct CurrentShowAmbientBackground: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+
+            // ①-b 远景天气天际层 (Option 1 物理分层: WeatherSky)
+            if let weatherTone, weatherTone != .neutral {
+                weatherSkyBackdrop(for: weatherTone)
+                    .transition(.opacity)
+            }
 
             // ② 封面主色环境光：上方保持主光，底部保留更弱的同色漫光，
             // 让 Home Indicator 周围仍属于当前封面，但不抬高暗部对比。
@@ -253,6 +260,44 @@ struct CurrentShowAmbientBackground: View {
         .accessibilityHidden(true)
         .task(id: coverImageURL) {
             ambientColor = await Self.loadAmbientColor(for: coverImageURL)
+        }
+    }
+
+    @ViewBuilder
+    private func weatherSkyBackdrop(for tone: WeatherAtmosphereTone) -> some View {
+        switch tone {
+        case .sunsetGold:
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.22, green: 0.10, blue: 0.05).opacity(0.85), location: 0.0),
+                    .init(color: Color(red: 0.12, green: 0.05, blue: 0.07).opacity(0.45), location: 0.45),
+                    .init(color: Color.clear, location: 0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .rainBlue:
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.05, green: 0.11, blue: 0.18).opacity(0.90), location: 0.0),
+                    .init(color: Color(red: 0.03, green: 0.07, blue: 0.12).opacity(0.50), location: 0.45),
+                    .init(color: Color.clear, location: 0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .coldNightIndigo:
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.06, green: 0.06, blue: 0.18).opacity(0.90), location: 0.0),
+                    .init(color: Color(red: 0.03, green: 0.04, blue: 0.10).opacity(0.50), location: 0.45),
+                    .init(color: Color.clear, location: 0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .neutral:
+            EmptyView()
         }
     }
 

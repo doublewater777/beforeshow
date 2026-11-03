@@ -86,9 +86,15 @@ extension CurrentShowManagementSection {
             presentedSheet = show.endedAt == nil ? .endConfirmation : .footprint
         case .addShow:
             onAddShow()
+        case .weatherDetail:
+            openWeatherDetail()
         case .home, .listen, .nextShow:
             break
         }
+    }
+
+    func openWeatherDetail() {
+        presentedSheet = .weatherDetail
     }
 
     /// 散场仪式从确认散场时间开始：还没确认的先确认，确认后接到仪式。
@@ -132,6 +138,19 @@ struct CurrentShowClosableSheet<Content: View>: View {
                         .accessibilityLabel(BSLocalization.text("关闭"))
                     }
                 }
+        }
+    }
+}
+
+struct HomeHeaderScrollObserver: ViewModifier {
+    @Binding var isOverContent: Bool
+
+    func body(content: Content) -> some View {
+        content.bsOnScrollOffset { offset in
+            let next = offset.y > 10
+            if isOverContent != next {
+                isOverContent = next
+            }
         }
     }
 }

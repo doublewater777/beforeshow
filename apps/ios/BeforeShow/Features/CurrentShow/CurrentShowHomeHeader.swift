@@ -12,6 +12,8 @@ struct CurrentShowHomeHeader: View {
     let onToggleCover: () -> Void
     let onOpenSettings: () -> Void
     let onAddShow: () -> Void
+    var weather: ShowWeatherDTO? = nil
+    var onOpenWeather: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 12) {
@@ -48,6 +50,11 @@ struct CurrentShowHomeHeader: View {
                     .tracking(-0.5)
                     .foregroundStyle(BSColor.Stage.foreground)
                     .transition(.opacity)
+
+                if let weather {
+                    CurrentShowWeatherCapsule(weather: weather, action: onOpenWeather)
+                        .transition(.opacity)
+                }
 
                 if let live {
                     Button(action: onToggleCover) {
