@@ -55,7 +55,7 @@ struct CurrentShowWeatherSheet: View {
                 .padding(.bottom, 24)
             }
             .background(BSColor.surface.ignoresSafeArea())
-            .navigationTitle(BSLocalization.text("现场天气与穿搭"))
+            .navigationTitle(BSLocalization.text("现场天气"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 BSChromeToolbarCloseButton(
