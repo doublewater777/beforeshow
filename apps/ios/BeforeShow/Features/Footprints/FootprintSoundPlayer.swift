@@ -12,9 +12,11 @@ final class FootprintSoundPlayer: @unchecked Sendable {
         case chimeHigh = "chime-high"
         case clink
         case breath
+        case tear
 
         var gain: Float {
             switch self {
+            case .tear: return 0.5
             case .needle: return 0.45
             case .neon: return 0.35
             case .chimeLow, .chimeMid, .chimeHigh: return 0.4

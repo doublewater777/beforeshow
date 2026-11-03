@@ -155,6 +155,16 @@ enum FootprintStagePolicy {
         return result
     }
 
+    /// For each artist on this bill: how many times you had seen them by this night (this one included).
+    static func reunions(for show: Show, in archived: [Show]) -> [(name: String, nth: Int)] {
+        let ordered = FootprintArchiveRankingBuilder.chronological(archived)
+        let upTo = ordered.prefix { $0.id != show.id } + [show]
+        var seen = Set<String>()
+        return show.artistNames.compactMap(FootprintTextNormalizer.nonEmptyTrimmed).filter { seen.insert($0).inserted }.map { name in
+            (name, upTo.filter { $0.artistNames.contains(name) }.count)
+        }
+    }
+
     private static func nextUpcoming(_ shows: [Show], archived: [Show], now: Date) -> Show? {
         let archivedIDs = Set(archived.map(\.id))
         return shows

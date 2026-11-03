@@ -20,32 +20,8 @@ struct FootprintDispersalRitualSection: View {
                     .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 if hasContent {
-                    Menu {
-                        Button {
-                            onEdit()
-                        } label: {
-                            Label(BSLocalization.text("编辑评价"), systemImage: "pencil")
-                        }
-                        Button {
-                            onShare()
-                        } label: {
-                            Label(BSLocalization.text("分享卡片"), systemImage: "square.and.arrow.up")
-                        }
-                        Button(role: .destructive) {
-                            onClear()
-                        } label: {
-                            Label(BSLocalization.text("清除评价"), systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(BSFont.V3.caption)
-                            .foregroundStyle(BSColor.Stage.dim)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 4)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(BSLocalization.text("管理散场评价"))
+                    FootprintRoundIconButton(systemName: "square.and.arrow.up", label: BSLocalization.text("分享卡片"), action: onShare)
+                    FootprintRoundIconButton(systemName: "pencil", label: BSLocalization.text("编辑评价"), action: onEdit)
                 }
             }
 
@@ -60,11 +36,17 @@ struct FootprintDispersalRitualSection: View {
     private func dispersalContentCard(node: DispersalRating?, note: String?) -> some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             if let node {
-                HStack(alignment: .center, spacing: BSSpacing.compact) {
-                    Text(node.emoji)
-                        .font(.system(size: 28))
-
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .center, spacing: 10) {
+                    // One stage light per level, lit up to tonight's.
+                    ForEach(DispersalRating.allCases) { level in
+                        let lit = level.rawValue <= node.rawValue
+                        Circle()
+                            .fill(lit ? AnyShapeStyle(RadialGradient(colors: [.white, node.tint], center: .init(x: 0.4, y: 0.35), startRadius: 0, endRadius: 9)) : AnyShapeStyle(Color.clear))
+                            .overlay { if !lit { Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1.5) } }
+                            .frame(width: 16, height: 16)
+                            .shadow(color: lit ? node.tint.opacity(0.7) : .clear, radius: 6)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(node.label)
                             .font(BSFont.headline.weight(.bold))
                             .foregroundStyle(node.tint)
@@ -72,9 +54,11 @@ struct FootprintDispersalRitualSection: View {
                             .font(BSFont.V3.caption)
                             .foregroundStyle(BSColor.Stage.muted)
                     }
+                    .padding(.leading, 4)
 
                     Spacer(minLength: 0)
                 }
+                .accessibilityHidden(true)
             } else {
                 Label(BSLocalization.text("散场感想"), systemImage: "quote.bubble.fill")
                     .font(BSFont.V3.caption.weight(.semibold))
@@ -128,7 +112,15 @@ struct FootprintDispersalRitualSection: View {
         .onTapGesture {
             onEdit()
         }
+        .contextMenu {
+            Button(role: .destructive) {
+                onClear()
+            } label: {
+                Label(BSLocalization.text("清除评价"), systemImage: "trash")
+            }
+        }
         .accessibilityElement(children: .combine)
+        .accessibilityAction(named: BSLocalization.text("清除评价"), onClear)
         .accessibilityLabel(
             [
                 node.map(\.accessibilityLabel),

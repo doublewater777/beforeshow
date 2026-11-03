@@ -147,6 +147,33 @@ final class FootprintStageTests: XCTestCase {
         XCTAssertEqual(status.nextDay, 7)
     }
 
+    // MARK: Single show
+
+    func testReunionsCountMeetingsUpToThisNightOnly() throws {
+        let first = try makeShow("零食决斗", 2022, 12, 17, artists: ["浪味仙贝"])
+        let second = try makeShow("吟游拓荒", 2025, 3, 7, artists: ["浪味仙贝", "夜晚做决定"])
+        let third = try makeShow("凛歌", 2026, 6, 6, artists: ["浪味仙贝", "午夜乒乓"])
+
+        let reunions = FootprintStagePolicy.reunions(for: second, in: [first, second, third])
+
+        XCTAssertEqual(reunions.map(\.name), ["浪味仙贝", "夜晚做决定"])
+        XCTAssertEqual(reunions.map(\.nth), [2, 1], "later shows do not count towards an earlier night")
+    }
+
+    func testStageLightsFollowThePostersTwoStrongestHues() {
+        let orange = FootprintStageLight(red: 0.94, green: 0.54, blue: 0.14)
+        let yellow = FootprintStageLight(red: 0.95, green: 0.76, blue: 0.19)
+        let black = FootprintStageLight(red: 0.05, green: 0.05, blue: 0.05)
+        let pixels = Array(repeating: orange, count: 120) + Array(repeating: yellow, count: 60) + Array(repeating: black, count: 76)
+
+        let lights = FootprintStageLights.pick(from: pixels)
+
+        XCTAssertEqual(lights.count, 2)
+        XCTAssertGreaterThan(lights[0].red, lights[0].blue, "first light is the orange majority")
+        XCTAssertGreaterThan(lights[1].green, lights[0].green, "second light is the yellower hue")
+        XCTAssertEqual(FootprintStageLights.pick(from: Array(repeating: black, count: 256)), FootprintStageLights.fallback)
+    }
+
     // MARK: Helpers
 
     private func makeShow(
