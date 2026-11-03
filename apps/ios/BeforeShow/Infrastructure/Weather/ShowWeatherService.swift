@@ -87,6 +87,12 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
         let startTime = CurrentShowTimeState.dailyStartTime(on: effectiveDate, show: show, calendar: eventCalendar)
         let endTime = CurrentShowTimeState.dailyEndTime(on: effectiveDate, show: show, calendar: eventCalendar)
 
+        let isOutdoor = ShowWeatherAtmospherePolicy.isLikelyOutdoorVenue(
+            name: show.name,
+            venueName: show.venueName,
+            venueAddress: show.venueAddress
+        )
+
         let dto = try policy.resolveForecast(
             for: show.id,
             showDate: effectiveDate,
@@ -95,6 +101,7 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
             calendar: eventCalendar,
             dailyForecasts: rawDaily,
             hourlyForecasts: rawHourly,
+            isOutdoor: isOutdoor,
             now: Date()
         )
 

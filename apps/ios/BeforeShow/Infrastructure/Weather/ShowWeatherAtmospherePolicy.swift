@@ -34,6 +34,20 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         }
     }
 
+    /// 场地室内/露天属性启发式判断
+    static func isLikelyOutdoorVenue(name: String, venueName: String?, venueAddress: String?) -> Bool {
+        let combined = "\(name) \(venueName ?? "") \(venueAddress ?? "")".lowercased()
+        let indoorKeywords = ["livehouse", "live house", "liveshop", "剧场", "剧院", "室内", "空间", "厂房", "展馆", "体育馆", "演艺中心", "club", "bar"]
+        let outdoorKeywords = ["音乐节", "公园", "露天", "海滩", "海滨", "沙滩", "草地", "营地", "户外", "体育场", "stadium", "fest"]
+        if outdoorKeywords.contains(where: { combined.contains($0) }) {
+            return true
+        }
+        if indoorKeywords.contains(where: { combined.contains($0) }) {
+            return false
+        }
+        return true
+    }
+
     /// 根据现场气象指标生成针对性观演行装建议清单
     func generatePackingList(
         condition: ShowWeatherCondition,
@@ -41,6 +55,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         uvIndex: Int,
         lowCelsius: Int,
         highCelsius: Int,
+        dispersalCelsius: Int? = nil,
         isOutdoor: Bool = true
     ) -> [ShowWeatherPackingItemDTO] {
         var items: [ShowWeatherPackingItemDTO] = []
@@ -57,7 +72,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             )
         }
 
-        // 2. 强紫外线防晒
+        // 2. 强紫外线防晒（仅户外演出）
         if uvIndex >= 5 && isOutdoor {
             items.append(
                 ShowWeatherPackingItemDTO(
@@ -69,19 +84,44 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             )
         }
 
-        // 3. 昼夜温差与晚间加衣
-        if (highCelsius - lowCelsius >= 6) || lowCelsius <= 20 {
+        // 3. 散场夜温与昼夜温差加衣
+        let needsJacket: Bool
+        let jacketSubtitle: String
+        if let dispersal = dispersalCelsius, dispersal <= 19 {
+            needsJacket = true
+            jacketSubtitle = BSLocalization.format("深夜散场体感约 %1$lld°C 较凉 · 观演大汗易着凉，备一件外套", Int64(dispersal))
+        } else if (highCelsius - lowCelsius >= 6) || lowCelsius <= 20 {
+            needsJacket = true
+            jacketSubtitle = BSLocalization.text("晚间散场气温走低 · 建议备一件保暖外套")
+        } else {
+            needsJacket = false
+            jacketSubtitle = ""
+        }
+
+        if needsJacket {
             items.append(
                 ShowWeatherPackingItemDTO(
                     id: "jacket",
                     emoji: "🧥",
                     title: BSLocalization.text("防风轻便外套"),
-                    subtitle: BSLocalization.text("晚间散场气温走低 · 建议备一件保暖外套")
+                    subtitle: jacketSubtitle
                 )
             )
         }
 
-        // 4. 便携补水
+        // 4. 室内轻装观演存包提示
+        if !isOutdoor {
+            items.append(
+                ShowWeatherPackingItemDTO(
+                    id: "light_pack",
+                    emoji: "🎒",
+                    title: BSLocalization.text("轻装轻便出行"),
+                    subtitle: BSLocalization.text("室内站席体感温热 · 避免携带大包，提前存好行李")
+                )
+            )
+        }
+
+        // 5. 便携补水
         items.append(
             ShowWeatherPackingItemDTO(
                 id: "water_bottle",
@@ -91,7 +131,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             )
         )
 
-        // 5. 露天防蚊防尘
+        // 6. 露天防蚊防尘（仅户外演出）
         if isOutdoor {
             items.append(
                 ShowWeatherPackingItemDTO(
@@ -115,6 +155,7 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         calendar: Calendar,
         dailyForecasts: [RawDayForecast],
         hourlyForecasts: [RawHourForecast],
+        isOutdoor: Bool = true,
         now: Date = Date()
     ) throws -> ShowWeatherDTO {
         // 1. 查找演出所在日期的日预报
@@ -176,12 +217,19 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             temperatureCelsius: temperature
         )
 
+        let dispersalHour = selectedHours.min(by: {
+            abs($0.date.timeIntervalSince(showEndTime)) < abs($1.date.timeIntervalSince(showEndTime))
+        })
+        let dispersalCelsius = dispersalHour?.temperatureCelsius
+
         let packing = generatePackingList(
             condition: condition,
             precipitationProbability: dayForecast.precipitationChance,
             uvIndex: uv,
             lowCelsius: dayForecast.lowCelsius,
-            highCelsius: dayForecast.highCelsius
+            highCelsius: dayForecast.highCelsius,
+            dispersalCelsius: dispersalCelsius,
+            isOutdoor: isOutdoor
         )
 
         let summary = generateSummary(

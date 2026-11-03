@@ -49,9 +49,31 @@ final class ShowWeatherTests: XCTestCase {
             precipitationProbability: 0.05,
             uvIndex: 7,
             lowCelsius: 20,
-            highCelsius: 28
+            highCelsius: 28,
+            isOutdoor: true
         )
         XCTAssertTrue(list.contains(where: { $0.id == "sunglasses" }))
+    }
+
+    func testPackingListRecommendsLightPackForIndoorVenueAndOmitsOutdoorGear() {
+        let list = policy.generatePackingList(
+            condition: .clear,
+            precipitationProbability: 0.05,
+            uvIndex: 8,
+            lowCelsius: 20,
+            highCelsius: 28,
+            isOutdoor: false
+        )
+        XCTAssertTrue(list.contains(where: { $0.id == "light_pack" }))
+        XCTAssertFalse(list.contains(where: { $0.id == "sunglasses" }))
+        XCTAssertFalse(list.contains(where: { $0.id == "repellent" }))
+    }
+
+    func testVenueOutdoorHeuristicsIdentifiesIndoorAndOutdoor() {
+        XCTAssertFalse(ShowWeatherAtmospherePolicy.isLikelyOutdoorVenue(name: "专场演出", venueName: "LiveShop Uni 由你现场", venueAddress: "杭州拱墅区"))
+        XCTAssertFalse(ShowWeatherAtmospherePolicy.isLikelyOutdoorVenue(name: "巡演", venueName: "MAO Livehouse", venueAddress: "上海"))
+        XCTAssertTrue(ShowWeatherAtmospherePolicy.isLikelyOutdoorVenue(name: "草莓音乐节", venueName: "大梅沙海滨公园", venueAddress: "深圳"))
+        XCTAssertTrue(ShowWeatherAtmospherePolicy.isLikelyOutdoorVenue(name: "露天摇滚夜", venueName: "市民广场", venueAddress: "北京"))
     }
 
     func testPackingListRecommendsJacketOnLargeTemperatureDifferential() {

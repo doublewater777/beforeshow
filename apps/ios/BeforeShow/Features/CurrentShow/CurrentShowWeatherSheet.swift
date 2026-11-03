@@ -23,17 +23,25 @@ struct CurrentShowWeatherSheet: View {
         self.city = city ?? show.city
     }
 
+    private var eventTimeZone: TimeZone {
+        show.timingFields.eventCalendar(fallback: .current).timeZone
+    }
+
+    private var storageKey: String {
+        "beforeshow.weather.packed_items.\(show.id.uuidString)"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 20) {
                     if let weather {
                         heroCard(weather)
+                        packingChecklistSection(weather)
                         if !weather.hourly.isEmpty {
                             hourlyMilestoneSection(weather)
                         }
                         weatherMetricsGrid(weather)
-                        packingChecklistSection(weather)
                         bottomActionButton
                     } else if isLoading {
                         loadingPlaceholder
@@ -47,13 +55,8 @@ struct CurrentShowWeatherSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
-            .task {
-                if weather == nil {
-                    await loadWeather()
-                }
-            }
             .background(Color(red: 22/255, green: 22/255, blue: 26/255).ignoresSafeArea())
-            .navigationTitle(BSLocalization.text("现场微气候与穿搭"))
+            .navigationTitle(BSLocalization.text("现场天气与穿搭"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -67,6 +70,12 @@ struct CurrentShowWeatherSheet: View {
                             .background(Circle().fill(Color.white.opacity(0.1)))
                     }
                     .accessibilityLabel(BSLocalization.text("关闭"))
+                }
+            }
+            .task {
+                loadPackedItems()
+                if weather == nil {
+                    await loadWeather()
                 }
             }
         }
@@ -160,11 +169,72 @@ struct CurrentShowWeatherSheet: View {
         return city ?? BSLocalization.text("现场天气")
     }
 
+    // MARK: - Packing Checklist Section (Prioritized)
+
+    private func packingChecklistSection(_ weather: ShowWeatherDTO) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(BSLocalization.text("装备与穿搭建议"))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.85))
+
+            VStack(spacing: 8) {
+                ForEach(weather.packingList) { item in
+                    packingItemRow(item)
+                }
+            }
+        }
+    }
+
+    private func packingItemRow(_ item: ShowWeatherPackingItemDTO) -> some View {
+        let isPacked = packedItemIDs.contains(item.id)
+        return Button {
+            togglePackedItem(item.id)
+        } label: {
+            HStack(spacing: 12) {
+                Text(item.emoji)
+                    .font(.system(size: 20))
+                    .frame(width: 36, height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.08))
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isPacked ? Color.white.opacity(0.5) : Color.white)
+                        .strikethrough(isPacked, color: Color.white.opacity(0.4))
+
+                    Text(item.subtitle)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Image(systemName: isPacked ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(isPacked ? Color.white : Color.white.opacity(0.3))
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(isPacked ? 0.02 : 0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Hourly Milestone Track
 
     private func hourlyMilestoneSection(_ weather: ShowWeatherDTO) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(BSLocalization.text("演出现场时刻气象"))
+            Text(BSLocalization.text("演出时段天气"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.85))
 
@@ -224,6 +294,7 @@ struct CurrentShowWeatherSheet: View {
 
     private func formatHour(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.timeZone = eventTimeZone
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
     }
@@ -235,28 +306,28 @@ struct CurrentShowWeatherSheet: View {
             metricTile(
                 title: BSLocalization.text("降水概率"),
                 value: "\(Int(weather.precipitationProbability * 100))%",
-                subtitle: weather.precipitationProbability > 0.3 ? BSLocalization.text("建议携带雨衣") : BSLocalization.text("降水极小，无需担心泥泞"),
+                subtitle: weather.precipitationProbability > 0.3 ? BSLocalization.text("建议备好雨具") : BSLocalization.text("降水概率较低 · 预计无雨"),
                 systemIcon: "umbrella.fill"
             )
 
             metricTile(
                 title: BSLocalization.text("日落时刻"),
                 value: sunsetTimeString(weather),
-                subtitle: BSLocalization.text("黄金日落晚霞"),
+                subtitle: BSLocalization.text("日落时段"),
                 systemIcon: "sunset.fill"
             )
 
             metricTile(
                 title: BSLocalization.text("紫外线指数"),
                 value: "\(weather.uvIndex)",
-                subtitle: weather.uvIndex >= 5 ? BSLocalization.text("中高度 · 建议佩戴墨镜") : BSLocalization.text("温和紫外线"),
+                subtitle: weather.uvIndex >= 5 ? BSLocalization.text("紫外线偏强 · 建议防晒") : BSLocalization.text("紫外线温和"),
                 systemIcon: "sun.max.fill"
             )
 
             metricTile(
                 title: BSLocalization.text("现场风力"),
                 value: weather.windDescription,
-                subtitle: BSLocalization.text("入夜散场海风微凉"),
+                subtitle: BSLocalization.text("散场气温走低 · 留意晚风"),
                 systemIcon: "wind"
             )
         }
@@ -300,81 +371,15 @@ struct CurrentShowWeatherSheet: View {
             return "--:--"
         }
         let formatter = DateFormatter()
+        formatter.timeZone = eventTimeZone
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: sunset)
-    }
-
-    // MARK: - Packing Checklist Section
-
-    private func packingChecklistSection(_ weather: ShowWeatherDTO) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(BSLocalization.text("观演携带与穿搭建议"))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.85))
-
-            VStack(spacing: 8) {
-                ForEach(weather.packingList) { item in
-                    packingItemRow(item)
-                }
-            }
-        }
-    }
-
-    private func packingItemRow(_ item: ShowWeatherPackingItemDTO) -> some View {
-        let isPacked = packedItemIDs.contains(item.id)
-        return Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                if isPacked {
-                    packedItemIDs.remove(item.id)
-                } else {
-                    packedItemIDs.insert(item.id)
-                }
-            }
-        } label: {
-            HStack(spacing: 12) {
-                Text(item.emoji)
-                    .font(.system(size: 20))
-                    .frame(width: 36, height: 36)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.white.opacity(0.08))
-                    )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(item.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(isPacked ? Color.white.opacity(0.5) : Color.white)
-                        .strikethrough(isPacked, color: Color.white.opacity(0.4))
-
-                    Text(item.subtitle)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(Color.white.opacity(0.6))
-                        .lineLimit(2)
-                }
-
-                Spacer()
-
-                Image(systemName: isPacked ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(isPacked ? Color.white : Color.white.opacity(0.3))
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(isPacked ? 0.02 : 0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Bottom Action Button
 
     private var bottomActionButton: some View {
-        Button(BSLocalization.text("已记下穿搭建议")) {
+        Button(BSLocalization.text("完成")) {
             dismiss()
         }
         .buttonStyle(BSPrimaryButtonStyle())
@@ -437,5 +442,22 @@ struct CurrentShowWeatherSheet: View {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    private func loadPackedItems() {
+        if let stored = UserDefaults.standard.stringArray(forKey: storageKey) {
+            packedItemIDs = Set(stored)
+        }
+    }
+
+    private func togglePackedItem(_ id: String) {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+            if packedItemIDs.contains(id) {
+                packedItemIDs.remove(id)
+            } else {
+                packedItemIDs.insert(id)
+            }
+            UserDefaults.standard.set(Array(packedItemIDs), forKey: storageKey)
+        }
     }
 }

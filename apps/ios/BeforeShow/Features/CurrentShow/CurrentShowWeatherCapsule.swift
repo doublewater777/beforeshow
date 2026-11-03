@@ -38,6 +38,6 @@ struct CurrentShowWeatherCapsule: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(BSLocalization.format("天气：%1$@，%2$lld度", weather.conditionDescription, Int64(weather.temperatureCelsius)))
-        .accessibilityHint(BSLocalization.text("轻点查看现场微气候与穿搭建议"))
+        .accessibilityHint(BSLocalization.text("轻点查看现场天气与穿搭建议"))
     }
 }
