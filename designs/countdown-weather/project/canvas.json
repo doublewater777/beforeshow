@@ -1,0 +1,62 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-03T05:26:00Z"
+  },
+  "title": "当前演出 · 天气氛围与封面光融合 (方案 1 空间物理分层)",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "01-SunnySunsetCountdown.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "1. 倒数3天 · 晴空晚霞 (不止音乐节 · 晚霞天幕 + 翡翠青海报光)",
+      "radius": 44
+    },
+    "02-RainyMusicFestCountdown.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "2. 倒数2天 · 露天雨雾 (Can Festival · 雨丝天幕 + 粉橘舞台光)",
+      "radius": 44
+    },
+    "03-IndoorLivehouseCountdown.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "3. 倒数1天 · 室内外温差 (许钧巡演 · 寒夜天幕 + 舞台电声紫光)",
+      "radius": 44
+    },
+    "04-WeatherDetailDrawer.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "4. 交互抽屉 · 观演天气时段与装备指南 (StageSheet)",
+      "radius": 44
+    }
+  },
+  "order": [
+    "01-SunnySunsetCountdown.dc.html",
+    "02-RainyMusicFestCountdown.dc.html",
+    "03-IndoorLivehouseCountdown.dc.html",
+    "04-WeatherDetailDrawer.dc.html"
+  ],
+  "notes": {
+    "overview": {
+      "x": 0,
+      "y": -260,
+      "text": "方案 1 空间物理分层已选定：底层全景天气天幕 (Sky Backdrop) + 紧贴海报的封面主色舞台背光 (Poster Bloom)",
+      "kind": "title1",
+      "maxW": 2000
+    }
+  },
+  "designSystems": []
+}

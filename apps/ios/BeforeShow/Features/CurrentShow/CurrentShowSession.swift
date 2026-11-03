@@ -90,7 +90,7 @@ struct CurrentShowFeatureRootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
-    private let notificationRouter = NotificationDeepLinkRouter.shared
+    @State private var notificationRouter = NotificationDeepLinkRouter.shared
     @State private var notificationPresentation: CurrentShowNotificationPresentation?
     @State private var pendingMemoryCreate: PendingNotificationMemoryCreate?
     /// `notificationPresentation` may become nil before the sheet dismissal
@@ -129,6 +129,10 @@ struct CurrentShowFeatureRootView: View {
                     AddShowCoordinatorSheet()
                 case .timetable:
                     ShowAssetSheet(showID: show.id, showName: show.name, kind: .timetable)
+                case .weatherDetail:
+                    if let weather = LiveShowWeatherService.shared.cachedWeather(for: show.id) {
+                        CurrentShowWeatherSheet(weather: weather, venueName: show.venueName, city: show.city)
+                    }
                 default:
                     CurrentShowClosableSheet {
                         ShowDetailView(show: show, onDetailVisibilityChange: { _ in })
@@ -147,11 +151,14 @@ struct CurrentShowFeatureRootView: View {
             return
         }
         _ = notificationRouter.consumeFeatureRoot()
-        guard let target = shows.first(where: { $0.id == deepLink.showID }) else { return }
-        let currentShowID = CurrentShowSession().selectCurrentShow(
+        let currentShow = CurrentShowSession().selectCurrentShow(
             from: shows,
             manualSelection: CurrentShowSelectionStore.canonical(in: selections)
-        )?.id
+        )
+        let wildcardID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+        let target = (deepLink.showID == wildcardID ? currentShow : shows.first(where: { $0.id == deepLink.showID })) ?? currentShow
+        guard let target else { return }
+        let currentShowID = currentShow?.id
 
         switch deepLink.destination {
         case .home:
@@ -168,7 +175,16 @@ struct CurrentShowFeatureRootView: View {
             }
         default:
             if target.id == currentShowID {
-                notificationRouter.forwardToCurrentShow(deepLink)
+                notificationRouter.forwardToCurrentShow(
+                    NotificationDeepLink(
+                        showID: target.id,
+                        destination: deepLink.destination,
+                        feature: deepLink.feature,
+                        discID: deepLink.discID,
+                        artistID: deepLink.artistID,
+                        artistName: deepLink.artistName
+                    )
+                )
             } else {
                 present(showID: target.id, destination: deepLink.destination)
             }

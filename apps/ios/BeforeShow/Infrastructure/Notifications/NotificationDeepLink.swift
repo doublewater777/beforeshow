@@ -31,6 +31,7 @@ struct NotificationDeepLink: Equatable, Sendable {
         case footprint
         case nextShow
         case addShow
+        case weatherDetail
 
         var requiresFeaturePresentation: Bool {
             switch self {
@@ -61,6 +62,12 @@ struct NotificationDeepLink: Equatable, Sendable {
     }
 
     init?(userInfo: [AnyHashable: Any], actionIdentifier: String? = nil) {
+        if let urlString = userInfo["url"] as? String,
+           let url = URL(string: urlString),
+           let fromURL = NotificationDeepLink(url: url) {
+            self = fromURL
+            return
+        }
         guard let parsed = Self.parse(userInfo: userInfo) else { return nil }
         let playsDisc = actionIdentifier == ListeningNotificationCategory.playActionIdentifier
         self.init(showID: parsed.showID, destination: playsDisc ? .listen : parsed.destination,
@@ -68,14 +75,31 @@ struct NotificationDeepLink: Equatable, Sendable {
         requestsPlayback = playsDisc
     }
 
-    /// 实时活动按钮打开的地址，格式见 `BeforeShowOpenURL`。
+    /// 实时活动按钮打开的地址或通知 deep link，格式见 `BeforeShowOpenURL` 或 `beforeshow://show/detail?sheet=weather`。
     init?(url: URL) {
-        guard let parsed = BeforeShowOpenURL.parse(url),
-              let showID = UUID(uuidString: parsed.showID),
-              let destination = Destination(rawValue: parsed.destination) else {
-            return nil
+        if let parsed = BeforeShowOpenURL.parse(url),
+           let showID = UUID(uuidString: parsed.showID),
+           let destination = Destination(rawValue: parsed.destination) {
+            self.init(showID: showID, destination: destination)
+            return
         }
-        self.init(showID: showID, destination: destination)
+
+        if url.scheme == "beforeshow" {
+            let host = url.host ?? ""
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let queryItems = components?.queryItems ?? []
+            let sheet = queryItems.first(where: { $0.name == "sheet" })?.value
+            let rawShowID = queryItems.first(where: { $0.name == "id" || $0.name == "showID" || $0.name == "show" })?.value
+            let wildcardID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+            let showID = rawShowID.flatMap(UUID.init(uuidString:)) ?? wildcardID
+
+            if sheet == "weather" || sheet == "weatherDetail" || host == "weather" || url.path.contains("weather") {
+                self.init(showID: showID, destination: .weatherDetail)
+                return
+            }
+        }
+
+        return nil
     }
 
     static func parse(userInfo: [AnyHashable: Any]) -> NotificationDeepLink? {

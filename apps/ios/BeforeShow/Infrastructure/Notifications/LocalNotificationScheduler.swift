@@ -335,8 +335,13 @@ struct LocalNotificationScheduler {
             let roster = scope.includesAllMilestones && !isBackfill ? scope.listeningRoster : nil
             let disc = roster?.isMultiArtist == true
                 ? roster?.wanted ?? roster?.singalong : roster?.rehearsal ?? roster?.singalong
+            let sunsetArtist = sunsetArtistForShowDay(show: show, timeState: timeState, calendar: calendar)
             return NotificationNodeContent(
-                body: copy.showDay(remainingSeconds: isBackfill ? remaining : nil, hasMusic: disc != nil),
+                body: copy.showDay(
+                    remainingSeconds: isBackfill ? remaining : nil,
+                    hasMusic: disc != nil,
+                    sunsetArtist: sunsetArtist
+                ),
                 destination: .route, discID: disc?.id
             )
         case .postShowRitual:
@@ -354,5 +359,26 @@ struct LocalNotificationScheduler {
         case .listeningReminder, .addedFollowUp, .fourteenDaysBefore, .openingMemory, .sevenDaysBefore, .threeDaysBefore, .interestedPerformance:
             return nil
         }
+    }
+
+    private func sunsetArtistForShowDay(
+        show: Show,
+        timeState: CurrentShowTimeState,
+        calendar: Calendar
+    ) -> String? {
+        guard let timetable = show.lifecycleTimetable else { return nil }
+        let effectiveDate = timeState.effectiveDate
+        guard let day = timetable.orderedDays.first(where: { calendar.isDate($0.date, inSameDayAs: effectiveDate) })
+            ?? timetable.orderedDays.first else {
+            return nil
+        }
+        let perfs = day.orderedStages.flatMap(\.orderedPerformances)
+        guard !perfs.isEmpty else { return nil }
+
+        let weatherSunset = LiveShowWeatherService.shared.cachedWeather(for: show.id)?.sunsetTime
+        let targetSunset = weatherSunset ?? calendar.date(bySettingHour: 18, minute: 30, second: 0, of: effectiveDate)
+        guard let sunset = targetSunset else { return nil }
+
+        return ShowWeatherAtmospherePolicy().findSunsetPerformance(in: perfs, sunsetTime: sunset)?.artistName
     }
 }
