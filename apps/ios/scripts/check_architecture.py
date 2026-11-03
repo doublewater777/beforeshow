@@ -21,7 +21,7 @@ TEST_ROOTS = ("BeforeShowTests", "BeforeShowUITests")
 
 OVERSIZE_LINE_PINS = {
     "BeforeShowTests/CompanionSharingTests.swift": 1_697,
-    "BeforeShow/Features/Listening/ListeningRoomCoordinator.swift": 1527,
+    "BeforeShow/Features/Listening/ListeningRoomCoordinator.swift": 1524,
     "BeforeShowTests/ShowDraftTests.swift": 1_051,
     "BeforeShowTests/TimetableImportTests.swift": 1_033,
     "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 935,

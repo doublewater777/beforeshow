@@ -267,13 +267,10 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             try context.save()
         } catch {}
     }
-    func discardLoadedDiscState() {
-        operation?.cancel()
-        operation = nil
-        deck.eject()
-        mechanism.discardDisc()
-        clearPersistedDisc()
-        syncWidgetListeningState()
+    func discardLoadedDiscState(publishWidget: Bool = true) {
+        operation?.cancel(); operation = nil
+        deck.eject(); mechanism.discardDisc(); clearPersistedDisc()
+        if publishWidget { syncWidgetListeningState() }
     }
     /// Disc standing on the live-preview shelf. The widget plays this when nothing is seated.
     var livePreviewDisc: ListeningDisc? {

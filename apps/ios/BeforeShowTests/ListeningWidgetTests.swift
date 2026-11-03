@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 @testable import BeforeShow
 
@@ -437,6 +438,104 @@ final class ListeningWidgetTests: XCTestCase {
         XCTAssertEqual(snapshot.control, .pause)
     }
 
+    @MainActor
+    func testSwitchingCurrentShowDropsThePreviousListeningSession() async throws {
+        try await assertShowSwitchClearsListeningSession(playing: true)
+        try await assertShowSwitchClearsListeningSession(playing: false)
+    }
+
+    @MainActor
+    func testColdWidgetPlayStartsTheLivePreviewDisc() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        context.insert(CurrentShowSelection(selectedShowID: show.id, isManual: true))
+        try context.save()
+        let room = try await performColdWidgetPlay(container: container)
+        defer { stopWidgetRoom(room) }
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.show?.id, show.id)
+        XCTAssertEqual(room.mechanism.disc?.id, room.livePreviewDisc?.id)
+        XCTAssertEqual(WidgetListeningStore.read()?.showID, show.id)
+        XCTAssertEqual(WidgetListeningStore.read()?.control, .pause)
+    }
+
+    @MainActor
+    func testColdWidgetPlayDoesNotStartWithoutMusic() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "没有音乐", date: now, startTime: now)
+        context.insert(show)
+        context.insert(CurrentShowSelection(selectedShowID: show.id, isManual: true))
+        try context.save()
+        let room = try await performColdWidgetPlay(container: container)
+        defer { stopWidgetRoom(room) }
+        XCTAssertFalse(room.isPlaying)
+        XCTAssertNil(room.mechanism.disc)
+        let snapshot = try XCTUnwrap(WidgetListeningStore.read())
+        XCTAssertEqual(snapshot.showID, show.id)
+        XCTAssertEqual(snapshot.control, .openListen)
+        XCTAssertFalse(snapshot.hasSession)
+    }
+
+    @MainActor
+    private func assertShowSwitchClearsListeningSession(playing: Bool) async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let room = ListenTestData.room(context)
+        defer { stopWidgetRoom(room) }
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.compilationDiscs.first)
+        if playing {
+            room.loadDisc(disc, autoplay: true)
+            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        } else {
+            room.restoreDisc(disc)
+        }
+        XCTAssertEqual(WidgetListeningStore.read()?.hasSession, true)
+        ListeningRoomSessionStore.shared.adopt(room)
+        let next = try Show(name: "下一场", date: Date(), startTime: Date())
+        context.insert(next)
+        try context.save()
+
+        let prepared = await ListeningChromeBootstrapper.prepare(
+            show: next,
+            context: context,
+            catalogService: WidgetReviewCatalog(),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
+        )
+        XCTAssertNil(prepared)
+        XCTAssertFalse(room.isPlaying)
+        let snapshot = try XCTUnwrap(WidgetListeningStore.read())
+        XCTAssertEqual(snapshot.showID, next.id)
+        XCTAssertNil(snapshot.discTitle)
+        XCTAssertEqual(snapshot.control, .openListen)
+        XCTAssertFalse(snapshot.hasSession)
+    }
+
+    @MainActor
+    private func performColdWidgetPlay(container: ModelContainer) async throws -> ListeningRoomCoordinator {
+        ListeningRoomSessionStore.shared.adopt(nil)
+        let handler = ListeningIntentHandler.shared
+        handler.configure(with: container)
+        handler.playbackDependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: WidgetReviewCatalog(),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
+        )
+        defer { handler.playbackDependencies = nil }
+        await handler.perform(.play)
+        return try XCTUnwrap(ListeningRoomSessionStore.shared.room)
+    }
+
+    @MainActor
+    private func stopWidgetRoom(_ room: ListeningRoomCoordinator?) {
+        room?.stop()
+        room?.mechanism.motion.stop()
+        ListeningRoomSessionStore.shared.adopt(nil)
+    }
+
     private func makeDisc(trackArtwork: String?) -> ListeningDisc {
         let song = CatalogSong(
             appleMusicSongID: "projection-song",
@@ -491,5 +590,16 @@ final class ListeningWidgetTests: XCTestCase {
             hasSession: true,
             generatedAt: now
         )
+    }
+}
+
+private struct WidgetReviewCatalog: ListeningMusicCatalogServicing {
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        ListeningMusicAccess(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
     }
 }

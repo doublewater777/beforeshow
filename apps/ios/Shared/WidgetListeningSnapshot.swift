@@ -150,6 +150,25 @@ enum WidgetListeningStore {
         }
     }
 
+    /// The previous show's session has already ended. Publish this show instead.
+    static func publishCurrentShow(showID: UUID, showName: String, generatedAt: Date) {
+        if read()?.showID == showID { return }
+        guard write(WidgetListeningSnapshot(
+            showID: showID,
+            showName: showName,
+            artistName: nil,
+            discTitle: nil,
+            trackTitle: nil,
+            coverImageURL: nil,
+            trackCount: nil,
+            phase: .unavailable,
+            control: .openListen,
+            hasSession: false,
+            generatedAt: generatedAt
+        )) else { return }
+        BeforeShowWidgetKind.reloadAllTimelines()
+    }
+
     /// Names a newly current show without a play button. A seated session stays
     /// until Listen publishes the next snapshot. The same show keeps its disc.
     static func adoptShowChange(showID: UUID?, showName: String?, generatedAt: Date) {

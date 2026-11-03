@@ -7,10 +7,11 @@ enum ListeningChromeBootstrapper {
         guard room.show?.id != show.id else { return }
         if room.show != nil {
             ListeningRoomSessionStore.shared.unpublishChrome()
-            room.discardLoadedDiscState()
+            room.discardLoadedDiscState(publishWidget: false)
         }
         room.prepareForDisplay(show: show)
         ListeningRoomSessionStore.shared.adopt(room)
+        room.syncWidgetListeningState()
     }
 
     static func prepare(
@@ -35,8 +36,9 @@ enum ListeningChromeBootstrapper {
         if let cached = session.room,
            let cachedShowID = cached.show?.id,
            cachedShowID != show.id {
-            cached.discardLoadedDiscState()
+            cached.discardLoadedDiscState(publishWidget: false)
             session.clear(stoppingTransport: false)
+            WidgetListeningStore.publishCurrentShow(showID: show.id, showName: show.name, generatedAt: Date())
         }
 
         let room: ListeningRoomCoordinator
@@ -83,6 +85,37 @@ enum ListeningChromeBootstrapper {
         guard !Task.isCancelled, room.show?.id == show.id else { return nil }
 
         session.publishChrome(room)
+        return room
+    }
+
+    /// Widget play when no seated session is in memory. Unlike `prepare`, this may
+    /// load the current show: the user asked to hear its live-preview disc.
+    static func roomForWidgetPlayback(
+        show: Show,
+        context: ModelContext,
+        catalogService: any ListeningMusicCatalogServicing,
+        artistSearchService: any ArtistSearchServicing,
+        playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
+    ) async -> ListeningRoomCoordinator {
+        let session = ListeningRoomSessionStore.shared
+        if let cached = session.room, cached.show?.id == show.id {
+            if !cached.accessResolved || cached.livePreviewDisc == nil {
+                await cached.load(show: show)
+            }
+            return cached
+        }
+        if session.room != nil {
+            session.room?.discardLoadedDiscState(publishWidget: false)
+            session.clear(stoppingTransport: false)
+        }
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalogService,
+            artistSearchService: artistSearchService,
+            playbackFactory: playbackFactory
+        )
+        session.adopt(room)
+        await room.load(show: show)
         return room
     }
 }
