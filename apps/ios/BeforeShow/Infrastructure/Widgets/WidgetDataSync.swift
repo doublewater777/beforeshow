@@ -49,31 +49,18 @@ enum WidgetDataSync {
         if contentChanged(from: previous, to: widgetSnapshot) {
             didStoreSnapshot = WidgetSnapshotStore.write(widgetSnapshot)
             if didStoreSnapshot {
-                let currentListening = WidgetListeningStore.read()
-                if currentListening?.showID != currentShow?.id {
-                    if let currentShow {
-                        let baselineListening = WidgetListeningSnapshot(
-                            showID: currentShow.id,
-                            showName: currentShow.name,
-                            artistName: currentShow.artists.first?.name,
-                            discTitle: nil,
-                            trackTitle: nil,
-                            coverImageURL: nil,
-                            trackCount: nil,
-                            isPlaying: false,
-                            generatedAt: now
-                        )
-                        WidgetListeningStore.write(baselineListening)
-                    } else {
-                        WidgetListeningStore.write(nil)
-                    }
-                }
+                WidgetListeningStore.adoptShowChange(
+                    showID: currentShow?.id,
+                    showName: currentShow?.name,
+                    generatedAt: now
+                )
                 widgetReloadGeneration = generation
             }
         }
 
-        if let listening = WidgetListeningStore.read(), listening.showID == currentShow?.id,
-           let cover = listening.coverImageURL, !cover.isEmpty {
+        if let listening = WidgetListeningStore.read(),
+           let cover = listening.coverImageURL, !cover.isEmpty,
+           listening.hasSession || listening.showID == currentShow?.id {
             retainedCoverSources.insert(cover)
         }
 

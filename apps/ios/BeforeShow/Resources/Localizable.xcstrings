@@ -14869,6 +14869,23 @@
         }
       }
     },
+    "打开听": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Listen"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開聽"
+          }
+        }
+      }
+    },
     "添加一场演出，开始听歌": {
       "extractionState": "manual",
       "localizations": {

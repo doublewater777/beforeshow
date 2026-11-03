@@ -171,8 +171,8 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertEqual(playback.stopCount, 0)
     }
 
-    /// 小组件在 intent 返回后立刻刷新；返回时快照必须已翻转，否则按钮停在原状态。
-    func testWidgetToggleFlipsSnapshotImmediatelyThenSettles() async throws {
+    /// 小组件命令返回时，快照已经是播放器落定后的状态。
+    func testWidgetCommandSettlesSnapshotToPlayer() async throws {
         resetChromeGlobals()
         let widgetDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("widget-toggle-\(UUID().uuidString)")
@@ -216,17 +216,16 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         let room = try XCTUnwrap(prepared)
         defer { room.stop(); room.mechanism.motion.stop() }
 
-        // intent 返回时快照已翻转（按键即时响应），真实播放随后落定且不回退
-        await ListeningIntentHandler.shared.togglePlayPause()
-        XCTAssertEqual(WidgetListeningStore.read()?.isPlaying, true)
-        try await waitUntil { room.isPlaying && !room.busy }
-        XCTAssertEqual(WidgetListeningStore.read()?.isPlaying, true)
+        await ListeningIntentHandler.shared.perform(.play)
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(WidgetListeningStore.read()?.phase, .playing)
+        XCTAssertEqual(WidgetListeningStore.read()?.control, .pause)
         XCTAssertEqual(WidgetListeningStore.read()?.coverImageURL, "https://example.invalid/disc.jpg")
 
-        await ListeningIntentHandler.shared.togglePlayPause()
-        XCTAssertEqual(WidgetListeningStore.read()?.isPlaying, false)
-        try await waitUntil { !room.isPlaying }
-        XCTAssertEqual(WidgetListeningStore.read()?.isPlaying, false)
+        await ListeningIntentHandler.shared.perform(.pause)
+        XCTAssertFalse(room.isPlaying)
+        XCTAssertFalse(WidgetListeningStore.read()?.phase.showsSoundingChrome ?? true)
+        XCTAssertEqual(WidgetListeningStore.read()?.control, .play)
     }
 
     func testClearingCurrentShowStopsCachedPlaybackAndPreservesRestoredDisc() async throws {

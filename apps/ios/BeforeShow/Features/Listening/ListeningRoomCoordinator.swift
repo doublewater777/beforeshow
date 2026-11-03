@@ -267,36 +267,31 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             try context.save()
         } catch {}
     }
-    func discardLoadedDiscState() {
-        operation?.cancel()
-        operation = nil
-        deck.eject()
-        mechanism.discardDisc()
-        clearPersistedDisc()
-        syncWidgetListeningState()
+    func discardLoadedDiscState(publishWidget: Bool = true) {
+        operation?.cancel(); operation = nil
+        deck.eject(); mechanism.discardDisc(); clearPersistedDisc()
+        if publishWidget { syncWidgetListeningState() }
     }
-    /// 未装碟时小组件播放键会装入的唱片
-    var defaultDisc: ListeningDisc? {
-        compilationDiscs.first ?? discs.first
+    /// Disc standing on the live-preview shelf. The widget plays this when nothing is seated.
+    var livePreviewDisc: ListeningDisc? {
+        rackGroups.first { $0.id == ListeningDailyFeaturedDiscPolicy.liveArtistID }?.head
     }
-    /// - Parameter isPlayingOverride: Optional widget-local command projection.
-    func syncWidgetListeningState(isPlayingOverride: Bool? = nil) {
-        // 未装碟时展示播放键将要装入的唱片；封面只用唱片封面，现场海报留给倒计时小组件
-        let disc = mechanism.disc ?? defaultDisc
-        let currentTrack = track
-        let artist = currentTrack?.artistName ?? disc?.artistNames.first
-        let artwork = currentTrack?.artworkURL?.absoluteString ?? disc?.artworkURL?.absoluteString
-        let snapshot = WidgetListeningSnapshot(
+
+    func syncWidgetListeningState() {
+        let idle = livePreviewDisc
+        let seated = mechanism.position == .seated ? mechanism.disc : nil
+        let snapshot = WidgetListeningProjection.make(.init(
             showID: show?.id,
             showName: show?.name ?? (WidgetSnapshotStore.read()?.name ?? ""),
-            artistName: artist,
-            discTitle: disc?.title,
-            trackTitle: currentTrack?.title,
-            coverImageURL: artwork,
-            trackCount: disc?.tracks.count,
-            isPlaying: isPlayingOverride ?? wantsPlayback,
-            generatedAt: Date()
-        )
+            seatedDisc: seated,
+            track: seated == nil ? nil : track,
+            playerPhase: deck.phase,
+            playPauseAction: playPauseAction,
+            mechanicallyBusy: mechanism.isAutomatic,
+            pendingDisc: mechanism.disc,
+            idleDisc: idle,
+            idleCanLoad: idle.map { discPresentation(for: $0).canLoad } ?? false
+        ))
         widgetSync.sync(snapshot)
     }
     var track: ListeningDiscTrack? {

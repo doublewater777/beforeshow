@@ -1,15 +1,15 @@
 import Foundation
 
-/// Publishes listening state after preparing any artwork the app already has.
+/// Writes the listening snapshot immediately. Cover preparation reloads the widget later.
 @MainActor
 final class ListeningWidgetSync {
     private var task: Task<Void, Never>?
-    private var needsReload = false
 
     func sync(_ snapshot: WidgetListeningSnapshot) {
         let previous = WidgetListeningStore.read()
-        if previous == nil || !previous!.isContentEqual(to: snapshot) {
-            needsReload = WidgetListeningStore.write(snapshot) || needsReload
+        if previous == nil || !previous!.isContentEqual(to: snapshot),
+           WidgetListeningStore.write(snapshot) {
+            BeforeShowWidgetKind.reloadAllTimelines()
         }
         task?.cancel()
         task = Task {
@@ -18,8 +18,7 @@ final class ListeningWidgetSync {
             let hadCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
             await WidgetArtworkPreparation.prepareCached(sources: sources)
             guard !Task.isCancelled else { return }
-            if needsReload || (!hadCover && WidgetCoverCache.cachedCoverPath(matching: source) != nil) {
-                needsReload = false
+            if !hadCover && WidgetCoverCache.cachedCoverPath(matching: source) != nil {
                 BeforeShowWidgetKind.reloadAllTimelines()
             }
             await WidgetArtworkPreparation.refresh(sources: sources) { _ in

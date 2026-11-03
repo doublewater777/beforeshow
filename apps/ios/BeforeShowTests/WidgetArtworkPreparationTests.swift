@@ -73,7 +73,7 @@ final class WidgetArtworkPreparationTests: XCTestCase {
         WidgetListeningStore.write(WidgetListeningSnapshot(
             showID: nil, showName: "测试现场", artistName: nil, discTitle: nil,
             trackTitle: nil, coverImageURL: retained, trackCount: nil,
-            isPlaying: true, generatedAt: .now
+            phase: .playing, control: .pause, hasSession: true, generatedAt: .now
         ))
         await WidgetCoverCache.pruneCovers(keeping: [])
         server.releaseSlowResponse()
