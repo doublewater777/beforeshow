@@ -31,7 +31,9 @@ struct ListeningTimelineProvider: TimelineProvider {
                 trackTitle: "艾蜜莉",
                 coverImageURL: nil,
                 trackCount: 12,
-                isPlaying: false,
+                phase: .idle,
+                control: .play,
+                hasSession: false,
                 generatedAt: .now
             ),
             coverImagePath: nil,
@@ -101,18 +103,21 @@ struct ListeningWidget: Widget {
 }
 
 #if DEBUG
-private func listeningPreviewEntry(trackTitle: String?, isPlaying: Bool) -> ListeningEntry {
-    ListeningEntry(
+private func listeningPreviewEntry(trackTitle: String?, phase: WidgetListeningPhase) -> ListeningEntry {
+    let sounding = phase.showsSoundingChrome
+    return ListeningEntry(
         date: .now,
         snapshot: WidgetListeningSnapshot(
             showID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
             showName: "喜力®星银®·泡泡岛音乐与艺术节·江浙沪站",
             artistName: trackTitle == nil ? nil : "张悬",
-            discTitle: nil,
+            discTitle: trackTitle == nil ? nil : "城市",
             trackTitle: trackTitle,
             coverImageURL: nil,
             trackCount: nil,
-            isPlaying: isPlaying,
+            phase: phase,
+            control: sounding || phase == .preparing || phase == .waiting ? .pause : .play,
+            hasSession: trackTitle != nil,
             generatedAt: .now
         ),
         coverImagePath: nil,
@@ -123,18 +128,18 @@ private func listeningPreviewEntry(trackTitle: String?, isPlaying: Bool) -> List
 #Preview("小号", as: .systemSmall) {
     ListeningWidget()
 } timeline: {
-    listeningPreviewEntry(trackTitle: nil, isPlaying: false)
-    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: false)
-    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: true)
+    listeningPreviewEntry(trackTitle: nil, phase: .idle)
+    listeningPreviewEntry(trackTitle: "宝贝", phase: .paused)
+    listeningPreviewEntry(trackTitle: "宝贝", phase: .playing)
     ListeningEntry.empty
 }
 
 #Preview("中号", as: .systemMedium) {
     ListeningWidget()
 } timeline: {
-    listeningPreviewEntry(trackTitle: nil, isPlaying: false)
-    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: false)
-    listeningPreviewEntry(trackTitle: "宝贝", isPlaying: true)
+    listeningPreviewEntry(trackTitle: nil, phase: .idle)
+    listeningPreviewEntry(trackTitle: "宝贝", phase: .paused)
+    listeningPreviewEntry(trackTitle: "宝贝", phase: .playing)
     ListeningEntry.empty
 }
 #endif

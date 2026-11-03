@@ -153,11 +153,18 @@ struct WidgetSettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Image(systemName: listening?.isPlaying == true ? "pause.fill" : "play.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(BSColor.Stage.background)
-                    .frame(width: 34, height: 34)
-                    .background(BSColor.Stage.heroWarmGold, in: Circle())
+                if listening?.control == .openListen {
+                    Text(BSLocalization.text("打开听"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .lineLimit(1)
+                } else {
+                    Image(systemName: listening?.control == .pause ? "pause.fill" : "play.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(BSColor.Stage.background)
+                        .frame(width: 34, height: 34)
+                        .background(BSColor.Stage.heroWarmGold, in: Circle())
+                }
             }
         }
     }

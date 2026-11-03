@@ -77,7 +77,7 @@ private struct SmallListeningView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    PlayPauseButton(isPlaying: snapshot.isPlaying, size: 34)
+                    PlayPauseButton(snapshot: snapshot, size: 34)
                 }
             }
         } else {
@@ -126,7 +126,7 @@ private struct MediumListeningView: View {
 
                     Text(copy.title)
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(snapshot.isPlaying ? WidgetTheme.heroWarmGold : WidgetTheme.foreground)
+                        .foregroundStyle(snapshot.phase.showsSoundingChrome ? WidgetTheme.heroWarmGold : WidgetTheme.foreground)
                         .lineLimit(2)
                     if let subtitle = copy.subtitle {
                         Text(subtitle)
@@ -138,11 +138,11 @@ private struct MediumListeningView: View {
 
                     Spacer(minLength: 8)
 
-                    PlayPauseButton(isPlaying: snapshot.isPlaying, size: 34)
+                    PlayPauseButton(snapshot: snapshot, size: 34)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                SleeveWithDisc(coverImagePath: entry.coverImagePath, isPlaying: snapshot.isPlaying)
+                SleeveWithDisc(coverImagePath: entry.coverImagePath, isSounding: snapshot.phase.showsSoundingChrome)
                     .padding(.leading, 12)
             }
         } else {
@@ -154,14 +154,14 @@ private struct MediumListeningView: View {
 /// 封套；播放中从左侧露出一截 CD。
 private struct SleeveWithDisc: View {
     let coverImagePath: String?
-    let isPlaying: Bool
+    let isSounding: Bool
 
     private let sleeveSize: CGFloat = 108
     private let discPeek: CGFloat = 22
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            if isPlaying {
+            if isSounding {
                 CDDisc(size: sleeveSize - 6)
                     .padding(.trailing, discPeek + 3)
             }
@@ -185,24 +185,38 @@ private struct SleeveWithDisc: View {
                 }
                 .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
         }
-        .frame(width: sleeveSize + (isPlaying ? discPeek : 0), alignment: .trailing)
+        .frame(width: sleeveSize + (isSounding ? discPeek : 0), alignment: .trailing)
     }
 }
 
 // MARK: - 共用部件
 
 private struct PlayPauseButton: View {
-    let isPlaying: Bool
+    let snapshot: WidgetListeningSnapshot
     let size: CGFloat
 
     @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
-        Button(intent: ToggleListeningPlaybackIntent()) {
-            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+        switch snapshot.control {
+        case .play:
+            controlButton(intent: PlayListeningIntent(), systemName: "play.fill", nudge: true)
+        case .pause:
+            controlButton(intent: PauseListeningIntent(), systemName: "pause.fill", nudge: false)
+        case .openListen:
+            Text(BSLocalization.text("打开听"))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(WidgetTheme.foreground)
+                .lineLimit(1)
+        }
+    }
+
+    private func controlButton(intent: some AppIntent, systemName: String, nudge: Bool) -> some View {
+        Button(intent: intent) {
+            Image(systemName: systemName)
                 .font(.system(size: size * 0.38, weight: .bold))
                 .foregroundStyle(iconColor)
-                .offset(x: isPlaying ? 0 : size * 0.03)
+                .offset(x: nudge ? size * 0.03 : 0)
                 .frame(width: size, height: size)
                 .background(buttonBackground, in: Circle())
         }

@@ -2,30 +2,14 @@ import Foundation
 import SwiftData
 
 // MARK: - Listening Intent Handler
-// 在主 App 进程中执行小组件 AudioPlaybackIntent 请求。
-
-enum ListeningWidgetPlaybackProjection {
-    static func optimisticIsPlaying(
-        action: ListeningPlayPauseAction,
-        currentDesiredPlayback: Bool
-    ) -> Bool {
-        switch action {
-        case .play:
-            true
-        case .pause:
-            false
-        case .disabled:
-            currentDesiredPlayback
-        }
-    }
-}
-
+// 在主 App 进程中执行小组件的播放或暂停。命令串行进入「听」模块，不改写快照来假装已经生效。
 
 @MainActor
 final class ListeningIntentHandler: ListeningIntentHandling {
     static let shared = ListeningIntentHandler()
 
     private var modelContainer: ModelContainer?
+    private var commandChain: Task<Void, Never> = Task {}
 
     private init() {}
 
@@ -33,40 +17,50 @@ final class ListeningIntentHandler: ListeningIntentHandling {
         modelContainer = container
     }
 
-    /// 小组件在 intent 返回后立即刷新：先乐观翻转快照让按键即时响应，
-    /// 真实播放在后台完成（App 有后台音频权限），失败或未生效时再按真实状态回写。
-    func togglePlayPause() async {
-        if let cached = ListeningRoomSessionStore.shared.room, cached.hasLoadedDisc {
-            cached.syncWidgetListeningState(
-                isPlayingOverride: ListeningWidgetPlaybackProjection.optimisticIsPlaying(
-                    action: cached.playPauseAction,
-                    currentDesiredPlayback: cached.wantsPlayback
-                )
-            )
-        } else {
-            WidgetListeningStore.setPlaying(!(WidgetListeningStore.read()?.isPlaying ?? false))
+    func perform(_ command: ListeningWidgetCommand) async {
+        let previous = commandChain
+        let next = Task { @MainActor in
+            await previous.value
+            await self.apply(command)
         }
-        Task { await applyToggle() }
+        commandChain = next
+        await next.value
     }
 
-    private func applyToggle() async {
-        guard let room = await resolveRoom() else {
-            WidgetListeningStore.setPlaying(false)
-            BeforeShowWidgetKind.reloadAllTimelines()
-            return
-        }
-        if room.hasLoadedDisc {
-            room.playPause()
-        } else if let disc = room.defaultDisc {
-            room.loadDisc(disc, autoplay: true)
+    private func apply(_ command: ListeningWidgetCommand) async {
+        guard let room = await resolveRoom(for: command) else { return }
+        switch command {
+        case .play:
+            play(in: room)
+        case .pause:
+            if room.playPauseAction == .pause, !room.mechanism.isAutomatic {
+                room.playPause()
+            }
         }
         await room.settlePendingOperation()
         room.syncWidgetListeningState()
     }
 
-    private func resolveRoom() async -> ListeningRoomCoordinator? {
-        if let cached = ListeningRoomSessionStore.shared.room, cached.hasLoadedDisc {
-            return cached
+    private func play(in room: ListeningRoomCoordinator) {
+        if room.mechanism.isAutomatic { return }
+        if room.hasLoadedDisc {
+            if room.playPauseAction == .play {
+                room.playPause()
+            }
+            return
+        }
+        guard let disc = room.livePreviewDisc, room.discPresentation(for: disc).canLoad else { return }
+        room.loadDisc(disc, autoplay: true)
+    }
+
+    /// A loaded disc stays with the room that is already playing it. Preparing the
+    /// current show here would discard that disc.
+    private func resolveRoom(for command: ListeningWidgetCommand) async -> ListeningRoomCoordinator? {
+        if let cached = ListeningRoomSessionStore.shared.room {
+            let ownsSession = cached.hasLoadedDisc || cached.busy || cached.mechanism.isAutomatic
+            if ownsSession || command == .pause || cached.show != nil {
+                return cached
+            }
         }
         guard let container = modelContainer else { return nil }
         let context = ModelContext(container)
@@ -75,6 +69,7 @@ final class ListeningIntentHandler: ListeningIntentHandling {
         guard let currentShow = CurrentShowSession().selectCurrentShow(from: shows, manualSelection: selection) else {
             return nil
         }
-        return await ListeningChromeBootstrapper.prepare(show: currentShow, context: context) ?? ListeningRoomSessionStore.shared.room
+        return await ListeningChromeBootstrapper.prepare(show: currentShow, context: context)
+            ?? ListeningRoomSessionStore.shared.room
     }
 }
