@@ -35,7 +35,7 @@ struct FootprintEntryTiles: View {
             NavigationLink { FootprintNeonVenuesView(archive: archive) } label: { venuesTile }
                 .buttonStyle(BSPressStyle())
         case .cities:
-            NavigationLink { FootprintTourShirtView(archive: archive, covers: covers, allShows: allShows) } label: { citiesTile }
+            NavigationLink { FootprintCityMapView(archive: archive, covers: covers, allShows: allShows) } label: { citiesTile }
                 .buttonStyle(BSPressStyle())
         case .pass:
             NavigationLink { FootprintBackstagePassView(archive: archive, covers: covers) } label: { passTile }
@@ -100,15 +100,8 @@ struct FootprintEntryTiles: View {
         let subtitle = next.map {
             BSLocalization.format("%lld 站 · 下一站%@", archive.cities.count, $0.city)
         } ?? BSLocalization.format("%lld 站", archive.cities.count)
-        return tile(title: BSLocalization.text("城市"), subtitle: subtitle, background: AnyShapeStyle(FootprintRoomPalette.cotton)) {
-            VStack(spacing: 2) {
-                Text(BSLocalization.format("THE %lld SHOWS", archive.shows.count))
-                    .font(.system(size: 21, weight: .black).width(.compressed))
-                Text(BSLocalization.text("TOUR"))
-                    .font(.system(size: 11, weight: .black).width(.compressed))
-                    .tracking(6)
-            }
-            .foregroundStyle(FootprintRoomPalette.printInk)
+        return tile(title: BSLocalization.text("城市"), subtitle: subtitle, background: AnyShapeStyle(FootprintRoomPalette.mapNight)) {
+            FootprintMiniCityLights(counts: stops.filter { !$0.isNext }.map(\.count))
         }
     }
 
@@ -252,5 +245,31 @@ private struct FootprintMiniPass: View {
             .rotationEffect(.degrees(-4))
             .shadow(color: .black.opacity(0.6), radius: 10, y: 8)
             .accessibilityHidden(true)
+    }
+}
+
+/// The city map in miniature: a few warm lights on the dark, biggest where you went most.
+private struct FootprintMiniCityLights: View {
+    let counts: [Int]
+
+    var body: some View {
+        Canvas { canvas, size in
+            // Fixed spots so the tile reads as a map, sized by your busiest cities.
+            let spots: [CGPoint] = [CGPoint(x: 0.62, y: 0.55), CGPoint(x: 0.78, y: 0.36), CGPoint(x: 0.3, y: 0.42), CGPoint(x: 0.5, y: 0.26), CGPoint(x: 0.7, y: 0.78)]
+            let ranked = counts.sorted(by: >)
+            for (spot, count) in zip(spots, ranked) {
+                let r = 6 + sqrt(Double(count)) * 3.4
+                let p = CGPoint(x: spot.x * size.width, y: spot.y * size.height)
+                canvas.fill(
+                    Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
+                    with: .radialGradient(
+                        Gradient(colors: [FootprintRoomPalette.bulb, FootprintRoomPalette.bulbGlow.opacity(0.6), .clear]),
+                        center: p, startRadius: 0, endRadius: r
+                    )
+                )
+                canvas.fill(Path(ellipseIn: CGRect(x: p.x - 1.5, y: p.y - 1.5, width: 3, height: 3)), with: .color(FootprintRoomPalette.neonCore))
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

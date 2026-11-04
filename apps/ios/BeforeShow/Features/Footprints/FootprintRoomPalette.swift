@@ -26,9 +26,8 @@ enum FootprintRoomPalette {
     static let starlight = Color(red: 0.784, green: 0.824, blue: 0.941)
     static let spotlight = Color(red: 1.0, green: 0.902, blue: 0.690)
 
-    // Tour shirt.
-    static let cotton = Color(red: 0.102, green: 0.102, blue: 0.114)
-    static let printInk = Color(red: 0.929, green: 0.902, blue: 0.839)
+    // City map at night.
+    static let mapNight = Color(red: 0.043, green: 0.059, blue: 0.078)
 
     // Candle.
     static let candleRoom = Color(red: 0.031, green: 0.024, blue: 0.020)

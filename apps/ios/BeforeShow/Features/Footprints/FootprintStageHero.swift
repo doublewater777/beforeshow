@@ -36,6 +36,10 @@ struct FootprintStageHero: View {
             .padding(.top, 14)
             FootprintTicketStub(show: show, ordinal: identity.showOrdinal, lights: colors, reunionLine: reunionLine)
                 .padding(.top, 22)
+            if let song = FootprintNumberSongs.song(for: identity.showOrdinal) {
+                FootprintNumberRecord(song: song)
+                    .padding(.top, 16)
+            }
         }
         .task(id: show.id) {
             await sampleLights()
