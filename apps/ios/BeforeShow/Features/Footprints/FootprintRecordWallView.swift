@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// Fifty numbered records, one per show count. Each show you go to presses the next one,
-/// labelled with that night's poster; the rest wait in the dark.
+/// Fifty numbered records, one per show count. Each show you go to presses the next one;
+/// the rest wait in the dark.
 struct FootprintRecordWallView: View {
     let archive: FootprintArchiveSnapshot
-    let covers: [UUID: FootprintCover]
 
     @State private var selected: Int?
     @State private var controller = FootprintNumberSongPlayer.shared
     @State private var detailTarget: FootprintDetailDestination?
+    @Environment(\.openURL) private var openURL
 
-    private static let disc: CGFloat = 58
+    private static let disc: CGFloat = 76
 
     /// The show that unlocked each count, oldest first.
     private var ordered: [Show] { FootprintArchiveRankingBuilder.chronological(archive.shows) }
@@ -22,7 +22,7 @@ struct FootprintRecordWallView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header(shelf)
                     .padding(.top, 12)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 18) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 20) {
                     ForEach(1...shelf.total, id: \.self) { number in
                         slot(number, show: ordered.indices.contains(number - 1) ? ordered[number - 1] : nil, next: shelf.next?.number)
                     }
@@ -51,6 +51,7 @@ struct FootprintRecordWallView: View {
         .toolbar { ToolbarItem(placement: .principal) { FootprintNavigationTitle(title: BSLocalization.text("数字唱片")) } }
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
         .sensoryFeedback(.selection, trigger: selected)
+        .task { await controller.load(shelf.unlocked) }
         .onDisappear {
             if let current = controller.currentNumber { controller.stop(current) }
         }
@@ -94,7 +95,7 @@ struct FootprintRecordWallView: View {
             VStack(spacing: 6) {
                 ZStack {
                     if let show {
-                        FootprintNumberDisc(number: number, diameter: Self.disc, isPlaying: controller.isPlaying(number), show: show, cover: covers[show.id])
+                        FootprintNumberDisc(number: number, diameter: Self.disc, isPlaying: controller.isPlaying(number), artworkURL: controller.previews[number]?.artworkURL)
                     } else if isNext {
                         Circle()
                             .strokeBorder(BSColor.Stage.accent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
@@ -179,42 +180,68 @@ struct FootprintRecordWallView: View {
 
     private func unlockedCard(_ song: FootprintNumberSong, show: Show) -> some View {
         let isPlaying = controller.isPlaying(song.number)
+        let preview = controller.previews[song.number]
         return HStack(alignment: .top, spacing: 16) {
             Button {
                 if !isPlaying { FootprintSoundPlayer.shared.play(.needle) }
                 Task { await controller.toggle(song) }
             } label: {
-                FootprintNumberDisc(number: song.number, diameter: 92, isPlaying: isPlaying, show: show, cover: covers[show.id])
+                FootprintNumberDisc(number: song.number, diameter: 112, isPlaying: isPlaying, artworkURL: preview?.artworkURL)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isPlaying ? BSLocalization.format("暂停 %@", song.title) : BSLocalization.format("试听 %@", song.title))
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(String(format: "No. %02d", song.number))
                     .font(.system(size: 11, weight: .semibold).width(.condensed))
                     .tracking(2)
                     .foregroundStyle(BSColor.Stage.accent)
-                Text(song.title)
-                    .font(.system(size: 18, weight: .bold))
+                Text(preview?.title ?? song.title)
+                    .font(.system(size: 19, weight: .bold))
                     .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(2)
-                if !song.artist.isEmpty {
-                    Text(song.artist)
-                        .font(.system(size: 13))
-                        .foregroundStyle(BSColor.Stage.muted)
+                Text(preview?.artist ?? song.artist)
+                    .font(.system(size: 14))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(1)
+                ForEach(Self.details(preview), id: \.self) { line in
+                    Text(line)
+                        .font(.system(size: 12))
+                        .foregroundStyle(BSColor.Stage.dim)
+                        .lineLimit(1)
                 }
-                Button { detailTarget = FootprintDetailDestination(show: show) } label: {
-                    HStack(spacing: 4) {
+                FootprintNumberSongStatus(number: song.number)
+                HStack(spacing: 8) {
+                    Button { detailTarget = FootprintDetailDestination(show: show) } label: {
                         Text(BSLocalization.format("第 %lld 场 · %@", song.number, show.name))
                             .lineLimit(1)
-                        Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold))
+                            .padding(.horizontal, 10)
+                            .frame(height: 28)
+                            .background(Color.white.opacity(0.07), in: Capsule())
                     }
-                    .font(.system(size: 12))
-                    .foregroundStyle(BSColor.Stage.dim)
+                    if let link = preview?.storeURL {
+                        Button { openURL(link) } label: {
+                            Image(systemName: "arrow.up.right")
+                                .frame(width: 28, height: 28)
+                                .background(Color.white.opacity(0.07), in: Circle())
+                        }
+                        .accessibilityLabel(BSLocalization.text("在 Apple Music 中打开"))
+                    }
                 }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(BSColor.Stage.foreground.opacity(0.85))
                 .buttonStyle(.plain)
-                .padding(.top, 6)
+                .padding(.top, 8)
             }
         }
+    }
+
+    /// "Album · 2006", "Alternative · 4:28" when the store knows them.
+    private static func details(_ preview: SongPreview?) -> [String] {
+        guard let preview else { return [] }
+        let album = [preview.album, preview.releaseYear.map(String.init)].compactMap { $0 }.joined(separator: " · ")
+        let length = preview.duration.map { String(format: "%d:%02d", Int($0) / 60, Int($0) % 60) }
+        let genre = [preview.genre, length].compactMap { $0 }.joined(separator: " · ")
+        return [album, genre].filter { !$0.isEmpty }
     }
 
     private func sealedCard(_ number: Int, remaining: Int) -> some View {

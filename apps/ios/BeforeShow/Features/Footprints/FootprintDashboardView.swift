@@ -15,18 +15,9 @@ struct FootprintDashboardView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 header
-                NavigationLink {
-                    FootprintBackstagePassView(archive: archive, covers: covers)
-                } label: {
-                    FootprintMarqueeView(status: marquee)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-
-                FootprintNumberShelf(archive: archive, covers: covers)
+                FootprintMarqueeWithRecord(status: marquee, archive: archive, covers: covers)
                     .padding(.horizontal, 20)
-                    .padding(.top, 22)
+                    .padding(.top, 18)
 
                 FootprintEntryTiles(archive: archive, covers: covers, allShows: allShows)
                     .padding(.horizontal, 20)

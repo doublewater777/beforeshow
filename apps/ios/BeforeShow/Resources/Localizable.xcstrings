@@ -23673,6 +23673,22 @@
           }
         }
       }
+    },
+    "数字唱片，%lld / %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Number records, %lld / %lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "數字唱片，%lld / %lld"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

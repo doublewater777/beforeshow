@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Plays one number song at a time, on the same preview player as 听.
+/// Plays one number song at a time, on the same preview player as 听,
+/// and keeps what the store says about each record (cover, album, year).
 @MainActor
 @Observable
 final class FootprintNumberSongPlayer {
@@ -10,6 +11,7 @@ final class FootprintNumberSongPlayer {
     private(set) var currentNumber: Int?
     private(set) var loadingNumber: Int?
     private(set) var failedNumber: Int?
+    /// Keyed by record number.
     private(set) var previews: [Int: SongPreview] = [:]
 
     func isPlaying(_ number: Int) -> Bool {
@@ -17,6 +19,16 @@ final class FootprintNumberSongPlayer {
     }
 
     var elapsed: TimeInterval { player.currentTime }
+
+    /// Fetches covers and details for many records in one request.
+    func load(_ songs: [FootprintNumberSong]) async {
+        let missing = songs.filter { previews[$0.number] == nil }
+        guard !missing.isEmpty else { return }
+        let found = await SongPreviewLookup.shared.previews(for: missing.map(\.trackID))
+        for song in missing {
+            if let preview = found[song.trackID] { previews[song.number] = preview }
+        }
+    }
 
     func toggle(_ song: FootprintNumberSong) async {
         if isPlaying(song.number) {
@@ -26,17 +38,11 @@ final class FootprintNumberSongPlayer {
         failedNumber = nil
         loadingNumber = song.number
         defer { loadingNumber = nil }
-        let found: SongPreview?
-        if let cached = previews[song.number] {
-            found = cached
-        } else {
-            found = await SongPreviewLookup.shared.preview(title: song.title, artist: song.artist)
-        }
-        guard let preview = found else {
+        await load([song])
+        guard let preview = previews[song.number] else {
             failedNumber = song.number
             return
         }
-        previews[song.number] = preview
         do {
             try await player.load([ListeningPlaybackItem(
                 songID: String(preview.trackID),
@@ -44,6 +50,7 @@ final class FootprintNumberSongPlayer {
                 previewURL: preview.previewURL,
                 title: preview.title,
                 artistName: preview.artist,
+                albumTitle: preview.album,
                 artworkURL: preview.artworkURL
             )], startingAt: nil, at: 0)
             currentNumber = song.number
@@ -60,7 +67,7 @@ final class FootprintNumberSongPlayer {
     }
 }
 
-/// A small record whose label is the number; tap to drop the needle on its song.
+/// A record and its song, side by side; tap the record to drop the needle.
 struct FootprintNumberRecord: View {
     let song: FootprintNumberSong
     var diameter: CGFloat = 64
@@ -75,21 +82,23 @@ struct FootprintNumberRecord: View {
             Button {
                 if !isPlaying { FootprintSoundPlayer.shared.play(.needle) }
                 Task { await controller.toggle(song) }
-            } label: { disc }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isPlaying
-                    ? BSLocalization.format("暂停 %@", song.title)
-                    : BSLocalization.format("试听 %@", song.title))
+            } label: {
+                FootprintNumberDisc(number: song.number, diameter: diameter, isPlaying: isPlaying, artworkURL: controller.previews[song.number]?.artworkURL)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isPlaying
+                ? BSLocalization.format("暂停 %@", song.title)
+                : BSLocalization.format("试听 %@", song.title))
             VStack(alignment: .leading, spacing: 3) {
                 Text(song.title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
-                Text(song.artist)
+                Text(controller.previews[song.number]?.artist ?? song.artist)
                     .font(.system(size: 12))
                     .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
-                status
+                FootprintNumberSongStatus(number: song.number)
             }
             Spacer(minLength: 0)
         }
@@ -100,21 +109,23 @@ struct FootprintNumberRecord: View {
             }
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: isPlaying) { _, playing in playing }
+        .task(id: song.number) { await controller.load([song]) }
         .onDisappear { controller.stop(song.number) }
     }
+}
 
-    private var disc: some View {
-        FootprintNumberDisc(number: song.number, diameter: diameter, isPlaying: isPlaying)
-    }
+/// Preparing, playing time, or what tapping will do.
+struct FootprintNumberSongStatus: View {
+    let number: Int
+    @State private var controller = FootprintNumberSongPlayer.shared
 
-    @ViewBuilder
-    private var status: some View {
+    var body: some View {
         Group {
-            if controller.loadingNumber == song.number {
+            if controller.loadingNumber == number {
                 Text(BSLocalization.text("正在准备…"))
-            } else if controller.failedNumber == song.number {
+            } else if controller.failedNumber == number {
                 Text(BSLocalization.text("暂时无法播放"))
-            } else if isPlaying {
+            } else if controller.isPlaying(number) {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     Text(String(format: "0:%02d / 0:30", min(30, Int(controller.elapsed))))
                         .foregroundStyle(BSColor.Stage.accent)
@@ -129,14 +140,12 @@ struct FootprintNumberRecord: View {
     }
 }
 
-/// A small record with the number on its label; it turns while playing.
+/// A record with the song's album cover on its label (its number until the cover arrives); it turns while playing.
 struct FootprintNumberDisc: View {
     let number: Int
     let diameter: CGFloat
     let isPlaying: Bool
-    /// The show that unlocked the record; its poster becomes the label.
-    var show: Show?
-    var cover: FootprintCover?
+    var artworkURL: URL?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -148,11 +157,12 @@ struct FootprintNumberDisc: View {
                 ForEach(1..<4, id: \.self) { ring in
                     Circle()
                         .stroke(FootprintRoomPalette.groove, lineWidth: 0.8)
-                        .padding(diameter * (0.08 + CGFloat(ring) * 0.07))
+                        .padding(diameter * (0.06 + CGFloat(ring) * 0.05))
                 }
                 label
-                    .frame(width: diameter * 0.46, height: diameter * 0.46)
+                    .frame(width: diameter * 0.56, height: diameter * 0.56)
                     .clipShape(Circle())
+                    .overlay { Circle().fill(FootprintRoomPalette.vinyl).frame(width: diameter * 0.06, height: diameter * 0.06) }
                 // Sheen stays put while the record turns underneath it.
                 Circle()
                     .fill(AngularGradient(colors: [.clear, .white.opacity(0.12), .clear, .white.opacity(0.08), .clear], center: .center))
@@ -167,14 +177,13 @@ struct FootprintNumberDisc: View {
 
     @ViewBuilder
     private var label: some View {
-        if let show {
-            FootprintCoverView(show: show, cover: cover, showsMetadata: false)
-                .overlay { Circle().fill(FootprintRoomPalette.vinyl).frame(width: diameter * 0.06, height: diameter * 0.06) }
+        if let artworkURL {
+            ShowCoverImageView(urlString: artworkURL.absoluteString, aspectRatio: 1, contentMode: .fill, enforcesAspectRatio: false, cornerRadius: 0)
         } else {
             BSColor.Stage.accent
                 .overlay {
                     Text(String(number))
-                        .font(.system(size: diameter * 0.16, weight: .black).width(.compressed))
+                        .font(.system(size: diameter * 0.18, weight: .black).width(.compressed))
                         .foregroundStyle(FootprintRoomPalette.marqueeInk)
                 }
         }

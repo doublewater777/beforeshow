@@ -3,6 +3,8 @@ import SwiftUI
 /// A venue marquee: chasing bulbs around a letter board with this week's status.
 struct FootprintMarqueeView: View {
     let status: FootprintMarqueeStatus
+    /// Room kept on the right of the board for the record that stands on it.
+    var recordInset: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -13,13 +15,13 @@ struct FootprintMarqueeView: View {
             bulbs
             board.padding(18)
         }
-        .frame(height: 150)
+        .frame(height: recordInset > 0 ? 164 : 150)
         .shadow(color: .black.opacity(0.6), radius: 20, y: 18)
         .accessibilityElement(children: .combine)
     }
 
     private var board: some View {
-        VStack(spacing: 2) {
+        VStack(alignment: recordInset > 0 ? .leading : .center, spacing: 2) {
             Text(BSLocalization.text("NOW SHOWING"))
                 .font(.system(size: 13, weight: .medium).width(.condensed))
                 .tracking(5)
@@ -31,12 +33,14 @@ struct FootprintMarqueeView: View {
             Text(statusLine)
                 .font(.system(size: 13, weight: .semibold).width(.condensed))
                 .tracking(1)
-                .lineLimit(1)
+                .lineLimit(recordInset > 0 ? 2 : 1)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(FootprintRoomPalette.marqueeInk)
-                .padding(.horizontal, 10)
+                .padding(.horizontal, recordInset > 0 ? 0 : 10)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.leading, recordInset > 0 ? 16 : 0)
+        .padding(.trailing, recordInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: recordInset > 0 ? .leading : .center)
         .background {
             RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(FootprintRoomPalette.marqueePaper)

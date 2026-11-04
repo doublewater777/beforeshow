@@ -1,24 +1,32 @@
 import Foundation
 
-struct SongPreview: Equatable, Sendable {
+struct SongPreview: Codable, Equatable, Sendable {
     let trackID: Int
     let title: String
     let artist: String
+    let album: String?
+    let releaseYear: Int?
+    let genre: String?
+    let duration: TimeInterval?
     let previewURL: URL
     let artworkURL: URL?
     let storeURL: URL?
 }
 
-/// Finds a known song's 30-second preview through the public iTunes search,
-/// so it plays without asking for Apple Music access.
+/// Known songs looked up by iTunes track id through the public lookup API: one request
+/// for many, kept on disk, and playable as 30-second previews without Apple Music access.
 actor SongPreviewLookup {
     struct Result: Decodable, Equatable, Sendable {
         let trackId: Int
         let trackName: String
         let artistName: String
-        let previewUrl: String?
-        let artworkUrl100: String?
-        let trackViewUrl: String?
+        var collectionName: String?
+        var releaseDate: String?
+        var primaryGenreName: String?
+        var trackTimeMillis: Double?
+        var previewUrl: String?
+        var artworkUrl100: String?
+        var trackViewUrl: String?
     }
 
     private struct Response: Decodable {
@@ -28,59 +36,66 @@ actor SongPreviewLookup {
     static let shared = SongPreviewLookup()
 
     private let session: URLSession
-    private var found: [String: SongPreview] = [:]
+    private let fileURL: URL?
+    private var cache: [Int: SongPreview]
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, fileURL: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("SongPreviewLookup.v1.json")) {
         self.session = session
+        self.fileURL = fileURL
+        cache = fileURL.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode([Int: SongPreview].self, from: $0) } ?? [:]
     }
 
-    func preview(title: String, artist: String) async -> SongPreview? {
-        let key = title + "|" + artist
-        if let hit = found[key] { return hit }
-        let country = await AppleMusicArtistSearchService.currentFallbackCountry(preferred: nil)
-        for market in country == "US" ? ["US"] : [country, "US"] {
-            let results = (try? await search(term: "\(title) \(artist)", country: market)) ?? []
-            if let match = Self.bestMatch(in: results, title: title, artist: artist), let preview = Self.preview(from: match) {
-                found[key] = preview
-                return preview
+    func preview(for id: Int) async -> SongPreview? {
+        await previews(for: [id])[id]
+    }
+
+    /// Track id → preview, for the ids the store has; the rest are left out.
+    func previews(for ids: [Int]) async -> [Int: SongPreview] {
+        var missing = ids.filter { cache[$0] == nil }
+        if !missing.isEmpty {
+            let country = await AppleMusicArtistSearchService.currentFallbackCountry(preferred: nil)
+            // Stores carry different catalogs; the account's own store first, then the widest ones.
+            let markets = [country, "TW", "US", "JP"].reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            for market in markets where !missing.isEmpty {
+                let results = (try? await lookup(ids: missing, country: market)) ?? []
+                for preview in results.compactMap(Self.preview(from:)) {
+                    cache[preview.trackID] = preview
+                }
+                missing = missing.filter { cache[$0] == nil }
             }
+            persist()
         }
-        return nil
+        return ids.reduce(into: [:]) { result, id in result[id] = cache[id] }
     }
 
-    /// The same song by the same artist; an exact title beats "Title (Remastered)".
-    static func bestMatch(in results: [Result], title: String, artist: String) -> Result? {
-        let wantedTitle = normalized(title), wantedArtist = normalized(artist)
-        let candidates = results.filter {
-            $0.previewUrl != nil
-                && (wantedArtist.isEmpty || normalized($0.artistName).contains(wantedArtist))
-                && normalized($0.trackName).hasPrefix(wantedTitle)
-        }
-        return candidates.first { normalized($0.trackName) == wantedTitle } ?? candidates.first
-    }
-
-    private static func preview(from result: Result) -> SongPreview? {
+    static func preview(from result: Result) -> SongPreview? {
         guard let link = result.previewUrl, let previewURL = URL(string: link) else { return nil }
+        // The 100px artwork URL serves any square size by name.
+        let artwork = result.artworkUrl100?.replacingOccurrences(of: "100x100bb", with: "600x600bb")
         return SongPreview(
             trackID: result.trackId,
             title: result.trackName,
             artist: result.artistName,
+            album: result.collectionName,
+            releaseYear: result.releaseDate.flatMap { Int($0.prefix(4)) },
+            genre: result.primaryGenreName,
+            duration: result.trackTimeMillis.map { $0 / 1000 },
             previewURL: previewURL,
-            artworkURL: result.artworkUrl100.flatMap(URL.init(string:)),
+            artworkURL: artwork.flatMap(URL.init(string:)),
             storeURL: result.trackViewUrl.flatMap(URL.init(string:))
         )
     }
 
-    private static func normalized(_ text: String) -> String {
-        text.lowercased().filter { $0.isLetter || $0.isNumber }
+    private func persist() {
+        guard let fileURL, let data = try? JSONEncoder().encode(cache) else { return }
+        try? data.write(to: fileURL, options: .atomic)
     }
 
-    private func search(term: String, country: String) async throws -> [Result] {
-        var components = URLComponents(string: "https://itunes.apple.com/search")!
+    private func lookup(ids: [Int], country: String) async throws -> [Result] {
+        var components = URLComponents(string: "https://itunes.apple.com/lookup")!
         components.queryItems = [
-            URLQueryItem(name: "term", value: term),
+            URLQueryItem(name: "id", value: ids.map(String.init).joined(separator: ",")),
             URLQueryItem(name: "entity", value: "song"),
-            URLQueryItem(name: "limit", value: "15"),
             URLQueryItem(name: "country", value: country)
         ]
         guard let url = components.url else { return [] }

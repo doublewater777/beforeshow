@@ -434,6 +434,7 @@
 		A079774F4123C743CC66B9DC /* ShowOpeningArtistTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9426F33F0CA0E30A6D5E252 /* ShowOpeningArtistTier.swift */; };
 		A14D3248AF097FCD84A15448 /* FootprintArchiveDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E3F4AA5CAB1C13CAC4EE56 /* FootprintArchiveDomain.swift */; };
 		A18C94BA06E30E2344F0203C /* ListeningMiniPlayerChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CF7976ED1C237169BB9C69 /* ListeningMiniPlayerChromeTests.swift */; };
+		A1A4CCBE3D1F696B749D7F70 /* FootprintMarqueeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117B6C6649A1660DDBB0033F /* FootprintMarqueeRecord.swift */; };
 		A1F51F955B8ABF1E0B705117 /* MusicKitListeningCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 832BE81FB3359087A70F0332 /* MusicKitListeningCatalogService.swift */; };
 		A29890E6D7BBEEAD520D4EDD /* CompanionSharingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF9150BD6860947380C2915 /* CompanionSharingService.swift */; };
 		A2AE3EE094A36B1E0C7E4003 /* DispersalCeremonySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9825ABE1C9266454E51CB660 /* DispersalCeremonySheet.swift */; };
@@ -537,7 +538,6 @@
 		D00E32EC1621F85EAA4EDCAC /* TimetableAIImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61868C6306EB9FA313C9DE8C /* TimetableAIImportView.swift */; };
 		D1EB4AD45AAF2B78BD4FB1BD /* AppReviewPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA621DB6DD3D7D19D25B63E /* AppReviewPromptTests.swift */; };
 		D2657E252A74CB1FB8C58AC5 /* WidgetListeningSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D60439CAF8DA94BC59DA37C /* WidgetListeningSnapshot.swift */; };
-		D294FB2F059F2706F51B3060 /* FootprintNumberShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5A937A8E71F098003FFC71 /* FootprintNumberShelf.swift */; };
 		D29FEE28C662EC7D31B57F9C /* ListeningArtistMatchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597E5DC599F33BBBDC8BF4F2 /* ListeningArtistMatchSheet.swift */; };
 		D357D3C374C50703D70D94A3 /* TimetableManageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D92CC4E93C36A137C1FE07 /* TimetableManageView.swift */; };
 		D4D5614E8EE557B0D823D12A /* ListeningWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27BC02E7D7DE6A5DA07961E /* ListeningWidgetViews.swift */; };
@@ -739,6 +739,7 @@
 		11325B3B213A0737355A58ED /* CompanionInviteDrainPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionInviteDrainPolicyTests.swift; sourceTree = "<group>"; };
 		1144AC089CD5AEDB708C4729 /* TimetableFullLifecycleIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableFullLifecycleIntegrationTests.swift; sourceTree = "<group>"; };
 		116F9EC6DB6402F23F1778C5 /* ShowIdentityCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowIdentityCopy.swift; sourceTree = "<group>"; };
+		117B6C6649A1660DDBB0033F /* FootprintMarqueeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintMarqueeRecord.swift; sourceTree = "<group>"; };
 		11D9F8ED563080305C88645E /* ListeningAtmospherePhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningAtmospherePhase.swift; sourceTree = "<group>"; };
 		128BFB0D116E17CBCE5F35F6 /* FootprintRoomPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintRoomPalette.swift; sourceTree = "<group>"; };
 		12C3ED7043FF2FE50F24229A /* ShowRecentListening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowRecentListening.swift; sourceTree = "<group>"; };
@@ -768,7 +769,6 @@
 		1D8F8C884AF66FA63E741E7B /* MemoryPresentationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPresentationModels.swift; sourceTree = "<group>"; };
 		1E269B5A7D28AA967405C9DC /* FootprintVinylYearsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintVinylYearsView.swift; sourceTree = "<group>"; };
 		1F1BEBB854ED795072D76DAF /* DynamicCoverMediaMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverMediaMaintenance.swift; sourceTree = "<group>"; };
-		1F5A937A8E71F098003FFC71 /* FootprintNumberShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintNumberShelf.swift; sourceTree = "<group>"; };
 		1FD5014A81BF5CDF8B855EEC /* TimetableManagementCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableManagementCoordinator.swift; sourceTree = "<group>"; };
 		20089F131785C4D6F8C725D9 /* TimetablePreviewSearchResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePreviewSearchResponseTests.swift; sourceTree = "<group>"; };
 		20C1F4431810B51A96024798 /* ListeningSheetBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningSheetBackground.swift; sourceTree = "<group>"; };
@@ -2201,11 +2201,11 @@
 				33ADA3F53E262A5225D431E5 /* FootprintHeroViews.swift */,
 				6C8C06124D91132FD82DDA72 /* FootprintListeningCoordinator.swift */,
 				4044B77C89A3EB1FD5A9DB64 /* FootprintListeningMemorySection.swift */,
+				117B6C6649A1660DDBB0033F /* FootprintMarqueeRecord.swift */,
 				968E30E2322C66F383BE993E /* FootprintMarqueeView.swift */,
 				BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */,
 				DCF34937DCFC13165D11B1DB /* FootprintNeonVenuesView.swift */,
 				350A8D200E8F851D43B050C2 /* FootprintNumberRecord.swift */,
-				1F5A937A8E71F098003FFC71 /* FootprintNumberShelf.swift */,
 				F4E273231FF72818913E743B /* FootprintNumberSongs.swift */,
 				79BC136BA302691BA95433A8 /* FootprintOverviewShareSheet.swift */,
 				BADDE3DF5FFF758DAC234BDA /* FootprintPageShareView.swift */,
@@ -2803,11 +2803,11 @@
 				F403A8E948E3A38515689119 /* FootprintHeroViews.swift in Sources */,
 				590AD362655C01C1A9056B06 /* FootprintListeningCoordinator.swift in Sources */,
 				C1BE8970DBA7FD5E901D86EC /* FootprintListeningMemorySection.swift in Sources */,
+				A1A4CCBE3D1F696B749D7F70 /* FootprintMarqueeRecord.swift in Sources */,
 				AA093E23946D7FD0CA628715 /* FootprintMarqueeView.swift in Sources */,
 				0E31F23304E46C4BB01022A2 /* FootprintMemoryShareCard.swift in Sources */,
 				6BC0C99F29C54719C2411A2E /* FootprintNeonVenuesView.swift in Sources */,
 				90DABDB0724F8DF889B46463 /* FootprintNumberRecord.swift in Sources */,
-				D294FB2F059F2706F51B3060 /* FootprintNumberShelf.swift in Sources */,
 				323FAD3D3BD9377F4A590F09 /* FootprintNumberSongs.swift in Sources */,
 				7759F7D864A983561B4A2CB3 /* FootprintOverviewShareSheet.swift in Sources */,
 				9B4C21FB94055E52785DB8A8 /* FootprintPageShareView.swift in Sources */,
