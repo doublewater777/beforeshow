@@ -36,7 +36,7 @@ struct FootprintCityMapView: View {
 
     var body: some View {
         let spots = spots
-        let clusters = isPlaced ? FootprintVenueMapPolicy.clusters(placed(spots), cell: visibleSpan / 10) : []
+        let clusters = isPlaced ? FootprintVenueMapPolicy.clusters(placed(spots), cell: visibleSpan / 8) : []
         let dropOrder = clusters.sorted { ($0.spots.map(\.firstDate).min() ?? .distantFuture) < ($1.spots.map(\.firstDate).min() ?? .distantFuture) }.map(\.id)
         let selected = spots.filter { selectedSpotIDs.contains($0.id) }
         Map(position: $camera, interactionModes: [.pan, .zoom]) {
@@ -102,7 +102,7 @@ struct FootprintCityMapView: View {
             venueCoordinates = await FootprintVenueLocator.shared.coordinates(for: spots, cities: cityCoordinates)
             isPlaced = true
             showAll(animated: false)
-            await drop(count: FootprintVenueMapPolicy.clusters(placed(spots), cell: visibleSpan / 10).count)
+            await drop(count: FootprintVenueMapPolicy.clusters(placed(spots), cell: visibleSpan / 8).count)
         }
     }
 
@@ -240,11 +240,11 @@ struct FootprintCityMapView: View {
         } else {
             // One venue, or venues sharing a spot: list their nights.
             selectedSpotIDs = cluster.spots.map(\.id)
-            // Moving would regroup the stacks under the open card; keep a stack where it is.
-            guard cluster.spots.count == 1 else { return }
+            // Street level, with the pin in the open part of the map above the card.
+            let span = FootprintCityMapFraming.venueSpan
             move(to: MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: cluster.latitude - min(visibleSpan, 0.3) * 0.18, longitude: cluster.longitude),
-                span: MKCoordinateSpan(latitudeDelta: min(visibleSpan, 0.3), longitudeDelta: min(visibleSpan, 0.3))
+                center: CLLocationCoordinate2D(latitude: cluster.latitude - span * 0.15, longitude: cluster.longitude),
+                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
             ))
         }
     }
@@ -286,6 +286,8 @@ struct FootprintCityMapView: View {
 
 /// Frames a set of places with room left at the bottom for the panel.
 enum FootprintCityMapFraming {
+    /// How close a tapped venue is shown: a few streets around it.
+    static let venueSpan = 0.022
     /// Zooming in only helps while the stack's venues are apart and there is zoom left.
     static func canSplit(_ coordinates: [FootprintCityCoordinate], visibleSpan: Double) -> Bool {
         guard let minLat = coordinates.map(\.latitude).min(), let maxLat = coordinates.map(\.latitude).max(),
@@ -321,8 +323,8 @@ private struct FootprintPosterPin: View {
             ZStack(alignment: .topTrailing) {
                 ZStack {
                     if count > 1 {
-                        backCard.rotationEffect(.degrees(-8)).offset(x: -3)
-                        backCard.rotationEffect(.degrees(6)).offset(x: 3)
+                        backCard.rotationEffect(.degrees(-8)).offset(x: -4)
+                        backCard.rotationEffect(.degrees(6)).offset(x: 4)
                     }
                     Group {
                         if let show {
@@ -331,26 +333,26 @@ private struct FootprintPosterPin: View {
                             Color(white: 0.2)
                         }
                     }
-                    .frame(width: 40, height: 54)
+                    .frame(width: 52, height: 70)
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).stroke(isSelected ? BSColor.Stage.accent : FootprintRoomPalette.neonCore, lineWidth: 2))
                 }
                 if count > 1 {
                     Text(String(count))
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
+                        .font(.system(size: 12, weight: .bold).monospacedDigit())
                         .foregroundStyle(FootprintRoomPalette.marqueeInk)
                         .padding(.horizontal, 5)
                         .frame(minWidth: 20, minHeight: 20)
                         .background(BSColor.Stage.accent, in: Capsule())
-                        .offset(x: 9, y: -9)
+                        .offset(x: 11, y: -11)
                 }
             }
             Triangle()
                 .fill(isSelected ? BSColor.Stage.accent : FootprintRoomPalette.neonCore)
-                .frame(width: 10, height: 6)
+                .frame(width: 12, height: 7)
         }
         .shadow(color: .black.opacity(0.6), radius: 6, y: 4)
-        .scaleEffect(isSelected ? 1.3 : 1, anchor: .bottom)
+        .scaleEffect(isSelected ? 1.25 : 1, anchor: .bottom)
         .scaleEffect(isDropped ? 1 : 0.1, anchor: .bottom)
         .opacity(isDropped ? 1 : 0)
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isSelected)
@@ -361,7 +363,7 @@ private struct FootprintPosterPin: View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(Color(white: 0.22))
             .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).stroke(FootprintRoomPalette.neonCore.opacity(0.7), lineWidth: 1.5))
-            .frame(width: 40, height: 54)
+            .frame(width: 52, height: 70)
     }
 }
 
@@ -376,7 +378,7 @@ private struct FootprintNextPosterPin: View {
                 .tracking(2)
                 .foregroundStyle(BSColor.Stage.accent)
             ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, alignment: .top, enforcesAspectRatio: false, cornerRadius: 4)
-                .frame(width: 36, height: 48)
+                .frame(width: 46, height: 62)
                 .opacity(0.55)
                 .padding(3)
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(BSColor.Stage.accent, style: StrokeStyle(lineWidth: 1.4, dash: [3, 3])))
