@@ -67,7 +67,6 @@ struct FootprintNumberRecord: View {
 
     @State private var controller = FootprintNumberSongPlayer.shared
     @Environment(\.openURL) private var openURL
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isPlaying: Bool { controller.isPlaying(song.number) }
 
@@ -105,32 +104,7 @@ struct FootprintNumberRecord: View {
     }
 
     private var disc: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !isPlaying || reduceMotion)) { context in
-            let angle = isPlaying && !reduceMotion ? context.date.timeIntervalSinceReferenceDate * 200 : 0
-            ZStack {
-                Circle().fill(FootprintRoomPalette.vinyl)
-                ForEach(1..<4, id: \.self) { ring in
-                    Circle()
-                        .stroke(FootprintRoomPalette.groove, lineWidth: 0.8)
-                        .padding(diameter * (0.08 + CGFloat(ring) * 0.07))
-                }
-                Circle()
-                    .fill(BSColor.Stage.accent)
-                    .frame(width: diameter * 0.4, height: diameter * 0.4)
-                    .overlay {
-                        Text(String(song.number))
-                            .font(.system(size: diameter * 0.16, weight: .black).width(.compressed))
-                            .foregroundStyle(FootprintRoomPalette.marqueeInk)
-                    }
-                // Sheen stays put while the record turns underneath it.
-                Circle()
-                    .fill(AngularGradient(colors: [.clear, .white.opacity(0.12), .clear, .white.opacity(0.08), .clear], center: .center))
-                    .rotationEffect(.degrees(-angle))
-            }
-            .frame(width: diameter, height: diameter)
-            .rotationEffect(.degrees(angle))
-            .shadow(color: .black.opacity(0.6), radius: 8, y: 6)
-        }
+        FootprintNumberDisc(number: song.number, diameter: diameter, isPlaying: isPlaying)
     }
 
     @ViewBuilder
@@ -152,5 +126,44 @@ struct FootprintNumberRecord: View {
         .font(.system(size: 11, design: .monospaced))
         .foregroundStyle(BSColor.Stage.dim)
         .padding(.top, 2)
+    }
+}
+
+/// A small record with the number on its label; it turns while playing.
+struct FootprintNumberDisc: View {
+    let number: Int
+    let diameter: CGFloat
+    let isPlaying: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: !isPlaying || reduceMotion)) { context in
+            let angle = isPlaying && !reduceMotion ? context.date.timeIntervalSinceReferenceDate * 200 : 0
+            ZStack {
+                Circle().fill(FootprintRoomPalette.vinyl)
+                ForEach(1..<4, id: \.self) { ring in
+                    Circle()
+                        .stroke(FootprintRoomPalette.groove, lineWidth: 0.8)
+                        .padding(diameter * (0.08 + CGFloat(ring) * 0.07))
+                }
+                Circle()
+                    .fill(BSColor.Stage.accent)
+                    .frame(width: diameter * 0.4, height: diameter * 0.4)
+                    .overlay {
+                        Text(String(number))
+                            .font(.system(size: diameter * 0.16, weight: .black).width(.compressed))
+                            .foregroundStyle(FootprintRoomPalette.marqueeInk)
+                    }
+                // Sheen stays put while the record turns underneath it.
+                Circle()
+                    .fill(AngularGradient(colors: [.clear, .white.opacity(0.12), .clear, .white.opacity(0.08), .clear], center: .center))
+                    .rotationEffect(.degrees(-angle))
+            }
+            .frame(width: diameter, height: diameter)
+            .rotationEffect(.degrees(angle))
+            .shadow(color: .black.opacity(0.6), radius: 8, y: 6)
+        }
+        .accessibilityHidden(true)
     }
 }

@@ -9,6 +9,22 @@ final class FootprintNumberSongTests: XCTestCase {
         XCTAssertNil(FootprintNumberSongs.song(for: 0))
     }
 
+    func testShelfShowsUnlockedNewestFirstAndTheNextSealedRecord() {
+        let shelf = FootprintNumberSongs.shelf(showCount: 36)
+
+        XCTAssertEqual(shelf.unlocked.first?.number, 30)
+        XCTAssertEqual(shelf.unlocked.last?.number, 1)
+        XCTAssertTrue(shelf.unlocked.allSatisfy { $0.number <= 36 })
+        XCTAssertEqual(shelf.next?.number, 50)
+        XCTAssertEqual(shelf.remaining, 14)
+        XCTAssertEqual(shelf.unlocked.count + 3, shelf.total, "50, 99 and 100 still sealed")
+
+        let fresh = FootprintNumberSongs.shelf(showCount: 0)
+        XCTAssertTrue(fresh.unlocked.isEmpty)
+        XCTAssertEqual(fresh.next?.number, 1)
+        XCTAssertEqual(fresh.remaining, 1)
+    }
+
     func testPreviewMatchNeedsTheSameArtistAndPrefersTheExactTitle() {
         let cover = result(1, "Seven Nation Army", "Some Cover Band")
         let remaster = result(2, "Seven Nation Army (Remastered)", "The White Stripes")

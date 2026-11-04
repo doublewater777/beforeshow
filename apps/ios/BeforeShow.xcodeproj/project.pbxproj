@@ -536,6 +536,7 @@
 		D00E32EC1621F85EAA4EDCAC /* TimetableAIImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61868C6306EB9FA313C9DE8C /* TimetableAIImportView.swift */; };
 		D1EB4AD45AAF2B78BD4FB1BD /* AppReviewPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA621DB6DD3D7D19D25B63E /* AppReviewPromptTests.swift */; };
 		D2657E252A74CB1FB8C58AC5 /* WidgetListeningSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D60439CAF8DA94BC59DA37C /* WidgetListeningSnapshot.swift */; };
+		D294FB2F059F2706F51B3060 /* FootprintNumberShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5A937A8E71F098003FFC71 /* FootprintNumberShelf.swift */; };
 		D29FEE28C662EC7D31B57F9C /* ListeningArtistMatchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597E5DC599F33BBBDC8BF4F2 /* ListeningArtistMatchSheet.swift */; };
 		D357D3C374C50703D70D94A3 /* TimetableManageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D92CC4E93C36A137C1FE07 /* TimetableManageView.swift */; };
 		D4D5614E8EE557B0D823D12A /* ListeningWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27BC02E7D7DE6A5DA07961E /* ListeningWidgetViews.swift */; };
@@ -765,6 +766,7 @@
 		1D8F8C884AF66FA63E741E7B /* MemoryPresentationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPresentationModels.swift; sourceTree = "<group>"; };
 		1E269B5A7D28AA967405C9DC /* FootprintVinylYearsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintVinylYearsView.swift; sourceTree = "<group>"; };
 		1F1BEBB854ED795072D76DAF /* DynamicCoverMediaMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverMediaMaintenance.swift; sourceTree = "<group>"; };
+		1F5A937A8E71F098003FFC71 /* FootprintNumberShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintNumberShelf.swift; sourceTree = "<group>"; };
 		1FD5014A81BF5CDF8B855EEC /* TimetableManagementCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableManagementCoordinator.swift; sourceTree = "<group>"; };
 		20089F131785C4D6F8C725D9 /* TimetablePreviewSearchResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePreviewSearchResponseTests.swift; sourceTree = "<group>"; };
 		20C1F4431810B51A96024798 /* ListeningSheetBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningSheetBackground.swift; sourceTree = "<group>"; };
@@ -2201,6 +2203,7 @@
 				BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */,
 				DCF34937DCFC13165D11B1DB /* FootprintNeonVenuesView.swift */,
 				350A8D200E8F851D43B050C2 /* FootprintNumberRecord.swift */,
+				1F5A937A8E71F098003FFC71 /* FootprintNumberShelf.swift */,
 				F4E273231FF72818913E743B /* FootprintNumberSongs.swift */,
 				79BC136BA302691BA95433A8 /* FootprintOverviewShareSheet.swift */,
 				BADDE3DF5FFF758DAC234BDA /* FootprintPageShareView.swift */,
@@ -2801,6 +2804,7 @@
 				0E31F23304E46C4BB01022A2 /* FootprintMemoryShareCard.swift in Sources */,
 				6BC0C99F29C54719C2411A2E /* FootprintNeonVenuesView.swift in Sources */,
 				90DABDB0724F8DF889B46463 /* FootprintNumberRecord.swift in Sources */,
+				D294FB2F059F2706F51B3060 /* FootprintNumberShelf.swift in Sources */,
 				323FAD3D3BD9377F4A590F09 /* FootprintNumberSongs.swift in Sources */,
 				7759F7D864A983561B4A2CB3 /* FootprintOverviewShareSheet.swift in Sources */,
 				9B4C21FB94055E52785DB8A8 /* FootprintPageShareView.swift in Sources */,

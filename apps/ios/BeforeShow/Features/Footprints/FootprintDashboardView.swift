@@ -24,6 +24,9 @@ struct FootprintDashboardView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
 
+                FootprintNumberShelf(showCount: archive.shows.count)
+                    .padding(.top, 24)
+
                 FootprintEntryTiles(archive: archive, covers: covers, allShows: allShows)
                     .padding(.horizontal, 20)
                     .padding(.top, 22)

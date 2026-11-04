@@ -7,6 +7,14 @@ struct FootprintNumberSong: Equatable, Sendable {
     let artist: String
 }
 
+struct FootprintRecordShelf: Equatable {
+    let unlocked: [FootprintNumberSong]
+    let next: FootprintNumberSong?
+    /// Shows still to go before `next` plays.
+    let remaining: Int
+    let total: Int
+}
+
 /// Hand-picked: only numbers with a song that fits a night out. No song is better than a forced one.
 enum FootprintNumberSongs {
     private static let catalog: [Int: (title: String, artist: String)] = [
@@ -28,6 +36,18 @@ enum FootprintNumberSongs {
         99: ("99 Luftballons", "Nena"),
         100: ("100种生活", "卢广仲")
     ]
+
+    /// What a collection of `showCount` nights has unlocked, newest first, and the next record still sealed.
+    static func shelf(showCount: Int) -> FootprintRecordShelf {
+        let songs = catalog.keys.sorted().compactMap(song(for:))
+        let next = songs.first { $0.number > showCount }
+        return FootprintRecordShelf(
+            unlocked: Array(songs.filter { $0.number <= showCount }.reversed()),
+            next: next,
+            remaining: next.map { $0.number - showCount } ?? 0,
+            total: songs.count
+        )
+    }
 
     static func song(for number: Int) -> FootprintNumberSong? {
         catalog[number].map { FootprintNumberSong(number: number, title: $0.title, artist: $0.artist) }

@@ -97,6 +97,8 @@ struct FootprintCityMapView: View {
         .sensoryFeedback(.impact(weight: .light), trigger: dropped) { _, new in new > 0 }
         .sensoryFeedback(.selection, trigger: selectedSpotIDs)
         .task {
+            // Coming back from a show keeps the map where it was, card and all.
+            guard !isPlaced else { return }
             let cityNames = stops.map(\.city)
             cityCoordinates = await FootprintCityCoordinateResolver.shared.coordinates(for: cityNames)
             venueCoordinates = await FootprintVenueLocator.shared.coordinates(for: spots, cities: cityCoordinates)
