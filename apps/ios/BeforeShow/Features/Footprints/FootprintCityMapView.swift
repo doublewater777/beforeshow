@@ -13,7 +13,8 @@ struct FootprintCityMapView: View {
     @State private var isPlaced = false
     @State private var camera: MapCameraPosition = .automatic
     @State private var visibleSpan = 8.0
-    @State private var selectedSpotID: String?
+    /// Venues whose nights the panel lists: one, or a stack that cannot split any further.
+    @State private var selectedSpotIDs: [String] = []
     @State private var dropped = 0
     @State private var detailTarget: FootprintDetailDestination?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -37,7 +38,7 @@ struct FootprintCityMapView: View {
         let spots = spots
         let clusters = isPlaced ? FootprintVenueMapPolicy.clusters(placed(spots), cell: visibleSpan / 10) : []
         let dropOrder = clusters.sorted { ($0.spots.map(\.firstDate).min() ?? .distantFuture) < ($1.spots.map(\.firstDate).min() ?? .distantFuture) }.map(\.id)
-        let selected = spots.first { $0.id == selectedSpotID }
+        let selected = spots.filter { selectedSpotIDs.contains($0.id) }
         Map(position: $camera, interactionModes: [.pan, .zoom]) {
             // Night wash over the base map, under the posters.
             MapPolygon(coordinates: FootprintCityMapFraming.nightWash)
@@ -48,7 +49,7 @@ struct FootprintCityMapView: View {
                         show: archive.shows(for: [cluster.lead.showIDs[0]]).first,
                         cover: covers[cluster.lead.showIDs[0]],
                         count: cluster.showCount,
-                        isSelected: cluster.spots.contains { $0.id == selectedSpotID },
+                        isSelected: cluster.spots.contains { selectedSpotIDs.contains($0.id) },
                         isDropped: (dropOrder.firstIndex(of: cluster.id) ?? 0) < dropped
                     )
                     .onTapGesture { tap(cluster) }
@@ -94,7 +95,7 @@ struct FootprintCityMapView: View {
         }
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
         .sensoryFeedback(.impact(weight: .light), trigger: dropped) { _, new in new > 0 }
-        .sensoryFeedback(.selection, trigger: selectedSpotID)
+        .sensoryFeedback(.selection, trigger: selectedSpotIDs)
         .task {
             let cityNames = stops.map(\.city)
             cityCoordinates = await FootprintCityCoordinateResolver.shared.coordinates(for: cityNames)
@@ -116,10 +117,10 @@ struct FootprintCityMapView: View {
     // MARK: Panel
 
     @ViewBuilder
-    private func panel(selected: FootprintVenueSpot?) -> some View {
+    private func panel(selected: [FootprintVenueSpot]) -> some View {
         VStack(spacing: 0) {
             Capsule().fill(Color.white.opacity(0.25)).frame(width: 36, height: 5).padding(.top, 8)
-            if let selected {
+            if !selected.isEmpty {
                 venueCard(selected)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
@@ -133,7 +134,7 @@ struct FootprintCityMapView: View {
             UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.86), value: selectedSpotID)
+        .animation(.spring(response: 0.4, dampingFraction: 0.86), value: selectedSpotIDs)
     }
 
     /// Jump between cities without pinching across the country.
@@ -167,27 +168,33 @@ struct FootprintCityMapView: View {
         .padding(.top, 14)
     }
 
-    private func venueCard(_ spot: FootprintVenueSpot) -> some View {
-        let shows = archive.shows(for: spot.showIDs).sorted { $0.effectiveDate > $1.effectiveDate }
+    private func venueCard(_ spots: [FootprintVenueSpot]) -> some View {
+        let shows = archive.shows(for: spots.flatMap(\.showIDs)).sorted { $0.effectiveDate > $1.effectiveDate }
+        let single = spots.count == 1 ? spots.first : nil
+        let city = spots.first?.city
+        let title = single.map { $0.venue ?? $0.city ?? "" } ?? city ?? ""
+        let subtitle = single == nil
+            ? BSLocalization.format("%lld 个场馆 · %lld 场", spots.count, shows.count)
+            : [city, BSLocalization.format("%lld 场", shows.count)].compactMap { $0 }.joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(spot.venue ?? spot.city ?? "")
+                    Text(title)
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(2)
-                    Text([spot.city, BSLocalization.format("%lld 场", shows.count)].compactMap { $0 }.joined(separator: " · "))
+                    Text(subtitle)
                         .font(.system(size: 13))
                         .foregroundStyle(BSColor.Stage.accent)
                 }
                 Spacer()
-                BSRoundIconButton(systemName: "xmark", label: BSLocalization.text("关闭")) { selectedSpotID = nil }
+                BSRoundIconButton(systemName: "xmark", label: BSLocalization.text("关闭")) { selectedSpotIDs = [] }
             }
             .padding(.horizontal, 20)
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(shows) { show in
-                        Button { detailTarget = FootprintDetailDestination(show: show) } label: { showCard(show) }
+                        Button { detailTarget = FootprintDetailDestination(show: show) } label: { showCard(show, showsVenue: single == nil) }
                             .buttonStyle(BSPressStyle())
                     }
                 }
@@ -199,7 +206,7 @@ struct FootprintCityMapView: View {
         .padding(.top, 8)
     }
 
-    private func showCard(_ show: Show) -> some View {
+    private func showCard(_ show: Show, showsVenue: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
                 .frame(width: 96, height: 128)
@@ -212,6 +219,12 @@ struct FootprintCityMapView: View {
             Text(footprintFullDateText(show.effectiveDate, calendar: show.timingCalendar()))
                 .font(.system(size: 11, weight: .medium).width(.condensed).monospacedDigit())
                 .foregroundStyle(BSColor.Stage.dim)
+            if showsVenue, let venue = FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) {
+                Text(venue)
+                    .font(.system(size: 11))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(1)
+            }
         }
         .frame(width: 96, alignment: .leading)
     }
@@ -219,14 +232,16 @@ struct FootprintCityMapView: View {
     // MARK: Camera
 
     private func tap(_ cluster: FootprintMapCluster) {
-        if cluster.spots.count > 1 {
+        let coordinates = cluster.spots.compactMap { spot in placed([spot]).first.map { FootprintCityCoordinate(name: spot.id, latitude: $0.latitude, longitude: $0.longitude) } }
+        if cluster.spots.count > 1, FootprintCityMapFraming.canSplit(coordinates, visibleSpan: visibleSpan),
+           let region = FootprintCityMapFraming.region(for: coordinates, minimumSpan: 0.04) {
             // A stack opens up: zoom in until its venues stand apart.
-            let coordinates = cluster.spots.compactMap { spot in placed([spot]).first.map { FootprintCityCoordinate(name: spot.id, latitude: $0.latitude, longitude: $0.longitude) } }
-            if let region = FootprintCityMapFraming.region(for: coordinates, minimumSpan: 0.04) {
-                move(to: region)
-            }
+            move(to: region)
         } else {
-            selectedSpotID = cluster.lead.id
+            // One venue, or venues sharing a spot: list their nights.
+            selectedSpotIDs = cluster.spots.map(\.id)
+            // Moving would regroup the stacks under the open card; keep a stack where it is.
+            guard cluster.spots.count == 1 else { return }
             move(to: MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: cluster.latitude - min(visibleSpan, 0.3) * 0.18, longitude: cluster.longitude),
                 span: MKCoordinateSpan(latitudeDelta: min(visibleSpan, 0.3), longitudeDelta: min(visibleSpan, 0.3))
@@ -236,7 +251,7 @@ struct FootprintCityMapView: View {
 
     private func fly(toCity city: String) {
         guard let coordinate = cityCoordinates[city] else { return }
-        selectedSpotID = nil
+        selectedSpotIDs = []
         move(to: MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: coordinate.latitude - 0.1, longitude: coordinate.longitude),
             span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
@@ -244,7 +259,7 @@ struct FootprintCityMapView: View {
     }
 
     private func showAll(animated: Bool = true) {
-        selectedSpotID = nil
+        selectedSpotIDs = []
         let all = placed(spots).map { FootprintCityCoordinate(name: $0.spot.id, latitude: $0.latitude, longitude: $0.longitude) }
             + (nextShow.flatMap { $0.city }.flatMap { cityCoordinates[$0] }.map { [$0] } ?? [])
         guard let region = FootprintCityMapFraming.region(for: all) else { return }
@@ -271,6 +286,13 @@ struct FootprintCityMapView: View {
 
 /// Frames a set of places with room left at the bottom for the panel.
 enum FootprintCityMapFraming {
+    /// Zooming in only helps while the stack's venues are apart and there is zoom left.
+    static func canSplit(_ coordinates: [FootprintCityCoordinate], visibleSpan: Double) -> Bool {
+        guard let minLat = coordinates.map(\.latitude).min(), let maxLat = coordinates.map(\.latitude).max(),
+              let minLon = coordinates.map(\.longitude).min(), let maxLon = coordinates.map(\.longitude).max() else { return false }
+        return max(maxLat - minLat, maxLon - minLon) > 0.002 && visibleSpan > 0.05
+    }
+
     /// Corners spaced under 180° apart so no edge takes the short way across the antimeridian.
     static let nightWash = [-179.0, -60, 60, 179].map { CLLocationCoordinate2D(latitude: 75, longitude: $0) }
         + [179.0, 60, -60, -179].map { CLLocationCoordinate2D(latitude: -60, longitude: $0) }

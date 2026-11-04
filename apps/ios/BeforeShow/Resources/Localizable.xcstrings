@@ -23577,6 +23577,22 @@
           }
         }
       }
+    },
+    "%lld 个场馆 · %lld 场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld venues · %lld shows"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個場館 · %lld 場"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

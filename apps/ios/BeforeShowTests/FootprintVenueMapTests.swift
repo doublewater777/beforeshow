@@ -14,9 +14,9 @@ final class FootprintVenueMapTests: XCTestCase {
         XCTAssertEqual(spots.count, 3)
         let mao = try XCTUnwrap(spots.first { $0.venue?.lowercased() == "mao livehouse" })
         XCTAssertEqual(mao.showIDs, [newer.id, older.id])
-        XCTAssertEqual(mao.query, "杭州市西湖区文三路", "an address beats the venue name for the lookup")
-        XCTAssertEqual(spots.first { $0.venue == "槜李湖公园" }?.query, "嘉兴 槜李湖公园")
-        XCTAssertNil(spots.first { $0.city == "上海" }?.query, "a city-only spot sits on the city")
+        XCTAssertEqual(mao.queries, ["杭州市西湖区文三路", "杭州 mao livehouse", "mao livehouse"], "address first, then venue with city, then venue alone")
+        XCTAssertEqual(spots.first { $0.venue == "槜李湖公园" }?.queries, ["嘉兴 槜李湖公园", "槜李湖公园"])
+        XCTAssertEqual(spots.first { $0.city == "上海" }?.queries, [], "a city-only spot sits on the city")
         XCTAssertEqual(spots.map(\.city), ["杭州", "上海", "嘉兴"], "ordered by first visit")
     }
 
@@ -36,8 +36,17 @@ final class FootprintVenueMapTests: XCTestCase {
         XCTAssertEqual(near.count, 3)
     }
 
+    func testAStackOnOneSpotOpensInsteadOfZoomingForever() {
+        let samePoint = [FootprintCityCoordinate(name: "a", latitude: 30.27, longitude: 120.15), FootprintCityCoordinate(name: "b", latitude: 30.27, longitude: 120.15)]
+        XCTAssertFalse(FootprintCityMapFraming.canSplit(samePoint, visibleSpan: 8), "venues on the same spot never separate")
+
+        let apart = [FootprintCityCoordinate(name: "a", latitude: 30.27, longitude: 120.15), FootprintCityCoordinate(name: "b", latitude: 30.30, longitude: 120.10)]
+        XCTAssertTrue(FootprintCityMapFraming.canSplit(apart, visibleSpan: 1))
+        XCTAssertFalse(FootprintCityMapFraming.canSplit(apart, visibleSpan: 0.03), "no zoom left to spend")
+    }
+
     private func spot(_ id: String, shows: Int) -> FootprintVenueSpot {
-        FootprintVenueSpot(id: id, venue: id, city: nil, showIDs: (0..<shows).map { _ in UUID() }, firstDate: Date(timeIntervalSince1970: 0), query: nil)
+        FootprintVenueSpot(id: id, venue: id, city: nil, showIDs: (0..<shows).map { _ in UUID() }, firstDate: Date(timeIntervalSince1970: 0), queries: [])
     }
 
     private func makeShow(_ name: String, day: Int, city: String, venue: String?, address: String? = nil) throws -> Show {

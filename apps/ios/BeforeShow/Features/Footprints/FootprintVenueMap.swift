@@ -9,8 +9,8 @@ struct FootprintVenueSpot: Equatable, Identifiable {
     /// Newest first; the first poster stands for the spot.
     let showIDs: [UUID]
     let firstDate: Date
-    /// What to look the venue up by: its address, else venue and city.
-    let query: String?
+    /// What to look the venue up by, best first: its address, venue with city, venue alone.
+    let queries: [String]
 }
 
 /// Spots close enough at the current zoom to share one pin.
@@ -34,14 +34,15 @@ enum FootprintVenueMapPolicy {
             let venue = FootprintTextNormalizer.nonEmptyTrimmed(sample.venueName)
             let city = FootprintTextNormalizer.nonEmptyTrimmed(sample.city)
             let address = ordered.lazy.compactMap { FootprintTextNormalizer.nonEmptyTrimmed($0.venueAddress) }.first
-            let query = address ?? venue.map { [city, $0].compactMap { $0 }.joined(separator: " ") }
+            let candidates = [address, venue.map { [city, $0].compactMap { $0 }.joined(separator: " ") }, venue].compactMap { $0 }
+            let queries = candidates.enumerated().filter { !candidates.prefix($0.offset).contains($0.element) }.map(\.element)
             return FootprintVenueSpot(
                 id: key,
                 venue: venue,
                 city: city,
                 showIDs: ordered.map(\.id),
                 firstDate: ordered.last?.effectiveDate ?? sample.effectiveDate,
-                query: query
+                queries: queries
             )
         }
         .sorted { $0.firstDate < $1.firstDate }
@@ -79,9 +80,11 @@ final class FootprintVenueLocator {
 
     /// A match further than this from the city is a different place with the same name.
     private nonisolated static let maximumDistanceFromCity: CLLocationDistance = 80_000
+    /// A match this close to the city centre is the city itself, not the venue.
+    private nonisolated static let minimumDistanceFromCity: CLLocationDistance = 300
     private static let lookupsPerVisit = 40
 
-    private let cacheKey = "FootprintVenueLocator.cache.v1"
+    private let cacheKey = "FootprintVenueLocator.cache.v2"
     private var cache: [String: FootprintCityCoordinate]
 
     private init(defaults: UserDefaults = .standard) {
@@ -95,16 +98,20 @@ final class FootprintVenueLocator {
 
     /// Spot id → where it is. Spots it cannot place are left out; callers fall back to the city.
     func coordinates(for spots: [FootprintVenueSpot], cities: [String: FootprintCityCoordinate]) async -> [String: FootprintCityCoordinate] {
-        let missing = spots.filter { spot in spot.query.map { cache[$0] == nil } ?? false }.prefix(Self.lookupsPerVisit)
+        let missing = spots.filter { cache[$0.id] == nil && !$0.queries.isEmpty }.prefix(Self.lookupsPerVisit)
         let found = await withTaskGroup(of: (String, FootprintCityCoordinate?).self) { group in
             for spot in missing {
-                guard let query = spot.query else { continue }
                 let near = spot.city.flatMap { cities[$0] }
-                group.addTask { (query, await Self.resolve(query, near: near)) }
+                group.addTask {
+                    for query in spot.queries {
+                        if let hit = await Self.resolve(query, near: near) { return (spot.id, hit) }
+                    }
+                    return (spot.id, nil)
+                }
             }
             var collected: [String: FootprintCityCoordinate] = [:]
-            for await (query, coordinate) in group {
-                if let coordinate { collected[query] = coordinate }
+            for await (id, coordinate) in group {
+                if let coordinate { collected[id] = coordinate }
             }
             return collected
         }
@@ -112,11 +119,7 @@ final class FootprintVenueLocator {
             cache.merge(found) { _, new in new }
             if let data = try? JSONEncoder().encode(cache) { UserDefaults.standard.set(data, forKey: cacheKey) }
         }
-        var result: [String: FootprintCityCoordinate] = [:]
-        for spot in spots {
-            if let query = spot.query, let hit = cache[query] { result[spot.id] = hit }
-        }
-        return result
+        return cache.filter { id, _ in spots.contains { $0.id == id } }
     }
 
     private nonisolated static func resolve(_ query: String, near: FootprintCityCoordinate?) async -> FootprintCityCoordinate? {
@@ -134,7 +137,7 @@ final class FootprintVenueLocator {
         if let near {
             let distance = CLLocation(latitude: near.latitude, longitude: near.longitude)
                 .distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-            guard distance <= maximumDistanceFromCity else { return nil }
+            guard distance <= maximumDistanceFromCity, distance >= minimumDistanceFromCity else { return nil }
         }
         return FootprintCityCoordinate(name: query, latitude: coordinate.latitude, longitude: coordinate.longitude)
     }
