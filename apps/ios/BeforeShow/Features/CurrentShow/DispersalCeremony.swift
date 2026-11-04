@@ -61,6 +61,25 @@ enum DispersalRating: Int, CaseIterable, Identifiable {
         }
     }
 
+    /// 暗场上的评级文字色:最冷一档的 dim 不够对比度,退到 muted;最热一档用 live 的浅色。
+    var stageInk: Color {
+        switch self {
+        case .spoiled: BSColor.Stage.muted
+        case .fire: BSColor.Stage.liveTitle
+        default: tint
+        }
+    }
+
+    /// 纸本散场卡上的评级印章色。
+    var paperInk: Color {
+        switch self {
+        case .spoiled, .meh: BSColor.Paper.inkMuted
+        case .golden: BSColor.Paper.gold
+        case .peak: BSColor.Paper.violet
+        case .fire: BSColor.Paper.red
+        }
+    }
+
     static func from(rawValue value: Int) -> DispersalRating? {
         DispersalRating(rawValue: value)
     }
@@ -132,8 +151,50 @@ enum DispersalLightsOutMotion {
 
 /// 散场卡上的可见文案。规则只有一份,视图与测试共用。
 enum DispersalCeremonyCardCopy {
-    static let brand = BSLocalization.text("BEFORESHOW · 散场记录")
-    static let footerTrailing = BSLocalization.text("开场前")
+    struct DateStamp: Equatable {
+        let month: String
+        let day: String
+        let year: String
+    }
+
+    static func dateStamp(for date: Date, calendar: Calendar) -> DateStamp {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return DateStamp(
+            month: String(format: "%02d", parts.month ?? 0),
+            day: String(format: "%02d", parts.day ?? 0),
+            year: String(parts.year ?? 0)
+        )
+    }
+
+    /// 「2026 · 周一」,按当前语言缩写星期。
+    static func dateCaption(for date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEE")
+        formatter.timeZone = calendar.timeZone
+        return "\(dateStamp(for: date, calendar: calendar).year) · \(formatter.string(from: date))"
+    }
+
+    /// 宋体没有 ®/™/© 字形,会渲染成空白;宋体标题只在展示时去掉,原名不变。
+    static func serifTitle(_ name: String) -> String {
+        name.replacingOccurrences(of: "[®™©]", with: "", options: .regularExpression)
+    }
+
+    static func ticketNumber(ordinal: Int) -> String {
+        String(format: "No. %03d", ordinal)
+    }
+
+    /// 「21:48 散场 · 历时 2小时18分」;没有确认散场时间时不展示。
+    static func factsLine(startTime: Date, endedAt: Date?, calendar: Calendar) -> String? {
+        guard let endedAt else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        formatter.timeZone = calendar.timeZone
+        let ended = BSLocalization.format("%@ 散场", formatter.string(from: endedAt))
+        guard let duration = ShowDurationFormatter.single(from: startTime, to: endedAt) else {
+            return ended
+        }
+        return BSLocalization.format("%@ · 历时 %@", ended, duration)
+    }
 
     /// 现场名拆成最多两行:有艺人且标题以「艺人 · 」开头时拆开,贴近海报排版。
     static func eventLines(name: String, artistNames: [String]) -> [String] {
@@ -153,10 +214,6 @@ enum DispersalCeremonyCardCopy {
             return rest.isEmpty ? [artist] : [artist, rest]
         }
         return [artist, trimmed]
-    }
-
-    static func ratingTitle(_ rating: DispersalRating) -> String {
-        BSLocalization.format("%@ %@", rating.emoji, rating.label)
     }
 
     static func footerLeading(identity: FootprintDetailIdentity) -> String {

@@ -387,10 +387,43 @@ final class DispersalCeremonyTests: XCTestCase {
         )
     }
 
-    func testCardRatingTitleJoinsEmojiAndLabel() {
+    func testCardDateStampZeroPadsInShowCalendar() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let date = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 23)))
+
+        let stamp = DispersalCeremonyCardCopy.dateStamp(for: date, calendar: calendar)
+
+        XCTAssertEqual(stamp.month, "11")
+        XCTAssertEqual(stamp.day, "02")
+        XCTAssertEqual(stamp.year, "2026")
+    }
+
+    func testSerifTitleDropsTrademarkSignsSongtiCannotDraw() {
         XCTAssertEqual(
-            DispersalCeremonyCardCopy.ratingTitle(.fire),
-            "🔥 夯爆了"
+            DispersalCeremonyCardCopy.serifTitle("喜力®星银®·泡泡岛音乐节™"),
+            "喜力星银·泡泡岛音乐节"
+        )
+        XCTAssertEqual(DispersalCeremonyCardCopy.serifTitle("陈绮贞"), "陈绮贞")
+    }
+
+    func testCardTicketNumberPadsOrdinalToThreeDigits() {
+        XCTAssertEqual(DispersalCeremonyCardCopy.ticketNumber(ordinal: 12), "No. 012")
+        XCTAssertEqual(DispersalCeremonyCardCopy.ticketNumber(ordinal: 1234), "No. 1234")
+    }
+
+    func testCardFactsLineJoinsDispersalTimeAndDuration() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 19, minute: 30)))
+        let end = start.addingTimeInterval(138 * 60)
+
+        XCTAssertEqual(
+            DispersalCeremonyCardCopy.factsLine(startTime: start, endedAt: end, calendar: calendar),
+            "21:48 散场 · 历时 \(ShowDurationFormatter.single(totalMinutes: 138))"
+        )
+        XCTAssertNil(
+            DispersalCeremonyCardCopy.factsLine(startTime: start, endedAt: nil, calendar: calendar)
         )
     }
 

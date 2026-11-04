@@ -81,6 +81,26 @@ enum BSColor {
         static let danger = Color(red: 0.851, green: 0.537, blue: 0.569)
     }
 
+    /// 纸本记忆色板:只用于散场卡这类「带走的纪念物」,界面本身仍是暗场。
+    /// Mirrored in DESIGN.md «纸本记忆色板».
+    enum Paper {
+        /// Cream paper (#EEE6D4).
+        static let background = Color(red: 0.933, green: 0.902, blue: 0.831)
+        /// Polaroid frame (#FBF8F1).
+        static let photoFrame = Color(red: 0.984, green: 0.973, blue: 0.945)
+        /// Ink (#1C1A17).
+        static let ink = Color(red: 0.110, green: 0.102, blue: 0.090)
+        /// Supporting ink (#6B6458), 4.5:1 on paper.
+        static let inkMuted = Color(red: 0.420, green: 0.392, blue: 0.345)
+        /// Postmark gold ink (#7A5C24), 5:1 on paper.
+        static let gold = Color(red: 0.478, green: 0.361, blue: 0.141)
+        /// Rating stamp inks (#5B3FA0 / #A8303A).
+        static let violet = Color(red: 0.357, green: 0.247, blue: 0.627)
+        static let red = Color(red: 0.659, green: 0.188, blue: 0.227)
+        /// Spine shadow on the left edge.
+        static let spine = Color(red: 0.235, green: 0.176, blue: 0.078)
+    }
+
 }
 
 
@@ -116,6 +136,32 @@ enum BSFont {
         static let body = Font.system(size: 15, weight: .regular)
         static let small = Font.system(size: 13, weight: .regular)
         static let caption = Font.system(size: 11, weight: .medium)
+    }
+
+    /// 杂志式排版:Bodoni 数字 + 宋体标题,只用于散场记忆。两者都是 iOS 系统字体。
+    enum Editorial {
+        static func numerals(size: CGFloat, italic: Bool = false) -> Font {
+            .custom(italic ? "BodoniSvtyTwoITCTT-BookIta" : "BodoniSvtyTwoITCTT-Book", fixedSize: size)
+        }
+
+        static func song(size: CGFloat, weight: SongWeight = .regular) -> Font {
+            .custom(weight.postScriptName, fixedSize: size)
+        }
+
+        enum SongWeight {
+            case regular, bold, black
+
+            var postScriptName: String {
+                switch self {
+                case .regular: "STSongti-SC-Regular"
+                case .bold: "STSongti-SC-Bold"
+                case .black: "STSongti-SC-Black"
+                }
+            }
+        }
+
+        /// 小号间距标签(「今晚」「那天」)的字距。
+        static let kickerTracking: CGFloat = 3
     }
 }
 
