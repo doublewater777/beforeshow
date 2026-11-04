@@ -23610,18 +23610,66 @@
         }
       }
     },
-    "%lld / %lld 张": {
+    "下一张 · 第 %lld 场": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld / %lld"
+            "value": "Next · show %lld"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld / %lld 張"
+            "value": "下一張 · 第 %lld 場"
+          }
+        }
+      }
+    },
+    "第 %lld 场 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show %lld · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 場 · %@"
+          }
+        }
+      }
+    },
+    "第 %lld 场解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocks at show %lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 場解鎖"
+          }
+        }
+      }
+    },
+    "第 %lld 张数字唱片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Number record %lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 張數字唱片"
           }
         }
       }

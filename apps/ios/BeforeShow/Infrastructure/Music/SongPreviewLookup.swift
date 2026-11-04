@@ -53,7 +53,7 @@ actor SongPreviewLookup {
         let wantedTitle = normalized(title), wantedArtist = normalized(artist)
         let candidates = results.filter {
             $0.previewUrl != nil
-                && normalized($0.artistName).contains(wantedArtist)
+                && (wantedArtist.isEmpty || normalized($0.artistName).contains(wantedArtist))
                 && normalized($0.trackName).hasPrefix(wantedTitle)
         }
         return candidates.first { normalized($0.trackName) == wantedTitle } ?? candidates.first

@@ -134,6 +134,9 @@ struct FootprintNumberDisc: View {
     let number: Int
     let diameter: CGFloat
     let isPlaying: Bool
+    /// The show that unlocked the record; its poster becomes the label.
+    var show: Show?
+    var cover: FootprintCover?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -147,14 +150,9 @@ struct FootprintNumberDisc: View {
                         .stroke(FootprintRoomPalette.groove, lineWidth: 0.8)
                         .padding(diameter * (0.08 + CGFloat(ring) * 0.07))
                 }
-                Circle()
-                    .fill(BSColor.Stage.accent)
-                    .frame(width: diameter * 0.4, height: diameter * 0.4)
-                    .overlay {
-                        Text(String(number))
-                            .font(.system(size: diameter * 0.16, weight: .black).width(.compressed))
-                            .foregroundStyle(FootprintRoomPalette.marqueeInk)
-                    }
+                label
+                    .frame(width: diameter * 0.46, height: diameter * 0.46)
+                    .clipShape(Circle())
                 // Sheen stays put while the record turns underneath it.
                 Circle()
                     .fill(AngularGradient(colors: [.clear, .white.opacity(0.12), .clear, .white.opacity(0.08), .clear], center: .center))
@@ -165,5 +163,20 @@ struct FootprintNumberDisc: View {
             .shadow(color: .black.opacity(0.6), radius: 8, y: 6)
         }
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var label: some View {
+        if let show {
+            FootprintCoverView(show: show, cover: cover, showsMetadata: false)
+                .overlay { Circle().fill(FootprintRoomPalette.vinyl).frame(width: diameter * 0.06, height: diameter * 0.06) }
+        } else {
+            BSColor.Stage.accent
+                .overlay {
+                    Text(String(number))
+                        .font(.system(size: diameter * 0.16, weight: .black).width(.compressed))
+                        .foregroundStyle(FootprintRoomPalette.marqueeInk)
+                }
+        }
     }
 }

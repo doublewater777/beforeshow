@@ -1,117 +1,72 @@
 import SwiftUI
 
-/// Records your show count has unlocked, led by the next one still in its sleeve,
-/// so every new night is a step towards a song.
+/// The record collection on the Footprints home: the latest records fanned out,
+/// how many of fifty you hold, and which show presses the next one.
 struct FootprintNumberShelf: View {
-    let showCount: Int
-
-    @State private var controller = FootprintNumberSongPlayer.shared
-
-    private static let diameter: CGFloat = 76
+    let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
 
     var body: some View {
-        let shelf = FootprintNumberSongs.shelf(showCount: showCount)
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(BSLocalization.text("数字唱片"))
-                    .font(BSFont.headline)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Spacer()
-                Text(BSLocalization.format("%lld / %lld 张", shelf.unlocked.count, shelf.total))
-                    .font(.system(size: 13, weight: .medium).monospacedDigit())
-                    .foregroundStyle(BSColor.Stage.muted)
-            }
-            .padding(.horizontal, 20)
-            ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 16) {
-                    if let next = shelf.next {
-                        sealed(next, remaining: shelf.remaining)
-                    }
-                    ForEach(shelf.unlocked, id: \.number) { song in
-                        record(song)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 4)
-            }
-            .scrollIndicators(.hidden)
-        }
-    }
-
-    /// The next record, still in its sleeve: its number shows, its song does not.
-    private func sealed(_ song: FootprintNumberSong, remaining: Int) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .leading) {
-                // The record peeks out of the sleeve.
-                Circle()
-                    .fill(FootprintRoomPalette.vinyl)
-                    .overlay(Circle().stroke(FootprintRoomPalette.groove, lineWidth: 0.8).padding(10))
-                    .frame(width: Self.diameter, height: Self.diameter)
-                    .offset(x: 22)
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(white: 0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .strokeBorder(BSColor.Stage.accent.opacity(0.7), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
-                    )
-                    .overlay {
-                        VStack(spacing: 0) {
-                            Text("?")
-                                .font(.system(size: 30, weight: .black).width(.compressed))
-                                .foregroundStyle(BSColor.Stage.accent)
-                            Text(String(format: "No. %d", song.number))
-                                .font(.system(size: 10, weight: .semibold).width(.condensed))
-                                .tracking(1.5)
-                                .foregroundStyle(BSColor.Stage.muted)
-                        }
-                    }
-                    .frame(width: Self.diameter, height: Self.diameter)
-                    .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
-            }
-            .frame(width: Self.diameter + 22, alignment: .leading)
-            Text(BSLocalization.format("第 %lld 场", song.number))
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.accent)
-            Text(BSLocalization.format("还差 %lld 场", remaining))
-                .font(.system(size: 11))
-                .foregroundStyle(BSColor.Stage.dim)
-        }
-        .frame(width: Self.diameter + 22, alignment: .leading)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func record(_ song: FootprintNumberSong) -> some View {
-        let isPlaying = controller.isPlaying(song.number)
-        return Button {
-            if !isPlaying { FootprintSoundPlayer.shared.play(.needle) }
-            Task { await controller.toggle(song) }
+        let ordered = FootprintArchiveRankingBuilder.chronological(archive.shows)
+        let shelf = FootprintNumberSongs.shelf(showCount: ordered.count)
+        NavigationLink {
+            FootprintRecordWallView(archive: archive, covers: covers)
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                FootprintNumberDisc(number: song.number, diameter: Self.diameter, isPlaying: isPlaying)
-                Text(song.title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isPlaying ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                    .lineLimit(1)
-                Group {
-                    if controller.loadingNumber == song.number {
-                        Text(BSLocalization.text("正在准备…"))
-                    } else if controller.failedNumber == song.number {
-                        Text(BSLocalization.text("暂时无法播放"))
-                    } else {
-                        Text(song.artist)
+            HStack(spacing: 16) {
+                fan(Array(ordered.suffix(3)), firstNumber: max(1, ordered.count - 2))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(BSLocalization.text("数字唱片"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(String(shelf.unlocked.count))
+                            .font(.system(size: 26, weight: .black).width(.compressed))
+                            .foregroundStyle(FootprintRoomPalette.bulb)
+                        Text("/ \(shelf.total)")
+                            .font(.system(size: 14, weight: .bold).width(.compressed))
+                            .foregroundStyle(BSColor.Stage.dim)
+                    }
+                    progress(shelf)
+                    if let next = shelf.next {
+                        Text(BSLocalization.format("下一张 · 第 %lld 场", next.number))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.accent)
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                 }
-                .font(.system(size: 11))
-                .foregroundStyle(BSColor.Stage.dim)
-                .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.dim)
             }
-            .frame(width: Self.diameter, alignment: .leading)
-            .contentShape(Rectangle())
+            .padding(16)
+            .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.white.opacity(0.07)))
         }
-        .buttonStyle(.plain)
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: isPlaying) { _, playing in playing }
-        .accessibilityLabel(isPlaying
-            ? BSLocalization.format("暂停 %@", song.title)
-            : BSLocalization.format("试听 %@", song.title))
+        .buttonStyle(BSPressStyle())
+    }
+
+    /// The three newest records, overlapping like a hand of cards.
+    private func fan(_ shows: [Show], firstNumber: Int) -> some View {
+        ZStack(alignment: .leading) {
+            ForEach(Array(shows.enumerated()), id: \.element.id) { index, show in
+                FootprintNumberDisc(number: firstNumber + index, diameter: 64, isPlaying: false, show: show, cover: covers[show.id])
+                    .offset(x: CGFloat(index) * 22)
+            }
+        }
+        .frame(width: 64 + CGFloat(max(shows.count - 1, 0)) * 22, height: 64, alignment: .leading)
+    }
+
+    private func progress(_ shelf: FootprintRecordShelf) -> some View {
+        GeometryReader { proxy in
+            Capsule().fill(Color.white.opacity(0.08))
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(LinearGradient(colors: [FootprintRoomPalette.brass, FootprintRoomPalette.bulb], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: proxy.size.width * CGFloat(shelf.unlocked.count) / CGFloat(max(shelf.total, 1)))
+                }
+        }
+        .frame(width: 120, height: 4)
     }
 }
