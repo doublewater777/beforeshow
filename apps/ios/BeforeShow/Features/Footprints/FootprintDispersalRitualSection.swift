@@ -41,15 +41,14 @@ struct FootprintDispersalRitualSection: View {
                     ForEach(DispersalRating.allCases) { level in
                         let lit = level.rawValue <= node.rawValue
                         Circle()
-                            .fill(lit ? AnyShapeStyle(RadialGradient(colors: [.white, node.tint], center: .init(x: 0.4, y: 0.35), startRadius: 0, endRadius: 9)) : AnyShapeStyle(Color.clear))
-                            .overlay { if !lit { Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1.5) } }
+                            .fill(lit ? AnyShapeStyle(RadialGradient(colors: [.white, node.tint], center: .init(x: 0.4, y: 0.35), startRadius: 0, endRadius: 9)) : AnyShapeStyle(Color.white.opacity(0.08)))
                             .frame(width: 16, height: 16)
                             .shadow(color: lit ? node.tint.opacity(0.7) : .clear, radius: 6)
                     }
                     VStack(alignment: .leading, spacing: 1) {
                         Text(node.label)
                             .font(BSFont.headline.weight(.bold))
-                            .foregroundStyle(node.tint)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Text(node.sub)
                             .font(BSFont.V3.caption)
                             .foregroundStyle(BSColor.Stage.muted)
@@ -75,7 +74,7 @@ struct FootprintDispersalRitualSection: View {
                 HStack(alignment: .top, spacing: 8) {
                     Text("“")
                         .font(.system(size: 24, weight: .bold, design: .serif))
-                        .foregroundStyle((node?.tint ?? BSColor.Stage.accent).opacity(0.5))
+                        .foregroundStyle(BSColor.Stage.dim)
                         .offset(y: -4)
 
                     Text(note)
@@ -90,24 +89,8 @@ struct FootprintDispersalRitualSection: View {
         }
         .padding(BSSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    BSColor.Stage.surface,
-                    node?.tint.opacity(0.06) ?? FootprintDetailTokens.heroSecondarySurface
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 18)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(
-                    node?.tint.opacity(0.24) ?? BSColor.Stage.border,
-                    lineWidth: 1
-                )
-        )
+        // Only the lit lights carry the rating's colour; the card itself stays neutral.
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
         .contentShape(RoundedRectangle(cornerRadius: 18))
         .onTapGesture {
             onEdit()
@@ -164,10 +147,6 @@ struct FootprintDispersalRitualSection: View {
             .padding(BSSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(BSColor.Stage.border, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            )
             .contentShape(RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)
