@@ -25008,6 +25008,118 @@
           }
         }
       }
+    },
+    "%@ 预报": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ forecast"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 預報"
+          }
+        }
+      }
+    },
+    "演出时段可能下雨": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rain likely during the show"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出時段可能下雨"
+          }
+        }
+      }
+    },
+    "演出时段有零星降水可能": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some chance of showers during the show"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出時段有零星降水可能"
+          }
+        }
+      }
+    },
+    "演出时段大概率不下雨": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Likely dry during the show"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出時段大概率不下雨"
+          }
+        }
+      }
+    },
+    "%1$@ · 体感 %2$lld°": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Feels like %2$lld°"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · 體感 %2$lld°"
+          }
+        }
+      }
+    },
+    "演出时段降水": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rain during show"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出時段降水"
+          }
+        }
+      }
+    },
+    "体感": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feels like"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "體感"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
