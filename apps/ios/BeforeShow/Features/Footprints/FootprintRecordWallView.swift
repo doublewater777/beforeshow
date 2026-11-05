@@ -57,21 +57,50 @@ struct FootprintRecordWallView: View {
         }
     }
 
+    /// Your current count's record up front, bigger, with how far the shelf has filled.
     private func header(_ shelf: FootprintRecordShelf) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(String(shelf.unlocked.count))
-                    .font(.system(size: 56, weight: .black).width(.compressed))
-                    .foregroundStyle(FootprintRoomPalette.bulb)
-                Text("/ \(shelf.total)")
-                    .font(.system(size: 22, weight: .bold).width(.compressed))
-                    .foregroundStyle(BSColor.Stage.dim)
-                Spacer()
-                if let next = shelf.next {
-                    Text(BSLocalization.format("下一张 · 第 %lld 场", next.number))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.accent)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 18) {
+                if let latest = shelf.unlocked.first {
+                    Button { pick(latest.number, isUnlocked: true) } label: {
+                        FootprintNumberDisc(
+                            number: latest.number,
+                            diameter: 136,
+                            isPlaying: controller.isPlaying(latest.number),
+                            artworkURL: controller.previews[latest.number]?.artworkURL
+                        )
+                    }
+                    .buttonStyle(BSPressStyle())
+                    .accessibilityLabel(BSLocalization.format("第 %lld 张数字唱片", latest.number))
                 }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(String(shelf.unlocked.count))
+                            .font(.system(size: 56, weight: .black).width(.compressed))
+                            .foregroundStyle(FootprintRoomPalette.bulb)
+                        Text("/ \(shelf.total)")
+                            .font(.system(size: 22, weight: .bold).width(.compressed))
+                            .foregroundStyle(BSColor.Stage.dim)
+                    }
+                    if let latest = shelf.unlocked.first {
+                        let preview = controller.previews[latest.number]
+                        Text(preview?.title ?? latest.title)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(BSColor.Stage.foreground)
+                            .lineLimit(2)
+                        Text(preview?.artist ?? latest.artist)
+                            .font(.system(size: 13))
+                            .foregroundStyle(BSColor.Stage.muted)
+                            .lineLimit(1)
+                    }
+                    if let next = shelf.next {
+                        Text(BSLocalization.format("下一张 · 第 %lld 场", next.number))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.accent)
+                            .padding(.top, 4)
+                    }
+                }
+                Spacer(minLength: 0)
             }
             GeometryReader { proxy in
                 Capsule().fill(Color.white.opacity(0.08))

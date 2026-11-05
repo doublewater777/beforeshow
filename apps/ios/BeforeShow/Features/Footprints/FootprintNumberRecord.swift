@@ -155,10 +155,19 @@ struct FootprintNumberDisc: View {
     var artworkURL: URL?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Where the record came to rest, and when it last started turning from there.
+    @State private var restingAngle: Double = 0
+    @State private var spinningSince: Date?
+
+    /// 33⅓ rpm.
+    private static let degreesPerSecond: Double = 200
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !isPlaying || reduceMotion)) { context in
-            let angle = isPlaying && !reduceMotion ? context.date.timeIntervalSinceReferenceDate * 200 : 0
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: spinningSince == nil)) { context in
+            // Kept small and continuous: picks up where it stopped, holds still when paused.
+            let angle = spinningSince.map {
+                (restingAngle + context.date.timeIntervalSince($0) * Self.degreesPerSecond).truncatingRemainder(dividingBy: 360)
+            } ?? restingAngle
             ZStack {
                 Circle().fill(FootprintRoomPalette.vinyl)
                 ForEach(1..<4, id: \.self) { ring in
@@ -180,6 +189,18 @@ struct FootprintNumberDisc: View {
             .shadow(color: .black.opacity(0.6), radius: 8, y: 6)
         }
         .accessibilityHidden(true)
+        .onAppear { setSpinning(isPlaying) }
+        .onChange(of: isPlaying) { _, playing in setSpinning(playing) }
+    }
+
+    private func setSpinning(_ playing: Bool) {
+        let spin = playing && !reduceMotion
+        if spin, spinningSince == nil {
+            spinningSince = Date()
+        } else if !spin, let since = spinningSince {
+            restingAngle = (restingAngle + Date().timeIntervalSince(since) * Self.degreesPerSecond).truncatingRemainder(dividingBy: 360)
+            spinningSince = nil
+        }
     }
 
     @ViewBuilder
