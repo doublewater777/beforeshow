@@ -46,6 +46,7 @@ struct DispersalShareStep: View {
     @State private var isSaving = false
     @State private var isSharing = false
     @State private var ambientColor: Color?
+    @State private var editorialFontsReady = BSEditorialFontLoader.isSongtiAvailable
 
     private var isBusy: Bool {
         isSaving || isSharing
@@ -111,6 +112,9 @@ struct DispersalShareStep: View {
                 for: show.coverImageURL
             )
         }
+        .task {
+            editorialFontsReady = await BSEditorialFontLoader.ensureSongtiAvailable()
+        }
     }
 
     @ToolbarContentBuilder
@@ -149,11 +153,8 @@ struct DispersalShareStep: View {
                 / DispersalCeremonyShareExport.renderSize.height,
             contentMode: .fit
         )
-        .clipShape(RoundedRectangle(cornerRadius: 28))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm))
+        .id(editorialFontsReady)
         .shadow(color: .black.opacity(0.45), radius: 24, y: 10)
     }
 
@@ -196,6 +197,7 @@ struct DispersalShareStep: View {
         }
 
         let resolvedAmbient = await resolveAmbientColor()
+        _ = await BSEditorialFontLoader.ensureSongtiAvailable()
         guard let image = DispersalCeremonyShareExport.renderImage(
             show: show,
             identity: identity,
@@ -235,6 +237,7 @@ struct DispersalShareStep: View {
         }
 
         let resolvedAmbient = await resolveAmbientColor()
+        _ = await BSEditorialFontLoader.ensureSongtiAvailable()
         guard let image = DispersalCeremonyShareExport.renderImage(
             show: show,
             identity: identity,

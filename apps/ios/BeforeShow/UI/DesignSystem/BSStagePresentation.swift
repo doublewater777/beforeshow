@@ -174,17 +174,66 @@ struct BSStageScaffold<Content: View>: View {
     }
 }
 
-/// The 当前 page's backdrop: the dark of the house around the stage. The stage brings its own
-/// light, so nothing here glows; pulling past the top just shows more of the dark room.
+/// The 当前 page's backdrop: the dark of the house around the stage, with the evening's weather
+/// tinting the sky above it. The stage brings its own light, so nothing here glows from the cover;
+/// pulling past the top just shows more of the room.
 struct CurrentShowAmbientBackground: View {
+    var weatherTone: WeatherAtmosphereTone? = nil
+
     var body: some View {
-        LinearGradient(
-            colors: [Color(red: 0.024, green: 0.02, blue: 0.02), Color.black],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.024, green: 0.02, blue: 0.02), Color.black],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            // 远景天气天际层 (WeatherSky)
+            if let weatherTone, weatherTone != .neutral {
+                weatherSkyBackdrop(for: weatherTone)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.7), value: weatherTone)
         .ignoresSafeArea()
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func weatherSkyBackdrop(for tone: WeatherAtmosphereTone) -> some View {
+        switch tone {
+        case .sunsetGold:
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.22, green: 0.10, blue: 0.05).opacity(0.85), location: 0.0),
+                    .init(color: Color(red: 0.12, green: 0.05, blue: 0.07).opacity(0.45), location: 0.45),
+                    .init(color: Color.clear, location: 0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .rainBlue:
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.05, green: 0.11, blue: 0.18).opacity(0.90), location: 0.0),
+                    .init(color: Color(red: 0.03, green: 0.07, blue: 0.12).opacity(0.50), location: 0.45),
+                    .init(color: Color.clear, location: 0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .coldNightIndigo:
+            LinearGradient(
+                stops: [
+                    .init(color: Color(red: 0.06, green: 0.06, blue: 0.18).opacity(0.90), location: 0.0),
+                    .init(color: Color(red: 0.03, green: 0.04, blue: 0.10).opacity(0.50), location: 0.45),
+                    .init(color: Color.clear, location: 0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .neutral:
+            EmptyView()
+        }
     }
 }
 

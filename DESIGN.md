@@ -91,6 +91,22 @@ Rules:
 - Card tones tint borders, badges, and top gradients only; text and controls stay on foreground/muted/dim.
 - Blur is reserved for overlays and the countdown bridge; repeated feature cards stay on flat tonal surfaces.
 
+### 纸本记忆色板 — dispersal keepsakes only
+
+The interface stays dark. Paper is reserved for an object the user takes away (the 散场卡 export), shown on the dark stage like a physical souvenir. Swift source: `BSColor.Paper`.
+
+| Role | Token | Value | Usage |
+|---|---|---|---|
+| Paper | `BSColor.Paper.background` | `#EEE6D4` | Keepsake card ground |
+| Photo frame | `BSColor.Paper.photoFrame` | `#FBF8F1` | Polaroid border around the poster |
+| Ink | `BSColor.Paper.ink` | `#1C1A17` | Primary text on paper |
+| Ink muted | `BSColor.Paper.inkMuted` | `#6B6458` | Supporting text (4.5:1) |
+| Gold ink | `BSColor.Paper.gold` | `#7A5C24` | Postmark, 人上人 stamp |
+| Violet ink | `BSColor.Paper.violet` | `#5B3FA0` | 顶级 stamp |
+| Red ink | `BSColor.Paper.red` | `#A8303A` | 夯爆了 stamp |
+
+Editorial type (`BSFont.Editorial`): Bodoni 72 numerals for dates and ticket numbers, Songti SC for titles, ratings and the closing note. Both ship with iOS. Used only on dispersal memory surfaces; collage objects (tilted polaroid, postmark, ADMIT ONE stub) carry the memory metaphor and are never interactive.
+
 ### Token architecture
 
 1. **Primitive:** raw HTML-derived color, space, radius, type, shadow, opacity, and duration values.

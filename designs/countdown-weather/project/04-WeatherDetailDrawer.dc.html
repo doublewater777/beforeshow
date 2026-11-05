@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4. 观演微气候 Sheet · Apple Design 现场时段与装备指南</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+:root {
+  /* Apple iOS 18 & BeforeShow Design Tokens */
+  --stage-background: #070709;
+  --stage-surface: rgba(255, 255, 255, 0.06);
+  --stage-surface-card: rgba(255, 255, 255, 0.08);
+  --stage-surface-raised: #16161A;
+  --stage-foreground: #FFFFFF;
+  --stage-secondary: rgba(235, 235, 245, 0.60);
+  --stage-tertiary: rgba(235, 235, 245, 0.38);
+  --stage-border: rgba(255, 255, 255, 0.10);
+  --stage-accent: #E8C78E;
+  --stage-hero-ivory: #F5EFE2;
+  --apple-blue: #0A84FF;
+  --apple-amber: #FF9F0A;
+  --apple-purple: #BF5AF2;
+  --apple-green: #30D158;
+  --radius-card: 18px;
+  --radius-sheet: 28px;
+}
+body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+.device-shell {
+  width: 390px;
+  height: 844px;
+  background: var(--stage-background);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: var(--stage-foreground);
+}
+
+/* Background under sheet (Simulating iOS background scale & dimming) */
+.under-sheet-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  filter: blur(10px) brightness(0.35);
+  transform: scale(0.96);
+  transform-origin: top center;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(180deg, #381C14 0%, #281516 25%, #1A121D 50%, #070709 100%);
+}
+.ambient-glow-top {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 440px;
+  height: 360px;
+  background: radial-gradient(ellipse at 50% 35%, rgba(255, 145, 60, 0.38) 0%, rgba(232, 199, 142, 0.22) 40%, transparent 80%);
+  filter: blur(52px);
+}
+.top-header-ghost {
+  height: 52px;
+  padding: 4px 20px 0 20px;
+  display: flex;
+  align-items: center;
+  margin-top: 44px;
+}
+.ghost-current {
+  font-size: 32px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+.ghost-poster {
+  align-self: center;
+  width: 248px;
+  height: 330px;
+  border-radius: 26px;
+  background: linear-gradient(145deg, #064E3B 0%, #022C22 100%);
+  margin-top: 14px;
+}
+
+/* iOS Scrim */
+.scrim-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 5;
+}
+
+/* Device Chrome */
+.status-bar {
+  height: 44px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  z-index: 30;
+  flex-shrink: 0;
+}
+.dynamic-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 32px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 40;
+}
+.home-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.32);
+  border-radius: 3px;
+  z-index: 40;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Apple Design Standard Sheet (iOS 18 StageSheet)
+   ══════════════════════════════════════════════════════════════ */
+.sheet-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 96px; /* Apple medium-large sheet presentation */
+  background: var(--stage-surface-raised);
+  border-top-left-radius: var(--radius-sheet);
+  border-top-right-radius: var(--radius-sheet);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.90);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+
+/* Apple Standard Sheet Grabber */
+.sheet-handle-bar {
+  width: 36px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: rgba(255, 255, 255, 0.28);
+  margin: 9px auto 6px auto;
+  flex-shrink: 0;
+}
+
+/* Apple Navigation Bar Header with Circular Neutral Dismiss Button */
+.sheet-nav-bar {
+  padding: 6px 20px 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.nav-location-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-location-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--stage-foreground);
+}
+.nav-location-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--stage-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Apple Circular Close Button (BSChromeToolbarCloseButton) */
+.close-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  color: var(--stage-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+.close-btn:active {
+  background: rgba(255, 255, 255, 0.22);
+  transform: scale(0.92);
+}
+
+/* Sheet Scrollable Body */
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 16px 110px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: none;
+}
+.sheet-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   1. Apple Weather Signature Hero Temperature Summary
+   ══════════════════════════════════════════════════════════════ */
+.apple-hero-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border: 0.5px solid var(--stage-border);
+  border-radius: var(--radius-card);
+  padding: 20px 20px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.apple-hero-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle at 100% 0%, rgba(255, 159, 10, 0.20) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-temp-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.hero-temp-degree {
+  font-size: 60px;
+  font-weight: 300;
+  letter-spacing: -2px;
+  line-height: 1;
+  color: var(--stage-foreground);
+  font-feature-settings: "tnum";
+}
+.hero-weather-condition {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--stage-foreground);
+  margin-top: 6px;
+}
+.hero-hilo-line {
+  font-size: 13.5px;
+  color: var(--stage-secondary);
+  margin-top: 4px;
+}
+/* Apple Weather Summary Callout */
+.hero-callout-bubble {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.callout-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--apple-amber);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   2. Apple Weather Hourly Concert Timeline Card
+   ══════════════════════════════════════════════════════════════ */
+.apple-card {
+  background: var(--stage-surface);
+  border: 0.5px solid var(--stage-border);
+  border-radius: var(--radius-card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.card-apple-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--stage-secondary);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.06);
+}
+.card-header-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--stage-secondary);
+}
+
+.hourly-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.hourly-track::-webkit-scrollbar {
+  display: none;
+}
+.hourly-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 58px;
+  flex-shrink: 0;
+}
+.hourly-col.highlight-sunset .hourly-time {
+  color: var(--apple-amber);
+  font-weight: 600;
+}
+.hourly-time {
+  font-size: 12px;
+  color: var(--stage-secondary);
+  font-feature-settings: "tnum";
+}
+.hourly-symbol {
+  width: 22px;
+  height: 22px;
+  margin: 2px 0;
+}
+.hourly-temp {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--stage-foreground);
+  font-feature-settings: "tnum";
+}
+/* Concert Milestone Tag below hourly */
+.milestone-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--stage-secondary);
+  white-space: nowrap;
+}
+.milestone-badge.active-gold {
+  background: rgba(255, 159, 10, 0.22);
+  color: #FFAA33;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   3. Apple Weather 2x2 Square Grid Tiles
+   ══════════════════════════════════════════════════════════════ */
+.apple-grid-2x2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.grid-tile {
+  background: var(--stage-surface);
+  border: 0.5px solid var(--stage-border);
+  border-radius: var(--radius-card);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+}
+.tile-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--stage-secondary);
+  text-transform: uppercase;
+}
+.tile-header-icon {
+  width: 13px;
+  height: 13px;
+}
+.tile-big-val {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--stage-foreground);
+  margin: 6px 0 2px 0;
+  letter-spacing: -0.5px;
+}
+.tile-desc {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--stage-secondary);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   4. Apple Checklist (观演现场行装建议)
+   ══════════════════════════════════════════════════════════════ */
+.checklist-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--stage-surface);
+  border: 0.5px solid var(--stage-border);
+  border-radius: 14px;
+}
+.check-left-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Apple Rounded Icon Squircle */
+.squircle-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.squircle-amber {
+  background: rgba(255, 159, 10, 0.16);
+}
+.squircle-blue {
+  background: rgba(10, 132, 255, 0.16);
+}
+.squircle-green {
+  background: rgba(48, 209, 88, 0.16);
+}
+.squircle-purple {
+  background: rgba(191, 90, 242, 0.16);
+}
+
+.check-text-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.check-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--stage-foreground);
+}
+.check-subtitle {
+  font-size: 11px;
+  color: var(--stage-secondary);
+}
+/* iOS Style Checkbox Circle */
+.apple-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--apple-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   5. Apple Style Floating Bottom Primary Action Bar
+   ══════════════════════════════════════════════════════════════ */
+.sheet-dock {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 20px 28px 20px;
+  background: linear-gradient(180deg, rgba(22, 22, 26, 0) 0%, rgba(22, 22, 26, 0.92) 20%, #16161A 100%);
+  display: flex;
+  z-index: 30;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.btn-share-action {
+  flex: 1;
+  height: 48px;
+  border-radius: 14px;
+  background: #FFFFFF; /* BeforeShow BSPrimaryButtonStyle (White Chalk on dark stage) */
+  border: none;
+  color: #000000;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.btn-share-action:active {
+  transform: scale(0.96);
+  opacity: 0.82;
+}
+</style>
+</helmet>
+
+<div class="device-shell">
+  <!-- Under Sheet View: "当前" tab header & stage poster scaled down -->
+  <div class="under-sheet-view">
+    <div class="ambient-glow-top"></div>
+    <div class="top-header-ghost">
+      <div class="ghost-current">当前</div>
+    </div>
+    <div class="ghost-poster"></div>
+  </div>
+
+  <div class="scrim-overlay"></div>
+  <div class="dynamic-island"></div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>09:41</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <svg width="15" height="11" viewBox="0 0 17 11" fill="none" aria-hidden="true">
+        <path d="M1 9.5C3.5 6.5 8 6.5 10.5 9.5M3 7C5 4.5 8.5 4.5 10.5 7M6 4C7 3 8.5 3 9.5 4M8 1.5C8 1.2 8.2 1 8.5 1C8.8 1 9 1.2 9 1.5Z" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <div style="width: 22px; height: 11px; border: 1px solid #FFFFFF; border-radius: 3px; padding: 1px; display: flex; align-items: center;">
+        <div style="width: 15px; height: 7px; background: #FFFFFF; border-radius: 1.5px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Apple Design StageSheet -->
+  <div class="sheet-container">
+    <div class="sheet-handle-bar"></div>
+
+    <!-- Apple Navigation Bar -->
+    <div class="sheet-nav-bar">
+      <div class="nav-location-block">
+        <span class="nav-location-title">大梅沙海滨公园</span>
+        <span class="nav-location-sub">
+          <span>不止音乐节现场微气候</span>
+          <span>·</span>
+          <span>距开演 3 天</span>
+        </span>
+      </div>
+      <button class="close-btn" type="button" aria-label="关闭">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="sheet-body">
+      <!-- 1. Apple Weather Signature Hero Card -->
+      <div class="apple-hero-card">
+        <div class="hero-temp-row">
+          <div>
+            <div class="hero-temp-degree">26°</div>
+            <div class="hero-weather-condition">晴空晚霞</div>
+          </div>
+          <!-- Big Weather SF Symbol -->
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+          </svg>
+        </div>
+        <div class="hero-hilo-line">最高 28° · 最低 20° · 东南风 3 级 · 空气优 24</div>
+
+        <!-- Apple Weather Intelligent Summary Callout -->
+        <div class="hero-callout-bubble">
+          <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span>未来 24 小时全天适宜观演。预计 18:34 将迎来最佳海滨日落晚霞，散场后海风渐大建议备一件轻薄外套。</span>
+        </div>
+      </div>
+
+      <!-- 2. Apple Weather Hourly Concert Forecast -->
+      <div class="apple-card">
+        <div class="card-apple-header">
+          <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>演出全程时段微气候预报</span>
+        </div>
+
+        <div class="hourly-track">
+          <!-- Col 1 -->
+          <div class="hourly-col">
+            <span class="hourly-time">13:00</span>
+            <svg class="hourly-symbol" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+            </svg>
+            <span class="hourly-temp">27°</span>
+            <span class="milestone-badge">排队入场</span>
+          </div>
+
+          <!-- Col 2 -->
+          <div class="hourly-col">
+            <span class="hourly-time">15:30</span>
+            <svg class="hourly-symbol" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path>
+              <path d="M12 20v2"></path>
+              <path d="M4.93 4.93l1.41 1.41"></path>
+              <path d="M17.66 17.66l1.41 1.41"></path>
+            </svg>
+            <span class="hourly-temp">28°</span>
+            <span class="milestone-badge">刺猬乐队</span>
+          </div>
+
+          <!-- Col 3: Highlight Sunset -->
+          <div class="hourly-col highlight-sunset">
+            <span class="hourly-time">18:34</span>
+            <!-- Sunset SF Symbol -->
+            <svg class="hourly-symbol" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M17 18a5 5 0 0 0-10 0"></path>
+              <line x1="12" y1="9" x2="12" y2="2"></line>
+              <line x1="4.22" y1="10.22" x2="5.64" y2="11.64"></line>
+              <line x1="1" y1="18" x2="3" y2="18"></line>
+              <line x1="21" y1="18" x2="23" y2="18"></line>
+              <line x1="18.36" y1="11.64" x2="19.78" y2="10.22"></line>
+              <line x1="23" y1="22" x2="1" y2="22"></line>
+            </svg>
+            <span class="hourly-temp" style="color: #FFAA33;">24°</span>
+            <span class="milestone-badge active-gold">黄金日落</span>
+          </div>
+
+          <!-- Col 4 -->
+          <div class="hourly-col">
+            <span class="hourly-time">20:30</span>
+            <!-- Moon Symbol -->
+            <svg class="hourly-symbol" viewBox="0 0 24 24" fill="none" stroke="#D3DBEB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span class="hourly-temp">22°</span>
+            <span class="milestone-badge">痛仰大合唱</span>
+          </div>
+
+          <!-- Col 5 -->
+          <div class="hourly-col">
+            <span class="hourly-time">22:30</span>
+            <svg class="hourly-symbol" viewBox="0 0 24 24" fill="none" stroke="#96969E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span class="hourly-temp">20°</span>
+            <span class="milestone-badge">散场海风</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Apple Weather 2x2 Square Grid Tiles -->
+      <div class="apple-grid-2x2">
+        <!-- Tile 1: 降水概率 -->
+        <div class="grid-tile">
+          <div class="tile-header">
+            <svg class="tile-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+            </svg>
+            <span>降水概率</span>
+          </div>
+          <div class="tile-big-val">5%</div>
+          <div class="tile-desc">全程干燥无雨，海滩沙地无需雨靴雨衣。</div>
+        </div>
+
+        <!-- Tile 2: 日落黄金时刻 -->
+        <div class="grid-tile">
+          <div class="tile-header">
+            <svg class="tile-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M17 18a5 5 0 0 0-10 0"></path>
+              <line x1="12" y1="9" x2="12" y2="2"></line>
+              <line x1="1" y1="22" x2="23" y2="22"></line>
+            </svg>
+            <span>日落时刻</span>
+          </div>
+          <div class="tile-big-val">18:34</div>
+          <div class="tile-desc">距日落还有 4 小时，大梅沙海滨绝美晚霞机位。</div>
+        </div>
+
+        <!-- Tile 3: 紫外线指数 -->
+        <div class="grid-tile">
+          <div class="tile-header">
+            <svg class="tile-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+            </svg>
+            <span>紫外线指数</span>
+          </div>
+          <div class="tile-big-val" style="color: #FF9F0A;">6 中等</div>
+          <div class="tile-desc">13:00~16:00 露天暴晒强烈，建议准备防晒装备。</div>
+        </div>
+
+        <!-- Tile 4: 体感与海风 -->
+        <div class="grid-tile">
+          <div class="tile-header">
+            <svg class="tile-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>
+            </svg>
+            <span>体感与风速</span>
+          </div>
+          <div class="tile-big-val">24°C</div>
+          <div class="tile-desc">东南风 3 级 · 散场海风温差 6°C，需备轻外套。</div>
+        </div>
+      </div>
+
+      <!-- 4. Apple Style 行装建议 (Apple Health / Reminders 视觉范式) -->
+      <div class="apple-card">
+        <div class="card-apple-header">
+          <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 11l3 3L22 4"></path>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+          <span>针对晴空晚霞的观演行装建议</span>
+        </div>
+
+        <div class="checklist-group">
+          <!-- Row 1 -->
+          <div class="check-row">
+            <div class="check-left-block">
+              <div class="squircle-icon squircle-amber">🕶️</div>
+              <div class="check-text-box">
+                <span class="check-title">墨镜与遮阳帽</span>
+                <span class="check-subtitle">海滩紫外线 6 级 · 白天沙滩反光强烈</span>
+              </div>
+            </div>
+            <div class="apple-checkbox">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Row 2 -->
+          <div class="check-row">
+            <div class="check-left-block">
+              <div class="squircle-icon squircle-blue">🧥</div>
+              <div class="check-text-box">
+                <span class="check-title">防风轻便外套</span>
+                <span class="check-subtitle">夜间 22:30 散场海风大 · 温度降至 20°C</span>
+              </div>
+            </div>
+            <div class="apple-checkbox">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Row 3 -->
+          <div class="check-row">
+            <div class="check-left-block">
+              <div class="squircle-icon squircle-green">💧</div>
+              <div class="check-text-box">
+                <span class="check-title">环保便携水杯</span>
+                <span class="check-subtitle">现场官方补水点支持免费续水 · 防暴晒脱水</span>
+              </div>
+            </div>
+            <div class="apple-checkbox">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Row 4 -->
+          <div class="check-row">
+            <div class="check-left-block">
+              <div class="squircle-icon squircle-purple">🧴</div>
+              <div class="check-text-box">
+                <span class="check-title">驱蚊喷雾 / 湿纸巾</span>
+                <span class="check-subtitle">海滨草地入夜蚊虫活跃 · 便携打理沙尘</span>
+              </div>
+            </div>
+            <div class="apple-checkbox">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Apple Style Floating Bottom Primary Action Dock -->
+    <div class="sheet-dock">
+      <button class="btn-share-action" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+        <span>同步天气与行装建议给看演搭子</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
