@@ -6,8 +6,20 @@ struct ShowWeatherDay: Identifiable, Equatable {
     let index: Int
     let date: Date
     let weather: ShowWeatherDTO?
+    /// The venue's time zone, which every date and hour of this day is read in.
+    let timeZone: TimeZone
+    /// When the show plays this day.
+    let start: Date
+    let end: Date
 
     var id: Int { index }
+}
+
+/// One day a show plays, and when it plays that day.
+struct ShowWeatherSlot: Equatable {
+    let date: Date
+    let start: Date
+    let end: Date
 }
 
 /// Which days a show's weather covers, which of them matters now, and what to pack for all of them.
@@ -15,8 +27,32 @@ enum ShowWeatherDays {
     /// A festival longer than this is shown as its first week.
     static let maximumDays = 7
 
-    /// Every day of a multi-day show that repeats daily, otherwise just its one day.
-    static func dates(timing: ShowTimingFields, calendar: Calendar) -> [Date] {
+    /// The days a timetable plays, every day of a multi-day show that repeats daily,
+    /// otherwise just its one day.
+    static func slots(timing: ShowTimingFields, calendar: Calendar) -> [ShowWeatherSlot] {
+        let sessions = timing.resolvedSessions(calendar: calendar)
+        if !sessions.isEmpty {
+            var slots: [ShowWeatherSlot] = []
+            for session in sessions {
+                let day = calendar.startOfDay(for: session.date)
+                if let last = slots.last, last.date == day {
+                    slots[slots.count - 1] = ShowWeatherSlot(date: day, start: last.start, end: max(last.end, session.endsAt))
+                } else if slots.count < maximumDays {
+                    slots.append(ShowWeatherSlot(date: day, start: session.startsAt, end: session.endsAt))
+                }
+            }
+            return slots
+        }
+        return dates(timing: timing, calendar: calendar).map { day in
+            ShowWeatherSlot(
+                date: day,
+                start: CurrentShowTimeState.dailyStartTime(on: day, timing: timing, calendar: calendar),
+                end: CurrentShowTimeState.dailyEndTime(on: day, timing: timing, calendar: calendar)
+            )
+        }
+    }
+
+    private static func dates(timing: ShowTimingFields, calendar: Calendar) -> [Date] {
         let first = calendar.startOfDay(for: timing.effectiveDate)
         guard CurrentShowTimeState.isMultiDayDailyCycle(timing: timing, calendar: calendar),
               let end = CurrentShowTimeState.effectiveEndDate(timing: timing, calendar: calendar) else {
@@ -31,6 +67,21 @@ enum ShowWeatherDays {
             day = next
         }
         return days.isEmpty ? [first] : days
+    }
+
+    /// The hours of an hourly forecast that fall inside the show, from its own times;
+    /// nil when none do.
+    static func showBand(hours: [Date], start: Date, end: Date) -> ClosedRange<Int>? {
+        guard let first = hours.firstIndex(where: { $0.addingTimeInterval(3600) > start && $0 < end }),
+              let last = hours.lastIndex(where: { $0 < end && $0.addingTimeInterval(3600) > start }) else { return nil }
+        return first...last
+    }
+
+    /// The day to open on, read on the venue's calendar.
+    static func relevantIndex(of days: [ShowWeatherDay], now: Date) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = days.first?.timeZone ?? .current
+        return relevantIndex(of: days.map(\.date), now: now, calendar: calendar)
     }
 
     /// The day to open on: today while the show runs, otherwise the next day still to come,

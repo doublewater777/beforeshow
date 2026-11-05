@@ -63,12 +63,16 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
             return cached
         }
         let days = try await fetchWeatherDays(for: show)
-        let calendar = show.timingFields.eventCalendar(fallback: .current)
-        let relevant = ShowWeatherDays.relevantIndex(of: days.map(\.date), now: Date(), calendar: calendar)
+        let relevant = ShowWeatherDays.relevantIndex(of: days, now: Date())
         guard let dto = days.indices.contains(relevant) ? days[relevant].weather ?? days.compactMap(\.weather).first : nil else {
             throw ShowWeatherError.forecastUnavailable
         }
-        cache.setObject(ShowWeatherCacheBox(dto: dto), forKey: show.id.uuidString as NSString)
+        // A multi-day show moves on to its next day at the venue's midnight, whatever the TTL says.
+        var venueCalendar = Calendar(identifier: .gregorian)
+        venueCalendar.timeZone = days[relevant].timeZone
+        let midnight = venueCalendar.date(byAdding: .day, value: 1, to: venueCalendar.startOfDay(for: Date()))
+        let ttl = min(1800, midnight.map { $0.timeIntervalSinceNow } ?? 1800)
+        cache.setObject(ShowWeatherCacheBox(dto: dto, ttlSeconds: days.count > 1 ? ttl : 1800), forKey: show.id.uuidString as NSString)
         return dto
     }
 
@@ -86,20 +90,20 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
             venueAddress: show.venueAddress
         )
         let now = Date()
-        return ShowWeatherDays.dates(timing: show.timingFields, calendar: eventCalendar).enumerated().map { offset, day in
+        return ShowWeatherDays.slots(timing: show.timingFields, calendar: eventCalendar).enumerated().map { offset, slot in
             // A day the forecast doesn't reach yet stays in the list without weather.
             let dto = try? policy.resolveForecast(
                 for: show.id,
-                showDate: day,
-                showStartTime: CurrentShowTimeState.dailyStartTime(on: day, show: show, calendar: eventCalendar),
-                showEndTime: CurrentShowTimeState.dailyEndTime(on: day, show: show, calendar: eventCalendar),
+                showDate: slot.date,
+                showStartTime: slot.start,
+                showEndTime: slot.end,
                 calendar: eventCalendar,
                 dailyForecasts: raw.daily,
                 hourlyForecasts: raw.hourly,
                 venueEnvironment: venueEnv,
                 now: now
             )
-            return ShowWeatherDay(index: offset + 1, date: day, weather: dto)
+            return ShowWeatherDay(index: offset + 1, date: slot.date, weather: dto, timeZone: eventCalendar.timeZone, start: slot.start, end: slot.end)
         }
     }
 
@@ -233,6 +237,9 @@ final class MockShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
 
     @MainActor
     func fetchWeatherDays(for show: Show) async throws -> [ShowWeatherDay] {
-        [ShowWeatherDay(index: 1, date: show.timingFields.effectiveDate, weather: try await fetchWeather(for: show))]
+        let timing = show.timingFields
+        let calendar = timing.eventCalendar(fallback: .current)
+        let slot = ShowWeatherDays.slots(timing: timing, calendar: calendar)[0]
+        return [ShowWeatherDay(index: 1, date: slot.date, weather: try await fetchWeather(for: show), timeZone: calendar.timeZone, start: slot.start, end: slot.end)]
     }
 }

@@ -25,6 +25,8 @@ struct ShowDetailView: View {
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
     @State private var memoryCreate: MemoryCreateSourceOption?
+    /// Moves on each minute so the stage turns LIVE, and later ends, while the page stays open.
+    @State private var now = Date()
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
 
@@ -50,7 +52,7 @@ struct ShowDetailView: View {
     }
 
     private var snapshot: CurrentShowSnapshot {
-        session.snapshot(for: show)
+        session.snapshot(for: show, now: now)
     }
 
     private var timeState: CurrentShowTimeState { snapshot.phase }
@@ -245,6 +247,12 @@ struct ShowDetailView: View {
         }
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60)))
+                now = Date()
+            }
+        }
     }
 
     private var stageMood: ShowStageMood {
@@ -252,7 +260,8 @@ struct ShowDetailView: View {
             changeStatus: show.changeStatus,
             postponedDate: show.postponedDate,
             phase: HomeShowPhase(timeState: timeState),
-            dayDistance: timeState.dayDistance
+            dayDistance: timeState.dayDistance,
+            isDayEnded: timeState.kind == .dayEnded
         )
     }
 

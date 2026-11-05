@@ -7,7 +7,8 @@ import SwiftUI
 final class FootprintNumberSongPlayer {
     static let shared = FootprintNumberSongPlayer()
 
-    private let player = PreviewListeningPlaybackService(owner: .footprintSong)
+    private let player: any ListeningPlaybackServicing
+    @ObservationIgnored private let lookup: @Sendable ([Int]) async -> [Int: SongPreview]
     private(set) var currentNumber: Int?
     private(set) var loadingNumber: Int?
     private(set) var failedNumber: Int?
@@ -16,9 +17,25 @@ final class FootprintNumberSongPlayer {
     /// Bumped by every tap and stop; a request that is no longer the latest never plays.
     private var request = 0
 
+    init(
+        player: any ListeningPlaybackServicing = PreviewListeningPlaybackService(owner: .footprintSong),
+        lookup: @escaping @Sendable ([Int]) async -> [Int: SongPreview] = { await SongPreviewLookup.shared.previews(for: $0) }
+    ) {
+        self.player = player
+        self.lookup = lookup
+    }
+
     func isPlaying(_ number: Int) -> Bool {
         currentNumber == number && player.phase.isActive
     }
+
+    /// Paused partway through: tapping again picks up from here.
+    func isPaused(_ number: Int) -> Bool {
+        currentNumber == number && !player.phase.isActive && !player.hasEnded
+    }
+
+    /// The preview played through; its owner lets the audio go.
+    var hasFinished: Bool { currentNumber != nil && player.hasEnded }
 
     var elapsed: TimeInterval { player.currentTime }
 
@@ -26,7 +43,7 @@ final class FootprintNumberSongPlayer {
     func load(_ songs: [FootprintNumberSong]) async {
         let missing = songs.filter { previews[$0.number] == nil }
         guard !missing.isEmpty else { return }
-        let found = await SongPreviewLookup.shared.previews(for: missing.map(\.trackID))
+        let found = await lookup(missing.map(\.trackID))
         for song in missing {
             if let preview = found[song.trackID] { previews[song.number] = preview }
         }
@@ -40,6 +57,10 @@ final class FootprintNumberSongPlayer {
         request += 1
         let mine = request
         failedNumber = nil
+        if isPaused(song.number) {
+            do { try await player.play() } catch { if mine == request { failedNumber = song.number } }
+            return
+        }
         loadingNumber = song.number
         defer { if mine == request { loadingNumber = nil } }
         await load([song])
@@ -66,11 +87,18 @@ final class FootprintNumberSongPlayer {
         }
     }
 
+    /// Stops this record, whether it is playing, paused or still being fetched.
     func stop(_ number: Int) {
-        guard currentNumber == number else { return }
+        guard currentNumber == number || loadingNumber == number else { return }
         request += 1
+        loadingNumber = nil
         player.stop()
         currentNumber = nil
+    }
+
+    /// Stops whatever record is playing or being fetched.
+    func stopAll() {
+        if let number = currentNumber ?? loadingNumber { stop(number) }
     }
 }
 
@@ -117,6 +145,9 @@ struct FootprintNumberRecord: View {
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: isPlaying) { _, playing in playing }
         .task(id: song.number) { await controller.load([song]) }
+        .onChange(of: controller.hasFinished) { _, finished in
+            if finished { controller.stop(song.number) }
+        }
         .onDisappear { controller.stop(song.number) }
     }
 }
@@ -132,6 +163,8 @@ struct FootprintNumberSongStatus: View {
                 Text(BSLocalization.text("正在准备…"))
             } else if controller.failedNumber == number {
                 Text(BSLocalization.text("暂时无法播放"))
+            } else if controller.isPaused(number) {
+                Text(String(format: "0:%02d / 0:30", min(30, Int(controller.elapsed))))
             } else if controller.isPlaying(number) {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     Text(String(format: "0:%02d / 0:30", min(30, Int(controller.elapsed))))

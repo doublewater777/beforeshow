@@ -63,6 +63,15 @@ enum FootprintConstellationBuilder {
                 order.append(name)
             }
         }
+        // No one seen twice yet: the latest bills light the first stars, so a new sky is never empty.
+        if order.isEmpty {
+            for lineup in lineups.reversed() {
+                for name in lineup where !chosen.contains(name) && order.count < maxRepeatStars {
+                    chosen.insert(name)
+                    order.append(name)
+                }
+            }
+        }
 
         var edges: [FootprintConstellation.Edge] = []
         var edgeKeys = Set<String>()

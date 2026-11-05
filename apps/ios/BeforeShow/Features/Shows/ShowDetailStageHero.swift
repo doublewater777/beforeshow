@@ -41,7 +41,7 @@ struct ShowDetailStageHero: View {
     private var lighting: BSStageLighting {
         switch mood {
         case .before, .live: .wash
-        case .ended: .house
+        case .dayEnded, .ended: .house
         case .postponed: .ghost
         case .canceled: .dark
         }
@@ -81,7 +81,7 @@ struct ShowDetailStageHero: View {
     private var wallBrightness: Double {
         switch mood {
         case .before, .live: 0
-        case .ended: -0.08
+        case .dayEnded, .ended: -0.08
         case .postponed, .canceled: -0.35
         }
     }
@@ -149,7 +149,7 @@ struct ShowDetailStageHero: View {
         switch mood {
         case .before: BSColor.Stage.accent
         case .live: BSColor.Stage.liveTitle
-        case .ended: BSColor.Stage.foreground
+        case .dayEnded, .ended: BSColor.Stage.foreground
         case .postponed: BSColor.Accent.warm
         case .canceled: BSColor.Stage.dim
         }
@@ -209,6 +209,7 @@ struct ShowDetailStageHero: View {
             let label = show.changeStatus == .postponed ? BSLocalization.text("已改期") : BSLocalization.text("开场前")
             return label + " · " + dateLine
         case .live: return "LIVE · " + dateLine
+        case .dayEnded: return BSLocalization.text("今日已落幕") + " · " + dateLine
         case .ended: return BSLocalization.text("已散场") + " · " + dateLine
         case .postponed: return BSLocalization.text("已延期") + " · " + BSLocalization.text("新日期待定")
         case .canceled: return BSLocalization.text("已取消") + " · " + BSLocalization.format("原定 %@", dateLine)
@@ -219,7 +220,7 @@ struct ShowDetailStageHero: View {
         switch mood {
         case .postponed: BSLocalization.text("倒计时已暂停，定下新日期后会重新开始")
         case .canceled: BSLocalization.text("这场已经取消，记录仍会保留")
-        case .before, .live, .ended: nil
+        case .before, .live, .dayEnded, .ended: nil
         }
     }
 

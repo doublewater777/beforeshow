@@ -178,9 +178,11 @@ enum FootprintStagePolicy {
         show.changeStatus != .canceled && !(show.changeStatus == .postponed && show.postponedDate == nil)
     }
 
+    /// Counted from the show's last day, so a festival that just ended was 1 day ago, not 3.
     private static func days(from show: Show, to now: Date, calendar: Calendar) -> Int {
         let showCalendar = show.timingCalendar(fallback: calendar)
-        let start = showCalendar.startOfDay(for: show.effectiveDate)
+        let lastDay = CurrentShowTimeState.effectiveEndDate(timing: show.timingFields, calendar: showCalendar) ?? show.effectiveDate
+        let start = showCalendar.startOfDay(for: max(show.effectiveDate, lastDay))
         let end = showCalendar.startOfDay(for: now)
         return max(0, showCalendar.dateComponents([.day], from: start, to: end).day ?? 0)
     }

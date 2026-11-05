@@ -171,13 +171,17 @@ struct FootprintBookContents: View {
                 FootprintBookHeading(latin: "Contents", title: BSLocalization.text("目录"), size: 36)
                     .bookRise(0.2)
                     .padding(.top, 26)
-                VStack(spacing: 0) {
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { offset, row in
-                        Button { book.index(of: row.page).map(turner.go) } label: { line(row) }
-                            .buttonStyle(.plain)
-                            .bookRise(0.35 + Double(offset) * 0.05)
+                // Many years of chapters scroll under the heading instead of pushing past the page.
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { offset, row in
+                            Button { book.index(of: row.page).map(turner.go) } label: { line(row) }
+                                .buttonStyle(.plain)
+                                .bookRise(0.35 + Double(min(offset, 10)) * 0.05)
+                        }
                     }
                 }
+                .scrollBounceBehavior(.basedOnSize)
                 .padding(.top, 28)
             }
         }

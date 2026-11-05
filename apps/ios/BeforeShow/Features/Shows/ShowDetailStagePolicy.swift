@@ -4,6 +4,8 @@ import Foundation
 enum ShowStageMood: Equatable {
     case before(daysToGo: Int)
     case live
+    /// A multi-day show between days: tonight is over, another day is still to come.
+    case dayEnded
     case ended
     /// Postponed with no new date yet.
     case postponed
@@ -15,7 +17,8 @@ enum ShowDetailStagePolicy {
         changeStatus: ShowChangeStatus,
         postponedDate: Date?,
         phase: HomeShowPhase,
-        dayDistance: Int
+        dayDistance: Int,
+        isDayEnded: Bool = false
     ) -> ShowStageMood {
         switch changeStatus {
         case .canceled:
@@ -25,7 +28,7 @@ enum ShowDetailStagePolicy {
         case .postponed, .scheduled:
             switch phase {
             case .live: return .live
-            case .ended: return .ended
+            case .ended: return isDayEnded ? .dayEnded : .ended
             case .pre, .inactive: return .before(daysToGo: max(0, dayDistance))
             }
         }
@@ -58,6 +61,11 @@ enum ShowDetailStagePolicy {
                 return (format(end, "HH:mm", calendar), format(end, "EEE MM.dd", calendar))
             }
             return ("END", "HOUSE LIGHTS")
+        case .dayEnded:
+            if exact, let end {
+                return (format(end, "HH:mm", calendar), format(end, "EEE MM.dd", calendar))
+            }
+            return ("END", "TONIGHT")
         case .postponed:
             return ("--:--", "TBD")
         case .canceled:

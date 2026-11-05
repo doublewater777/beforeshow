@@ -23,6 +23,21 @@ final class ShowDetailStageTests: XCTestCase {
         XCTAssertEqual(ShowDetailStagePolicy.mood(changeStatus: .scheduled, postponedDate: nil, phase: .ended, dayDistance: -2), .ended)
     }
 
+    func testAFestivalBetweenDaysIsOverForTonightNotForGood() throws {
+        let festival = try Show(
+            name: "橘子湾", date: date(2026, 11, 7), startTime: date(2026, 11, 7, 14), endDate: date(2026, 11, 8),
+            endTime: date(2026, 11, 8, 22), timeZoneIdentifier: "Asia/Shanghai", city: "福州"
+        )
+        let afterDayOne = CurrentShowTimeState(show: festival, calendar: calendar, now: date(2026, 11, 7, 23, 30))
+        XCTAssertEqual(afterDayOne.kind, .dayEnded)
+        let mood = ShowDetailStagePolicy.mood(
+            changeStatus: .scheduled, postponedDate: nil, phase: HomeShowPhase(timeState: afterDayOne),
+            dayDistance: afterDayOne.dayDistance, isDayEnded: afterDayOne.kind == .dayEnded
+        )
+        XCTAssertEqual(mood, .dayEnded)
+        XCTAssertEqual(ShowDetailStagePolicy.clock(for: mood, start: nil, end: nil, now: .now, exact: false, calendar: calendar).unit, "TONIGHT")
+    }
+
     // MARK: Clock
 
     func testClockCountsDaysThenMinutesToDoors() {

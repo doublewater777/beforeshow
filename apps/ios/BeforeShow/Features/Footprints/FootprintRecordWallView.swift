@@ -52,9 +52,7 @@ struct FootprintRecordWallView: View {
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
         .sensoryFeedback(.selection, trigger: selected)
         .task { await controller.load(shelf.unlocked) }
-        .onDisappear {
-            if let current = controller.currentNumber { controller.stop(current) }
-        }
+        .onDisappear { controller.stopAll() }
     }
 
     /// Your current count's record up front, bigger, with how far the shelf has filled.
@@ -172,7 +170,7 @@ struct FootprintRecordWallView: View {
             controller.stop(number)
             return
         }
-        if let current = controller.currentNumber { controller.stop(current) }
+        controller.stopAll()
         selected = number
         guard isUnlocked, let song = FootprintNumberSongs.song(for: number) else { return }
         FootprintSoundPlayer.shared.play(.needle)

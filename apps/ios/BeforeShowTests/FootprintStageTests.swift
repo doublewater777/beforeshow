@@ -105,6 +105,17 @@ final class FootprintStageTests: XCTestCase {
         XCTAssertEqual(sky.groups.map(\.brightest), ["浪味仙贝"])
     }
 
+    func testANewSkyWithNoRepeatsStillLightsItsLatestArtists() throws {
+        let shows = [
+            try makeShow("一", 2025, 3, 7, artists: ["A", "B"]),
+            try makeShow("二", 2026, 6, 6, artists: ["C"])
+        ]
+        let sky = FootprintConstellationBuilder.make(shows: shows)
+
+        XCTAssertEqual(Set(sky.stars.map(\.name)), ["A", "B", "C"])
+        XCTAssertTrue(sky.edges.contains(FootprintConstellation.Edge(from: "A", to: "B")) || sky.edges.contains(FootprintConstellation.Edge(from: "B", to: "A")))
+    }
+
     func testConstellationLayoutIsDeterministicAndStaysInsideTheSky() throws {
         let names = (0..<18).map { "艺人\($0)" }
         let edges = zip(names, names.dropFirst()).map { FootprintConstellation.Edge(from: $0, to: $1) }
@@ -145,6 +156,15 @@ final class FootprintStageTests: XCTestCase {
         XCTAssertEqual(status.nextShowID, next.id)
         XCTAssertEqual(status.nextMonth, 11)
         XCTAssertEqual(status.nextDay, 7)
+    }
+
+    func testMarqueeCountsAFestivalFromItsLastDay() throws {
+        let festival = try Show(
+            name: "音乐节", date: date(2026, 11, 1), startTime: date(2026, 11, 1, 13), endDate: date(2026, 11, 3),
+            endTime: date(2026, 11, 3, 22), timeZoneIdentifier: "Asia/Shanghai", city: "杭州"
+        )
+        let status = FootprintStagePolicy.marquee(archived: [festival], allShows: [festival], now: date(2026, 11, 4, 9), calendar: calendar)
+        XCTAssertEqual(status.daysSinceLast, 1)
     }
 
     // MARK: Single show

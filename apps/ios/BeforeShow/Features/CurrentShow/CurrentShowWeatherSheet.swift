@@ -28,9 +28,19 @@ struct CurrentShowWeatherSheet: View {
         self.city = city ?? show.city
     }
 
+    /// The venue's time zone, as the forecast found it.
     private var eventTimeZone: TimeZone {
-        weather?.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+        shownWeather?.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+            ?? days.first?.timeZone
             ?? show.timingFields.eventCalendar(fallback: .current).timeZone
+    }
+
+    /// When the shown day's show plays.
+    private var showWindow: (start: Date, end: Date) {
+        if days.indices.contains(selectedDay) { return (days[selectedDay].start, days[selectedDay].end) }
+        let timing = show.timingFields
+        let slot = ShowWeatherDays.slots(timing: timing, calendar: timing.eventCalendar(fallback: .current))[0]
+        return (slot.start, slot.end)
     }
 
     private var storageKey: String {
@@ -243,7 +253,8 @@ struct CurrentShowWeatherSheet: View {
                     .font(.system(size: 13))
                     .foregroundStyle(BSColor.textSecondary)
             } else {
-                let band = showBand(weather.hourly)
+                let band = ShowWeatherDays.showBand(hours: weather.hourly.map(\.time), start: showWindow.start, end: showWindow.end)
+                    ?? 0...(weather.hourly.count - 1)
                 let fits = weather.hourly.count <= 7
                 // The whole day is there to scroll back to; it opens just before doors.
                 let lead = weather.hourly[max(0, band.lowerBound - 2)].id
@@ -291,13 +302,6 @@ struct CurrentShowWeatherSheet: View {
         }
     }
 
-    /// Hours from 开场 to 散场 (to the last hour when the forecast stops before the show ends).
-    private func showBand(_ hours: [ShowWeatherHourlyDTO]) -> ClosedRange<Int> {
-        let start = hours.firstIndex { $0.milestoneLabel == BSLocalization.text("开场") } ?? 0
-        let end = hours.lastIndex { $0.milestoneLabel == BSLocalization.text("散场") } ?? hours.count - 1
-        return start...max(start, end)
-    }
-
     private func bandBackground(_ band: ClosedRange<Int>, count: Int, tint: Color, fits: Bool) -> some View {
         GeometryReader { proxy in
             let column = fits ? proxy.size.width / CGFloat(max(count, 1)) : 56
@@ -316,12 +320,15 @@ struct CurrentShowWeatherSheet: View {
             (BSLocalization.text("演出时段降水"), "\(Int(((weather.showPeriodPrecipitationProbability ?? weather.precipitationProbability) * 100).rounded()))%"),
             (BSLocalization.text("体感"), "\(weather.feelsLikeCelsius)°")
         ]
-        if weather.sunsetTime != nil { items.append((BSLocalization.text("日落"), sunsetTimeString(weather))) }
-        // UV only matters for a show in daylight; an evening show leaves it out.
-        if weather.uvIndex >= 3 { items.append((BSLocalization.text("紫外线指数"), "\(weather.uvIndex)")) }
+        // UV only matters for a show in daylight; when it does, it takes sunset's place, never wind's.
+        if weather.uvIndex >= 3 {
+            items.append((BSLocalization.text("紫外线指数"), "\(weather.uvIndex)"))
+        } else if weather.sunsetTime != nil {
+            items.append((BSLocalization.text("日落"), sunsetTimeString(weather)))
+        }
         items.append((BSLocalization.text("风速"), weather.windDescription))
         return HStack(alignment: .top, spacing: 8) {
-            ForEach(Array(items.prefix(4).enumerated()), id: \.offset) { _, item in
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.0)
                         .font(.system(size: 11))
@@ -521,7 +528,7 @@ struct CurrentShowWeatherSheet: View {
         errorMessage = nil
         do {
             let fetched = try await LiveShowWeatherService.shared.fetchWeatherDays(for: show)
-            let relevant = ShowWeatherDays.relevantIndex(of: fetched.map(\.date), now: Date(), calendar: show.timingFields.eventCalendar(fallback: .current))
+            let relevant = ShowWeatherDays.relevantIndex(of: fetched, now: Date())
             days = fetched
             selectedDay = relevant
             if fetched.allSatisfy({ $0.weather == nil }) {

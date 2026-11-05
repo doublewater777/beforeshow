@@ -84,10 +84,14 @@ final class FootprintVenueLocator {
     private nonisolated static let minimumDistanceFromCity: CLLocationDistance = 300
     private static let lookupsPerVisit = 40
 
-    private let cacheKey = "FootprintVenueLocator.cache.v2"
+    /// Keyed by what was searched for, so a corrected address is looked up again.
+    private let cacheKey = "FootprintVenueLocator.cache.v3"
     private var cache: [String: FootprintCityCoordinate]
+    /// Searches that found nothing this launch; skipped so the venues after them get their turn.
+    private var misses: Set<String> = []
 
     private init(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: "FootprintVenueLocator.cache.v2")
         if let data = defaults.data(forKey: cacheKey),
            let decoded = try? JSONDecoder().decode([String: FootprintCityCoordinate].self, from: data) {
             cache = decoded
@@ -98,20 +102,24 @@ final class FootprintVenueLocator {
 
     /// Spot id → where it is. Spots it cannot place are left out; callers fall back to the city.
     func coordinates(for spots: [FootprintVenueSpot], cities: [String: FootprintCityCoordinate]) async -> [String: FootprintCityCoordinate] {
-        let missing = spots.filter { cache[$0.id] == nil && !$0.queries.isEmpty }.prefix(Self.lookupsPerVisit)
+        let missing = spots.filter {
+            let key = Self.lookupKey($0)
+            return cache[key] == nil && !misses.contains(key) && !$0.queries.isEmpty
+        }.prefix(Self.lookupsPerVisit)
         let found = await withTaskGroup(of: (String, FootprintCityCoordinate?).self) { group in
             for spot in missing {
                 let near = spot.city.flatMap { cities[$0] }
+                let key = Self.lookupKey(spot)
                 group.addTask {
                     for query in spot.queries {
-                        if let hit = await Self.resolve(query, near: near) { return (spot.id, hit) }
+                        if let hit = await Self.resolve(query, near: near) { return (key, hit) }
                     }
-                    return (spot.id, nil)
+                    return (key, nil)
                 }
             }
             var collected: [String: FootprintCityCoordinate] = [:]
-            for await (id, coordinate) in group {
-                if let coordinate { collected[id] = coordinate }
+            for await (key, coordinate) in group {
+                if let coordinate { collected[key] = coordinate } else { misses.insert(key) }
             }
             return collected
         }
@@ -119,7 +127,11 @@ final class FootprintVenueLocator {
             cache.merge(found) { _, new in new }
             if let data = try? JSONEncoder().encode(cache) { UserDefaults.standard.set(data, forKey: cacheKey) }
         }
-        return cache.filter { id, _ in spots.contains { $0.id == id } }
+        return spots.reduce(into: [:]) { result, spot in result[spot.id] = cache[Self.lookupKey(spot)] }
+    }
+
+    private static func lookupKey(_ spot: FootprintVenueSpot) -> String {
+        ([spot.id] + spot.queries).joined(separator: "\u{1F}")
     }
 
     private nonisolated static func resolve(_ query: String, near: FootprintCityCoordinate?) async -> FootprintCityCoordinate? {
