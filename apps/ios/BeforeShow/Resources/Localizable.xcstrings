@@ -25120,6 +25120,38 @@
           }
         }
       }
+    },
+    "这一天的预报还没出，通常提前 10 天发布": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This day's forecast isn't out yet; it usually arrives about 10 days ahead."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一天的預報還沒出，通常提前 10 天發布"
+          }
+        }
+      }
+    },
+    "这几天记得带": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pack for these days"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這幾天記得帶"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -511,6 +511,7 @@
 		C1BE8970DBA7FD5E901D86EC /* FootprintListeningMemorySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4044B77C89A3EB1FD5A9DB64 /* FootprintListeningMemorySection.swift */; };
 		C1E2DDC9E276A03A4531EE61 /* ExternalMapAppsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9237AAAE186762F9E1CEDF9 /* ExternalMapAppsTests.swift */; };
 		C2736A5AD0FA93BABDDE3B70 /* ShowDeletionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBD7981808E2DCAD0D8626D /* ShowDeletionCoordinator.swift */; };
+		C2836E0D77C3B7EAC4021E78 /* ShowWeatherDays.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDCFA56A5E4A72458E33E90 /* ShowWeatherDays.swift */; };
 		C288F2FA9EC974B631AF2939 /* FootprintVenueMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B0083AC91EA910A8275CE7 /* FootprintVenueMap.swift */; };
 		C2932172BA57A6981E9BCC0C /* ListeningLidSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAD7534A70FDECFFF84674F3 /* ListeningLidSelectionTests.swift */; };
 		C29483404878B22931AF5384 /* FootprintEntryTiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9894BB0641D635CC265854 /* FootprintEntryTiles.swift */; };
@@ -671,6 +672,7 @@
 		FDA78B15C1160F368B84A3C5 /* cd-read.caf in Resources */ = {isa = PBXBuildFile; fileRef = 0BD58F80E6360B0E3BB82C17 /* cd-read.caf */; };
 		FEBC9E08C118D102EDC96E0E /* FootprintDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E768B9E9A6E19FC2E2551A79 /* FootprintDashboardView.swift */; };
 		FF41122737AE84CF76592644 /* DispersalLightsOutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DAC3BD90045DE6E594A2C1 /* DispersalLightsOutView.swift */; };
+		FF8632D224E940BF255D2766 /* ShowWeatherDaysTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A61C08D9A69EB5027683B23 /* ShowWeatherDaysTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1026,6 +1028,7 @@
 		794C0DAA2C860CBB93E68FB9 /* FeatureRecommendationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureRecommendationTests.swift; sourceTree = "<group>"; };
 		795CC893B2997F86400C83CB /* BSDateFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSDateFormatTests.swift; sourceTree = "<group>"; };
 		79BC136BA302691BA95433A8 /* FootprintOverviewShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintOverviewShareSheet.swift; sourceTree = "<group>"; };
+		7A61C08D9A69EB5027683B23 /* ShowWeatherDaysTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowWeatherDaysTests.swift; sourceTree = "<group>"; };
 		7B15D73B4EC65DA106E7FF40 /* DispersalCollagePieces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCollagePieces.swift; sourceTree = "<group>"; };
 		7B166F749E248A6F5A68C923 /* NotificationDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDeepLink.swift; sourceTree = "<group>"; };
 		7B46048CB6FE0401F7494316 /* BeforeShowWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BeforeShowWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1197,6 +1200,7 @@
 		BEF0FCC8356474C5D5CD74BD /* CompanionInviteClipboardDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionInviteClipboardDetector.swift; sourceTree = "<group>"; };
 		BF4B90B473CDCFB195A19C4D /* ShowDraftScheduleFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftScheduleFields.swift; sourceTree = "<group>"; };
 		BFBD355DF5BEB3517877E6DA /* ListeningAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningAtmosphere.swift; sourceTree = "<group>"; };
+		BFDCFA56A5E4A72458E33E90 /* ShowWeatherDays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowWeatherDays.swift; sourceTree = "<group>"; };
 		BFFA9FC9122843CC500B2901 /* DynamicCoverFrameReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverFrameReader.swift; sourceTree = "<group>"; };
 		BFFB6570A840BC166B92378E /* BeforeShowTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowTab.swift; sourceTree = "<group>"; };
 		C024C6AA9AB8BC2011A3BB7A /* ListeningArtworkTone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningArtworkTone.swift; sourceTree = "<group>"; };
@@ -2088,6 +2092,7 @@
 				FF960782FBC1043A1B47FE3D /* ShowIdentityCopyTests.swift */,
 				38E5DDD2EE32C1C5BF52E6F3 /* ShowModelTests.swift */,
 				E93A9E42A34E7825013D1B3B /* ShowMutationCoordinatorTests.swift */,
+				7A61C08D9A69EB5027683B23 /* ShowWeatherDaysTests.swift */,
 				168C551FF641CFBF3E352E67 /* ShowWeatherTests.swift */,
 				3B7816473989360DD2E135A0 /* StringCatalogTests.swift */,
 				8AE708F2A0405BF9FFBB132E /* TimetableArtistAvatarStoreTests.swift */,
@@ -2166,6 +2171,7 @@
 			isa = PBXGroup;
 			children = (
 				4A93D45DD9DCBD734883F4BE /* ShowWeatherAtmospherePolicy.swift */,
+				BFDCFA56A5E4A72458E33E90 /* ShowWeatherDays.swift */,
 				7655F7BAABBAE1B9A41CB61D /* ShowWeatherModels.swift */,
 				E7B05D91927D09CA95E75A26 /* ShowWeatherService.swift */,
 			);
@@ -3119,6 +3125,7 @@
 				024CEAD86A1B404B94BD90C8 /* ShowTiming.swift in Sources */,
 				CD2AB94968CCFEF1E39B21B9 /* ShowTimingFields.swift in Sources */,
 				4D3DF70C4A75F52A3D673149 /* ShowWeatherAtmospherePolicy.swift in Sources */,
+				C2836E0D77C3B7EAC4021E78 /* ShowWeatherDays.swift in Sources */,
 				6FAB5FD78A559C5EA4E17A84 /* ShowWeatherModels.swift in Sources */,
 				BAE5B570C97C3B120ED270A4 /* ShowWeatherService.swift in Sources */,
 				43A43F872D307E0A29D3A195 /* SongFamiliarityRecord.swift in Sources */,
@@ -3285,6 +3292,7 @@
 				813C33760AD74ADAEB653812 /* ShowIdentityCopyTests.swift in Sources */,
 				1B7BAAB5C6DC9FCFE8EB69DE /* ShowModelTests.swift in Sources */,
 				60178CBCA7C8320FC96455F2 /* ShowMutationCoordinatorTests.swift in Sources */,
+				FF8632D224E940BF255D2766 /* ShowWeatherDaysTests.swift in Sources */,
 				9FCA531702C04CED879B46AB /* ShowWeatherTests.swift in Sources */,
 				7EED84D0204F3DFE74FBB212 /* StringCatalogTests.swift in Sources */,
 				1DEFCA814A6C61389603CA54 /* TimetableArtistAvatarStoreTests.swift in Sources */,

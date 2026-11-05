@@ -3,8 +3,12 @@ import CoreLocation
 import WeatherKit
 
 protocol ShowWeatherServiceProtocol: AnyObject, Sendable {
+    /// The forecast for the day that matters now: today while a multi-day show runs, else its next day.
     @MainActor
     func fetchWeather(for show: Show) async throws -> ShowWeatherDTO
+    /// Every day of the show, each with its own forecast when the forecast reaches it.
+    @MainActor
+    func fetchWeatherDays(for show: Show) async throws -> [ShowWeatherDay]
     func cachedWeather(for showID: UUID) -> ShowWeatherDTO?
 }
 
@@ -22,10 +26,25 @@ private final class ShowWeatherCacheBox: @unchecked Sendable {
     }
 }
 
+/// One WeatherKit answer for a place, reused for every day of the same show.
+private final class ShowWeatherRawBox: @unchecked Sendable {
+    let daily: [RawDayForecast]
+    let hourly: [RawHourForecast]
+    let timeZone: TimeZone?
+    let expiresAt = Date().addingTimeInterval(1800)
+
+    init(daily: [RawDayForecast], hourly: [RawHourForecast], timeZone: TimeZone?) {
+        self.daily = daily
+        self.hourly = hourly
+        self.timeZone = timeZone
+    }
+}
+
 final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Sendable {
     static let shared = LiveShowWeatherService()
 
     private let cache = NSCache<NSString, ShowWeatherCacheBox>()
+    private let rawCache = NSCache<NSString, ShowWeatherRawBox>()
     private let geocoder = CLGeocoder()
     private let policy = ShowWeatherAtmospherePolicy()
 
@@ -43,7 +62,53 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
         if let cached = cachedWeather(for: show.id) {
             return cached
         }
+        let days = try await fetchWeatherDays(for: show)
+        let calendar = show.timingFields.eventCalendar(fallback: .current)
+        let relevant = ShowWeatherDays.relevantIndex(of: days.map(\.date), now: Date(), calendar: calendar)
+        guard let dto = days.indices.contains(relevant) ? days[relevant].weather ?? days.compactMap(\.weather).first : nil else {
+            throw ShowWeatherError.forecastUnavailable
+        }
+        cache.setObject(ShowWeatherCacheBox(dto: dto), forKey: show.id.uuidString as NSString)
+        return dto
+    }
 
+    @MainActor
+    func fetchWeatherDays(for show: Show) async throws -> [ShowWeatherDay] {
+        let raw = try await rawForecast(for: show)
+        try Task.checkCancellation()
+
+        let eventCalendar = try policy.weatherCalendar(
+            timing: show.timingFields, locationTimeZone: raw.timeZone, fallback: .current
+        )
+        let venueEnv = ShowWeatherAtmospherePolicy.resolveVenueEnvironment(
+            name: show.name,
+            venueName: show.venueName,
+            venueAddress: show.venueAddress
+        )
+        let now = Date()
+        return ShowWeatherDays.dates(timing: show.timingFields, calendar: eventCalendar).enumerated().map { offset, day in
+            // A day the forecast doesn't reach yet stays in the list without weather.
+            let dto = try? policy.resolveForecast(
+                for: show.id,
+                showDate: day,
+                showStartTime: CurrentShowTimeState.dailyStartTime(on: day, show: show, calendar: eventCalendar),
+                showEndTime: CurrentShowTimeState.dailyEndTime(on: day, show: show, calendar: eventCalendar),
+                calendar: eventCalendar,
+                dailyForecasts: raw.daily,
+                hourlyForecasts: raw.hourly,
+                venueEnvironment: venueEnv,
+                now: now
+            )
+            return ShowWeatherDay(index: offset + 1, date: day, weather: dto)
+        }
+    }
+
+    @MainActor
+    private func rawForecast(for show: Show) async throws -> ShowWeatherRawBox {
+        let key = show.id.uuidString as NSString
+        if let cached = rawCache.object(forKey: key), Date() < cached.expiresAt {
+            return cached
+        }
         try Task.checkCancellation()
 
         // 1. 地理编码场地地址或城市
@@ -54,8 +119,6 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
 
         // 2. WeatherKit 数据获取
         let weather = try await WeatherService.shared.weather(for: location)
-
-        try Task.checkCancellation()
 
         // 3. 提取 Raw Daily & Hourly Forecast
         let rawDaily = weather.dailyForecast.map { day in
@@ -70,7 +133,6 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
                 uvIndex: day.uvIndex.value
             )
         }
-
         let rawHourly = weather.hourlyForecast.map { hour in
             RawHourForecast(
                 date: hour.date,
@@ -84,35 +146,9 @@ final class LiveShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
                 conditionDescription: hour.condition.description
             )
         }
-
-        let eventCalendar = try policy.weatherCalendar(
-            timing: show.timingFields, locationTimeZone: placemark.timeZone, fallback: .current
-        )
-        let effectiveDate = show.timingFields.effectiveDate
-        let startTime = CurrentShowTimeState.dailyStartTime(on: effectiveDate, show: show, calendar: eventCalendar)
-        let endTime = CurrentShowTimeState.dailyEndTime(on: effectiveDate, show: show, calendar: eventCalendar)
-
-        let venueEnv = ShowWeatherAtmospherePolicy.resolveVenueEnvironment(
-            name: show.name,
-            venueName: show.venueName,
-            venueAddress: show.venueAddress
-        )
-
-        let dto = try policy.resolveForecast(
-            for: show.id,
-            showDate: effectiveDate,
-            showStartTime: startTime,
-            showEndTime: endTime,
-            calendar: eventCalendar,
-            dailyForecasts: rawDaily,
-            hourlyForecasts: rawHourly,
-            venueEnvironment: venueEnv,
-            now: Date()
-        )
-
-        try Task.checkCancellation()
-        cache.setObject(ShowWeatherCacheBox(dto: dto), forKey: show.id.uuidString as NSString)
-        return dto
+        let box = ShowWeatherRawBox(daily: rawDaily, hourly: rawHourly, timeZone: placemark.timeZone)
+        rawCache.setObject(box, forKey: key)
+        return box
     }
 
     private func resolveLocation(city: String?, venueName: String?, venueAddress: String?) async throws -> CLPlacemark {
@@ -193,5 +229,10 @@ final class MockShowWeatherService: ShowWeatherServiceProtocol, @unchecked Senda
         )
         cache[show.id] = generated
         return generated
+    }
+
+    @MainActor
+    func fetchWeatherDays(for show: Show) async throws -> [ShowWeatherDay] {
+        [ShowWeatherDay(index: 1, date: show.timingFields.effectiveDate, weather: try await fetchWeather(for: show))]
     }
 }

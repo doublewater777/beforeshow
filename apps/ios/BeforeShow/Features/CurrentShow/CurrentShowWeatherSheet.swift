@@ -11,6 +11,9 @@ struct CurrentShowWeatherSheet: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     @State private var packedItemIDs: Set<String> = []
+    /// Every day of a multi-day show; a single-day show has one.
+    @State private var days: [ShowWeatherDay] = []
+    @State private var selectedDay = 0
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -38,11 +41,22 @@ struct CurrentShowWeatherSheet: View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 26) {
-                    if let weather {
+                    if isMultiDay {
+                        dayStrip
+                    }
+                    if let weather = shownWeather {
                         summary(weather)
                         timeline(weather)
                         metrics(weather)
-                        checklist(weather)
+                        checklist
+                        attributionFooter
+                    } else if isMultiDay {
+                        Text(BSLocalization.text("这一天的预报还没出，通常提前 10 天发布"))
+                            .font(.system(size: 14))
+                            .foregroundStyle(BSColor.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 24)
+                        if !packingItems.isEmpty { checklist }
                         attributionFooter
                     } else if isLoading {
                         loadingPlaceholder
@@ -73,9 +87,7 @@ struct CurrentShowWeatherSheet: View {
             }
             .task {
                 loadPackedItems()
-                if weather == nil {
-                    await loadWeather()
-                }
+                await loadWeather()
             }
         }
         .presentationDetents([.fraction(0.88), .large])
@@ -84,10 +96,84 @@ struct CurrentShowWeatherSheet: View {
         .preferredColorScheme(.dark)
     }
 
+    private var isMultiDay: Bool { days.count > 1 }
+
+    /// The selected day's forecast once the days are in, the forecast the sheet opened with until then.
+    private var shownWeather: ShowWeatherDTO? {
+        days.indices.contains(selectedDay) ? days[selectedDay].weather : weather
+    }
+
+    private var packingItems: [ShowWeatherPackingItemDTO] {
+        days.isEmpty ? weather?.packingList ?? [] : ShowWeatherDays.packingList(for: days)
+    }
+
+    // MARK: - Days
+
+    /// One card per day of a multi-day show; the summary below follows the selected day.
+    private var dayStrip: some View {
+        let fits = days.count <= 4
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { selectedDay = offset }
+                    } label: {
+                        dayCard(day, isSelected: offset == selectedDay)
+                            .frame(width: fits ? nil : 84)
+                            .frame(maxWidth: fits ? .infinity : nil)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .containerRelativeFrame(.horizontal) { width, _ in fits ? width : max(width, CGFloat(days.count) * 92) }
+        }
+        .scrollDisabled(fits)
+        .sensoryFeedback(.selection, trigger: selectedDay)
+    }
+
+    private func dayCard(_ day: ShowWeatherDay, isSelected: Bool) -> some View {
+        let tint = day.weather?.tone.primaryTint ?? BSColor.textSecondary
+        return VStack(spacing: 5) {
+            Text(verbatim: "Day \(day.index)")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(isSelected ? BSColor.textPrimary : BSColor.textSecondary)
+            Text(dayLabel(day.date))
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundStyle(BSColor.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Image(systemName: day.weather?.condition.systemSymbolName ?? "ellipsis")
+                .symbolRenderingMode(.multicolor)
+                .font(.system(size: 18))
+                .foregroundStyle(BSColor.textSecondary)
+                .frame(height: 22)
+            Text(day.weather.map { "\($0.highCelsius)° / \($0.lowCelsius)°" } ?? "—")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(day.weather == nil ? BSColor.textSecondary : BSColor.textPrimary)
+        }
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isSelected ? tint.opacity(0.16) : Color.white.opacity(0.05))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(isSelected ? tint.opacity(0.5) : Color.white.opacity(0.08), lineWidth: isSelected ? 1 : 0.5))
+        )
+        .opacity(day.weather == nil && !isSelected ? 0.6 : 1)
+    }
+
+    private func dayLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = eventTimeZone
+        formatter.setLocalizedDateFormatFromTemplate("EEE")
+        let weekday = formatter.string(from: date)
+        formatter.dateFormat = "MM.dd"
+        return "\(weekday) \(formatter.string(from: date))"
+    }
+
     /// The evening's weather tints the top of the sheet, the way it tints the 当前 page.
     @ViewBuilder
     private var toneWash: some View {
-        if let weather, weather.tone != .neutral {
+        if let weather = shownWeather, weather.tone != .neutral {
             LinearGradient(colors: [weather.tone.primaryTint.opacity(0.16), .clear], startPoint: .top, endPoint: .bottom)
                 .frame(height: 320)
                 .ignoresSafeArea()
@@ -249,13 +335,15 @@ struct CurrentShowWeatherSheet: View {
 
     // MARK: - Packing checklist
 
-    private func checklist(_ weather: ShowWeatherDTO) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionTitle(BSLocalization.text("出门前记得带"))
+    /// What to pack: for a multi-day show, one list for the whole trip.
+    private var checklist: some View {
+        let items = packingItems
+        return VStack(alignment: .leading, spacing: 10) {
+            sectionTitle(isMultiDay ? BSLocalization.text("这几天记得带") : BSLocalization.text("出门前记得带"))
             VStack(spacing: 0) {
-                ForEach(Array(weather.packingList.enumerated()), id: \.element.id) { index, item in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     packingItemRow(item)
-                    if index < weather.packingList.count - 1 {
+                    if index < items.count - 1 {
                         Rectangle().fill(BSColor.border).frame(height: 0.5).padding(.leading, 58)
                     }
                 }
@@ -423,11 +511,19 @@ struct CurrentShowWeatherSheet: View {
         isLoading = true
         errorMessage = nil
         do {
-            let fetched = try await LiveShowWeatherService.shared.fetchWeather(for: show)
-            weather = fetched
+            let fetched = try await LiveShowWeatherService.shared.fetchWeatherDays(for: show)
+            let relevant = ShowWeatherDays.relevantIndex(of: fetched.map(\.date), now: Date(), calendar: show.timingFields.eventCalendar(fallback: .current))
+            days = fetched
+            selectedDay = relevant
+            if fetched.allSatisfy({ $0.weather == nil }) {
+                throw ShowWeatherError.forecastUnavailable
+            }
         } catch {
-            errorMessage = (error as? ShowWeatherError)?.localizedDescription
-                ?? BSLocalization.text("暂时无法获取天气，请稍后重试")
+            // Keep the forecast the sheet opened with; only an empty sheet shows the error.
+            if weather == nil {
+                errorMessage = (error as? ShowWeatherError)?.localizedDescription
+                    ?? BSLocalization.text("暂时无法获取天气，请稍后重试")
+            }
         }
         isLoading = false
     }
