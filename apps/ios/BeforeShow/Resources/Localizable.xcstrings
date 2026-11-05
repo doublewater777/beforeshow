@@ -23689,6 +23689,630 @@
           }
         }
       }
+    },
+    "回忆册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memory Book"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回憶冊"
+          }
+        }
+      }
+    },
+    "%1$@ · %2$lld 页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$lld pages"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$lld 頁"
+          }
+        }
+      }
+    },
+    "上一页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous page"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一頁"
+          }
+        }
+      }
+    },
+    "下一页": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next page"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一頁"
+          }
+        }
+      }
+    },
+    "合上回忆册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close the memory book"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合上回憶冊"
+          }
+        }
+      }
+    },
+    "翻开回忆册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the memory book"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻開回憶冊"
+          }
+        }
+      }
+    },
+    "轻点翻开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to open"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕點翻開"
+          }
+        }
+      }
+    },
+    "%lld 场现场，收在这里": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld shows, kept here"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 場現場，收在這裡"
+          }
+        }
+      }
+    },
+    "上一场是 %lld 天前 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last show %lld days ago · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一場是 %lld 天前 · %@"
+          }
+        }
+      }
+    },
+    "上一场 · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last show · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一場 · %@"
+          }
+        }
+      }
+    },
+    "足迹 · VOL. 01": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Footprints · VOL. 01"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "足跡 · VOL. 01"
+          }
+        }
+      }
+    },
+    "目录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contents"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目錄"
+          }
+        }
+      }
+    },
+    "序": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prologue"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "序"
+          }
+        }
+      }
+    },
+    "第 %lld 章": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapter %lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 章"
+          }
+        }
+      }
+    },
+    "后记": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afterword"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "後記"
+          }
+        }
+      }
+    },
+    "— 写于 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "— Written %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "— 寫於 %@"
+          }
+        }
+      }
+    },
+    "你最常出门的一年": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The year you went out most"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你最常出門的一年"
+          }
+        }
+      }
+    },
+    "一切开始的一年": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The year it all began"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一切開始的一年"
+          }
+        }
+      }
+    },
+    "第一场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The first"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一場"
+          }
+        }
+      }
+    },
+    "之后还有 %lld 场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld more after this"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之後還有 %lld 場"
+          }
+        }
+      }
+    },
+    "这是最近的一场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The most recent one"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這是最近的一場"
+          }
+        }
+      }
+    },
+    "第 %1$lld 章 · %2$@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapter %1$lld · %2$@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld 章 · %2$@"
+          }
+        }
+      }
+    },
+    "%1$@ 等 %2$lld 位": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ and %2$lld in all"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 等 %2$lld 位"
+          }
+        }
+      }
+    },
+    "那天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That day"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那天"
+          }
+        }
+      }
+    },
+    "%1$@，你看了%2$@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On %1$@, you saw %2$@."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@，你看了%2$@。"
+          }
+        }
+      }
+    },
+    "%1$@，你在%2$@看了%3$@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On %1$@, in %2$@, you saw %3$@."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@，你在%2$@看了%3$@。"
+          }
+        }
+      }
+    },
+    "这是目前唯一的一场。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "So far, it is the only one."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這是目前唯一的一場。"
+          }
+        }
+      }
+    },
+    "那是第一场。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That was the first."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那是第一場。"
+          }
+        }
+      }
+    },
+    "之后，你又去了 %1$lld 场，在 %2$lld 个场馆里，一共站了 %3$@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Since then you have been to %1$lld more, in %2$lld venues, on your feet for %3$@ in all."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之後，你又去了 %1$lld 場，在 %2$lld 個場館裡，一共站了 %3$@。"
+          }
+        }
+      }
+    },
+    "这一年，你第一次为现场去了%@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This year, you first travelled to %@ for a show."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一年，你第一次為現場去了%@。"
+          }
+        }
+      }
+    },
+    "从%1$@到%2$@，每个月都去了现场。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From %1$@ to %2$@, you went every month."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從%1$@到%2$@，每個月都去了現場。"
+          }
+        }
+      }
+    },
+    "从%1$@到%2$@，只有%3$@没去现场。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From %1$@ to %2$@, only %3$@ went without a show."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從%1$@到%2$@，只有%3$@沒去現場。"
+          }
+        }
+      }
+    },
+    "这一册写到这里。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This volume ends here."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一冊寫到這裡。"
+          }
+        }
+      }
+    },
+    "下一页，留给%@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The next page is saved for %@."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一頁，留給%@。"
+          }
+        }
+      }
+    },
+    "下一页，等你写。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The next page is yours to write."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一頁，等你寫。"
+          }
+        }
+      }
+    },
+    "就在这个月": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This month"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "就在這個月"
+          }
+        }
+      }
+    },
+    "距今 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ago"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "距今 %@"
+          }
+        }
+      }
+    },
+    "第 %1$lld 场是 %2$@的%3$@。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show %1$lld was %3$@, on %2$@."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld 場是 %2$@的%3$@。"
+          }
+        }
+      }
+    },
+    "这一年，你在 %1$lld 个场馆见了 %2$lld 位艺人。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This year, you saw %2$lld artists across %1$lld venues."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一年，你在 %1$lld 個場館見了 %2$lld 位藝人。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

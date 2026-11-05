@@ -162,7 +162,7 @@ struct CurrentShowHomeView: View {
             }
             .bsAdaptiveContentWidth()
             .background {
-                CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
+                CurrentShowAmbientBackground()
                     .opacity(
                         homeArrival?.phase == .prepared
                             && homeArrival?.showID == currentShow?.id

@@ -1,33 +1,41 @@
 import SwiftUI
 
 enum BSStageLighting: Equatable {
-    /// Moving heads sweep in the poster's colours.
-    case show
-    /// Before doors: one cool work light, `lamps` fixtures already warm.
-    case workLight(lamps: Int)
+    /// The light rig runs its programme in the poster's colours. Energy 0 is the still preset
+    /// while the room fills, 1 the full show.
+    case show(energy: Double)
+    /// The poster's colours wash the stage; nothing moves and no rig hangs.
+    case wash
     /// After the show: house lights up, no beams.
     case house
-    /// Postponed or cancelled: nothing lit.
+    /// Postponed: the stage is dark but for one ghost light.
+    case ghost
+    /// Cancelled: nothing lit.
     case dark
+
+    var isShow: Bool {
+        if case .show = self { true } else { false }
+    }
+
+    /// Lit in the poster's colours.
+    var isColored: Bool { isShow || self == .wash }
 }
 
 /// A stage seen from the floor: truss and lamps, the poster as the LED wall, the crowd along the lip.
-/// The same stage carries a show from doors to house lights; only the lighting changes.
+/// The same stage carries a show from before doors to house lights; only the lighting changes.
 struct BSStageScene<Wall: View, Lip: View>: View {
-    static var height: CGFloat { 380 }
 
     let colors: [Color]
     let lighting: BSStageLighting
     let powered: Bool
+    var height: CGFloat = 380
     @ViewBuilder let wall: Wall
     /// Something standing on the stage lip, in front of the crowd.
     @ViewBuilder let lip: Lip
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     private static var floor: Color { Color(red: 0.024, green: 0.02, blue: 0.02) }
-    private static var workColor: Color { Color(red: 0.6, green: 0.7, blue: 1.0) }
     private static var houseColor: Color { Color(red: 1.0, green: 0.93, blue: 0.8) }
+    private static var ghostColor: Color { Color(red: 1.0, green: 0.78, blue: 0.5) }
 
     var body: some View {
         GeometryReader { proxy in
@@ -35,16 +43,29 @@ struct BSStageScene<Wall: View, Lip: View>: View {
             ZStack {
                 Self.floor
                 RadialGradient(colors: [ambient.color.opacity(ambient.opacity), .clear], center: .init(x: 0.5, y: lighting == .house ? 0.4 : 0.72), startRadius: 0, endRadius: width * 0.8)
-                wall.position(x: width / 2, y: 64 + 112)
-                beams(width: width)
-                    .opacity(powered ? 1 : 0)
-                    .allowsHitTesting(false)
-                truss(width: width)
+                if lighting.isColored {
+                    // The LED wall lights the haze behind and around it.
+                    RadialGradient(colors: [colors[0].opacity(0.22), colors[1].opacity(0.08), .clear], center: .init(x: 0.5, y: 0.46), startRadius: 20, endRadius: width * 0.55)
+                        .opacity(powered ? 1 : 0)
+                        .allowsHitTesting(false)
+                }
+                if case .show(let energy) = lighting {
+                    // Back truss: beams come from behind the screen so the poster stays whole.
+                    BSStageRig(colors: colors, energy: energy, height: height)
+                        .opacity(powered ? 1 : 0)
+                }
+                if lighting == .ghost {
+                    ghostLight(width: width)
+                }
+                wall.position(x: width / 2, y: height - 204)
+                if lighting != .wash {
+                    truss(width: width)
+                }
                 // Light spilling onto the floor in front of the crowd.
                 Ellipse()
                     .fill(RadialGradient(colors: [ambient.color.opacity(ambient.opacity * 1.2), .clear], center: .center, startRadius: 0, endRadius: width * 0.5))
                     .frame(width: width * 1.1, height: 90)
-                    .position(x: width / 2, y: Self.height - 66)
+                    .position(x: width / 2, y: height - 66)
                     .allowsHitTesting(false)
                 BSStageCrowd()
                     .fill(Self.floor)
@@ -55,12 +76,12 @@ struct BSStageScene<Wall: View, Lip: View>: View {
                             .blur(radius: 0.6)
                     }
                     .frame(height: 78)
-                    .position(x: width / 2, y: Self.height - 39)
+                    .position(x: width / 2, y: height - 39)
                     .allowsHitTesting(false)
-                lip.position(x: width / 2, y: Self.height - 70)
+                lip.position(x: width / 2, y: height - 70)
             }
         }
-        .frame(height: Self.height)
+        .frame(height: height)
         .clipped()
         // The stage dissolves into the page instead of ending on a hard edge.
         .mask {
@@ -70,64 +91,43 @@ struct BSStageScene<Wall: View, Lip: View>: View {
 
     private var ambient: (color: Color, opacity: Double) {
         switch lighting {
-        case .show: (colors[0], 0.18)
-        case .workLight: (Self.workColor, 0.07)
+        case .show, .wash: (colors[0], 0.18)
         case .house: (Self.houseColor, 0.12)
+        case .ghost: (Self.ghostColor, 0.05)
         case .dark: (.clear, 0)
         }
     }
 
     private var rimOpacity: Double {
         switch lighting {
-        case .show: 0.3
+        case .show, .wash: 0.3
         case .house: 0.22
-        case .workLight, .dark: 0
+        case .ghost: 0.12
+        case .dark: 0
         }
     }
 
-    private func beams(width: CGFloat) -> some View {
-        let fixtures: [(x: CGFloat, base: Double, swing: Double, speed: Double, phase: Double, color: Color, opacity: Double)]
-        switch lighting {
-        case .show:
-            fixtures = [
-                (0.12, -4, 20, 1.15, 0, colors[1], 0.6), (0.37, 4, 17, 1.5, 1.3, colors[0], 0.6),
-                (0.63, -4, 17, 1.37, 2.2, colors[0], 0.6), (0.88, 4, 20, 1.23, 3.1, colors[1], 0.6)
-            ]
-        case .workLight:
-            fixtures = [(0.5, 0, 9, 0.7, 0, Self.workColor, 0.38)]
-        case .house, .dark:
-            fixtures = []
+    /// One bare bulb on a stand, left on an empty stage until it opens again.
+    private func ghostLight(width: CGFloat) -> some View {
+        let x = width * 0.83
+        let bulbY = height - 128
+        return ZStack {
+            RadialGradient(colors: [Self.ghostColor.opacity(0.32), Self.ghostColor.opacity(0.06), .clear], center: .center, startRadius: 2, endRadius: 90)
+                .frame(width: 180, height: 180)
+                .position(x: x, y: bulbY)
+            Rectangle()
+                .fill(Color(white: 0.16))
+                .frame(width: 2, height: 58)
+                .position(x: x, y: bulbY + 32)
+            Circle()
+                .fill(Color(red: 1, green: 0.92, blue: 0.78))
+                .frame(width: 7, height: 7)
+                .shadow(color: Self.ghostColor, radius: 6)
+                .position(x: x, y: bulbY)
         }
-        return TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || fixtures.isEmpty)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            ZStack {
-                ForEach(fixtures.indices, id: \.self) { index in
-                    let fixture = fixtures[index]
-                    let angle = fixture.base + (reduceMotion ? 0 : fixture.swing * sin(t * fixture.speed + fixture.phase))
-                    BSStageBeam()
-                        .fill(LinearGradient(colors: [fixture.color.opacity(fixture.opacity), fixture.color.opacity(0)], startPoint: .top, endPoint: .bottom))
-                        .frame(width: 150, height: Self.height)
-                        .blur(radius: 2)
-                        .rotationEffect(.degrees(angle), anchor: .top)
-                        .position(x: width * fixture.x, y: 24 + Self.height / 2)
-                        .blendMode(.screen)
-                }
-            }
-        }
-    }
-
-    /// The glow under each of the four lamps on the truss, left to right.
-    private func lampGlow(_ index: Int) -> Color {
-        switch lighting {
-        case .show:
-            return colors[index == 1 || index == 2 ? 0 : 1].opacity(0.7)
-        case let .workLight(lamps):
-            // Warm up from the middle out.
-            let order = [1, 2, 0, 3]
-            return order.prefix(lamps).contains(index) ? Self.workColor.opacity(0.5) : .clear
-        case .house, .dark:
-            return .clear
-        }
+        .opacity(powered ? 1 : 0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func truss(width: CGFloat) -> some View {
@@ -144,17 +144,13 @@ struct BSStageScene<Wall: View, Lip: View>: View {
                 }
             }
             .frame(height: 12)
-            HStack {
-                ForEach(0..<4, id: \.self) { index in
-                    UnevenRoundedRectangle(bottomLeadingRadius: 8, bottomTrailingRadius: 8)
-                        .fill(Color(white: 0.11))
-                        .frame(width: 22, height: 14)
-                        .shadow(color: powered ? lampGlow(index) : .clear, radius: 8, y: 6)
-                        .frame(maxWidth: .infinity)
-                }
+            // Moving-head bodies hung where the rig's beams start.
+            ForEach(0..<BSStageRig.fixtureCount, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(LinearGradient(colors: [Color(white: 0.16), Color(white: 0.07)], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 14, height: 11)
+                    .position(x: width * BSStageRig.fixtureX(index), y: 15)
             }
-            .padding(.horizontal, width * 0.02)
-            .offset(y: 10)
         }
         .frame(width: width)
         .position(x: width / 2, y: 18)
@@ -163,8 +159,8 @@ struct BSStageScene<Wall: View, Lip: View>: View {
 }
 
 extension BSStageScene where Lip == EmptyView {
-    init(colors: [Color], lighting: BSStageLighting, powered: Bool, @ViewBuilder wall: () -> Wall) {
-        self.init(colors: colors, lighting: lighting, powered: powered, wall: wall, lip: { EmptyView() })
+    init(colors: [Color], lighting: BSStageLighting, powered: Bool, height: CGFloat = 380, @ViewBuilder wall: () -> Wall) {
+        self.init(colors: colors, lighting: lighting, powered: powered, height: height, wall: wall, lip: { EmptyView() })
     }
 }
 
@@ -209,19 +205,6 @@ enum BSStageDateLine {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = pattern
         return formatter.string(from: date).uppercased()
-    }
-}
-
-/// A moving-head beam: narrow at the lamp, wide on the floor.
-private struct BSStageBeam: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX - 7, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.midX + 7, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
     }
 }
 

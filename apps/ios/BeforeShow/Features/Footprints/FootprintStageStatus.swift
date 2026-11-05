@@ -165,7 +165,7 @@ enum FootprintStagePolicy {
         }
     }
 
-    private static func nextUpcoming(_ shows: [Show], archived: [Show], now: Date) -> Show? {
+    static func nextUpcoming(_ shows: [Show], archived: [Show], now: Date) -> Show? {
         let archivedIDs = Set(archived.map(\.id))
         return shows
             .filter { $0.changeStatus != .canceled && !archivedIDs.contains($0.id) && $0.effectiveDate >= now }

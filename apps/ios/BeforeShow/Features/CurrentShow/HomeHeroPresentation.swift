@@ -38,8 +38,11 @@ struct HomeHeroStage: View {
     var isImportingDynamicCover = false
     var onChooseVideo: (() -> Void)? = nil
     var opensDetail = false
+    /// Hung as the LED wall of the stage: square corners, scanlines, the stage does the glow.
+    var onStage = false
 
     private var coverHeight: CGFloat { coverWidth * 4.0 / 3.0 }
+    private var cornerRadius: CGFloat { onStage ? 2 : 26 }
     private var phase: HomeShowPhase { snapshot.phase }
 
     var body: some View {
@@ -66,7 +69,7 @@ struct HomeHeroStage: View {
                 contentMode: .fill,
                 alignment: .center,
                 enforcesAspectRatio: false,
-                cornerRadius: 26,
+                cornerRadius: cornerRadius,
                 restoresPersistedImageOnFirstFrame: true
             )
         }
@@ -80,9 +83,10 @@ struct HomeHeroStage: View {
         .brightness(phase == .inactive ? -0.18 : (phase == .ended ? -0.05 : 0))
         // ShowCoverImageView 先按自身比例布局；外层改成固定 3:4 尺寸后必须再次裁切，
         // 否则图片会越过 352pt 卡片边界，让海报看起来横向错位。
-        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .overlay { if onStage { BSLEDScanlines() } }
         .overlay(
-            RoundedRectangle(cornerRadius: 26)
+            RoundedRectangle(cornerRadius: cornerRadius)
                 .stroke(Color.white.opacity(0.07), lineWidth: 1)
         )
         .overlay {
@@ -94,9 +98,9 @@ struct HomeHeroStage: View {
             reduceMotion ? nil : .easeInOut(duration: 0.22),
             value: isImportingDynamicCover
         )
-        .shadow(color: .black.opacity(0.55), radius: 30, y: 15)
+        .shadow(color: .black.opacity(onStage ? 0 : 0.55), radius: 30, y: 15)
         .background {
-            if phase == .pre || phase == .live, !reduceMotion {
+            if phase == .pre || phase == .live, !reduceMotion, !onStage {
                 RoundedRectangle(cornerRadius: 30)
                     .fill(
                         RadialGradient(
@@ -139,7 +143,7 @@ struct HomeHeroStage: View {
             .padding(.vertical, BSSpacing.compact)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BSRadius.md))
         }
-        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .transition(.opacity)
         .accessibilityElement()
         .accessibilityLabel(BSLocalization.text("正在准备视频…"))

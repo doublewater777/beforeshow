@@ -6,11 +6,13 @@ struct FootprintEntryTiles: View {
     let covers: [UUID: FootprintCover]
     let allShows: [Show]
 
-    private enum Door: Hashable { case years, artists, venues, cities, pass, candle }
+    @State private var isReadingBook = false
+
+    private enum Door: Hashable { case years, artists, venues, cities, pass, candle, book }
 
     var body: some View {
         let anniversary = FootprintAnniversaryFinder.featured(in: FootprintAnniversaryFinder.upcoming(in: archive.shows))
-        let doors: [Door] = [.years, .artists, .venues, .cities, .pass] + (anniversary == nil ? [] : [.candle])
+        let doors: [Door] = [.years, .artists, .venues, .cities, .pass] + (anniversary == nil ? [] : [.candle]) + [.book]
         VStack(spacing: 12) {
             ForEach(Array(stride(from: 0, to: doors.count, by: 2)), id: \.self) { start in
                 HStack(spacing: 12) {
@@ -19,6 +21,13 @@ struct FootprintEntryTiles: View {
                     }
                 }
             }
+        }
+        .fullScreenCover(isPresented: $isReadingBook) {
+            FootprintBookView(
+                book: FootprintBook(archived: archive.shows, next: FootprintStagePolicy.nextUpcoming(allShows, archived: archive.shows, now: Date())),
+                archive: archive,
+                covers: covers
+            )
         }
     }
 
@@ -47,6 +56,9 @@ struct FootprintEntryTiles: View {
                 } label: { candleTile(anniversary) }
                     .buttonStyle(BSPressStyle())
             }
+        case .book:
+            Button { isReadingBook = true } label: { bookTile }
+                .buttonStyle(BSPressStyle())
         }
     }
 
@@ -132,6 +144,18 @@ struct FootprintEntryTiles: View {
         }
     }
 
+    private var bookTile: some View {
+        let years = [archive.years.last?.year, archive.years.first?.year].compactMap { $0 }
+        let span = years.first == years.last ? years.first.map(String.init) ?? "" : "\(years[0])–\(years[1])"
+        return tile(
+            title: BSLocalization.text("回忆册"),
+            subtitle: BSLocalization.format("%1$@ · %2$lld 页", span, archive.shows.count + archive.years.count + 4),
+            background: AnyShapeStyle(FootprintRoomPalette.bookRoom)
+        ) {
+            FootprintMiniBook(cover: archive.shows.first.map { show in AnyView(FootprintResolvedCoverImage(show: show, cover: covers[show.id])) })
+        }
+    }
+
     private func tile<Art: View>(
         title: String,
         subtitle: String,
@@ -164,6 +188,35 @@ struct FootprintEntryTiles: View {
 }
 
 // MARK: - Miniatures
+
+/// A closed cloth volume with the latest poster in its window.
+private struct FootprintMiniBook: View {
+    let cover: AnyView?
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 3).fill(FootprintRoomPalette.paperEdge).frame(width: 62, height: 84).offset(x: 4, y: 3)
+            ZStack {
+                LinearGradient(colors: [FootprintRoomPalette.bookCloth, FootprintRoomPalette.bookClothDeep], startPoint: .topLeading, endPoint: .bottomTrailing)
+                Rectangle().stroke(FootprintRoomPalette.foil.opacity(0.4)).padding(5).padding(.leading, 5)
+                VStack(spacing: 5) {
+                    (cover ?? AnyView(Color.black))
+                        .frame(width: 28, height: 37)
+                        .clipped()
+                    Text(BSLocalization.text("足迹"))
+                        .font(.system(size: 11, weight: .black, design: .serif))
+                        .foregroundStyle(FootprintRoomPalette.foil)
+                }
+                .padding(.leading, 5)
+            }
+            .frame(width: 62, height: 84)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, bottomLeadingRadius: 2, bottomTrailingRadius: 5, topTrailingRadius: 5))
+        }
+        .rotationEffect(.degrees(-6))
+        .shadow(color: .black.opacity(0.6), radius: 10, y: 8)
+        .accessibilityHidden(true)
+    }
+}
 
 private struct FootprintMiniRecord: View {
     let show: Show?

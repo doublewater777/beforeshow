@@ -7,9 +7,6 @@ final class FootprintSoundPlayer: @unchecked Sendable {
     enum Cue: String, CaseIterable {
         case needle
         case neon
-        case chimeLow = "chime-low"
-        case chimeMid = "chime-mid"
-        case chimeHigh = "chime-high"
         case clink
         case breath
         case tear
@@ -19,18 +16,8 @@ final class FootprintSoundPlayer: @unchecked Sendable {
             case .tear: return 0.5
             case .needle: return 0.45
             case .neon: return 0.35
-            case .chimeLow, .chimeMid, .chimeHigh: return 0.4
             case .clink: return 0.5
             case .breath: return 0.55
-            }
-        }
-
-        /// Brighter stars ring higher.
-        static func chime(forShowCount count: Int) -> Cue {
-            switch count {
-            case ..<2: return .chimeLow
-            case 2: return .chimeMid
-            default: return .chimeHigh
             }
         }
     }

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The same stage as a footprint, before the show: a work light while doors are shut,
-/// the poster's colours once it is on, house lights after, and darkness if it will not happen.
+/// A quiet version of the stage for reading a show's details: the poster's colours wash the wall
+/// with nothing moving, house lights after, a ghost light while postponed, darkness if cancelled.
+/// The moving rig belongs to the 当前 tab and to footprints.
 struct ShowDetailStageHero: View {
     let show: Show
     let mood: ShowStageMood
@@ -19,7 +20,7 @@ struct ShowDetailStageHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BSStageScene(colors: colors, lighting: lighting, powered: powered) {
+            BSStageScene(colors: colors, lighting: lighting, powered: powered, height: 344) {
                 ledWall
             } lip: {
                 clock
@@ -39,10 +40,10 @@ struct ShowDetailStageHero: View {
 
     private var lighting: BSStageLighting {
         switch mood {
-        case let .before(daysToGo): .workLight(lamps: ShowDetailStagePolicy.warmLamps(daysToGo: daysToGo))
-        case .live: .show
+        case .before, .live: .wash
         case .ended: .house
-        case .postponed, .canceled: .dark
+        case .postponed: .ghost
+        case .canceled: .dark
         }
     }
 
@@ -63,8 +64,8 @@ struct ShowDetailStageHero: View {
             .overlay { BSLEDScanlines() }
             .grayscale(isOff ? 1 : 0)
             .brightness(wallBrightness)
-            .shadow(color: mood == .live ? colors[0].opacity(0.45) : .clear, radius: 30)
-            .shadow(color: mood == .live ? colors[1].opacity(0.2) : .clear, radius: 70)
+            .shadow(color: isLit ? colors[0].opacity(0.45) : .clear, radius: 30)
+            .shadow(color: isLit ? colors[1].opacity(0.2) : .clear, radius: 70)
             .overlay { tape }
             .bsTransitionSource(id: "cover", in: coverTransition)
         }
@@ -74,11 +75,12 @@ struct ShowDetailStageHero: View {
 
     private var isOff: Bool { mood == .postponed || mood == .canceled }
 
-    /// The LED wall is dimmed until the show, full while it plays.
+    private var isLit: Bool { lighting.isColored }
+
+    /// The LED wall is full while the show is ahead or on, dimmer once the house lights are up.
     private var wallBrightness: Double {
         switch mood {
-        case .before: -0.2
-        case .live: 0
+        case .before, .live: 0
         case .ended: -0.08
         case .postponed, .canceled: -0.35
         }

@@ -36,4 +36,23 @@ enum FootprintRoomPalette {
     static let flameEdge = Color(red: 1.0, green: 0.604, blue: 0.227)
     static let candleText = Color(red: 0.957, green: 0.933, blue: 0.890)
     static let candleGold = Color(red: 0.851, green: 0.698, blue: 0.478)
+
+    // Memory book: cloth cover, gold foil, paper and ink.
+    static let bookRoom = Color(red: 0.027, green: 0.027, blue: 0.035)
+    static let bookCloth = Color(red: 0.114, green: 0.106, blue: 0.125)
+    static let bookClothDeep = Color(red: 0.051, green: 0.047, blue: 0.063)
+    static let foilDark = Color(red: 0.620, green: 0.486, blue: 0.263)
+    static let foil = Color(red: 0.851, green: 0.737, blue: 0.518)
+    static let foilLight = Color(red: 1.0, green: 0.945, blue: 0.812)
+    static let paper = Color(red: 0.945, green: 0.918, blue: 0.859)
+    static let paperEdge = Color(red: 0.847, green: 0.812, blue: 0.737)
+    static let photoPaper = Color(red: 0.984, green: 0.969, blue: 0.933)
+    static let ink = Color(red: 0.106, green: 0.102, blue: 0.090)
+    static let inkSoft = Color(red: 0.290, green: 0.275, blue: 0.243)
+    static let inkMuted = Color(red: 0.420, green: 0.396, blue: 0.353)
+    static let inkFaint = Color(red: 0.541, green: 0.510, blue: 0.451)
+    static let stampGold = Color(red: 0.659, green: 0.510, blue: 0.247)
+    static let chapterPaper = Color(red: 0.047, green: 0.043, blue: 0.055)
+    static let chapterInk = Color(red: 0.961, green: 0.937, blue: 0.886)
+    static let chapterDot = Color(red: 0.910, green: 0.780, blue: 0.557)
 }

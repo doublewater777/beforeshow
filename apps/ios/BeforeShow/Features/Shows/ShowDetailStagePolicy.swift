@@ -31,15 +31,6 @@ enum ShowDetailStagePolicy {
         }
     }
 
-    /// Lamps on the truss already warm before doors: one far out, two the day before, all four on the day.
-    static func warmLamps(daysToGo: Int) -> Int {
-        switch daysToGo {
-        case ...0: 4
-        case 1: 2
-        default: 1
-        }
-    }
-
     /// The backstage clock on the stage lip. `exact` shows the wall-clock time instead of the count.
     static func clock(
         for mood: ShowStageMood,

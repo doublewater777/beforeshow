@@ -87,7 +87,7 @@ struct CurrentShowManagementSection: View {
     var liveBody: some View {
         CurrentShowLiveTimetableContent(show: show, isActive: isHeroPlaybackActive) { now, liveState in
             GeometryReader { geometry in
-                homeContent(now: now, availableWidth: geometry.size.width, liveState: liveState)
+                homeContent(now: now, topInset: geometry.safeAreaInsets.top, liveState: liveState)
             }
         }
         #if DEBUG
@@ -295,7 +295,7 @@ struct CurrentShowManagementSection: View {
     }
 
     @ViewBuilder
-    private func homeContent(now: Date, availableWidth: CGFloat, liveState: LiveModeState?) -> some View {
+    private func homeContent(now: Date, topInset: CGFloat, liveState: LiveModeState?) -> some View {
         let snapshot = HomeHeroSnapshot(show: show, now: now)
         let timeState = snapshot.timeState
         let followUpShows = CurrentShowFollowUpPolicy.laterShows(
@@ -310,8 +310,6 @@ struct CurrentShowManagementSection: View {
             calendar: show.timingCalendar()
         )
         let phase = HomeShowPhase(timeState: timeState, now: now)
-        // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
-        let coverWidth = min(352, max(0, availableWidth - 40))
         let isLiveLayout = liveState != nil && !CurrentShowCoverPreference.isExpanded(storedShowID: expandedCoverShowID, showID: show.id)
         // 与倒计时卡共用同一次推荐决策；现场模式只展示时刻表，不消费推荐。
         let recommendation = liveState == nil ? resolvedRecommendation(snapshot: snapshot) : nil
@@ -338,15 +336,13 @@ struct CurrentShowManagementSection: View {
                     NavigationLink {
                         ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
                     } label: {
-                        HomeHeroStage(
+                        HomeStageHero(
                             show: show,
                             snapshot: snapshot,
-                            coverWidth: coverWidth,
                             isPlaybackActive: isHeroPlaybackActive,
                             reduceMotion: reduceMotion,
-                            isImportingDynamicCover: isImportingDynamicCover,
-                            onChooseVideo: onChooseDynamicCover,
-                            opensDetail: true
+                            isImportingDynamicCover: isImportingDynamicCover, onChooseVideo: onChooseDynamicCover,
+                            topExtension: topInset + BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding + 18
                         )
                         .matchedGeometryEffect(id: "home-cover", in: coverNamespace)
                     }

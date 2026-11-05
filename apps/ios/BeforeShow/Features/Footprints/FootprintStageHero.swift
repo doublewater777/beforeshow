@@ -25,7 +25,7 @@ struct FootprintStageHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BSStageScene(colors: colors, lighting: .show, powered: powered) { ledWall }
+            BSStageScene(colors: colors, lighting: .show(energy: 1), powered: powered) { ledWall }
                 .padding(.horizontal, -BSSpacing.roomy)
             info.padding(.top, 18)
             BSStageLineupChips(
