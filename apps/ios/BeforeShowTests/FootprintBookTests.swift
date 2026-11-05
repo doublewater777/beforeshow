@@ -93,6 +93,8 @@ final class FootprintBookTests: XCTestCase {
         let dated = try show("橘子湾", date(2026, 11, 20), city: nil)
 
         XCTAssertEqual(FootprintStagePolicy.nextUpcoming([undated, dated], archived: [], now: now)?.id, dated.id)
+        XCTAssertFalse(FootprintStagePolicy.isDated(undated), "the city map's next stop uses the same rule")
+        XCTAssertTrue(FootprintStagePolicy.isDated(dated))
     }
 
     // MARK: Helpers

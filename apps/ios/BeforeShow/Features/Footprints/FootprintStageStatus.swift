@@ -135,7 +135,7 @@ enum FootprintStagePolicy {
         let visited = Set(cities.map(\.name))
         let archivedIDs = Set(archive.shows.map(\.id))
         let upcoming = allShows
-            .filter { $0.changeStatus != .canceled && $0.effectiveDate >= now && !archivedIDs.contains($0.id) }
+            .filter { isDated($0) && $0.effectiveDate >= now && !archivedIDs.contains($0.id) }
             .sorted { $0.effectiveDate < $1.effectiveDate }
         if let next = upcoming.first(where: {
             guard let city = FootprintTextNormalizer.nonEmptyTrimmed($0.city) else { return false }
@@ -168,10 +168,14 @@ enum FootprintStagePolicy {
     static func nextUpcoming(_ shows: [Show], archived: [Show], now: Date) -> Show? {
         let archivedIDs = Set(archived.map(\.id))
         return shows
-            // A postponement with no new date is not a date anyone can count down to.
-            .filter { $0.changeStatus != .canceled && !($0.changeStatus == .postponed && $0.postponedDate == nil) }
-            .filter { !archivedIDs.contains($0.id) && $0.effectiveDate >= now }
+            .filter { isDated($0) && !archivedIDs.contains($0.id) && $0.effectiveDate >= now }
             .min { $0.effectiveDate < $1.effectiveDate }
+    }
+
+    /// Still going ahead on a known date: not cancelled, and not postponed with no new date,
+    /// which is not a date anyone can count down to (see ADR 0030).
+    static func isDated(_ show: Show) -> Bool {
+        show.changeStatus != .canceled && !(show.changeStatus == .postponed && show.postponedDate == nil)
     }
 
     private static func days(from show: Show, to now: Date, calendar: Calendar) -> Int {

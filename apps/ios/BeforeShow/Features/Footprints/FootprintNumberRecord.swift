@@ -13,6 +13,8 @@ final class FootprintNumberSongPlayer {
     private(set) var failedNumber: Int?
     /// Keyed by record number.
     private(set) var previews: [Int: SongPreview] = [:]
+    /// Bumped by every tap and stop; a request that is no longer the latest never plays.
+    private var request = 0
 
     func isPlaying(_ number: Int) -> Bool {
         currentNumber == number && player.phase.isActive
@@ -35,10 +37,13 @@ final class FootprintNumberSongPlayer {
             player.pause()
             return
         }
+        request += 1
+        let mine = request
         failedNumber = nil
         loadingNumber = song.number
-        defer { loadingNumber = nil }
+        defer { if mine == request { loadingNumber = nil } }
         await load([song])
+        guard mine == request else { return }
         guard let preview = previews[song.number] else {
             failedNumber = song.number
             return
@@ -53,15 +58,17 @@ final class FootprintNumberSongPlayer {
                 albumTitle: preview.album,
                 artworkURL: preview.artworkURL
             )], startingAt: nil, at: 0)
+            guard mine == request else { return }
             currentNumber = song.number
             try await player.play()
         } catch {
-            failedNumber = song.number
+            if mine == request { failedNumber = song.number }
         }
     }
 
     func stop(_ number: Int) {
         guard currentNumber == number else { return }
+        request += 1
         player.stop()
         currentNumber = nil
     }
