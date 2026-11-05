@@ -160,7 +160,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         validCountry(preferred) ?? validCountry(musicStorefront) ?? validCountry(deviceRegion) ?? "US"
     }
 
-    private static func currentFallbackCountry(preferred: String?) async -> String {
+    static func currentFallbackCountry(preferred: String?) async -> String {
         if let valid = validCountry(preferred) { return valid }
         // Prefer the account storefront, without asking for Music authorization.
         let storefront: String?

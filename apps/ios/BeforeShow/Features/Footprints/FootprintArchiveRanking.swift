@@ -40,12 +40,6 @@ struct FootprintYearActivity: Identifiable, Equatable {
 
 }
 
-struct FootprintYearArchiveSummary: Equatable {
-    let year: Int
-    let showCount: Int
-    let durationMinutes: Int
-}
-
 struct FootprintArtistArchiveItem: Identifiable, Equatable, Hashable {
     let name: String
     let count: Int
@@ -124,16 +118,6 @@ extension FootprintArchiveSnapshot {
                 months: FootprintArchiveRankingBuilder.months(in: group.shows)
             )
         }
-    }
-
-    func yearArchiveSummary(for year: Int) -> FootprintYearArchiveSummary? {
-        guard let group = years.first(where: { $0.year == year }),
-              let activity = yearActivity(for: year) else { return nil }
-        return FootprintYearArchiveSummary(
-            year: year,
-            showCount: group.shows.count,
-            durationMinutes: activity.months.reduce(0) { $0 + $1.durationMinutes }
-        )
     }
 
     /// 年度高光场:优先回忆/纪念徽章场,否则取当年第一场。

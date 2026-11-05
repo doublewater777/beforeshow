@@ -24,6 +24,9 @@ struct ShowDetailView: View {
     @Namespace private var coverTransition
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
+    @State private var memoryCreate: MemoryCreateSourceOption?
+    /// Moves on each minute so the stage turns LIVE, and later ends, while the page stays open.
+    @State private var now = Date()
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
 
@@ -49,7 +52,7 @@ struct ShowDetailView: View {
     }
 
     private var snapshot: CurrentShowSnapshot {
-        session.snapshot(for: show)
+        session.snapshot(for: show, now: now)
     }
 
     private var timeState: CurrentShowTimeState { snapshot.phase }
@@ -60,32 +63,52 @@ struct ShowDetailView: View {
 
     var body: some View {
         ZStack {
-            CurrentShowStageBackground()
+            BSColor.Stage.background
                 .ignoresSafeArea()
 
             if isDeleting {
                 ProgressView()
                     .tint(BSColor.Stage.foreground)
             } else {
-                VStack(spacing: 0) {
-                    ScrollView {
-                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                        detailSummaryCard
-                        countdownCard
-                        showInformationSection
-                        lineupSection
-                        experienceSection
-                        assetManagementSection
-                        DynamicCoverManagementSection(show: show)
-                        confirmedEndSection
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        ShowDetailStageHero(
+                            show: show,
+                            mood: stageMood,
+                            startTime: timeState.effectiveStartTime,
+                            endTime: show.endedAt ?? timeState.effectiveEndTime,
+                            reunions: ShowDetailStagePolicy.reunions(for: show, among: shows, now: Date())
+                                .map { .init(name: $0.name, nth: $0.nth) },
+                            coverTransition: coverTransition,
+                            onOpenCover: { isShowingCoverPreview = true }
+                        )
+                        ShowDetailKit(
+                            isAfterShow: stageMood == .ended,
+                            assets: ShowAssetManagementPolicy.entries(for: show, assets: showAssets),
+                            assetFileURL: assetFileURL,
+                            companionSubtitle: companionPresentationSubtitle,
+                            hasCompanion: show.companionStatus == .confirmed,
+                            coverURL: show.coverImageURL,
+                            hasDynamicCover: show.dynamicCover != nil,
+                            onAsset: { presentedSheet = .asset($0) },
+                            onCompanion: { presentedSheet = .companion },
+                            onDynamicCover: { presentedSheet = .dynamicCover }
+                        )
+                        .padding(.top, BSSpacing.sm)
+                        MemoryContactSheet(
+                            fragments: memoryFragments.sorted { $0.createdAt < $1.createdAt },
+                            currentPhase: MemoryFragmentPhase.resolved(at: Date(), timing: show.timingFields),
+                            onOpen: { _ in openMemory(creating: nil) },
+                            onOpenList: { openMemory(creating: nil) },
+                            onCreate: { openMemory(creating: $0) }
+                        )
+                        BSProgrammeInfo(rows: programmeRows)
                     }
                     .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.xs)
+                    .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSSpacing.xl)
                 }
-                    .scrollIndicators(.hidden)
-                    .bsNavigationScrollEdge()
-                }
+                .bsNavigationScrollEdge()
             }
         }
         .bsToastOverlay(toast, bottomPadding: 90)
@@ -156,7 +179,11 @@ struct ShowDetailView: View {
                     keepsParentDetailHidden: true
                 )
             case .memory:
-                MemoryFragmentsSheet(show: show)
+                MemoryFragmentsSheet(show: show, pendingCreate: memoryCreate)
+            case .dynamicCover:
+                BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
+                    DynamicCoverManagementSection(show: show)
+                }
             case .companion:
                 CurrentShowCompanionSheet(
                     show: show,
@@ -220,241 +247,72 @@ struct ShowDetailView: View {
         }
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
-    }
-
-    private var detailSummaryCard: some View {
-        HStack(spacing: BSSpacing.compact) {
-            Button {
-                isShowingCoverPreview = true
-            } label: {
-                ShowCoverImageView(
-                    urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.0,
-                    contentMode: .fill,
-                    alignment: .top,
-                    enforcesAspectRatio: false,
-                    cornerRadius: BSRadius.md
-                )
-                .frame(width: 74, height: 98)
-                .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                .bsTransitionSource(id: "cover", in: coverTransition)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(BSLocalization.text("查看封面大图"))
-
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                Text(session.phase(for: show, now: Date()).statusText)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(statusTint)
-                    .padding(.horizontal, BSSpacing.sm)
-                    .padding(.vertical, BSSpacing.xs)
-                    .background(statusTint.opacity(0.08), in: Capsule())
-                    .overlay(Capsule().stroke(statusTint.opacity(0.24), lineWidth: 1))
-
-                Text(show.name)
-                    .font(BSFont.headline)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .lineLimit(2)
-
-                Text(formatter.dateText(for: show))
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .lineLimit(1)
-
-                Text(venueSummary)
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(BSSpacing.compact)
-        .background(BSColor.Stage.surface)
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
-        .overlay(RoundedRectangle(cornerRadius: BSRadius.lg).stroke(BSColor.Stage.border, lineWidth: 1))
-        .accessibilityElement(children: .combine)
-    }
-
-    private var countdownCard: some View {
-        HStack(spacing: BSSpacing.compact) {
-            Circle()
-                .fill(countdownSummary.tint)
-                .frame(width: 10, height: 10)
-                .background(countdownSummary.tint.opacity(0.08), in: Circle())
-                .padding(BSSpacing.sm)
-
-            Text(countdownSummary.title)
-                .font(BSFont.caption)
-                .foregroundStyle(BSColor.Stage.foreground)
-
-            Spacer(minLength: BSSpacing.sm)
-
-            VStack(alignment: .trailing, spacing: BSSpacing.xs) {
-                Text(countdownSummary.trailingValue)
-                    .font(BSFont.caption)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Text(countdownSummary.trailingLabel)
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(BSColor.Stage.dim)
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60)))
+                now = Date()
             }
         }
-        .padding(BSSpacing.compact)
-        .background(BSColor.Stage.surface)
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-        .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border, lineWidth: 1))
-        .accessibilityElement(children: .combine)
     }
 
-    private var showInformationSection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("演出信息"))
-                .font(BSFont.caption)
-                .foregroundStyle(BSColor.Stage.foreground)
+    private var stageMood: ShowStageMood {
+        ShowDetailStagePolicy.mood(
+            changeStatus: show.changeStatus,
+            postponedDate: show.postponedDate,
+            phase: HomeShowPhase(timeState: timeState),
+            dayDistance: timeState.dayDistance,
+            isDayEnded: timeState.kind == .dayEnded
+        )
+    }
 
-            VStack(spacing: 0) {
-                detailInfoRow(
-                    icon: "calendar",
-                    title: formatter.dateText(for: show),
-                    subtitle: endTimeDescription
-                )
-                Divider().overlay(BSColor.Stage.border)
-                detailInfoRow(
-                    icon: "mappin.and.ellipse",
-                    title: show.venueName ?? show.city ?? BSLocalization.text("未填写场馆"),
-                    subtitle: venueDetail
-                )
-                if show.artists.isEmpty {
-                    Divider().overlay(BSColor.Stage.border)
-                    detailInfoRow(
-                        icon: "music.note",
-                        title: BSLocalization.text("未填写艺人"),
-                        subtitle: nil
-                    )
+    private func openMemory(creating option: MemoryCreateSourceOption?) {
+        memoryCreate = option
+        presentedSheet = .memory
+    }
+
+    private func assetFileURL(_ kind: ShowAssetKind) -> URL? {
+        guard let asset = showAssets.first(where: { $0.kind == kind }),
+              let location = try? ShowAssetMediaLocation.applicationSupport() else { return nil }
+        return location.rootDirectory.appendingPathComponent(asset.relativePath)
+    }
+
+    /// The programme rows; the end time becomes an action once the show is over.
+    private var programmeRows: [BSProgrammeInfo.Row] {
+        let endCalendar = show.endTimingCalendar()
+        var rows = [BSProgrammeInfo.Row(label: "WHEN", value: formatter.dateText(for: show))]
+        if let endedAt = show.endedAt {
+            rows.append(.init(
+                label: "ENDS",
+                value: BSLocalization.format("已于 %@ 结束", formattedDate(endedAt, format: BSLocalization.text("M月d日 HH:mm"), calendar: endCalendar)),
+                actionTitle: BSLocalization.text("修改"),
+                action: {
+                    confirmedEndDraft = endedAt
+                    presentedSheet = .confirmedEnd
                 }
-            }
-            .background(BSColor.Stage.surface)
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-            .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border, lineWidth: 1))
-        }
-    }
-
-    private func detailInfoRow(icon: String, title: String, subtitle: String?, trailing: AnyView? = nil) -> some View {
-        HStack(spacing: BSSpacing.compact) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(BSColor.Stage.muted)
-                .frame(width: 32, height: 32)
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 11))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                Text(title)
-                    .font(BSFont.V3.small.weight(.medium))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .lineLimit(1)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(BSFont.V3.caption)
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .lineLimit(1)
+            ))
+        } else if timeState.kind == .postShow || timeState.kind == .ended {
+            rows.append(.init(
+                label: "ENDS",
+                value: BSLocalization.text("尚未确认散场时间"),
+                detail: BSLocalization.text("按实际填写，时长更准"),
+                actionTitle: BSLocalization.text("补记"),
+                action: {
+                    confirmedEndDraft = suggestedConfirmedEnd
+                    presentedSheet = .confirmedEnd
                 }
-            }
-
-            Spacer(minLength: 0)
-
-            if let trailing {
-                trailing
-            }
+            ))
+        } else if let endTime = timeState.effectiveEndTime {
+            rows.append(.init(label: "ENDS", value: BSLocalization.format("预计 %@ 结束", formattedDate(endTime, format: "HH:mm", calendar: endCalendar))))
         }
-        .padding(.horizontal, BSSpacing.compact)
-        .frame(minHeight: 58)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// 阵容区:有艺人就展示(单个/多个统一),横滑条见 `ArtistLineupStrip`。
-    @ViewBuilder
-    private var lineupSection: some View {
-        if !show.artists.isEmpty {
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text(BSLocalization.text("阵容"))
-                    .font(BSFont.caption)
-                    .foregroundStyle(BSColor.Stage.foreground)
-
-                ArtistLineupStrip(artists: show.artists)
-            }
+        rows.append(.init(label: "VENUE", value: show.venueName ?? BSLocalization.text("未填写场馆")))
+        if let address = show.venueAddress?.trimmingCharacters(in: .whitespacesAndNewlines), !address.isEmpty {
+            rows.append(.init(label: "ADDR", value: address))
         }
-    }
-
-    private var assetManagementSection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("现场资料"))
-                .font(BSFont.caption)
-                .foregroundStyle(BSColor.Stage.foreground)
-
-            HStack(spacing: BSSpacing.sm) {
-                ForEach(ShowAssetManagementPolicy.entries(for: show, assets: showAssets)) { entry in
-                    Button {
-                        presentedSheet = .asset(entry.kind)
-                    } label: {
-                        VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                            Image(systemName: entry.kind.iconName)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(BSColor.Stage.accent)
-                            Text(entry.kind.title)
-                                .font(BSFont.V3.small.weight(.medium))
-                                .foregroundStyle(BSColor.Stage.foreground)
-                            Text(entry.subtitle)
-                                .font(BSFont.V3.caption)
-                                .foregroundStyle(BSColor.Stage.muted)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(BSSpacing.compact)
-                        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: BSRadius.v3Medium)
-                                .stroke(BSColor.Stage.border, lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(BSLocalization.format("管理%@，%@", entry.kind.title, entry.subtitle))
-                }
-            }
+        rows.append(.init(label: "CITY", value: show.city ?? BSLocalization.text("未填写城市")))
+        if show.artists.isEmpty {
+            rows.append(.init(label: "LINEUP", value: BSLocalization.text("未填写艺人")))
         }
-    }
-
-    private var experienceSection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("现场体验"))
-                .font(BSFont.caption)
-                .foregroundStyle(BSColor.Stage.foreground)
-
-            HStack(spacing: BSSpacing.sm) {
-                Button {
-                    presentedSheet = .companion
-                } label: {
-                    ShowDetailExperienceTile(
-                        action: .companion,
-                        title: BSLocalization.text("同行"),
-                        subtitle: companionPresentationSubtitle
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(companionPresentation.accessibilityLabel)
-
-                Button {
-                    presentedSheet = .memory
-                } label: {
-                    ShowDetailExperienceTile(
-                        action: .memoryFragments,
-                        title: BSLocalization.text(key: ShowDetailExperienceAction.memoryFragments.rawValue),
-                        subtitle: memoryFragmentsSubtitle
-                    )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(BSLocalization.format("记忆碎片，%@", memoryFragmentsSubtitle))
-            }
-        }
+        return rows
     }
 
     private var companionPresentation: CompanionQuickActionPresentation {
@@ -464,10 +322,6 @@ struct ShowDetailView: View {
             isEnded: HomeShowPhase(timeState: timeState) == .ended,
             isInvitationShared: show.companionInvitationShared
         )
-    }
-
-    private var memoryFragmentsSubtitle: String {
-        memoryFragments.isEmpty ? BSLocalization.text("记录这一刻") : BSLocalization.format("%lld 条", memoryFragments.count)
     }
 
     private var companionPresentationSubtitle: String {
@@ -510,150 +364,11 @@ struct ShowDetailView: View {
         }
     }
 
-    @ViewBuilder
-    private var confirmedEndSection: some View {
-        if let endedAt = show.endedAt {
-            confirmedEndButton(
-                title: BSLocalization.text("修改散场时间"),
-                value: formattedDate(
-                    endedAt,
-format: BSLocalization.text("M月d日 HH:mm"),
-                    calendar: show.endTimingCalendar()
-                ),
-                icon: "clock.arrow.circlepath"
-            ) {
-                confirmedEndDraft = endedAt
-                presentedSheet = .confirmedEnd
-            }
-        } else if timeState.kind == .postShow || timeState.kind == .ended {
-            confirmedEndButton(
-                title: BSLocalization.text("补记散场时间"),
-                value: BSLocalization.text("填写真实散场时间"),
-                icon: "clock.badge.checkmark"
-            ) {
-                confirmedEndDraft = suggestedConfirmedEnd
-                presentedSheet = .confirmedEnd
-            }
-        }
-    }
-
-    private func confirmedEndButton(
-        title: String,
-        value: String,
-        icon: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("散场时间"))
-                .font(BSFont.caption)
-                .foregroundStyle(BSColor.Stage.foreground)
-            Button(action: action) {
-                HStack(spacing: BSSpacing.compact) {
-                    Image(systemName: icon)
-                        .foregroundStyle(BSColor.Stage.accent)
-                    Text(title)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                    Spacer()
-                    Text(value)
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(BSColor.Stage.dim)
-                }
-                .font(BSFont.V3.small.weight(.medium))
-                .padding(.horizontal, BSSpacing.compact)
-                .frame(minHeight: 54)
-                .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-                .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var venueSummary: String {
-        let value = [show.venueName, show.city].compactMap { $0 }.joined(separator: " · ")
-        return value.isEmpty ? BSLocalization.text("场馆待补充") : value
-    }
-
-    private var venueDetail: String? {
-        ShowDetailInformationPolicy.venueDetail(address: show.venueAddress, city: show.city)
-    }
-
-    private var endTimeDescription: String? {
-        if let endedAt = show.endedAt {
-            return BSLocalization.format("已于 %@ 结束", formattedDate(endedAt, format: BSLocalization.text("M月d日 HH:mm"), calendar: show.endTimingCalendar()))
-        }
-        if let endTime = timeState.effectiveEndTime {
-            return BSLocalization.format("预计 %@ 结束", formattedDate(endTime, format: "HH:mm", calendar: show.endTimingCalendar()))
-        }
-        return nil
-    }
-
-    private var statusTint: Color {
-        switch show.changeStatus {
-        case .canceled:
-            return BSColor.Stage.danger
-        case .postponed:
-            return BSColor.Accent.warm
-        case .scheduled:
-            switch HomeShowPhase(timeState: timeState) {
-            case .pre:
-                return BSColor.Stage.accent
-            case .live:
-                return BSColor.Stage.liveTitle
-            case .ended:
-                return Color.white.opacity(0.70)
-            case .inactive:
-                return BSColor.Accent.warm
-            }
-        }
-    }
-
     private var eventStatusIcon: String {
         switch show.changeStatus {
         case .scheduled: return "checkmark"
         case .postponed: return show.postponedDate == nil ? "ellipsis" : "arrow.clockwise"
         case .canceled: return "xmark"
-        }
-    }
-
-    private struct DetailCountdownSummary {
-        let title: String
-        let trailingValue: String
-        let trailingLabel: String
-        let tint: Color
-    }
-
-    private var countdownSummary: DetailCountdownSummary {
-        switch show.changeStatus {
-        case .canceled:
-            return .init(
-                title: BSLocalization.text("这场已经取消"),
-                trailingValue: "—",
-                trailingLabel: BSLocalization.text("取消"),
-                tint: BSColor.Stage.danger
-            )
-        case .postponed where show.postponedDate == nil:
-            return .init(
-                title: BSLocalization.text("倒计时暂停"),
-                trailingValue: "TBD",
-                trailingLabel: BSLocalization.text("待定"),
-                tint: BSColor.Accent.warm
-            )
-        case .postponed:
-            return .init(
-                title: BSLocalization.text("已延期"),
-                trailingValue: formattedDate(show.effectiveDate, format: "MM.dd"),
-                trailingLabel: BSLocalization.text("新日期"),
-                tint: BSColor.Accent.warm
-            )
-        case .scheduled:
-            return .init(
-                title: timeState.countdownText,
-                trailingValue: formattedDate(show.effectiveDate, format: "MM.dd"),
-                trailingLabel: formattedDate(show.effectiveDate, format: "EEE"),
-                tint: BSColor.Stage.accent
-            )
         }
     }
 

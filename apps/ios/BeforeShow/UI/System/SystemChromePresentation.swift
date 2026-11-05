@@ -57,6 +57,7 @@ enum ShowDetailPresentedSheet: Identifiable, Equatable, Hashable {
     case asset(ShowAssetKind)
     case postpone
     case memory
+    case dynamicCover
 
     var id: String {
         switch self {
@@ -66,6 +67,7 @@ enum ShowDetailPresentedSheet: Identifiable, Equatable, Hashable {
         case .asset(let kind): return "asset-\(kind.rawValue)"
         case .postpone: return "postpone"
         case .memory: return "memory"
+        case .dynamicCover: return "dynamicCover"
         }
     }
 }

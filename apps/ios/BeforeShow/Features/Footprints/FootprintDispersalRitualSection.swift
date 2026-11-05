@@ -20,32 +20,8 @@ struct FootprintDispersalRitualSection: View {
                     .foregroundStyle(BSColor.Stage.foreground)
                 Spacer()
                 if hasContent {
-                    Menu {
-                        Button {
-                            onEdit()
-                        } label: {
-                            Label(BSLocalization.text("编辑评价"), systemImage: "pencil")
-                        }
-                        Button {
-                            onShare()
-                        } label: {
-                            Label(BSLocalization.text("分享卡片"), systemImage: "square.and.arrow.up")
-                        }
-                        Button(role: .destructive) {
-                            onClear()
-                        } label: {
-                            Label(BSLocalization.text("清除评价"), systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(BSFont.V3.caption)
-                            .foregroundStyle(BSColor.Stage.dim)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 4)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(BSLocalization.text("管理散场评价"))
+                    BSRoundIconButton(systemName: "square.and.arrow.up", label: BSLocalization.text("分享卡片"), action: onShare)
+                    BSRoundIconButton(systemName: "pencil", label: BSLocalization.text("编辑评价"), action: onEdit)
                 }
             }
 
@@ -60,21 +36,28 @@ struct FootprintDispersalRitualSection: View {
     private func dispersalContentCard(node: DispersalRating?, note: String?) -> some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             if let node {
-                HStack(alignment: .center, spacing: BSSpacing.compact) {
-                    Text(node.emoji)
-                        .font(.system(size: 28))
-
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .center, spacing: 10) {
+                    // One stage light per level, lit up to tonight's.
+                    ForEach(DispersalRating.allCases) { level in
+                        let lit = level.rawValue <= node.rawValue
+                        Circle()
+                            .fill(lit ? AnyShapeStyle(RadialGradient(colors: [.white, node.tint], center: .init(x: 0.4, y: 0.35), startRadius: 0, endRadius: 9)) : AnyShapeStyle(Color.white.opacity(0.08)))
+                            .frame(width: 16, height: 16)
+                            .shadow(color: lit ? node.tint.opacity(0.7) : .clear, radius: 6)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(node.label)
                             .font(BSFont.headline.weight(.bold))
-                            .foregroundStyle(node.tint)
+                            .foregroundStyle(BSColor.Stage.foreground)
                         Text(node.sub)
                             .font(BSFont.V3.caption)
                             .foregroundStyle(BSColor.Stage.muted)
                     }
+                    .padding(.leading, 4)
 
                     Spacer(minLength: 0)
                 }
+                .accessibilityHidden(true)
             } else {
                 Label(BSLocalization.text("散场感想"), systemImage: "quote.bubble.fill")
                     .font(BSFont.V3.caption.weight(.semibold))
@@ -91,7 +74,7 @@ struct FootprintDispersalRitualSection: View {
                 HStack(alignment: .top, spacing: 8) {
                     Text("“")
                         .font(.system(size: 24, weight: .bold, design: .serif))
-                        .foregroundStyle((node?.tint ?? BSColor.Stage.accent).opacity(0.5))
+                        .foregroundStyle(BSColor.Stage.dim)
                         .offset(y: -4)
 
                     Text(note)
@@ -106,29 +89,21 @@ struct FootprintDispersalRitualSection: View {
         }
         .padding(BSSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    BSColor.Stage.surface,
-                    node?.tint.opacity(0.06) ?? FootprintDetailTokens.heroSecondarySurface
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 18)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(
-                    node?.tint.opacity(0.24) ?? BSColor.Stage.border,
-                    lineWidth: 1
-                )
-        )
+        // Only the lit lights carry the rating's colour; the card itself stays neutral.
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
         .contentShape(RoundedRectangle(cornerRadius: 18))
         .onTapGesture {
             onEdit()
         }
+        .contextMenu {
+            Button(role: .destructive) {
+                onClear()
+            } label: {
+                Label(BSLocalization.text("清除评价"), systemImage: "trash")
+            }
+        }
         .accessibilityElement(children: .combine)
+        .accessibilityAction(named: BSLocalization.text("清除评价"), onClear)
         .accessibilityLabel(
             [
                 node.map(\.accessibilityLabel),
@@ -172,10 +147,6 @@ struct FootprintDispersalRitualSection: View {
             .padding(BSSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(BSColor.Stage.border, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            )
             .contentShape(RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)

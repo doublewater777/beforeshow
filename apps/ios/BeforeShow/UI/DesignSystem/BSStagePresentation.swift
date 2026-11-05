@@ -174,93 +174,28 @@ struct BSStageScaffold<Content: View>: View {
     }
 }
 
+/// The 当前 page's backdrop: the dark of the house around the stage, with the evening's weather
+/// tinting the sky above it. The stage brings its own light, so nothing here glows from the cover;
+/// pulling past the top just shows more of the room.
 struct CurrentShowAmbientBackground: View {
-    let coverImageURL: String?
     var weatherTone: WeatherAtmosphereTone? = nil
-
-    /// 封面主色（CIAreaAverage 提取后提饱和压亮度）；换封面经 .task(id:) 自动重取。
-    @State private var ambientColor: Color?
 
     var body: some View {
         ZStack {
-            // ① stage-void base
             LinearGradient(
-                colors: [
-                    Color(red: 0.018, green: 0.018, blue: 0.025),
-                    Color.black
-                ],
+                colors: [Color(red: 0.024, green: 0.02, blue: 0.02), Color.black],
                 startPoint: .top,
                 endPoint: .bottom
             )
-
-            // ①-b 远景天气天际层 (Option 1 物理分层: WeatherSky)
+            // 远景天气天际层 (WeatherSky)
             if let weatherTone, weatherTone != .neutral {
                 weatherSkyBackdrop(for: weatherTone)
                     .transition(.opacity)
             }
-
-            // ② 封面主色环境光：上方保持主光，底部保留更弱的同色漫光，
-            // 让 Home Indicator 周围仍属于当前封面，但不抬高暗部对比。
-            GeometryReader { geometry in
-                if let ambientColor {
-                    ZStack {
-                        Ellipse()
-                            .fill(RadialGradient(
-                                colors: [
-                                    ambientColor.opacity(0.85),
-                                    ambientColor.opacity(0.38),
-                                    .clear
-                                ],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geometry.size.width * 0.68
-                            ))
-                            .frame(width: geometry.size.width * 1.35, height: geometry.size.height * 0.62)
-                            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.10)
-                            .blur(radius: 50)
-                            .blendMode(.screen)
-
-                        Ellipse()
-                            .fill(RadialGradient(
-                                colors: [
-                                    ambientColor.opacity(0.20),
-                                    ambientColor.opacity(0.08),
-                                    .clear
-                                ],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geometry.size.width * 0.76
-                            ))
-                            .frame(width: geometry.size.width * 1.55, height: geometry.size.height * 0.52)
-                            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.88)
-                            .blur(radius: 76)
-                            .blendMode(.screen)
-                    }
-                    .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.7), value: ambientColor)
-
-            // ③ 只保留从封面提取的抽象漫光。完整封面回声会在卡片边缘形成
-            // 第二套图像轮廓，让内缩的主海报看起来像横向错位。
-
-            // ④ vertical contrast scrim (top stop lightened so the bloom reads through)
-            LinearGradient(
-                stops: [
-                    .init(color: Color.black.opacity(0.24), location: 0.00),
-                    .init(color: Color.black.opacity(0.16), location: 0.42),
-                    .init(color: Color.black.opacity(0.34), location: 0.76),
-                    .init(color: Color.black.opacity(0.58), location: 1.00)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
         }
+        .animation(.easeInOut(duration: 0.7), value: weatherTone)
         .ignoresSafeArea()
         .accessibilityHidden(true)
-        .task(id: coverImageURL) {
-            ambientColor = await Self.loadAmbientColor(for: coverImageURL)
-        }
     }
 
     @ViewBuilder
@@ -299,16 +234,6 @@ struct CurrentShowAmbientBackground: View {
         case .neutral:
             EmptyView()
         }
-    }
-
-    private static func loadAmbientColor(for urlString: String?) async -> Color? {
-        guard let urlString,
-              let url = URL(string: urlString),
-              let image = await ShowCoverImageCache.shared.image(from: url),
-              let stageColor = CoverAmbientColor.uiColor(from: image) else {
-            return nil
-        }
-        return Color(stageColor)
     }
 }
 

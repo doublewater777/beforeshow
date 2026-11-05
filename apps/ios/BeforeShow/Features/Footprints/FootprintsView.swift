@@ -90,6 +90,7 @@ struct FootprintsView: View {
         return FootprintDashboardView(
             archive: prepared.archive,
             covers: prepared.covers,
+            allShows: shows,
             onShowSelected: { detailTarget = FootprintDetailDestination(show: $0) },
             onAdd: { isAddingShow = true },
             onSearch: { activeSheet = .search },

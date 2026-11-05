@@ -18,6 +18,7 @@ enum AppAudioSession {
         case listening
         case timetablePreview
         case memoryVideo
+        case footprintSong
     }
 
     /// Posted synchronously on the main thread; `object` is the claiming `Owner`.
@@ -85,7 +86,7 @@ enum AppAudioSession {
         let category: AVAudioSession.Category
         let mode: AVAudioSession.Mode
         let options: AVAudioSession.CategoryOptions
-        if !leases.isDisjoint(with: [.listening, .timetablePreview]) {
+        if !leases.isDisjoint(with: [.listening, .timetablePreview, .footprintSong]) {
             category = .playback
             mode = .default
             options = []
