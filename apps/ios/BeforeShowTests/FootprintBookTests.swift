@@ -86,6 +86,15 @@ final class FootprintBookTests: XCTestCase {
         XCTAssertEqual(FootprintBookText.chapterLines(book: book, chapter: chapter).count, 1)
     }
 
+    func testAPostponementWithNoNewDateIsNotTheNextPage() throws {
+        let now = date(2026, 11, 4)
+        let undated = try show("待定", date(2026, 11, 10), city: nil)
+        undated.markPostponed(newDate: nil)
+        let dated = try show("橘子湾", date(2026, 11, 20), city: nil)
+
+        XCTAssertEqual(FootprintStagePolicy.nextUpcoming([undated, dated], archived: [], now: now)?.id, dated.id)
+    }
+
     // MARK: Helpers
 
     private func show(_ name: String, _ day: Date, city: String?) throws -> Show {

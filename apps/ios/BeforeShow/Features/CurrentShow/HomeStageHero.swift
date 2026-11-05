@@ -30,10 +30,13 @@ struct HomeStageHero: View {
             )
         }
         .padding(.top, -topExtension)
-        .task(id: show.coverImageURL) {
+        // Keyed by show as well as cover: a different show never keeps the last one's colours.
+        .task(id: "\(show.id)|\(show.coverImageURL ?? "")") {
+            lights = BSStageLights.fallback
             if let link = show.coverImageURL, let url = URL(string: link),
                let image = await ShowCoverImageCache.shared.image(from: url) {
                 let picked = await BSStageLights.sampled(from: image)
+                guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: 0.6)) { lights = picked }
             }
             withAnimation(reduceMotion ? nil : .easeIn(duration: 0.08).delay(0.25)) { powered = true }
