@@ -245,19 +245,28 @@ struct CurrentShowWeatherSheet: View {
             } else {
                 let band = showBand(weather.hourly)
                 let fits = weather.hourly.count <= 7
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        ForEach(Array(weather.hourly.enumerated()), id: \.element.id) { index, hour in
-                            hourColumn(hour, inShow: band.contains(index), weather: weather)
-                                .frame(width: fits ? nil : 56)
-                                .frame(maxWidth: fits ? .infinity : nil)
+                // The whole day is there to scroll back to; it opens just before doors.
+                let lead = weather.hourly[max(0, band.lowerBound - 2)].id
+                ScrollViewReader { reader in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 0) {
+                            ForEach(Array(weather.hourly.enumerated()), id: \.element.id) { index, hour in
+                                hourColumn(hour, inShow: band.contains(index), weather: weather)
+                                    .frame(width: fits ? nil : 56)
+                                    .frame(maxWidth: fits ? .infinity : nil)
+                                    .id(hour.id)
+                            }
                         }
+                        .padding(.vertical, 10)
+                        .background(alignment: .leading) { bandBackground(band, count: weather.hourly.count, tint: weather.tone.primaryTint, fits: fits) }
+                        .containerRelativeFrame(.horizontal) { width, _ in fits ? width : max(width, CGFloat(weather.hourly.count) * 56) }
                     }
-                    .padding(.vertical, 10)
-                    .background(alignment: .leading) { bandBackground(band, count: weather.hourly.count, tint: weather.tone.primaryTint, fits: fits) }
-                    .containerRelativeFrame(.horizontal) { width, _ in fits ? width : max(width, CGFloat(weather.hourly.count) * 56) }
+                    .scrollDisabled(fits)
+                    .onAppear { if !fits { reader.scrollTo(lead, anchor: .leading) } }
+                    .onChange(of: lead) { _, newLead in
+                        if !fits { reader.scrollTo(newLead, anchor: .leading) }
+                    }
                 }
-                .scrollDisabled(fits)
             }
         }
     }

@@ -343,6 +343,33 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertTrue(summary.contains("19°~28°"), "Expected summary to contain formatted temperature range, got: \(summary)")
     }
 
+    func testTimelineRunsFromSettingOffToGettingHomeOnALongFestivalDay() throws {
+        let calendar = Calendar.current
+        let showDate = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 2, to: Date())!)
+        let start = calendar.date(bySettingHour: 13, minute: 0, second: 0, of: showDate)!
+        let end = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: showDate)!
+        let day = RawDayForecast(
+            date: showDate, highCelsius: 25, lowCelsius: 16, condition: .clear, conditionDescription: "晴",
+            sunsetTime: calendar.date(bySettingHour: 17, minute: 30, second: 0, of: showDate), precipitationChance: 0, uvIndex: 3
+        )
+        let hours = (0..<24).map { hour in
+            RawHourForecast(
+                date: calendar.date(byAdding: .hour, value: hour, to: showDate)!,
+                temperatureCelsius: 20, apparentTemperatureCelsius: 20, condition: .clear,
+                uvIndex: 0, windSpeedMps: 1, windDirectionDescription: ""
+            )
+        }
+
+        let result = try policy.resolveForecast(
+            for: UUID(), showDate: showDate, showStartTime: start, showEndTime: end,
+            calendar: calendar, dailyForecasts: [day], hourlyForecasts: hours, now: Date()
+        )
+
+        XCTAssertEqual(result.hourly.first?.time, showDate, "the whole day, from setting off in the morning")
+        XCTAssertEqual(result.hourly.last?.time, calendar.date(bySettingHour: 23, minute: 0, second: 0, of: showDate), "to the last hour of the day, getting home included")
+        XCTAssertTrue(result.hourly.contains { $0.milestoneLabel == BSLocalization.text("散场") }, "a long day is no longer cut before it ends")
+    }
+
     func testForecastWithoutMatchingWindowHoursDegradesGracefullyWithoutFakeHourly() throws {
         let calendar = Calendar.current
         let showDate = calendar.date(byAdding: .day, value: 2, to: Date())!

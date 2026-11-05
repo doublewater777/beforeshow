@@ -224,9 +224,14 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         let windowStart = showStartTime.addingTimeInterval(-2 * 3600)
         let windowEnd = max(showEndTime.addingTimeInterval(3600), showStartTime.addingTimeInterval(4 * 3600))
         let relevantHours = hourlyForecasts.filter { $0.date >= windowStart && $0.date <= windowEnd }
+        // 时间轴展示演出当天全天：出门、排队、散场回家都在里面；跨过午夜的演出再延到散场后 2 小时。
+        // 降水与带物建议仍只看演出时段（relevantHours）。
+        let displayStart = min(calendar.startOfDay(for: showDate), showStartTime.addingTimeInterval(-3 * 3600))
+        let endOfDay = calendar.date(byAdding: .hour, value: 23, to: calendar.startOfDay(for: showDate)) ?? showEndTime
+        let displayEnd = max(endOfDay, showEndTime.addingTimeInterval(2 * 3600))
         let selectedHours: [RawHourForecast]
         if !relevantHours.isEmpty {
-            selectedHours = Array(relevantHours.prefix(8))
+            selectedHours = Array(hourlyForecasts.filter { $0.date >= displayStart && $0.date <= displayEnd }.prefix(30))
         } else {
             // 没有覆盖演出时段的小时预报时，不拿无关时段冒充演出时段，降级为空列表
             selectedHours = []
