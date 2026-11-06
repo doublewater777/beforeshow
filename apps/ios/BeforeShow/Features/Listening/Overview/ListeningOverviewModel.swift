@@ -21,31 +21,10 @@ struct ListeningPosterTiers<Item> {
     }
 }
 
-enum ListeningReleaseKind: CaseIterable {
-    case album, ep, single
-}
-
 enum ListeningArtistReleases {
-    private static let suffix = #"\s[-–—]\s*(EP|Single)\s*$"#
-
-    static func kind(_ disc: ListeningDisc) -> ListeningReleaseKind {
-        if let range = disc.title.range(of: suffix, options: [.regularExpression, .caseInsensitive]) {
-            return disc.title[range].localizedCaseInsensitiveContains("EP") ? .ep : .single
-        }
-        return disc.isSingle == true ? .single : .album
-    }
-
-    /// The catalog suffix only repeats what the shelf heading already says.
-    static func displayTitle(_ disc: ListeningDisc) -> String {
-        disc.title.replacingOccurrences(of: suffix, with: "", options: [.regularExpression, .caseInsensitive])
-    }
-
-    /// Lead with the newest album; an EP, then a single, only when there is nothing bigger.
+    /// Lead with the newest album; the newest single or EP only when there is no album.
     static func featured(_ newestFirst: [ListeningDisc]) -> ListeningDisc? {
-        for kind in ListeningReleaseKind.allCases {
-            if let disc = newestFirst.first(where: { self.kind($0) == kind }) { return disc }
-        }
-        return nil
+        newestFirst.first(where: ListeningDiscPickFilter.albums.includes) ?? newestFirst.first
     }
 
     /// Albums, singles and EPs newest first; featured playlists stay out. The catalog

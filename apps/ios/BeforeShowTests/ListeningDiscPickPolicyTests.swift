@@ -207,7 +207,7 @@ final class ListeningDiscPickPolicyTests: XCTestCase {
 
     func testEPFilterRecognizesCatalogSuffixWithoutGuessingFromTrackCount() {
         let track = sampleDisc("track", songIDs: ["s"]).tracks
-        for title in ["Night - EP", "Night – EP", "Night — ep  ", "Precious LiFe - Single"] {
+        for title in ["Night - EP", "Night – EP", "Night — ep  ", "Baby Gotta Go - Single"] {
             let disc = ListeningDisc(id: title, title: title, artworkURL: nil, tracks: track)
             XCTAssertTrue(ListeningDiscPickFilter.singlesAndEPs.includes(disc))
         }

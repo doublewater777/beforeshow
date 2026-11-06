@@ -33,7 +33,8 @@ enum ListeningDiscPickFilter: String, CaseIterable {
     func includes(_ disc: ListeningDisc) -> Bool {
         guard self != .all else { return true }
         guard disc.origin == .album else { return false }
-        // MusicKit exposes isSingle but misses some; short releases also carry a catalog title suffix.
+        // Apple Music's own markers: isSingle, and the " - EP" / " - Single" its catalog puts in titles
+        // (isSingle alone misses multi-track singles such as "Baby Gotta Go - Single").
         let isShortRelease = disc.isSingle == true || disc.title.range(
             of: #"\s[-–—]\s*(EP|Single)\s*$"#, options: [.regularExpression, .caseInsensitive]
         ) != nil

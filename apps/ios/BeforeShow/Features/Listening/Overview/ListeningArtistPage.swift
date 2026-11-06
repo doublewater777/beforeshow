@@ -18,9 +18,8 @@ struct ListeningArtistPage: View {
                     if let featured {
                         latestAlbum(featured)
                     }
-                    shelf(ListeningCopy.text("专辑"), rest.filter { ListeningArtistReleases.kind($0) == .album })
-                    shelf("EP", rest.filter { ListeningArtistReleases.kind($0) == .ep })
-                    shelf(ListeningCopy.text("单曲"), rest.filter { ListeningArtistReleases.kind($0) == .single })
+                    shelf(ListeningDiscPickFilter.albums.title, rest.filter(ListeningDiscPickFilter.albums.includes))
+                    shelf(ListeningDiscPickFilter.singlesAndEPs.title, rest.filter(ListeningDiscPickFilter.singlesAndEPs.includes))
                     if releases.isEmpty {
                         if room.artistCatalogStatus[artist.appleMusicArtistID ?? ""] == .loading {
                             ProgressView().frame(maxWidth: .infinity)
@@ -89,7 +88,7 @@ struct ListeningArtistPage: View {
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 NavigationLink { ListeningPushedDiscDetail(room: room, disc: disc) } label: {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        Text(ListeningArtistReleases.displayTitle(disc)).font(ListeningOverviewStyle.serif(24)).lineLimit(2)
+                        Text(disc.title).font(ListeningOverviewStyle.serif(24)).lineLimit(2)
                             .multilineTextAlignment(.leading)
                         Text(ListeningArtistReleaseCard.meta(disc))
                             .font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.muted)
@@ -146,7 +145,7 @@ private struct ListeningArtistReleaseCard: View {
                                 .padding(BSSpacing.xs)
                         }
                     }
-                Text(ListeningArtistReleases.displayTitle(disc))
+                Text(disc.title)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)

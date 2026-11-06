@@ -33,19 +33,10 @@ final class ListeningOverviewModelTests: XCTestCase {
         XCTAssertEqual(ListeningArtistReleases.newestFirst([short, full]).map(\.id), ["full"])
     }
 
-    func testReleaseKindReadsCatalogSuffixAndSingleFlag() {
-        XCTAssertEqual(ListeningArtistReleases.kind(named("Night - EP")), .ep)
-        XCTAssertEqual(ListeningArtistReleases.kind(named("Trippy World - Single")), .single)
-        XCTAssertEqual(ListeningArtistReleases.kind(disc("flagged", isSingle: true)), .single)
-        XCTAssertEqual(ListeningArtistReleases.kind(named("Epic Tales")), .album)
-        XCTAssertEqual(ListeningArtistReleases.displayTitle(named("Trippy World - Single")), "Trippy World")
-    }
-
-    func testFeaturedReleasePrefersAlbumThenEPThenSingle() {
-        let single = named("New - Single"), ep = named("Mid - EP"), album = named("Old")
+    func testFeaturedReleasePrefersAlbumThenNewestSingleOrEP() {
+        let single = disc("new", isSingle: true), ep = named("Mid - EP"), album = named("Old")
         XCTAssertEqual(ListeningArtistReleases.featured([single, ep, album])?.id, album.id)
-        XCTAssertEqual(ListeningArtistReleases.featured([single, ep])?.id, ep.id)
-        XCTAssertEqual(ListeningArtistReleases.featured([single])?.id, single.id)
+        XCTAssertEqual(ListeningArtistReleases.featured([single, ep])?.id, single.id)
     }
 
     func testPickFeedStartsWithPreviewAndCoversEveryCandidateOnce() {

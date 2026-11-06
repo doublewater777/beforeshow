@@ -49,7 +49,7 @@ final class ListeningLocalizationTests: XCTestCase {
             "帮我挑一张", "这排柜子暂时没有可挑的唱片",
             "没有符合筛选条件的唱片", "专辑", "筛选唱片", "单曲和 EP",
             "%d 张唱片", "本场歌单", "%d 首", "全部 %d 组艺人", "就听这张",
-            "搜索艺人", "全部艺人", "单曲"
+            "搜索艺人", "全部艺人"
         ]
 
         let catalog = try StringCatalog("Listening")
