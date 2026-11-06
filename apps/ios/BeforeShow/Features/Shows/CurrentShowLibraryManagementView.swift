@@ -21,6 +21,7 @@ struct CurrentShowLibraryManagementView: View {
     @AppStorage(CurrentShowLibraryLayout.storageKey) private var layoutRawValue = CurrentShowLibraryLayout.list.rawValue
 
     @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
     @State private var filter: CurrentShowLibraryFilter = .all
     @State private var destination: CurrentShowLibraryDestination?
     @State private var editingTarget: Show?
@@ -47,18 +48,22 @@ struct CurrentShowLibraryManagementView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                   searchField.padding(.top, 18)
-                   filterBar(sections: sections).padding(.top, 12)
+                   filterPicker.padding(.top, 18)
+                   searchField.padding(.top, 12)
 
-                   if displayedSections.allSatisfy({ $0.shows.isEmpty }) {
-                        emptyStateView
-                   } else {
-                       ForEach(displayedSections) { section in
-                           if !section.shows.isEmpty {
-                                managementSection(section, selectedShowID: selectedShowID)
-                            }
-                        }
-                    }
+                   Group {
+                       if displayedSections.allSatisfy({ $0.shows.isEmpty }) {
+                           emptyStateView.transition(.opacity)
+                       } else {
+                           ForEach(displayedSections) { section in
+                               if !section.shows.isEmpty {
+                                   managementSection(section, selectedShowID: selectedShowID)
+                                       .transition(.opacity)
+                               }
+                           }
+                       }
+                   }
+                   .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: filter)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
@@ -173,6 +178,7 @@ struct CurrentShowLibraryManagementView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
+                .focused($isSearchFocused)
         }
         .padding(.horizontal, 13)
         .frame(height: 47)
@@ -181,24 +187,15 @@ struct CurrentShowLibraryManagementView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.09), lineWidth: 1))
     }
 
-    private func filterBar(sections: [LibrarySection]) -> some View {
-        HStack(spacing: 4) {
+    private var filterPicker: some View {
+        Picker(BSLocalization.text("我的现场"), selection: $filter) {
             ForEach(CurrentShowLibraryFilter.allCases) { item in
-                Button { filter = item } label: {
-                    Text("\(BSLocalization.text(key: item.rawValue)) \(count(for: item, sections: sections))")
-                        .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
-                        .foregroundStyle(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(filter == item ? Color.white.opacity(0.10) : .clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 11))
-                }
-                .buttonStyle(.plain)
+                Text(BSLocalization.text(key: item.rawValue)).tag(item)
             }
         }
-        .padding(4)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .onChange(of: filter) { _, _ in isSearchFocused = false }
     }
 
     private func managementSection(_ section: LibrarySection, selectedShowID: UUID?) -> some View {
@@ -279,9 +276,18 @@ struct CurrentShowLibraryManagementView: View {
     private func displayedSections(from sections: [LibrarySection]) -> [LibrarySection] {
         let visible: [LibrarySection]
         switch filter {
-        case .upcoming: visible = Array(sections.prefix(2))
-        case .ended: visible = [sections[2]]
-        case .all: visible = sections
+        case .all:
+            visible = sections
+        case .upcoming:
+            let now = Date()
+            let datedPostponements = sections[1].shows.filter { show in
+                CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
+                    newDate: show.postponedDate, now: now, calendar: show.timingCalendar()
+                )
+            }
+            visible = [sections[0], .init(title: sections[1].title, shows: datedPostponements)]
+        case .ended:
+            visible = [sections[2]]
         }
         return visible.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
     }
@@ -326,14 +332,6 @@ struct CurrentShowLibraryManagementView: View {
             + [show.city, show.venueName, show.venueAddress].compactMap { $0 })
             .joined(separator: " ")
         return ArtistNameMatching.contains(haystack, query: query)
-    }
-
-    private func count(for filter: CurrentShowLibraryFilter, sections: [LibrarySection]) -> Int {
-        switch filter {
-        case .upcoming: return sections[0].shows.count + sections[1].shows.count
-        case .ended: return sections[2].shows.count
-        case .all: return sections.reduce(0) { $0 + $1.shows.count }
-        }
     }
 
     private func menuActions(for show: Show, selectedShowID: UUID?) -> [CurrentShowLibraryMenuAction] {
