@@ -11,7 +11,6 @@ struct FootprintsView: View {
     @State private var isAddingShow = false
     @State private var detailTarget: FootprintDetailDestination?
     @State private var activeSheet: FootprintSheet?
-    @State private var toast: BSToastPayload?
     private let currentShowSession = CurrentShowSession()
 
     var body: some View {
@@ -72,18 +71,8 @@ struct FootprintsView: View {
                     .presentationDetents([.large])
                     .presentationCornerRadius(26)
                     .presentationDragIndicator(.visible)
-                case .share:
-                    FootprintShareSheet(
-                        archive: archive,
-                        covers: covers,
-                        onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
-                    )
-                    .presentationDetents([.large])
-                    .presentationCornerRadius(26)
-                    .presentationDragIndicator(.visible)
                 }
             }
-            .bsToastOverlay(toast, bottomPadding: 100)
     }
 
     private func content(_ prepared: PreparedFootprint) -> some View {
@@ -93,27 +82,14 @@ struct FootprintsView: View {
             allShows: shows,
             onShowSelected: { detailTarget = FootprintDetailDestination(show: $0) },
             onAdd: { isAddingShow = true },
-            onSearch: { activeSheet = .search },
-            onShare: {
-                activeSheet = .share
-            }
+            onSearch: { activeSheet = .search }
         )
-    }
-
-    private func presentToast(_ message: String) {
-        let payload = BSToastPayload(tone: .success, message: message)
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2))
-            if toast == payload { toast = nil }
-        }
     }
 
 }
 
 private enum FootprintSheet: String, Identifiable {
     case search
-    case share
     var id: String { rawValue }
 }
 
