@@ -1,68 +1,54 @@
 import SwiftUI
 
+/// The overview's own layout while the catalog loads, so arriving content settles in place.
 struct ListeningPreparingView: View {
     let show: Show
 
+    private var names: [ListeningPosterName] {
+        var seen = Set<String>()
+        return show.artists.map(\.name).filter { !$0.isEmpty && seen.insert($0).inserted }
+            .map { ListeningPosterName(id: $0, name: $0) }
+    }
+
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                ListeningRoomHeader(mode: .connecting)
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        ListeningRackSkeleton()
-                            .padding(.horizontal, -BSSpacing.roomy)
-                            .frame(height: ListeningRackLayout.slotHeight, alignment: .top)
-                            .listeningFrame("cabinet")
-                            .padding(.top, BSSpacing.sm)
-                        let geometry = CDPlayerConfiguration.standard.geometry
-                        let availableWidth = min(proxy.size.width - BSSpacing.roomy * 2, BSLayout.maxPlayerWidth)
-                        let scale = availableWidth * BSListeningTokens.playerWidthFraction / geometry.body.width
-                       ListeningPreparingMachineView(scale: scale)
-                           .listeningFrame("stage")
-                           .frame(width: availableWidth)
-                            .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
-                        Color.clear.frame(height: BSLayout.minTouchTarget)
-                            .padding(.top, -BSSpacing.lg)
-                   }
-                    .coordinateSpace(name: "listeningContent")
+        VStack(spacing: 0) {
+            ListeningRoomHeader(mode: .connecting)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: BSSpacing.xl) {
+                    ListeningPosterLayout(show: show, names: names)
+                    VStack(alignment: .leading, spacing: BSSpacing.md) {
+                        Text(ListeningCopy.text("帮我挑一张")).font(ListeningOverviewStyle.sectionTitle)
+                        RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                            .frame(height: ListeningOverviewStyle.pickCover + BSSpacing.md * 2)
+                    }
                     .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.xs)
+                    VStack(alignment: .leading, spacing: BSSpacing.md) {
+                        Text(ListeningCopy.text("本场歌单")).font(ListeningOverviewStyle.sectionTitle)
+                            .padding(.horizontal, BSSpacing.roomy)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: BSSpacing.sm) {
+                                ForEach(0..<3, id: \.self) { _ in
+                                    RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                                        .fill(Color.white.opacity(0.06))
+                                        .frame(width: ListeningOverviewStyle.playlistTile.width,
+                                               height: ListeningOverviewStyle.playlistTile.height)
+                                }
+                            }
+                            .padding(.horizontal, BSSpacing.roomy)
+                        }
+                        .scrollDisabled(true)
+                    }
                 }
-                .scrollDisabled(true)
+                .padding(.bottom, BSSpacing.xl)
             }
-            .bsAdaptiveContentWidth()
+            .scrollClipDisabled()
+            .scrollDisabled(true)
         }
+        .bsAdaptiveContentWidth()
         .foregroundStyle(BSColor.Stage.foreground)
         .background(BSColor.Stage.background.ignoresSafeArea())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.text("正在准备唱片"))
-    }
-}
-
-struct ListeningPreparingMachineView: View {
-    let scale: CGFloat
-    private var geometry: CDPlayerConfiguration.Geometry { CDPlayerConfiguration.standard.geometry }
-    private var assets: CDPlayerConfiguration.Assets { CDPlayerConfiguration.standard.assets }
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Ellipse()
-                .fill(.black.opacity(0.45)).blur(radius: 22)
-                .frame(width: 370, height: 130).position(x: 232, y: 679)
-            Image(assets.body).resizable()
-                .frame(width: geometry.body.width, height: geometry.body.height)
-                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180),
-                             anchor: UnitPoint(x: 0.5, y: (geometry.hingeY - geometry.body.minY) / geometry.body.height))
-                .position(x: geometry.body.midX, y: geometry.body.midY)
-            Image(assets.lidOuter).resizable()
-                .frame(width: geometry.lid.width, height: geometry.lid.height)
-                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180), anchor: .top)
-                .position(x: geometry.lid.midX, y: geometry.lid.midY)
-        }
-        .frame(width: geometry.canvas.width, height: geometry.canvas.height)
-        .scaleEffect(scale, anchor: .topLeading)
-        .frame(width: geometry.canvas.width * scale, height: geometry.canvas.height * scale, alignment: .topLeading)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }

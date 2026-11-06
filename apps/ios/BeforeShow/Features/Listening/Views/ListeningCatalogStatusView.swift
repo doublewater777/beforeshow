@@ -35,10 +35,10 @@ struct ListeningCatalogStatusView: View {
             if let actionTitle {
                 Button(actionTitle, action: action)
                     .font(BSListeningTokens.captionMedium)
-                    .foregroundStyle(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .padding(.horizontal, BSSpacing.compact)
                     .frame(minHeight: BSLayout.minTouchTarget)
-                    .background(BSColor.Stage.accent.opacity(BSListeningTokens.selectionFillOpacity), in: Capsule())
+                    .background(BSColor.Stage.foreground.opacity(BSListeningTokens.selectionFillOpacity), in: Capsule())
                     .buttonStyle(BSListeningPressStyle())
                     .fixedSize()
             }

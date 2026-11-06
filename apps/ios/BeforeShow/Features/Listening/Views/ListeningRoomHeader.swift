@@ -1,19 +1,28 @@
 import SwiftUI
 
 struct ListeningPageHeader<Trailing: View>: View {
+    private let surface: Binding<ListeningSurface>?
     private let trailing: Trailing
 
-    init(@ViewBuilder trailing: () -> Trailing) {
+    init(surface: Binding<ListeningSurface>? = nil, @ViewBuilder trailing: () -> Trailing) {
+        self.surface = surface
         self.trailing = trailing()
     }
 
     var body: some View {
         HStack(spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("听"))
-                .font(BSFont.pageTitle)
-                .tracking(-0.5)
-                .foregroundStyle(BSColor.Stage.foreground)
-                .accessibilityAddTraits(.isHeader)
+            if let surface {
+                HStack(alignment: .firstTextBaseline, spacing: BSSpacing.md) {
+                    surfaceTitle(BSLocalization.text("听"), .listen, surface)
+                    surfaceTitle(ListeningCopy.text("看"), .watch, surface)
+                }
+            } else {
+                Text(BSLocalization.text("听"))
+                    .font(BSFont.pageTitle)
+                    .tracking(-0.5)
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .accessibilityAddTraits(.isHeader)
+            }
 
             Spacer(minLength: 0)
 
@@ -22,6 +31,20 @@ struct ListeningPageHeader<Trailing: View>: View {
         .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.top, BSLayout.pageHeaderTopPadding)
+    }
+
+    private func surfaceTitle(_ title: String, _ value: ListeningSurface, _ selection: Binding<ListeningSurface>) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) { selection.wrappedValue = value }
+        } label: {
+            Text(title)
+                .font(BSFont.pageTitle)
+                .tracking(-0.5)
+                .foregroundStyle(selection.wrappedValue == value ? BSColor.Stage.foreground : BSColor.Stage.dim)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selection.wrappedValue == value ? [.isHeader, .isSelected] : [])
+        .accessibilityIdentifier(value == .listen ? "listening.surface.listen" : "listening.surface.watch")
     }
 }
 
@@ -49,35 +72,27 @@ struct ListeningRoomHeader: View {
     let notice: ListeningHeaderNotice?
     let onRecovery: (ListeningRecoveryAction) -> Void
     var onSearch: (() -> Void)?
-    var onPickDisc: (() -> Void)?
+    var surface: Binding<ListeningSurface>?
     @State private var showsExplanation = false
 
     init(
         mode: ListeningRoomPlaybackMode,
+        surface: Binding<ListeningSurface>? = nil,
         notice: ListeningHeaderNotice? = nil,
         onRecovery: @escaping (ListeningRecoveryAction) -> Void = { _ in },
-        onSearch: (() -> Void)? = nil,
-        onPickDisc: (() -> Void)? = nil
+        onSearch: (() -> Void)? = nil
     ) {
         self.mode = mode
         self.notice = notice
         self.onRecovery = onRecovery
         self.onSearch = onSearch
-        self.onPickDisc = onPickDisc
+        self.surface = surface
     }
 
     var body: some View {
-        ListeningPageHeader {
+        ListeningPageHeader(surface: surface) {
             HStack(spacing: BSSpacing.sm) {
-                headerStatus
-                if let onPickDisc {
-                    ListeningHeaderActionButton(
-                        icon: "square.stack",
-                        accessibilityLabel: ListeningCopy.text("帮我挑一张"),
-                        action: onPickDisc
-                    )
-                    .accessibilityIdentifier("listening.pickDisc")
-                }
+                if surface?.wrappedValue != .watch { headerStatus }
                 if let onSearch {
                     ListeningHeaderActionButton(
                         icon: "magnifyingglass",
@@ -143,6 +158,7 @@ struct ListeningRoomHeader: View {
                 Text(mode.title)
                     .font(BSListeningTokens.captionMedium)
                     .lineLimit(1)
+                    .fixedSize()
             }
         }
         .foregroundStyle(BSColor.Stage.muted)

@@ -3,31 +3,12 @@ import XCTest
 @testable import BeforeShow
 
 final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
-    func testMiniPlayerReplacesListenControlOnlyOffListenWithLoadedDisc() {
-        XCTAssertFalse(
-            ListeningBottomBarPresentation.showsMiniPlayer(
-                selectedTab: .current,
-                hasLoadedDisc: false
-            )
-        )
-        XCTAssertTrue(
-            ListeningBottomBarPresentation.showsMiniPlayer(
-                selectedTab: .current,
-                hasLoadedDisc: true
-            )
-        )
-        XCTAssertFalse(
-            ListeningBottomBarPresentation.showsMiniPlayer(
-                selectedTab: .listen,
-                hasLoadedDisc: true
-            )
-        )
-        XCTAssertTrue(
-            ListeningBottomBarPresentation.showsMiniPlayer(
-                selectedTab: .footprints,
-                hasLoadedDisc: true
-            )
-        )
+    func testMiniPlayerLeadsBackToItsSurfaceOffListenAndOpensThePlayerOnListen() {
+        typealias Bar = ListeningBottomBarPresentation
+        XCTAssertEqual(Bar.tap(selectedTab: .current, isVideo: false), .open(.listen))
+        XCTAssertEqual(Bar.tap(selectedTab: .footprints, isVideo: true), .open(.watch))
+        XCTAssertEqual(Bar.tap(selectedTab: .listen, isVideo: false), .nowPlaying)
+        XCTAssertEqual(Bar.tap(selectedTab: .listen, isVideo: true), .video)
     }
 
     func testPreparingUsesPlayingChromeState() {
@@ -63,7 +44,7 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
         )
     }
 
-    func testLoadedDiscArtworkWinsOverTrackArtwork() {
+    func testTrackArtworkWinsSoPlaylistsShowEachSong() {
         let trackURL = URL(string: "https://example.com/track.jpg")!
         let discURL = URL(string: "https://example.com/disc.jpg")!
 
@@ -72,19 +53,19 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
                 trackArtworkURL: trackURL,
                 discArtworkURL: discURL
             ),
-            discURL
+            trackURL
         )
     }
 
-    func testTrackArtworkIsFallbackWhenDiscArtworkIsMissing() {
-        let trackURL = URL(string: "https://example.com/track.jpg")!
+    func testDiscArtworkIsFallbackWhenTrackArtworkIsMissing() {
+        let discURL = URL(string: "https://example.com/disc.jpg")!
 
         XCTAssertEqual(
             ListeningMiniPlayerArtworkSource.resolve(
-                trackArtworkURL: trackURL,
-                discArtworkURL: nil
+                trackArtworkURL: nil,
+                discArtworkURL: discURL
             ),
-            trackURL
+            discURL
         )
     }
 

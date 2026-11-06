@@ -1,32 +1,21 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "专辑" : {
+    "%@ 次播放" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Albums" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "專輯" } }
-      }
-    },
-    "单曲和 EP" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Singles & EPs" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單曲和 EP" } }
-      }
-    },
-    "筛选唱片" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Filter Discs" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "篩選唱片" } }
-      }
-    },
-    "没有符合筛选条件的唱片" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No discs match this filter" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有符合篩選條件的唱片" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ views"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 次播放"
+          }
+        }
       }
     },
     "%@ 等 %d 位艺人" : {
@@ -42,6 +31,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 等 %d 位藝人"
+          }
+        }
+      }
+    },
+    "%d 张唱片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d records"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 張唱片"
+          }
+        }
+      }
+    },
+    "%d 首" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 首"
           }
         }
       }
@@ -131,6 +154,23 @@
         }
       }
     },
+    "专辑" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "專輯"
+          }
+        }
+      }
+    },
     "仅提供歌曲信息" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -216,6 +256,74 @@
         }
       }
     },
+    "全部" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部"
+          }
+        }
+      }
+    },
+    "全部 %d 组艺人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All %d artists"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部 %d 組藝人"
+          }
+        }
+      }
+    },
+    "全部艺人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Artists"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部藝人"
+          }
+        }
+      }
+    },
+    "单曲和 EP" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Singles & EPs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "單曲和 EP"
+          }
+        }
+      }
+    },
     "听听即将相遇的音乐。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -250,6 +358,23 @@
         }
       }
     },
+    "在哔哩哔哩打开" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in bilibili"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在嗶哩嗶哩打開"
+          }
+        }
+      }
+    },
     "大合唱" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -280,6 +405,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完整播放"
+          }
+        }
+      }
+    },
+    "就听这张" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play This"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就聽這張"
+          }
+        }
+      }
+    },
+    "帮我挑一张" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a disc for me"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "幫我挑一張"
           }
         }
       }
@@ -522,6 +681,23 @@
         }
       }
     },
+    "搜索艺人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search artists"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋藝人"
+          }
+        }
+      }
+    },
     "播放中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -535,23 +711,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "播放中"
-          }
-        }
-      }
-    },
-    "放置唱片中…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Placing the disc…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "放置唱片中…"
           }
         }
       }
@@ -692,6 +851,57 @@
         }
       }
     },
+    "暂时无法载入视频，点按重试" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load videos. Tap to retry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法載入影片，點按重試"
+          }
+        }
+      }
+    },
+    "更多 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More from %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多 %@"
+          }
+        }
+      }
+    },
+    "本场歌单" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Playlists"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本場歌單"
+          }
+        }
+      }
+    },
     "正在准备…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -722,6 +932,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在搜尋藝人…"
+          }
+        }
+      }
+    },
+    "没有找到相关视频" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No videos found"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有找到相關影片"
+          }
+        }
+      }
+    },
+    "没有符合筛选条件的唱片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No discs match this filter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合篩選條件的唱片"
           }
         }
       }
@@ -794,6 +1038,23 @@
         }
       }
     },
+    "看" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看"
+          }
+        }
+      }
+    },
     "立即授权" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -811,19 +1072,36 @@
         }
       }
     },
-    "装入并试听" : {
+    "筛选唱片" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Load and preview"
+            "value" : "Filter Discs"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "放入並試聽"
+            "value" : "篩選唱片"
+          }
+        }
+      }
+    },
+    "视频来自哔哩哔哩" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos from bilibili"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片來自嗶哩嗶哩"
           }
         }
       }
@@ -926,6 +1204,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "載入中…"
+          }
+        }
+      }
+    },
+    "这排柜子暂时没有可挑的唱片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No discs left to pick from this shelf."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這排櫃子暫時沒有可挑的唱片"
           }
         }
       }
@@ -1048,60 +1343,7 @@
           }
         }
       }
-    },
-
-    "帮我挑一张" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick a disc for me"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "幫我挑一張"
-          }
-        }
-      }
-    },
-    "换一张" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Draw another"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "換一張"
-          }
-        }
-      }
-    },
-    "这排柜子暂时没有可挑的唱片" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No discs left to pick from this shelf."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這排櫃子暫時沒有可挑的唱片"
-          }
-        }
-      }
     }
-
   },
   "version" : "1.0"
 }

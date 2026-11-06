@@ -40,20 +40,10 @@ struct CDPlayerConfiguration {
         static let positionTolerance = 0.25
     }
 
-    struct Assets {
-        var body = "listen_01_body_shell"
-        var discWell = "listen_01b_disc_well"
-        var lidOuter = "listen_02_lid_outer"
-        var lidInner = "listen_03_lid_inner"
-        var disc = "listen_04_disc"
-        // The body texture supplies shell details only at render time. The old
-        // photographed tray is masked out; discWell owns the circular tray geometry.
-    }
     var brand: String
     var model: String
     var themeName: String
     var geometry = Geometry()
-    var assets = Assets()
 
     static let standard = CDPlayerConfiguration(
         brand: "BEFORESHOW",

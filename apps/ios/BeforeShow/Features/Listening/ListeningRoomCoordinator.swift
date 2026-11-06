@@ -137,7 +137,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             self?.lidDidOpen()
         }
         mechanism.onTransition = { [weak self] transition in
-            CDSoundPlayer.shared.play(transition)
             self?.handleMechanismTransition(transition)
             #if os(iOS)
             switch transition {
@@ -171,12 +170,10 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             finalizeManualDiscInsertionIfNeeded()
         case "remove":
             deck.eject()
-            syncReadSound()
             if !mechanism.isAutomatic { clearPersistedDisc() }
             syncWidgetListeningState()
         case "store":
             deck.eject()
-            syncReadSound()
             clearPersistedDisc()
             syncWidgetListeningState()
         default:
@@ -191,22 +188,11 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     }
 
     private func deckTransportDidChange() {
-        syncReadSound()
         recordPlayingIfNeeded()
         if !deck.wantsPlayback {
             persistLoadedDisc(force: true)
         }
         syncWidgetListeningState()
-    }
-
-    /// The disc-read cue keeps spinning while the seated record is still loading.
-    private func syncReadSound() {
-        let phase = mechanism.position == .seated ? deck.phase : .noDisc
-        if phase == .preparing || phase == .waiting {
-            CDSoundPlayer.shared.sustainRead()
-        } else {
-            CDSoundPlayer.shared.releaseRead(fadeOut: !phase.isPlaybackActive)
-        }
     }
 
     private func reportPlaybackFailure() {
@@ -1149,14 +1135,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         }
     }
     var shelfDiscs: [ListeningDisc] { display.shelfDiscs }
-    func isPlayingDisc(_ disc: ListeningDisc) -> Bool {
-        guard display.player.isPlaybackActive,
-              mechanism.hasDisc,
-              mechanism.disc?.id == disc.id else {
-            return false
-        }
-        return libraryDiscs.contains { $0.id == disc.id }
-    }
     func excludeArtist(_ artistID: String, excluded: Bool) {
         guard let show else { return }
         do {

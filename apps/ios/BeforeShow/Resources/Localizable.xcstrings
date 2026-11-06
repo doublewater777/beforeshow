@@ -8374,22 +8374,6 @@
         }
       }
     },
-    "已在播放机中": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "In player"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已在播放機中"
-          }
-        }
-      }
-    },
     "已填写的内容会保留，不用重打": {
       "localizations": {
         "en": {
@@ -14345,22 +14329,6 @@
         }
       }
     },
-    "正在播放中": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Playing"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在播放中"
-          }
-        }
-      }
-    },
     "正在整理演出阵容…": {
       "localizations": {
         "en": {
@@ -18137,22 +18105,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "補進第一場看過的現場，\\n場次、城市和回憶都會慢慢累積。"
-          }
-        }
-      }
-    },
-    "装入播放机": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Load into Player"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裝入播放機"
           }
         }
       }

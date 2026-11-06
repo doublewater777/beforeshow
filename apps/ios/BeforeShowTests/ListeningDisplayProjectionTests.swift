@@ -627,7 +627,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(preparing.catalogChrome, .preparing)
         XCTAssertEqual(
             matching.catalogChrome,
-            .connectArtist(slotIndex: 1, name: "未连接", isBrowsing: true)
+            .connectArtist(slotIndex: 1, name: "未连接")
         )
     }
 

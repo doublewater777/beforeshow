@@ -17,7 +17,7 @@ struct ListeningDiscArtistCredits: View {
                     HStack(spacing: BSSpacing.xs) {
                         ForEach(Array(links.enumerated()), id: \.element.id) { index, link in
                             if index > 0 {
-                                Text(verbatim: "/")
+                                Text(verbatim: "·")
                                     .foregroundStyle(BSColor.Stage.muted)
                                     .accessibilityHidden(true)
                             }
@@ -33,13 +33,14 @@ struct ListeningDiscArtistCredits: View {
 
     private var summary: String {
         links.count > 3
-            ? ListeningCopy.format("%@ 等 %d 位艺人", links.prefix(2).map(\.name).joined(separator: " / "), links.count)
-            : links.map(\.name).joined(separator: " / ")
+            ? ListeningCopy.format("%@ 等 %d 位艺人", links[0].name, links.count)
+            : links.map(\.name).joined(separator: " · ")
     }
 
     private func artistButton(_ link: ListeningDiscArtistLink) -> some View {
-        Button(link.name) { open(link) }
-            .font(BSFont.body)
+        Button { open(link) } label: {
+            Text(link.name).font(ListeningOverviewStyle.caps(14)).tracking(2).textCase(.uppercase)
+        }
             .foregroundStyle(BSColor.Stage.accent)
             .lineLimit(1)
             .buttonStyle(.plain)
@@ -54,11 +55,11 @@ struct ListeningDiscArtistCredits: View {
         } label: {
             HStack(spacing: BSSpacing.xs) {
                 Text(summary)
-                    .multilineTextAlignment(.center)
+                    .font(ListeningOverviewStyle.caps(14)).tracking(2).textCase(.uppercase)
+                    .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .semibold))
             }
-            .font(BSFont.body)
             .foregroundStyle(BSColor.Stage.accent)
         }
     }

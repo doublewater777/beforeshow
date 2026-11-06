@@ -180,7 +180,7 @@ enum ListeningMusicAccessPrompt: Equatable {
 enum ListeningCatalogChrome: Equatable {
     case preparing
     case needsMusicAccess(ListeningMusicAccessPrompt)
-    case connectArtist(slotIndex: Int?, name: String, isBrowsing: Bool)
+    case connectArtist(slotIndex: Int?, name: String)
     case unavailable(isStale: Bool)
     case empty
 }
@@ -315,8 +315,7 @@ enum ListeningDisplayProjector {
         if let browsingArtist, !browsingArtist.isConnected {
             return .connectArtist(
                 slotIndex: browsingArtist.slotIndex,
-                name: browsingArtist.name,
-                isBrowsing: true
+                name: browsingArtist.name
             )
         }
         if isCatalogEnriching, libraryDiscs.isEmpty { return .preparing }
@@ -326,8 +325,7 @@ enum ListeningDisplayProjector {
         case .noConnectedArtists:
             return .connectArtist(
                 slotIndex: unmatchedArtist?.slotIndex,
-                name: unmatchedArtist?.name ?? "",
-                isBrowsing: false
+                name: unmatchedArtist?.name ?? ""
             )
         case .cachedWithError:
             return .unavailable(isStale: true)
@@ -817,45 +815,6 @@ extension ListeningRoomCoordinator {
         guard mechanism.isClosed, mechanism.hasDisc,
               let songID = deck.adjacentSongID(delta) else { return nil }
         return deck.tracks.first { $0.id == songID }
-    }
-
-    func applyListeningFrames(_ frames: [String: CGRect]) {
-        guard let stage = frames["stage"], stage.width > 0 else { return }
-        let geometry = mechanism.configuration.geometry
-        let stageScale = stage.width / geometry.canvas.width
-        let cosine = cos(geometry.tiltDegrees * .pi / 180)
-        func convert(_ point: CGPoint) -> CGPoint {
-            CGPoint(
-                x: (point.x - stage.minX) / stageScale,
-                y: geometry.hingeY + ((point.y - stage.minY) / stageScale - geometry.hingeY) / cosine
-            )
-        }
-        var newSlots: [String: CGPoint] = [:]
-        var newCabinetScale = mechanism.cabinetScale
-        for disc in discs {
-            if let frame = frames["slot:\(disc.id)"] {
-                newSlots[disc.id] = convert(CGPoint(x: frame.midX, y: frame.midY))
-                newCabinetScale = frame.width / stageScale / geometry.discDiameter
-            }
-        }
-        if mechanism.cabinetSlots != newSlots {
-            mechanism.cabinetSlots = newSlots
-        }
-        if abs(mechanism.cabinetScale - newCabinetScale) > 0.001 {
-            mechanism.cabinetScale = newCabinetScale
-        }
-        if let frame = frames["cabinet"] {
-            let origin = convert(frame.origin)
-            let newDropZone = CGRect(
-                x: origin.x,
-                y: origin.y,
-                width: frame.width / stageScale,
-                height: frame.height / stageScale / cosine
-            )
-            if mechanism.cabinetDropZone != newDropZone {
-                mechanism.cabinetDropZone = newDropZone
-            }
-        }
     }
 
     func discPresentation(for disc: ListeningDisc) -> ListeningDiscPresentation {

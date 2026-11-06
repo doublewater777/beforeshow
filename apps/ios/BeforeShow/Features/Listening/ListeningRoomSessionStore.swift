@@ -12,6 +12,9 @@ final class ListeningRoomSessionStore {
 
     private(set) var room: ListeningRoomCoordinator?
     private(set) var isChromePublished = false
+    /// The root mini player can send Listen back to either surface or open the full player.
+    var surface: ListeningSurface = .listen
+    var isNowPlayingPresented = false
 
     var chromeRoom: ListeningRoomCoordinator? {
         isChromePublished ? room : nil

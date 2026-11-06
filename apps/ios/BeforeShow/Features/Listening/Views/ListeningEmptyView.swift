@@ -5,62 +5,49 @@ struct ListeningEmptyView: View {
     let onAddShow: () -> Void
     let onOpenShowLibrary: () -> Void
 
-    private var action: () -> Void {
-        hasShows ? onOpenShowLibrary : onAddShow
-    }
-
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                ListeningPageHeader {
-                    HStack(spacing: BSSpacing.sm) {
-                        if hasShows {
-                            ListeningHeaderActionButton(
-                                icon: "list.bullet.rectangle",
-                                accessibilityLabel: BSLocalization.text("全部现场"),
-                                action: onOpenShowLibrary
-                            )
-                        }
+        VStack(spacing: 0) {
+            ListeningPageHeader {
+                HStack(spacing: BSSpacing.sm) {
+                    if hasShows {
                         ListeningHeaderActionButton(
-                            icon: "plus",
-                            accessibilityLabel: BSLocalization.text("添加现场"),
-                            action: onAddShow
+                            icon: "list.bullet.rectangle",
+                            accessibilityLabel: BSLocalization.text("全部现场"),
+                            action: onOpenShowLibrary
                         )
                     }
+                    ListeningHeaderActionButton(
+                        icon: "plus",
+                        accessibilityLabel: BSLocalization.text("添加现场"),
+                        action: onAddShow
+                    )
                 }
-
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        ListeningRackSkeleton(animates: false)
-                            .padding(.horizontal, -BSSpacing.roomy)
-                            .frame(height: ListeningRackLayout.slotHeight, alignment: .top)
-                            .listeningFrame("cabinet")
-                            .padding(.top, BSSpacing.sm)
-                            .contentShape(Rectangle())
-                            .onTapGesture(perform: action)
-
-                        let geometry = CDPlayerConfiguration.standard.geometry
-                        let availableWidth = min(proxy.size.width - BSSpacing.roomy * 2, BSLayout.maxPlayerWidth)
-                        let scale = availableWidth * BSListeningTokens.playerWidthFraction / geometry.body.width
-
-                        ListeningPreparingMachineView(scale: scale)
-                            .listeningFrame("stage")
-                            .frame(width: availableWidth)
-                            .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
-                            .contentShape(Rectangle())
-                            .onTapGesture(perform: action)
-
-                        Color.clear.frame(height: BSLayout.minTouchTarget)
-                            .padding(.top, -BSSpacing.lg)
-                    }
-                    .coordinateSpace(name: "listeningContent")
-                    .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.xs)
-                }
-                .scrollDisabled(true)
             }
-            .bsAdaptiveContentWidth()
+            Spacer(minLength: 0)
+            VStack(spacing: BSSpacing.md) {
+                Text(ListeningCopy.text(hasShows ? "选一场现场，" : "添加一场想去的现场，"))
+                Text(ListeningCopy.text(hasShows ? "听听即将相遇的音乐。" : "唱片就从这里开始。"))
+                    .foregroundStyle(BSColor.Stage.foreground.opacity(0.6))
+            }
+            .font(ListeningOverviewStyle.serif(30))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, BSSpacing.roomy)
+            Rectangle().fill(BSColor.Stage.foreground.opacity(0.3)).frame(width: 32, height: 1)
+                .padding(.vertical, BSSpacing.lg)
+            Button(action: hasShows ? onOpenShowLibrary : onAddShow) {
+                Text(BSLocalization.text(hasShows ? "全部现场" : "添加现场"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.background)
+                    .padding(.horizontal, BSSpacing.lg)
+                    .frame(height: 44)
+                    .background(Capsule().fill(BSColor.Stage.foreground))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("listening.empty.action")
+            Spacer(minLength: 0)
+            Spacer(minLength: 0)
         }
+        .bsAdaptiveContentWidth()
         .foregroundStyle(BSColor.Stage.foreground)
         .background(BSColor.Stage.background.ignoresSafeArea())
         .accessibilityElement(children: .contain)
