@@ -8,7 +8,6 @@ struct FootprintDashboardView: View {
     let onShowSelected: (Show) -> Void
     let onAdd: () -> Void
     let onSearch: () -> Void
-    let onShare: () -> Void
 
     var body: some View {
         let marquee = FootprintStagePolicy.marquee(archived: archive.shows, allShows: allShows)
@@ -44,7 +43,6 @@ struct FootprintDashboardView: View {
             HStack(spacing: 6) {
                 headerIcon("plus", label: BSLocalization.text("添加现场"), action: onAdd)
                 headerIcon("magnifyingglass", label: BSLocalization.text("搜索足迹"), action: onSearch)
-                headerIcon("square.and.arrow.up", label: BSLocalization.text("分享足迹"), action: onShare)
             }
         }
         .padding(.horizontal, 20)
