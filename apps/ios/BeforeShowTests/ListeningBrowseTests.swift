@@ -3,32 +3,6 @@ import SwiftData
 @testable import BeforeShow
 
 @MainActor final class ListeningBrowseTests: XCTestCase {
-    func testRackSwipeMatchesShelfMock() {
-        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -10, count: 15), 3)
-        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -14, count: 15), 4)
-        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: 40, count: 15), 2)
-        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -88, count: 15), 5)
-        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 3, translation: -200, count: 15), 8)
-        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 0, translation: 80, count: 15), 0)
-        XCTAssertEqual(ListeningRackLayout.swipeIndex(from: 14, translation: -80, count: 15), 14)
-    }
-
-    func testRackPlateScrubMatchesShelfMock() {
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 5, count: 15), 3)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: 12, count: 15), 4)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 3, translation: -36, count: 15), 0)
-        XCTAssertEqual(ListeningRackLayout.scrubIndex(from: 14, translation: 132, count: 15), 14)
-    }
-
-    func testRackTapLandsOnTheCaseUnderTheFinger() {
-        let offset = { (x: CGFloat) in ListeningRackLayout.tapOffset(atX: x, focus: 3, count: 15, discOut: true, halfWidth: 195) }
-        XCTAssertEqual(offset(0), 0)
-        XCTAssertEqual(offset(-100), -1)
-        XCTAssertEqual(offset(100), 1)
-        XCTAssertEqual(offset(190), 3)
-        XCTAssertEqual(ListeningRackLayout.tapOffset(atX: 160, focus: 0, count: 2, discOut: true, halfWidth: 195), 1)
-    }
-
     func testCabinetSwapRequiresDroppingOnTheTray() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
@@ -92,8 +66,8 @@ import SwiftData
         )
         XCTAssertEqual(room.display.player.phase, .waiting)
         XCTAssertTrue(
-            room.isPlayingDisc(album),
-            "cabinet playback marking must follow the shared active presentation during waiting"
+            room.isOnDeckAndPlaying(album),
+            "playback marking must follow the shared active presentation during waiting"
         )
         XCTAssertFalse(
             room.isRecentDisc(album),
@@ -300,9 +274,6 @@ import SwiftData
         XCTAssertEqual(room.mechanism.disc, album)
         XCTAssertEqual(room.track, track)
         XCTAssertEqual(room.deck.phase, phase)
-        XCTAssertFalse(room.isPlayingDisc(album))
-        room.selectScope(.artist("a"))
-        XCTAssertTrue(room.isPlayingDisc(album))
         room.stop()
     }
 

@@ -7,8 +7,6 @@ enum BSListeningTokens {
     static let placingLight = Color(red: 0.84, green: 0.89, blue: 0.94)
     static let roomLightOpacity = 0.4
     static let loadedLidOpacity = 0.025
-    static let detailDiscFraction: CGFloat = 0.92
-    static let detailDiscReveal: CGFloat = 0.26
     static let actionHeight: CGFloat = 52
     static let stateIconSize: CGFloat = 56
     static let stateIconFont = Font.system(size: 24, weight: .light)
@@ -26,7 +24,7 @@ enum BSListeningTokens {
     static let selectionBorderOpacity = 0.35
     static let avatar: CGFloat = 24
     static let artwork: CGFloat = 82
-    static let detailArtwork: CGFloat = 212
+    static let detailArtwork: CGFloat = 264
     static let playerWidthFraction: CGFloat = 1.08
     /// One turn every nine seconds, as in the design.
     static let discRotationRPM = 60.0 / 9

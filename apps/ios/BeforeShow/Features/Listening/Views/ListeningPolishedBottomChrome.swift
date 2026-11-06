@@ -10,53 +10,7 @@ enum ListeningMiniPlayerPlaybackAppearance {
 
 enum ListeningMiniPlayerArtworkSource {
     static func resolve(trackArtworkURL: URL?, discArtworkURL: URL?) -> URL? {
-        discArtworkURL ?? trackArtworkURL
-    }
-}
-
-enum ListeningMiniPlayerSwipeAction: Equatable {
-    case previous, next
-}
-
-enum ListeningMiniPlayerSwipeIntent {
-    static let activationDistance: CGFloat = 8
-    static let commitDistance: CGFloat = 52
-    static let projectedCommitDistance: CGFloat = 88
-    static let horizontalDominanceRatio: CGFloat = 1.15
-    static let pageTravel: CGFloat = 164
-    static let unavailableEdgeResistance: CGFloat = 0.18
-
-    static func isHorizontal(_ translation: CGSize) -> Bool {
-        let horizontalDistance = abs(translation.width)
-        let verticalDistance = abs(translation.height)
-        return horizontalDistance >= activationDistance
-            && horizontalDistance > verticalDistance * horizontalDominanceRatio
-    }
-
-    static func action(
-        for translation: CGSize,
-        predictedEndTranslation: CGSize? = nil
-    ) -> ListeningMiniPlayerSwipeAction? {
-        guard isHorizontal(translation) else { return nil }
-
-        let predicted = predictedEndTranslation ?? translation
-        guard abs(translation.width) >= commitDistance
-                || abs(predicted.width) >= projectedCommitDistance else {
-            return nil
-        }
-
-        return translation.width < 0 ? .next : .previous
-    }
-
-    static func trackedOffset(for translation: CGSize, canNavigate: Bool) -> CGFloat {
-        guard isHorizontal(translation) else { return 0 }
-
-        let maximumTravel = pageTravel * 1.06
-        let direct = min(max(translation.width, -maximumTravel), maximumTravel)
-        guard !canNavigate else { return direct }
-
-        let resisted = direct * unavailableEdgeResistance
-        return min(max(resisted, -18), 18)
+        trackArtworkURL ?? discArtworkURL
     }
 }
 
@@ -73,8 +27,11 @@ enum ListeningMiniPlayerArtworkImage {
 }
 
 enum ListeningBottomBarPresentation {
-    static func showsMiniPlayer(selectedTab: BeforeShowTab, hasLoadedDisc: Bool) -> Bool {
-        hasLoadedDisc && selectedTab != .listen
+    enum Tap: Equatable { case open(ListeningSurface), nowPlaying, video }
+    /// Off Listen the mini player leads back to its surface; on Listen it opens the full player.
+    static func tap(selectedTab: BeforeShowTab, isVideo: Bool) -> Tap {
+        guard selectedTab == .listen else { return .open(isVideo ? .watch : .listen) }
+        return isVideo ? .video : .nowPlaying
     }
 }
 
@@ -102,12 +59,7 @@ struct ListeningPolishedBottomChrome: View {
         return room.hasLoadedDisc
     }
 
-    private var showsMiniPlayer: Bool {
-        ListeningBottomBarPresentation.showsMiniPlayer(
-            selectedTab: selectedTab,
-            hasLoadedDisc: hasLoadedDisc
-        )
-    }
+    private var showsMiniPlayer: Bool { ListeningVideoDock.shared.isDocked || hasLoadedDisc }
 
     var body: some View {
         ListeningLiquidGlassBottomChrome(
@@ -156,23 +108,13 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 selectionLens
 
                 glassTabButton(.current)
-                    .offset(
-                        x: ListeningBottomBarGeometry.selectionOffset(
-                            for: .current,
-                            showsMiniPlayer: showsMiniPlayer
-                        )
-                    )
+                    .offset(x: ListeningBottomBarGeometry.selectionOffset(for: .current, showsMiniPlayer: showsMiniPlayer))
                     .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
 
                 centerControl
 
                 glassTabButton(.footprints)
-                    .offset(
-                        x: ListeningBottomBarGeometry.selectionOffset(
-                            for: .footprints,
-                            showsMiniPlayer: showsMiniPlayer
-                        )
-                    )
+                    .offset(x: ListeningBottomBarGeometry.selectionOffset(for: .footprints, showsMiniPlayer: showsMiniPlayer))
                     .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
             }
             .frame(
@@ -185,11 +127,14 @@ private struct ListeningLiquidGlassBottomChrome: View {
 
     private var centerControl: some View {
         ZStack {
-            if showsMiniPlayer, let room, let track {
+            if ListeningVideoDock.shared.isDocked {
+                ListeningVideoMiniPlayer(dock: .shared) { openMiniPlayer(isVideo: true) }
+                    .transition(.opacity)
+            } else if showsMiniPlayer, let room, let track {
                 ListeningCompactPlaybackControl(
                     room: room,
                     track: track,
-                    onSelectListen: { selectTab(.listen) }
+                    onSelectListen: { openMiniPlayer(isVideo: false) }
                 )
                 .transition(.opacity)
             } else {
@@ -218,12 +163,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 width: ListeningBottomBarLayout.tabSize - 12,
                 height: ListeningBottomBarLayout.tabSize - 12
             )
-            .offset(
-                x: ListeningBottomBarGeometry.selectionOffset(
-                    for: selectedTab,
-                    showsMiniPlayer: showsMiniPlayer
-                )
-            )
+            .offset(x: ListeningBottomBarGeometry.selectionOffset(for: selectedTab, showsMiniPlayer: showsMiniPlayer))
             .animation(miniPlayerMorphAnimation, value: selectedTab)
             .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
             .allowsHitTesting(false)
@@ -284,6 +224,14 @@ private struct ListeningLiquidGlassBottomChrome: View {
     private func selectTab(_ tab: BeforeShowTab) {
         guard selectedTab != tab else { return }
         selectedTab = tab
+    }
+
+    private func openMiniPlayer(isVideo: Bool) {
+        switch ListeningBottomBarPresentation.tap(selectedTab: selectedTab, isVideo: isVideo) {
+        case .open(let surface): ListeningRoomSessionStore.shared.surface = surface; selectTab(.listen)
+        case .nowPlaying: ListeningRoomSessionStore.shared.isNowPlayingPresented = true
+        case .video: ListeningVideoDock.shared.isExpanded = true
+        }
     }
 
     private func glassID(for tab: BeforeShowTab) -> String {

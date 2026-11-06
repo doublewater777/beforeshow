@@ -16,15 +16,13 @@ final class DynamicCoverTests: XCTestCase {
         AppAudioSession.lease(.listening)
         await AppAudioSession.waitForPendingOperations()
         defer { AppAudioSession.release(.listening) }
-        let soundURL = try XCTUnwrap(Bundle.main.url(forResource: "cd-read", withExtension: "caf"))
+        let soundURL = try XCTUnwrap(Bundle.main.url(forResource: "footprint-breath", withExtension: "caf"))
         let audio = try AVAudioPlayer(contentsOf: soundURL)
         audio.numberOfLoops = -1
         let didStartAudio = await Task.detached(priority: .utility) { audio.play() }.value
         XCTAssertTrue(didStartAudio)
         defer { Task.detached(priority: .utility) { audio.stop() } }
 
-        CDSoundPlayer.shared.warmup()
-        CDSoundPlayer.shared.play("seat")
         AppAudioSession.lease(.memoryVideo)
         AppAudioSession.release(.memoryVideo)
         await AppAudioSession.waitForPendingOperations()

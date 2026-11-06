@@ -13,6 +13,8 @@ struct ListeningDiscDetailView: View {
     /// 听搜索里 push 进来时由外层关闭整张 sheet，并定位到搜到的曲目。
     var dismissPresentation: (() -> Void)?
     var focusTrackID: String?
+    /// Pushed under a back button, the sheet's own close button would only repeat it.
+    var showsCloseButton = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var tone: Color?
@@ -24,7 +26,8 @@ struct ListeningDiscDetailView: View {
     private let indexedTracks: [IndexedTrack]
 
     init(room: ListeningRoomCoordinator, disc: ListeningDisc, onLoad: @escaping () -> Void = {},
-         focusTrackID: String? = nil, dismissPresentation: (() -> Void)? = nil) {
+         focusTrackID: String? = nil, showsCloseButton: Bool = true, dismissPresentation: (() -> Void)? = nil) {
+        self.showsCloseButton = showsCloseButton
         self.room = room
         self.disc = disc
         self.onLoad = onLoad
@@ -162,7 +165,9 @@ struct ListeningDiscDetailView: View {
                         .lineLimit(1)
                         .opacity(showsNavigationTitle ? 1 : 0)
                 }
-                BSChromeToolbarCloseButton(placement: dismissPresentation == nil ? .topBarLeading : .topBarTrailing) { close() }
+                if showsCloseButton {
+                    BSChromeToolbarCloseButton(placement: dismissPresentation == nil ? .topBarLeading : .topBarTrailing) { close() }
+                }
             }
         }
         // Navigation chrome stays neutral; playback/selection accents inside
@@ -182,8 +187,8 @@ struct ListeningDiscDetailView: View {
             case .load:
                 Button(action: load) {
                     Label(presentation.capability == .previewOnly
-                          ? ListeningCopy.text("装入并试听") : BSLocalization.text("装入播放机"),
-                          systemImage: "opticaldisc")
+                          ? ListeningCopy.text("试听") : BSLocalization.text("播放"),
+                          systemImage: "play.fill")
                 }
                 .buttonStyle(BSListeningActionStyle())
                 .disabled(room.busy)
@@ -284,7 +289,6 @@ struct ListeningDiscDetailView: View {
                     .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.muted)
             }
-            .padding(.horizontal, BSSpacing.xs)
             .padding(.bottom, BSSpacing.sm)
 
             VStack(spacing: 0) {
@@ -299,7 +303,7 @@ struct ListeningDiscDetailView: View {
                         isAuto: isAuto
                     )
                     .id(item.track.id)
-                    .background(item.track.id == focusTrackID ? BSColor.Stage.accent.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 10))
+                    .background(item.track.id == focusTrackID ? BSColor.Stage.foreground.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 10))
 
                     if item.index < indexedTracks.count - 1 {
                         Rectangle()
@@ -512,7 +516,7 @@ struct ListeningDiscDetailView: View {
                     } label: {
                         Text(BSLocalization.text(isEditorialExpanded ? "收起" : "更多"))
                             .font(BSListeningTokens.caption.weight(.semibold))
-                            .foregroundStyle(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.foreground)
                     }
                     .padding(.top, 2)
                 }
@@ -560,7 +564,7 @@ struct ListeningDiscDetailView: View {
                             .font(.system(size: 10, weight: .semibold))
                     }
                     .font(BSListeningTokens.caption.weight(.semibold))
-                    .foregroundStyle(BSColor.Stage.accent)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .padding(.top, BSSpacing.xs)
                 }
             }

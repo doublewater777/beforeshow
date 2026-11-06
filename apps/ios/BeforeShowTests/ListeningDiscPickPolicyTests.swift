@@ -207,11 +207,11 @@ final class ListeningDiscPickPolicyTests: XCTestCase {
 
     func testEPFilterRecognizesCatalogSuffixWithoutGuessingFromTrackCount() {
         let track = sampleDisc("track", songIDs: ["s"]).tracks
-        for title in ["Night - EP", "Night – EP", "Night — ep  "] {
+        for title in ["Night - EP", "Night – EP", "Night — ep  ", "Precious LiFe - Single"] {
             let disc = ListeningDisc(id: title, title: title, artworkURL: nil, tracks: track)
             XCTAssertTrue(ListeningDiscPickFilter.singlesAndEPs.includes(disc))
         }
-        for title in ["EPIC", "Keep Going", "EP Collection"] {
+        for title in ["EPIC", "Keep Going", "EP Collection", "Single Mothers"] {
             let disc = ListeningDisc(id: title, title: title, artworkURL: nil, tracks: track)
             XCTAssertFalse(ListeningDiscPickFilter.singlesAndEPs.includes(disc))
         }

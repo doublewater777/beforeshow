@@ -33,9 +33,9 @@ enum ListeningDiscPickFilter: String, CaseIterable {
     func includes(_ disc: ListeningDisc) -> Bool {
         guard self != .all else { return true }
         guard disc.origin == .album else { return false }
-        // MusicKit exposes isSingle; EP releases also carry a catalog title suffix.
+        // MusicKit exposes isSingle but misses some; short releases also carry a catalog title suffix.
         let isShortRelease = disc.isSingle == true || disc.title.range(
-            of: #"\s[-–—]\s*EP\s*$"#, options: [.regularExpression, .caseInsensitive]
+            of: #"\s[-–—]\s*(EP|Single)\s*$"#, options: [.regularExpression, .caseInsensitive]
         ) != nil
         return self == .singlesAndEPs ? isShortRelease : !isShortRelease
     }
