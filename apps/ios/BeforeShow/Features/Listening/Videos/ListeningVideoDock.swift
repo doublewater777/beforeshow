@@ -51,6 +51,8 @@ final class ListeningVideoDock {
         if isPlaying {
             player.pause()
         } else {
+            // Take the app's sound before the video starts, not after it is heard.
+            AppAudioSession.claimFocus(.artistVideo)
             player.play()
         }
     }
@@ -84,7 +86,8 @@ final class ListeningVideoDock {
         loadTask = Task { [search] in
             do {
                 let stream = try await search.stream(for: video.bvid)
-                guard !Task.isCancelled else { return }
+                // A later pick or a close may land while the address is fetched.
+                guard !Task.isCancelled, selection?.video.id == video.id else { return }
                 let asset = AVURLAsset(url: stream.url, options: ["AVURLAssetHTTPHeaderFieldsKey": stream.headers])
                 let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
                 statusObservation = player.publisher(for: \.timeControlStatus)

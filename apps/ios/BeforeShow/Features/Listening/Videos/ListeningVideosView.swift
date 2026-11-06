@@ -34,6 +34,7 @@ struct ListeningVideoLineup: Equatable {
 }
 
 struct ListeningVideosView: View {
+    private static let concurrentSearches = 4
     let lineup: ListeningVideoLineup
     var search: any ArtistVideoSearching = BilibiliVideoSearchService.shared
     @State private var filter: String?
@@ -164,10 +165,18 @@ struct ListeningVideosView: View {
         return "\(time) · \(stage)"
     }
 
+    /// A festival lineup can run to dozens of artists; a few searches at a time keep Bilibili from throttling.
     private func loadAll() async {
+        let pending = lineup.artists.map(\.name).filter { results[$0] == nil }
         await withTaskGroup(of: Void.self) { group in
-            for artist in lineup.artists where results[artist.name] == nil {
-                group.addTask { await load(artist.name) }
+            var queue = pending.makeIterator()
+            for _ in 0..<Self.concurrentSearches {
+                guard let name = queue.next() else { break }
+                group.addTask { await load(name) }
+            }
+            for await _ in group {
+                guard let name = queue.next() else { continue }
+                group.addTask { await load(name) }
             }
         }
     }

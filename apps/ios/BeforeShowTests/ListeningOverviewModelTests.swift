@@ -50,21 +50,22 @@ final class ListeningOverviewModelTests: XCTestCase {
 
     func testPickFeedStartsWithPreviewAndCoversEveryCandidateOnce() {
         let candidates = ["a", "b", "c", "d"].map { disc($0) }
-        var queue = ["c", "a", "a", "d"]
-        let order = ListeningPickOrder.feed(first: candidates[1], candidates: candidates) { seen in
-            while let id = queue.first {
-                queue.removeFirst()
-                if !seen.contains(id) { return candidates.first { $0.id == id } }
-            }
-            return candidates.first { !seen.contains($0.id) }
+        var offered: [[String]] = []
+        let order = ListeningPickOrder.feed(first: candidates[1], candidates: candidates) { remaining in
+            offered.append(remaining.map(\.id))
+            return remaining.last
         }
-        XCTAssertEqual(order.map(\.id), ["b", "c", "a", "d"])
+        XCTAssertEqual(order.map(\.id), ["b", "d", "c", "a"])
+        XCTAssertEqual(offered, [["a", "c", "d"], ["a", "c"], ["a"]])
     }
 
-    func testPickFeedStopsWhenDrawRepeats() {
-        let candidates = ["a", "b"].map { disc($0) }
-        let order = ListeningPickOrder.feed(first: nil, candidates: candidates) { _ in candidates[0] }
-        XCTAssertEqual(order.map(\.id), ["a"])
+    func testPickFeedStillCoversEveryCandidateWhenDrawRepeatsOrGivesUp() {
+        let candidates = ["a", "b", "c"].map { disc($0) } + [disc("a")]
+        let repeating = ListeningPickOrder.feed(first: nil, candidates: candidates) { _ in candidates[0] }
+        XCTAssertEqual(Set(repeating.map(\.id)), ["a", "b", "c"])
+        XCTAssertEqual(repeating.count, 3)
+        let empty = ListeningPickOrder.feed(first: nil, candidates: candidates) { _ in nil }
+        XCTAssertEqual(empty.map(\.id), ["a", "b", "c"])
     }
 
     func testLineupSectionsIndexLatinAndPutOthersLast() {

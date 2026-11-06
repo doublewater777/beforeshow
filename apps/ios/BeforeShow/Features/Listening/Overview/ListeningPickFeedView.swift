@@ -83,8 +83,8 @@ struct ListeningPickFeedView: View {
 
     private func rebuild(startingWith start: ListeningDisc?) {
         let candidates = room.pickCandidates(filter: filter)
-        order = ListeningPickOrder.feed(first: start, candidates: candidates) { seen in
-            ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: candidates, excluding: seen)
+        order = ListeningPickOrder.feed(first: start, candidates: candidates) { remaining in
+            ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: remaining)
         }
         currentID = order.first?.id
     }
@@ -92,7 +92,9 @@ struct ListeningPickFeedView: View {
     private func playSettledPage() async {
         guard let disc = order.first(where: { $0.id == settledID }) else { return }
         try? await Task.sleep(for: .milliseconds(350))
-        while !Task.isCancelled, room.busy || room.mechanism.isAutomatic {
+        // A load already under way finishes first, but a stuck one cannot hold the page forever.
+        let deadline = ContinuousClock.now + .seconds(6)
+        while !Task.isCancelled, room.busy || room.mechanism.isAutomatic, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(60))
         }
         guard !Task.isCancelled else { return }
