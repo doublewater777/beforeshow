@@ -3,8 +3,7 @@ import SwiftUI
 
 private struct CurrentShowLibraryDestination: Identifiable, Hashable {
     let show: Show
-    let startsEditing: Bool
-    var id: String { "\(show.persistentModelID)-\(startsEditing)" }
+    var id: String { "\(show.persistentModelID)" }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -24,6 +23,7 @@ struct CurrentShowLibraryManagementView: View {
     @State private var searchText = ""
     @State private var filter: CurrentShowLibraryFilter = .all
     @State private var destination: CurrentShowLibraryDestination?
+    @State private var editingTarget: Show?
     @State private var deleteTarget: Show?
     @State private var deletingPersistentID: PersistentIdentifier?
     @State private var postponeTarget: Show?
@@ -96,9 +96,26 @@ struct CurrentShowLibraryManagementView: View {
         .navigationDestination(item: $destination) { target in
             ShowDetailView(
                 show: target.show,
-                startsEditing: target.startsEditing,
                 onDetailVisibilityChange: onDetailVisibilityChange
             )
+        }
+        .sheet(item: $editingTarget) { show in
+            ShowDraftEditorView(
+                title: BSLocalization.text("编辑现场"),
+                draft: ShowDraft(show: show),
+                saveTitle: BSLocalization.text("保存"),
+                statusPillText: session.phase(for: show, now: Date()).statusText,
+                isPostponed: show.changeStatus == .postponed
+            ) { draft in
+                let didSync = try await ShowMutationCoordinator.applyDraft(
+                    draft, to: show, shows: shows, selections: selections,
+                    notificationStates: notificationStates, in: modelContext, session: session
+                )
+                presentToast(
+                    didSync ? .success : .neutral,
+                    message: BSLocalization.text(didSync ? "现场信息已更新" : "信息已保存，同步暂未更新")
+                )
+            }
         }
         .sheet(item: $postponeTarget) { show in
             PostponeShowSheet(
@@ -155,6 +172,7 @@ struct CurrentShowLibraryManagementView: View {
                 .foregroundStyle(BSColor.Stage.foreground)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.search)
         }
         .padding(.horizontal, 13)
         .frame(height: 47)
@@ -171,7 +189,7 @@ struct CurrentShowLibraryManagementView: View {
                         .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
                         .foregroundStyle(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 38)
+                        .frame(height: 44)
                         .background(filter == item ? Color.white.opacity(0.10) : .clear)
                         .clipShape(RoundedRectangle(cornerRadius: 11))
                 }
@@ -210,7 +228,7 @@ struct CurrentShowLibraryManagementView: View {
                             show: show,
                             isCurrent: selectedShowID == show.id,
                             actions: menuActions(for: show, selectedShowID: selectedShowID),
-                            onOpen: { destination = .init(show: show, startsEditing: false) },
+                            onOpen: { destination = .init(show: show) },
                             onAction: { action in handle(action, for: show) }
                         )
                         .modifier(LibraryRowEntrance(index: index, appeared: rowsAppeared, reduceMotion: reduceMotion))
@@ -223,7 +241,7 @@ struct CurrentShowLibraryManagementView: View {
                         isCurrent: selectedShowID == show.id,
                         formatter: formatter,
                         actions: menuActions(for: show, selectedShowID: selectedShowID),
-                        onOpen: { destination = .init(show: show, startsEditing: false) },
+                        onOpen: { destination = .init(show: show) },
                         onAction: { action in handle(action, for: show) }
                     )
                     .modifier(LibraryRowEntrance(index: index, appeared: rowsAppeared, reduceMotion: reduceMotion))
@@ -328,12 +346,10 @@ struct CurrentShowLibraryManagementView: View {
 
     private func handle(_ action: CurrentShowLibraryMenuAction, for show: Show) {
         switch action {
-        case .view:
-            present(show, editing: false)
         case .setCurrent:
             selectCurrent(show)
         case .edit:
-            present(show, editing: true)
+            editingTarget = show
         case .postpone, .editPostponedDate:
             presentPostpone(for: show)
         case .restoreScheduled:
@@ -345,10 +361,6 @@ struct CurrentShowLibraryManagementView: View {
         case .delete:
             presentDelete(show)
         }
-    }
-
-    private func present(_ show: Show, editing: Bool) {
-        destination = .init(show: show, startsEditing: editing)
     }
 
     private func presentPostpone(for show: Show) {

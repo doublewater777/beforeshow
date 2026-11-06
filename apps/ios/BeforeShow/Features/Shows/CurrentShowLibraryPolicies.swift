@@ -16,7 +16,6 @@ enum CurrentShowLibraryLayout: String {
 }
 
 enum CurrentShowLibraryMenuAction: String, Hashable {
-    case view = "查看详情"
     case setCurrent = "设为当前"
     case edit = "编辑"
     case postpone = "延期"
@@ -29,6 +28,27 @@ enum CurrentShowLibraryMenuAction: String, Hashable {
     var isDestructive: Bool {
         self == .cancel || self == .delete
     }
+
+    var isStatusAction: Bool {
+        switch self {
+        case .postpone, .editPostponedDate, .restoreScheduled, .restoreCanceled, .cancel:
+            return true
+        case .setCurrent, .edit, .delete:
+            return false
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .setCurrent: return BSLocalization.text("设为当前现场")
+        case .edit: return BSLocalization.text("编辑现场")
+        case .postpone: return BSLocalization.text("延期")
+        case .editPostponedDate: return BSLocalization.text("修改延期")
+        case .restoreScheduled, .restoreCanceled: return BSLocalization.text("恢复正常状态")
+        case .cancel: return BSLocalization.text("记录取消")
+        case .delete: return BSLocalization.text("删除记录")
+        }
+    }
 }
 
 enum CurrentShowLibraryMenuPolicy {
@@ -39,24 +59,17 @@ enum CurrentShowLibraryMenuPolicy {
     ) -> [CurrentShowLibraryMenuAction] {
         switch changeStatus {
         case .postponed:
-            return [.view]
-                + (canSetCurrent && timeKind != .postponed ? [.setCurrent] : [])
-                + [.editPostponedDate, .restoreScheduled, .cancel, .delete]
+            return [.edit, .editPostponedDate, .restoreScheduled, .cancel, .delete]
         case .canceled:
-            return [.view, .restoreCanceled, .delete]
+            return [.edit, .restoreCanceled, .delete]
         case .scheduled:
             if timeKind == .ended {
-                return [.view, .edit, .delete]
+                return [.edit, .delete]
             }
             if timeKind == .postShow {
-                return [.view]
-                    + (canSetCurrent ? [.setCurrent] : [])
-                    + [.edit, .delete]
+                return (canSetCurrent ? [.setCurrent] : []) + [.edit, .delete]
             }
-
-            return [.view]
-                + (canSetCurrent ? [.setCurrent] : [])
-                + [.edit, .postpone, .cancel, .delete]
+            return (canSetCurrent ? [.setCurrent] : []) + [.edit, .postpone, .cancel, .delete]
         }
     }
 }
@@ -64,7 +77,6 @@ enum CurrentShowLibraryMenuPolicy {
 extension CurrentShowLibraryMenuAction {
     var icon: String {
         switch self {
-        case .view: return "info.circle"
         case .setCurrent: return "music.note.house"
         case .edit: return "pencil"
         case .postpone, .editPostponedDate: return "calendar.badge.clock"

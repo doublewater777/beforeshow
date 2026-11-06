@@ -8,7 +8,8 @@ struct CurrentShowLibraryCoverCard: View {
     let onAction: (CurrentShowLibraryMenuAction) -> Void
 
     var body: some View {
-        Button(action: onOpen) {
+        ZStack(alignment: .topTrailing) {
+            Button(action: onOpen) {
             // Each overlay uses the grid's fixed canvas, independent of image dimensions.
             Color.clear
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
@@ -62,17 +63,25 @@ struct CurrentShowLibraryCoverCard: View {
                 )
                 .contentShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(show.name)
-        .accessibilityElement(children: .contain)
-        .contextMenu {
-            ForEach(actions, id: \.self) { action in
-                Button(role: action.isDestructive ? .destructive : nil) {
-                    onAction(action)
-                } label: {
-                    Label(BSLocalization.text(key: action.rawValue), systemImage: action.icon)
-                }
+            .buttonStyle(.plain)
+            .accessibilityLabel(show.name)
+            .accessibilityElement(children: .contain)
+            .contextMenu {
+                CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
             }
+
+            Menu {
+                CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .frame(width: 30, height: 30)
+                    .background(BSColor.Stage.background.opacity(0.82), in: Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(BSLocalization.format("管理 %@", show.name))
         }
     }
 
@@ -133,19 +142,15 @@ struct CurrentShowLibraryRow: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Menu {
-                ForEach(actions, id: \.self) { action in
-                    Button(role: action.isDestructive ? .destructive : nil) {
-                        onAction(action)
-                    } label: {
-                        Label(BSLocalization.text(key: action.rawValue), systemImage: action.icon)
-                    }
-                }
+                CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(BSColor.Stage.muted)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 34, height: 34)
                     .background(Color.white.opacity(0.055), in: Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel(BSLocalization.format("管理 %@", show.name))
             .padding(.trailing, 11)
@@ -164,6 +169,44 @@ struct CurrentShowLibraryRow: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .overlay(Capsule().stroke(color.opacity(0.35), lineWidth: 1))
+    }
+}
+
+private struct CurrentShowLibraryMenuItems: View {
+    let actions: [CurrentShowLibraryMenuAction]
+    let onAction: (CurrentShowLibraryMenuAction) -> Void
+
+    var body: some View {
+        ForEach(actions.filter { !$0.isStatusAction && $0 != .delete }, id: \.self) { action in
+            Button {
+                onAction(action)
+            } label: {
+                Label(action.title, systemImage: action.icon)
+            }
+        }
+
+        if actions.contains(where: \.isStatusAction) {
+            Menu {
+                ForEach(actions.filter(\.isStatusAction), id: \.self) { action in
+                    Button(role: action.isDestructive ? .destructive : nil) {
+                        onAction(action)
+                    } label: {
+                        Label(action.title, systemImage: action.icon)
+                    }
+                }
+            } label: {
+                Label(BSLocalization.text("现场状态"), systemImage: "calendar.badge.clock")
+            }
+        }
+
+        if actions.contains(.delete) {
+            Divider()
+            Button(role: .destructive) {
+                onAction(.delete)
+            } label: {
+                Label(CurrentShowLibraryMenuAction.delete.title, systemImage: CurrentShowLibraryMenuAction.delete.icon)
+            }
+        }
     }
 }
 

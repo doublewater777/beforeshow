@@ -98,3 +98,34 @@ final class CurrentShowLibraryPerformanceTests: XCTestCase {
         XCTAssertTrue(LibraryCoverProtocol.requestedPaths.contains("\(prefix)/updated"), "Visible rows must observe cover edits")
     }
 }
+
+@MainActor
+final class CurrentShowLibraryMenuPolicyTests: XCTestCase {
+    func testUpcomingActionsKeepCurrentSelectionAndEditingPrimary() {
+        let actions = CurrentShowLibraryMenuPolicy.actions(
+            for: .scheduled, timeKind: .before, canSetCurrent: true
+        )
+        XCTAssertEqual(actions, [.setCurrent, .edit, .postpone, .cancel, .delete])
+        XCTAssertEqual(actions.filter(\.isStatusAction), [.postpone, .cancel])
+        XCTAssertEqual(actions.last, .delete)
+    }
+
+    func testChangedShowsStillOfferEditingAndStateRecovery() {
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(for: .postponed, timeKind: .postponed, canSetCurrent: false),
+            [.edit, .editPostponedDate, .restoreScheduled, .cancel, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(for: .canceled, timeKind: .canceled, canSetCurrent: false),
+            [.edit, .restoreCanceled, .delete]
+        )
+    }
+
+    func testEndedShowsAvoidCurrentSelectionAndStatusMutations() {
+        let actions = CurrentShowLibraryMenuPolicy.actions(
+            for: .scheduled, timeKind: .ended, canSetCurrent: true
+        )
+        XCTAssertEqual(actions, [.edit, .delete])
+        XCTAssertFalse(actions.contains(where: \.isStatusAction))
+    }
+}
