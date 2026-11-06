@@ -2,6 +2,11 @@ import SwiftUI
 
 // MARK: - Footprint Page Share
 
+enum FootprintPageExportLayout {
+    static let width: CGFloat = 420
+    static let scale: CGFloat = 3
+}
+
 struct FootprintPageShareSheet<Content: View>: View {
     let title: String
     let kicker: String
@@ -17,9 +22,9 @@ struct FootprintPageShareSheet<Content: View>: View {
             title: BSLocalization.format("分享%@", title),
             subtitle: "",
             previewHeight: FootprintPageSharePreviewLayout.height(for: scaledContentHeight),
-            exportSize: CGSize(width: FootprintDashboardExportView.layoutWidth, height: 0),
+            exportSize: CGSize(width: FootprintPageExportLayout.width, height: 0),
             usesIntrinsicHeight: true,
-            exportScale: FootprintDashboardExportView.exportScale,
+            exportScale: FootprintPageExportLayout.scale,
             beforeExport: {
                 await FootprintCoverExportWarmup.warm(covers: covers)
                 await extraWarmup?()
@@ -86,7 +91,7 @@ struct FootprintPageExportView<Content: View>: View {
         .padding(.horizontal, 20)
         .padding(.top, 26)
         .padding(.bottom, 30)
-        .frame(width: FootprintDashboardExportView.layoutWidth, alignment: .leading)
+        .frame(width: FootprintPageExportLayout.width, alignment: .leading)
         .background(BSColor.Stage.background)
     }
 }
@@ -101,7 +106,7 @@ private struct FootprintPageExportPreview<Content: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let scale = geometry.size.width / FootprintDashboardExportView.layoutWidth
+            let scale = geometry.size.width / FootprintPageExportLayout.width
             ScrollView {
                 FootprintPageExportView(title: title, kicker: kicker, content: content)
                     .onGeometryChange(for: CGSize.self) { $0.size } action: { size in

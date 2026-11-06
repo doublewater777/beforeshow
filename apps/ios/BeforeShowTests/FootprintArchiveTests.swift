@@ -802,10 +802,10 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(luminance(atX: 1077, y: 1097, in: cgImage), 255)
     }
 
-    func testLongShareExportUsesIntegerRetinaScale() {
-        XCTAssertEqual(FootprintDashboardExportView.exportScale, 3)
+    func testPageShareExportUsesIntegerRetinaScale() {
+        XCTAssertEqual(FootprintPageExportLayout.scale, 3)
         XCTAssertEqual(
-            Int(FootprintDashboardExportView.layoutWidth * FootprintDashboardExportView.exportScale),
+            Int(FootprintPageExportLayout.width * FootprintPageExportLayout.scale),
             1260
         )
     }
