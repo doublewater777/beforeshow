@@ -128,7 +128,7 @@ struct ShowDetailView: View {
                         }
                         .disabled(true)
                     } else if session.isManuallySelectable(show) {
-                        Button(BSLocalization.text("设为展示"), systemImage: "music.note.house", action: selectCurrent)
+                        Button(BSLocalization.text("设为当前现场"), systemImage: "music.note.house", action: selectCurrent)
                     }
                     Menu {
                         eventStatusMenuActions
@@ -344,14 +344,14 @@ struct ShowDetailView: View {
             Button(BSLocalization.text("延期"), systemImage: "calendar.badge.clock") {
                 beginPostpone()
             }
-            Button(BSLocalization.text("取消演出"), systemImage: "xmark.circle", role: .destructive) {
+            Button(BSLocalization.text("记录取消"), systemImage: "xmark.circle", role: .destructive) {
                 isShowingCancelConfirmation = true
             }
         case .postponed:
             Button(BSLocalization.text("修改延期"), systemImage: "calendar.badge.clock") {
                 beginPostpone()
             }
-            Button(BSLocalization.text("取消演出"), systemImage: "xmark.circle", role: .destructive) {
+            Button(BSLocalization.text("记录取消"), systemImage: "xmark.circle", role: .destructive) {
                 isShowingCancelConfirmation = true
             }
             Button(restoreActionTitle, systemImage: "arrow.clockwise") {
