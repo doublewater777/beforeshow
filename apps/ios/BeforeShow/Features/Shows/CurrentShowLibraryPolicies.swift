@@ -1,11 +1,23 @@
 import SwiftUI
 
 enum CurrentShowLibraryFilter: String, CaseIterable, Identifiable {
+    case all = "全部"
     case upcoming = "即将开始"
     case ended = "已结束"
-    case all = "全部"
 
     var id: Self { self }
+}
+
+enum CurrentShowLibraryFilterPolicy {
+    /// A dated postponement belongs in Upcoming while its local show day has not passed.
+    static func includesUpcomingPostponement(
+        newDate: Date?,
+        now: Date,
+        calendar: Calendar
+    ) -> Bool {
+        guard let newDate else { return false }
+        return calendar.compare(newDate, to: now, toGranularity: .day) != .orderedAscending
+    }
 }
 
 enum CurrentShowLibraryLayout: String {

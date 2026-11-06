@@ -129,3 +129,49 @@ final class CurrentShowLibraryMenuPolicyTests: XCTestCase {
         XCTAssertFalse(actions.contains(where: \.isStatusAction))
     }
 }
+
+@MainActor
+final class CurrentShowLibraryFilterTests: XCTestCase {
+    func testSegmentedFilterOrderStartsWithAll() {
+        XCTAssertEqual(CurrentShowLibraryFilter.allCases, [.all, .upcoming, .ended])
+    }
+
+    func testDatedPostponementsIncludeTodayAndFutureInShowTimeZone() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 7, hour: 0, minute: 10
+        )))
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 7
+        )))
+        let future = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 8
+        )))
+
+        XCTAssertTrue(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
+            newDate: today, now: now, calendar: calendar
+        ))
+        XCTAssertTrue(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
+            newDate: future, now: now, calendar: calendar
+        ))
+    }
+
+    func testUndatedAndPastPostponementsAreExcludedFromUpcoming() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 7, hour: 0, minute: 10
+        )))
+        let previousDay = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 6, hour: 23, minute: 50
+        )))
+
+        XCTAssertFalse(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
+            newDate: nil, now: now, calendar: calendar
+        ))
+        XCTAssertFalse(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
+            newDate: previousDay, now: now, calendar: calendar
+        ))
+    }
+}
