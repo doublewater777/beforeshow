@@ -4,13 +4,13 @@ import SwiftUI
 struct ListeningPickFeedView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
-    let first: ListeningDisc?
+    let startingDisc: ListeningDisc?
     let onClose: () -> Void
     @State private var filter: ListeningDiscPickFilter = .all
     @State private var order: [ListeningDisc] = []
     @State private var currentID: String?
 
-    private var scopeKey: String { ListeningDiscPickPolicy.scopeKey(for: .all) }
+    private var scopeKey: String { ListeningDiscPickPolicy.showScopeKey }
     /// The scroll view reports nil while it first lays out; the opening album still counts as on screen.
     private var settledID: String? { currentID ?? order.first?.id }
 
@@ -46,7 +46,7 @@ struct ListeningPickFeedView: View {
             header
         }
         .foregroundStyle(BSColor.Stage.foreground)
-        .onAppear { rebuild(startingWith: first) }
+        .onAppear { rebuild(startingWith: startingDisc) }
         .onChange(of: filter) { _, _ in rebuild(startingWith: nil) }
         .task(id: settledID) { await playSettledPage() }
     }
@@ -56,13 +56,13 @@ struct ListeningPickFeedView: View {
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .bold))
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(.black.opacity(0.25)))
+                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                    .background(Circle().fill(ListeningOverviewStyle.scrim))
             }
             .accessibilityLabel(BSLocalization.text("关闭"))
             .accessibilityIdentifier("listening.pickFeed.close")
             Spacer()
-            Text(ListeningCopy.text("帮我挑一张")).font(.system(size: 16, weight: .bold))
+            Text(ListeningCopy.text("帮我挑一张")).font(ListeningOverviewStyle.headerTitle)
             Spacer()
             Menu {
                 Picker(ListeningCopy.text("筛选唱片"), selection: $filter) {
@@ -70,9 +70,9 @@ struct ListeningPickFeedView: View {
                 }
             } label: {
                 Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 16, weight: .bold))
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(.black.opacity(0.25)))
+                    .font(ListeningOverviewStyle.headerTitle)
+                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                    .background(Circle().fill(ListeningOverviewStyle.scrim))
             }
             .accessibilityLabel(ListeningCopy.text("筛选唱片"))
             .accessibilityIdentifier("listening.pickFeed.filter")
@@ -99,11 +99,11 @@ struct ListeningPickFeedView: View {
         }
         guard !Task.isCancelled else { return }
         ListeningDiscPickPolicy.recordDraw(showID: show.id, scopeKey: scopeKey, discID: disc.id)
-        if !room.isOnDeckAndPlaying(disc) { room.loadPlayableDisc(disc) }
+        room.play(disc)
     }
 
     private func listen(_ disc: ListeningDisc) {
-        if !room.isOnDeckAndPlaying(disc) { room.loadPlayableDisc(disc) }
+        room.play(disc)
         onClose()
     }
 }
@@ -168,14 +168,8 @@ private struct ListeningPickFeedPage: View {
                 }
             }
             Text(disc.title).font(ListeningOverviewStyle.serif(42)).lineLimit(2).minimumScaleFactor(0.7)
-            Text(meta).font(.system(size: 13)).foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
+            Text(ListeningReleaseMeta.yearAndTrackCount(disc)).font(ListeningOverviewStyle.meta).foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var meta: String {
-        let count = ListeningCopy.format("%d 首", disc.tracks.count)
-        guard let date = disc.releaseDate else { return count }
-        return "\(Calendar.current.component(.year, from: date)) · \(count)"
     }
 }

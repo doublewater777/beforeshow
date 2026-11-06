@@ -1,14 +1,5 @@
 import SwiftUI
 
-enum ListeningOverviewStyle {
-    static func serif(_ size: CGFloat) -> Font { .system(size: size, weight: .regular, design: .serif).italic() }
-    static func caps(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .default).width(.condensed) }
-    static let sectionTitle = Font.system(size: 19, weight: .bold)
-    static let posterHeight: CGFloat = 420
-    static let pickCover: CGFloat = 104
-    static let playlistTile = CGSize(width: 128, height: 92)
-}
-
 enum ListeningOverviewSheet: Identifiable {
     case artist(String)
     case lineup
@@ -55,7 +46,7 @@ struct ListeningOverviewView: View {
     }
 
     private func drawPreview() -> ListeningDisc? {
-        ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: ListeningDiscPickPolicy.scopeKey(for: .all),
+        ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: ListeningDiscPickPolicy.showScopeKey,
                                      candidates: room.pickCandidates(filter: .all))
     }
 
@@ -130,12 +121,12 @@ private struct ListeningPickEntryCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "chevron.up")
-                .font(.system(size: 16, weight: .bold))
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(Color.white.opacity(0.12)))
+                .font(ListeningOverviewStyle.headerTitle)
+                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                .background(Circle().fill(ListeningOverviewStyle.buttonFill))
         }
         .padding(BSSpacing.md)
-        .background(RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous).fill(ListeningOverviewStyle.cardFill))
         .contentShape(Rectangle())
     }
 }
@@ -166,27 +157,13 @@ private struct ListeningPlaylistTile: View {
         .overlay(alignment: .topTrailing) {
             if isCurrent {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(ListeningOverviewStyle.badgeGlyph)
                     .foregroundStyle(BSColor.Stage.background)
-                    .frame(width: 26, height: 26)
+                    .frame(width: ListeningOverviewStyle.badge, height: ListeningOverviewStyle.badge)
                     .background(Circle().fill(BSColor.Stage.foreground))
                     .padding(BSSpacing.xs)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-    }
-}
-
-@MainActor extension ListeningRoomCoordinator {
-    /// Any disc on the deck counts, including artist releases outside the show's own shelf.
-    func isOnDeckAndPlaying(_ disc: ListeningDisc) -> Bool {
-        display.player.isPlaybackActive && mechanism.hasDisc && mechanism.disc?.id == disc.id
-    }
-
-    func pickCandidates(filter: ListeningDiscPickFilter) -> [ListeningDisc] {
-        let candidates = ListeningDiscPickCandidates.discs(in: rackGroups, scope: .all)
-            .filter { !$0.tracks.isEmpty && $0.origin == .album && filter.includes($0) }
-        let loadable = candidates.filter { discPresentation(for: $0).canLoad }
-        return loadable.isEmpty ? candidates : loadable
     }
 }

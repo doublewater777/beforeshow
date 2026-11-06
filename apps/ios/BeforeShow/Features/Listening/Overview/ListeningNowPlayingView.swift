@@ -63,7 +63,7 @@ struct ListeningNowPlayingView: View {
                 HStack(spacing: BSSpacing.xs) {
                     label
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(ListeningOverviewStyle.badgeGlyph)
                         .foregroundStyle(BSColor.Stage.muted)
                 }
             }

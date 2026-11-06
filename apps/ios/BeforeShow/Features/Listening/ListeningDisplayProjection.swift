@@ -180,7 +180,7 @@ enum ListeningMusicAccessPrompt: Equatable {
 enum ListeningCatalogChrome: Equatable {
     case preparing
     case needsMusicAccess(ListeningMusicAccessPrompt)
-    case connectArtist(slotIndex: Int?, name: String, isBrowsing: Bool)
+    case connectArtist(slotIndex: Int?, name: String)
     case unavailable(isStale: Bool)
     case empty
 }
@@ -315,8 +315,7 @@ enum ListeningDisplayProjector {
         if let browsingArtist, !browsingArtist.isConnected {
             return .connectArtist(
                 slotIndex: browsingArtist.slotIndex,
-                name: browsingArtist.name,
-                isBrowsing: true
+                name: browsingArtist.name
             )
         }
         if isCatalogEnriching, libraryDiscs.isEmpty { return .preparing }
@@ -326,8 +325,7 @@ enum ListeningDisplayProjector {
         case .noConnectedArtists:
             return .connectArtist(
                 slotIndex: unmatchedArtist?.slotIndex,
-                name: unmatchedArtist?.name ?? "",
-                isBrowsing: false
+                name: unmatchedArtist?.name ?? ""
             )
         case .cachedWithError:
             return .unavailable(isStale: true)

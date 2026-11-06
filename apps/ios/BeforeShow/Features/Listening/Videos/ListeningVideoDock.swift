@@ -19,6 +19,7 @@ final class ListeningVideoDock {
     @ObservationIgnored private let search: any ArtistVideoSearching
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var statusObservation: AnyCancellable?
+    @ObservationIgnored private var endObservation: AnyCancellable?
     @ObservationIgnored private var focusToken: NSObjectProtocol?
 
     init(search: any ArtistVideoSearching = BilibiliVideoSearchService.shared) {
@@ -63,6 +64,7 @@ final class ListeningVideoDock {
     func close() {
         loadTask?.cancel()
         statusObservation = nil
+        endObservation = nil
         player?.pause()
         player = nil
         isPlaying = false
@@ -79,6 +81,7 @@ final class ListeningVideoDock {
         guard let video = selection?.video else { return }
         loadTask?.cancel()
         statusObservation = nil
+        endObservation = nil
         player?.pause()
         player = nil
         isPlaying = false
@@ -89,7 +92,12 @@ final class ListeningVideoDock {
                 // A later pick or a close may land while the address is fetched.
                 guard !Task.isCancelled, selection?.video.id == video.id else { return }
                 let asset = AVURLAsset(url: stream.url, options: ["AVURLAssetHTTPHeaderFieldsKey": stream.headers])
-                let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+                let item = AVPlayerItem(asset: asset)
+                let player = AVPlayer(playerItem: item)
+                // With no close button, a finished video hands the mini player back to music.
+                endObservation = NotificationCenter.default.publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: item)
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] _ in self?.close() }
                 statusObservation = player.publisher(for: \.timeControlStatus)
                     .receive(on: DispatchQueue.main)
                     .sink { [weak self] status in

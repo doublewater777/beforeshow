@@ -65,7 +65,7 @@ struct ListeningArtistPage: View {
     private func hero(_ artist: ListeningBrowseArtist) -> some View {
         ZStack(alignment: .bottomLeading) {
             ListeningArtwork(url: artist.artworkURL, title: artist.name)
-                .frame(height: 300)
+                .frame(height: ListeningOverviewStyle.artistHeroHeight)
                 .frame(maxWidth: .infinity)
                 .clipped()
             LinearGradient(colors: [.clear, BSColor.Stage.background], startPoint: .center, endPoint: .bottom)
@@ -75,14 +75,14 @@ struct ListeningArtistPage: View {
                 .minimumScaleFactor(0.6)
                 .padding(.horizontal, BSSpacing.roomy)
         }
-        .frame(height: 300)
+        .frame(height: ListeningOverviewStyle.artistHeroHeight)
     }
 
     private func latestAlbum(_ disc: ListeningDisc) -> some View {
         HStack(alignment: .bottom, spacing: BSSpacing.md) {
             NavigationLink { ListeningPushedDiscDetail(room: room, disc: disc) } label: {
                 ListeningDiscCover(disc: disc, show: show)
-                    .frame(width: 132, height: 132)
+                    .frame(width: ListeningOverviewStyle.featuredCover, height: ListeningOverviewStyle.featuredCover)
             }
             .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
@@ -90,17 +90,17 @@ struct ListeningArtistPage: View {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
                         Text(disc.title).font(ListeningOverviewStyle.serif(24)).lineLimit(2)
                             .multilineTextAlignment(.leading)
-                        Text(ListeningArtistReleaseCard.meta(disc))
+                        Text(ListeningReleaseMeta.yearAndTrackCount(disc))
                             .font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.muted)
                     }
                 }
                 .buttonStyle(.plain)
                 Button { play(disc) } label: {
                     Label(BSLocalization.text("播放"), systemImage: room.isOnDeckAndPlaying(disc) ? "waveform" : "play.fill")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(ListeningOverviewStyle.buttonLabel)
                         .foregroundStyle(BSColor.Stage.background)
                         .padding(.horizontal, BSSpacing.md)
-                        .frame(height: 40)
+                        .frame(height: ListeningOverviewStyle.pillHeight)
                         .background(Capsule().fill(BSColor.Stage.foreground))
                 }
                 .buttonStyle(.plain)
@@ -112,7 +112,7 @@ struct ListeningArtistPage: View {
     }
 
     private func play(_ disc: ListeningDisc) {
-        if !room.isOnDeckAndPlaying(disc) { room.loadPlayableDisc(disc) }
+        room.play(disc)
     }
 }
 
@@ -120,13 +120,7 @@ private struct ListeningArtistReleaseCard: View {
     @Bindable var room: ListeningRoomCoordinator
     let disc: ListeningDisc
     let show: Show
-    private static let width: CGFloat = 128
-
-    static func meta(_ disc: ListeningDisc) -> String {
-        let count = ListeningCopy.format("%d 首", disc.tracks.count)
-        guard let date = disc.releaseDate else { return count }
-        return "\(Calendar.current.component(.year, from: date)) · \(count)"
-    }
+    private static let width = ListeningOverviewStyle.releaseCard
 
     var body: some View {
         NavigationLink {
@@ -140,16 +134,16 @@ private struct ListeningArtistReleaseCard: View {
                             Image(systemName: "waveform")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(BSColor.Stage.background)
-                                .frame(width: 26, height: 26)
+                                .frame(width: ListeningOverviewStyle.badge, height: ListeningOverviewStyle.badge)
                                 .background(Circle().fill(BSColor.Stage.foreground))
                                 .padding(BSSpacing.xs)
                         }
                     }
                 Text(disc.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(ListeningOverviewStyle.itemTitle)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                Text(Self.meta(disc)).font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.muted)
+                Text(ListeningReleaseMeta.yearAndTrackCount(disc)).font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.muted)
             }
             .frame(width: Self.width, alignment: .leading)
             .contentShape(Rectangle())
@@ -166,65 +160,5 @@ private struct ListeningPushedDiscDetail: View {
 
     var body: some View {
         ListeningDiscDetailView(room: room, disc: disc, showsCloseButton: false, dismissPresentation: { dismiss() })
-    }
-}
-
-struct ListeningLineupList: View {
-    @Bindable var room: ListeningRoomCoordinator
-    let show: Show
-    let onMatchArtist: (ListeningBrowseArtist) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-
-    private var artists: [ListeningBrowseArtist] {
-        var seen = Set<String>()
-        return room.browseArtists.filter { seen.insert($0.id).inserted }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(ListeningLineupSection.sections(artists, query: query)) { section in
-                    Section(section.id) {
-                        ForEach(section.artists) { artist in
-                            row(artist)
-                        }
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(BSColor.Stage.background.ignoresSafeArea())
-            .searchable(text: $query, prompt: ListeningCopy.text("搜索艺人"))
-            .navigationTitle(ListeningCopy.text("全部艺人"))
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: String.self) { id in
-                ListeningArtistPage(room: room, artistID: id, show: show)
-            }
-            .toolbar {
-                BSChromeToolbarCloseButton { dismiss() }
-            }
-        }
-        .foregroundStyle(BSColor.Stage.foreground)
-    }
-
-    @ViewBuilder
-    private func row(_ artist: ListeningBrowseArtist) -> some View {
-        let label = HStack(spacing: BSSpacing.compact) {
-            ListeningArtwork(url: artist.artworkURL, title: artist.name)
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
-            Text(artist.name)
-                .foregroundStyle(artist.isConnected ? BSColor.Stage.foreground : BSColor.Stage.muted)
-            Spacer()
-        }
-        if artist.isConnected {
-            NavigationLink(value: artist.id) { label }
-                .listRowBackground(Color.clear)
-        } else {
-            Button { onMatchArtist(artist) } label: { label }
-                .buttonStyle(.plain)
-                .listRowBackground(Color.clear)
-        }
     }
 }

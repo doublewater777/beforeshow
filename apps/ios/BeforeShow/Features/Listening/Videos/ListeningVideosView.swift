@@ -34,17 +34,15 @@ struct ListeningVideoLineup: Equatable {
 }
 
 struct ListeningVideosView: View {
-    private static let concurrentSearches = 4
     let lineup: ListeningVideoLineup
-    var search: any ArtistVideoSearching = BilibiliVideoSearchService.shared
     @State private var filter: String?
-    @State private var results: [String: Result<[ArtistVideo], Error>] = [:]
+    @State private var library = ListeningVideoLibrary()
 
     /// "All" hides artists Bilibili has nothing for; a single artist still says so.
     private var visibleArtists: [ListeningVideoLineup.Artist] {
         guard let filter else {
             return lineup.artists.filter { artist in
-                if case .success(let videos) = results[artist.name] { return !videos.isEmpty }
+                if case .success(let videos) = library.results[artist.name] { return !videos.isEmpty }
                 return true
             }
         }
@@ -66,7 +64,7 @@ struct ListeningVideosView: View {
             .padding(.top, BSSpacing.sm)
             .padding(.bottom, 120)
         }
-        .task(id: lineup) { await loadAll() }
+        .task(id: lineup) { await library.loadAll(lineup.artists.map(\.name)) }
     }
 
     private var chips: some View {
@@ -110,7 +108,7 @@ struct ListeningVideosView: View {
             }
             .padding(.horizontal, BSSpacing.roomy)
 
-            switch results[artist.name] {
+            switch library.results[artist.name] {
             case .success(let videos) where !videos.isEmpty:
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: BSSpacing.compact) {
@@ -131,7 +129,7 @@ struct ListeningVideosView: View {
                 status(ListeningCopy.text("没有找到相关视频"))
             case .failure:
                 Button {
-                    Task { await load(artist.name) }
+                    Task { await library.load(artist.name) }
                 } label: {
                     status(ListeningCopy.text("暂时无法载入视频，点按重试"))
                 }
@@ -163,31 +161,6 @@ struct ListeningVideosView: View {
         let time = set.start.formatted(date: .omitted, time: .shortened)
         guard let stage, !stage.isEmpty else { return time }
         return "\(time) · \(stage)"
-    }
-
-    /// A festival lineup can run to dozens of artists; a few searches at a time keep Bilibili from throttling.
-    private func loadAll() async {
-        let pending = lineup.artists.map(\.name).filter { results[$0] == nil }
-        await withTaskGroup(of: Void.self) { group in
-            var queue = pending.makeIterator()
-            for _ in 0..<Self.concurrentSearches {
-                guard let name = queue.next() else { break }
-                group.addTask { await load(name) }
-            }
-            for await _ in group {
-                guard let name = queue.next() else { continue }
-                group.addTask { await load(name) }
-            }
-        }
-    }
-
-    private func load(_ name: String) async {
-        do {
-            let videos = try await search.videos(for: name)
-            results[name] = .success(videos)
-        } catch {
-            results[name] = .failure(error)
-        }
     }
 }
 

@@ -25,8 +25,8 @@ struct ListeningVideoPlayerView: View {
         .foregroundStyle(BSColor.Stage.foreground)
         .background((isLandscape ? Color.black : BSColor.Stage.background).ignoresSafeArea())
         .presentationDragIndicator(isLandscape ? .hidden : .visible)
-        .onAppear { ListeningVideoOrientation.allowLandscape(true) }
-        .onDisappear { ListeningVideoOrientation.allowLandscape(false) }
+        .onAppear { AppInterfaceOrientation.allowLandscape(true) }
+        .onDisappear { AppInterfaceOrientation.allowLandscape(false) }
     }
 
     private var screen: some View {
@@ -109,23 +109,6 @@ struct ListeningVideoPlayerView: View {
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
-    }
-}
-
-/// The app is portrait-only; the expanded video alone may follow the phone sideways.
-@MainActor
-private enum ListeningVideoOrientation {
-    static func allowLandscape(_ allowed: Bool) {
-        AppInterfaceOrientation.supported = allowed ? .allButUpsideDown : .portrait
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        var controller = scene?.keyWindow?.rootViewController
-        while let current = controller {
-            current.setNeedsUpdateOfSupportedInterfaceOrientations()
-            controller = current.presentedViewController
-        }
-        if !allowed {
-            scene?.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-        }
     }
 }
 

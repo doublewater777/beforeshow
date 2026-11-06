@@ -208,8 +208,7 @@ struct ListeningRoomView: View {
                 surface: $session.surface,
                 notice: session.surface == .listen ? room.display.headerNotice : nil,
                 onRecovery: { room.performListeningRecovery($0) },
-                onSearch: room.discs.isEmpty || session.surface == .watch ? nil : { isSearching = true },
-                onPickDisc: nil
+                onSearch: room.discs.isEmpty || session.surface == .watch ? nil : { isSearching = true }
             )
             if session.surface == .watch {
                 ListeningVideosView(lineup: ListeningVideoLineup(ListeningShowInputs(show)))
@@ -244,10 +243,7 @@ struct ListeningRoomView: View {
                             .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
                     }
                 case .lineup:
-                    ListeningLineupList(room: room, show: show) { artist in
-                        overviewSheet = nil
-                        matchArtist(artist)
-                    }
+                    ListeningLineupList(room: room, show: show)
                 }
             }
             .presentationDetents([.large])
@@ -258,7 +254,7 @@ struct ListeningRoomView: View {
                 .presentationDragIndicator(.visible)
         }
         .fullScreenCover(item: $pickFeedStart) { start in
-            ListeningPickFeedView(room: room, show: show, first: start.disc) { pickFeedStart = nil }
+            ListeningPickFeedView(room: room, show: show, startingDisc: start.disc) { pickFeedStart = nil }
         }
         .sheet(isPresented: Binding(
             get: { matchingSlotIndex != nil },
@@ -303,9 +299,11 @@ struct ListeningRoomView: View {
         matchingArtistName = artist.name
     }
 
+    /// An outside entry opens the feed only when nothing else is on screen, so it never replaces a sheet.
     private func openPickFeed() {
-        guard room.showsRack, !room.pickCandidates(filter: .all).isEmpty else { return }
-        overviewSheet = nil
+        let isPresenting = overviewSheet != nil || isSearching || matchingSlotIndex != nil
+            || room.browser.detail != nil || session.isNowPlayingPresented
+        guard !isPresenting, room.showsRack, !room.pickCandidates(filter: .all).isEmpty else { return }
         pickFeedStart = ListeningPickFeedStart(disc: nil)
     }
 }

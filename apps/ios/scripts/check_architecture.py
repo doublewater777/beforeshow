@@ -24,7 +24,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/Listening/ListeningRoomCoordinator.swift": 1502,
     "BeforeShowTests/ShowDraftTests.swift": 1_051,
     "BeforeShowTests/TimetableImportTests.swift": 1_033,
-    "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 896,
+    "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 894,
     "BeforeShow/Features/AddShow/AddShowFlowView.swift": 838,
     "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 797,
     "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 799,

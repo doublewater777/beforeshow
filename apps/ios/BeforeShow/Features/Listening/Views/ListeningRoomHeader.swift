@@ -72,7 +72,6 @@ struct ListeningRoomHeader: View {
     let notice: ListeningHeaderNotice?
     let onRecovery: (ListeningRecoveryAction) -> Void
     var onSearch: (() -> Void)?
-    var onPickDisc: (() -> Void)?
     var surface: Binding<ListeningSurface>?
     @State private var showsExplanation = false
 
@@ -81,14 +80,12 @@ struct ListeningRoomHeader: View {
         surface: Binding<ListeningSurface>? = nil,
         notice: ListeningHeaderNotice? = nil,
         onRecovery: @escaping (ListeningRecoveryAction) -> Void = { _ in },
-        onSearch: (() -> Void)? = nil,
-        onPickDisc: (() -> Void)? = nil
+        onSearch: (() -> Void)? = nil
     ) {
         self.mode = mode
         self.notice = notice
         self.onRecovery = onRecovery
         self.onSearch = onSearch
-        self.onPickDisc = onPickDisc
         self.surface = surface
     }
 
@@ -96,14 +93,6 @@ struct ListeningRoomHeader: View {
         ListeningPageHeader(surface: surface) {
             HStack(spacing: BSSpacing.sm) {
                 if surface?.wrappedValue != .watch { headerStatus }
-                if let onPickDisc {
-                    ListeningHeaderActionButton(
-                        icon: "square.stack",
-                        accessibilityLabel: ListeningCopy.text("帮我挑一张"),
-                        action: onPickDisc
-                    )
-                    .accessibilityIdentifier("listening.pickDisc")
-                }
                 if let onSearch {
                     ListeningHeaderActionButton(
                         icon: "magnifyingglass",
