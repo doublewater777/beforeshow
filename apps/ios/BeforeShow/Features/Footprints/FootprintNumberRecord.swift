@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Plays one number song at a time, on the same preview player as 听,
-/// and keeps what the store says about each record (cover, album, year).
+/// Plays one number song at a time. With 听 available the song goes on the shared deck like any
+/// record: the mini player shows it, it keeps going after you leave footprints, and subscribers hear
+/// the whole song. Without a current show it falls back to a 30-second preview here.
 @MainActor
 @Observable
 final class FootprintNumberSongPlayer {
@@ -9,35 +10,72 @@ final class FootprintNumberSongPlayer {
 
     private let player: any ListeningPlaybackServicing
     @ObservationIgnored private let lookup: @Sendable ([Int]) async -> [Int: SongPreview]
+    @ObservationIgnored private let roomProvider: @MainActor () async -> ListeningRoomCoordinator?
     private(set) var currentNumber: Int?
     private(set) var loadingNumber: Int?
     private(set) var failedNumber: Int?
     /// Keyed by record number.
     private(set) var previews: [Int: SongPreview] = [:]
+    /// The deck the songs went to, once one did.
+    private(set) var room: ListeningRoomCoordinator?
     /// Bumped by every tap and stop; a request that is no longer the latest never plays.
     private var request = 0
 
     init(
         player: any ListeningPlaybackServicing = PreviewListeningPlaybackService(owner: .footprintSong),
-        lookup: @escaping @Sendable ([Int]) async -> [Int: SongPreview] = { await SongPreviewLookup.shared.previews(for: $0) }
+        lookup: @escaping @Sendable ([Int]) async -> [Int: SongPreview] = { await SongPreviewLookup.shared.previews(for: $0) },
+        roomProvider: @escaping @MainActor () async -> ListeningRoomCoordinator? = { await ListeningIntentHandler.shared.roomForPlayback() }
     ) {
         self.player = player
         self.lookup = lookup
+        self.roomProvider = roomProvider
+    }
+
+    static func discID(_ number: Int) -> String { "footprint-number-\(number)" }
+
+    /// The song as a one-track record for the deck.
+    static func disc(for song: FootprintNumberSong, preview: SongPreview) -> ListeningDisc {
+        let track = ListeningDiscTrack(CatalogSong(
+            appleMusicSongID: String(preview.trackID),
+            title: preview.title,
+            artistName: preview.artist,
+            albumTitle: preview.album,
+            artworkURL: preview.artworkURL?.absoluteString,
+            duration: preview.duration,
+            previewURL: preview.previewURL.absoluteString
+        ))
+        return ListeningDisc(
+            id: discID(song.number),
+            title: preview.title,
+            artworkURL: preview.artworkURL,
+            tracks: [track],
+            artistNames: [preview.artist],
+            appleMusicURL: preview.storeURL
+        )
+    }
+
+    private func isOnDeck(_ number: Int) -> Bool {
+        room?.loadedDisc?.id == Self.discID(number)
     }
 
     func isPlaying(_ number: Int) -> Bool {
-        currentNumber == number && player.phase.isActive
+        if isOnDeck(number) { return room?.isPlaying == true }
+        return currentNumber == number && player.phase.isActive
     }
 
     /// Paused partway through: tapping again picks up from here.
     func isPaused(_ number: Int) -> Bool {
-        currentNumber == number && !player.phase.isActive && !player.hasEnded
+        if isOnDeck(number) { return room?.isPlaying == false }
+        return currentNumber == number && !player.phase.isActive && !player.hasEnded
     }
 
     /// The preview played through; its owner lets the audio go.
     var hasFinished: Bool { currentNumber != nil && player.hasEnded }
 
     var elapsed: TimeInterval { player.currentTime }
+
+    /// Whether the song is on the full player (no 30-second cap to show).
+    func isOnSharedDeck(_ number: Int) -> Bool { isOnDeck(number) }
 
     /// Fetches covers and details for many records in one request.
     func load(_ songs: [FootprintNumberSong]) async {
@@ -50,6 +88,10 @@ final class FootprintNumberSongPlayer {
     }
 
     func toggle(_ song: FootprintNumberSong) async {
+        if isOnDeck(song.number), let room {
+            room.playPause()
+            return
+        }
         if isPlaying(song.number) {
             player.pause()
             return
@@ -67,6 +109,14 @@ final class FootprintNumberSongPlayer {
         guard mine == request else { return }
         guard let preview = previews[song.number] else {
             failedNumber = song.number
+            return
+        }
+        if let room = await roomProvider() {
+            guard mine == request else { return }
+            self.room = room
+            player.stop()
+            currentNumber = nil
+            room.loadDisc(Self.disc(for: song, preview: preview))
             return
         }
         do {
@@ -87,7 +137,8 @@ final class FootprintNumberSongPlayer {
         }
     }
 
-    /// Stops this record, whether it is playing, paused or still being fetched.
+    /// Stops this record's preview or pending fetch. A song on the shared deck keeps playing:
+    /// leaving footprints doesn't end it, the mini player does.
     func stop(_ number: Int) {
         guard currentNumber == number || loadingNumber == number else { return }
         request += 1
@@ -96,7 +147,7 @@ final class FootprintNumberSongPlayer {
         currentNumber = nil
     }
 
-    /// Stops whatever record is playing or being fetched.
+    /// Stops whatever preview is playing or being fetched.
     func stopAll() {
         if let number = currentNumber ?? loadingNumber { stop(number) }
     }
@@ -123,7 +174,7 @@ struct FootprintNumberRecord: View {
             .buttonStyle(.plain)
             .accessibilityLabel(isPlaying
                 ? BSLocalization.format("暂停 %@", song.title)
-                : BSLocalization.format("试听 %@", song.title))
+                : BSLocalization.format("播放 %@", song.title))
             VStack(alignment: .leading, spacing: 3) {
                 Text(song.title)
                     .font(.system(size: 15, weight: .semibold))
@@ -163,6 +214,9 @@ struct FootprintNumberSongStatus: View {
                 Text(BSLocalization.text("正在准备…"))
             } else if controller.failedNumber == number {
                 Text(BSLocalization.text("暂时无法播放"))
+            } else if controller.isOnSharedDeck(number) {
+                Text(BSLocalization.text(controller.isPlaying(number) ? "正在播放" : "已暂停"))
+                    .foregroundStyle(controller.isPlaying(number) ? BSColor.Stage.accent : BSColor.Stage.dim)
             } else if controller.isPaused(number) {
                 Text(String(format: "0:%02d / 0:30", min(30, Int(controller.elapsed))))
             } else if controller.isPlaying(number) {
@@ -171,7 +225,7 @@ struct FootprintNumberSongStatus: View {
                         .foregroundStyle(BSColor.Stage.accent)
                 }
             } else {
-                Text(BSLocalization.text("30 秒试听"))
+                Text(BSLocalization.text("点唱片播放"))
             }
         }
         .font(.system(size: 11, design: .monospaced))

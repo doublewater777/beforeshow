@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// One album per screen; whichever album settles on screen starts playing.
+/// One album per screen; whichever album settles on screen plays its previews. Only 就听这张
+/// puts it on the deck (and the mini player); browsing leaves what you were listening to alone.
 struct ListeningPickFeedView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
@@ -13,6 +14,7 @@ struct ListeningPickFeedView: View {
     @State private var openingID: String?
     /// Opened over a playing record: the opening album waits for a swipe or 就听这张.
     @State private var heldOpeningID: String?
+    @State private var audition = ListeningPickAudition()
 
     private var scopeKey: String { ListeningDiscPickPolicy.showScopeKey }
     /// The scroll view reports nil while it first lays out; the opening album still counts as on screen.
@@ -37,6 +39,7 @@ struct ListeningPickFeedView: View {
                                 disc: disc,
                                 show: show,
                                 isCurrent: disc.id == settledID,
+                                isAuditioning: audition.isAuditioning(disc),
                                 onListen: { listen(disc) }
                             )
                             .containerRelativeFrame([.horizontal, .vertical])
@@ -63,11 +66,15 @@ struct ListeningPickFeedView: View {
             guard heldOpeningID == nil else { return }
             await playSettledPage()
         }
+        .onDisappear { audition.stop(resumeListening: true) }
     }
 
     private var header: some View {
         HStack {
-            Button { onClose(settledDisc) } label: {
+            Button {
+                audition.stop(resumeListening: true)
+                onClose(settledDisc)
+            } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
@@ -119,10 +126,16 @@ struct ListeningPickFeedView: View {
         try? await Task.sleep(for: .milliseconds(350))
         guard !Task.isCancelled else { return }
         ListeningDiscPickPolicy.recordDraw(showID: show.id, scopeKey: scopeKey, discID: disc.id)
-        room.play(disc)
+        // Back on the record already in the mini player: drop the audition and let it carry on.
+        if disc.id == room.loadedDisc?.id {
+            audition.stop(resumeListening: true)
+            return
+        }
+        audition.play(disc)
     }
 
     private func listen(_ disc: ListeningDisc) {
+        audition.stop(resumeListening: false)
         room.play(disc)
         onClose(disc)
     }
@@ -133,6 +146,7 @@ private struct ListeningPickFeedPage: View {
     let disc: ListeningDisc
     let show: Show
     let isCurrent: Bool
+    let isAuditioning: Bool
     let onListen: () -> Void
 
     var body: some View {
@@ -154,7 +168,7 @@ private struct ListeningPickFeedPage: View {
                     info
                     Button(action: onListen) {
                         VStack(spacing: BSSpacing.xs) {
-                            Image(systemName: "play.fill")
+                            Image(systemName: "headphones")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundStyle(BSColor.Stage.background)
                                 .frame(width: 60, height: 60)
@@ -180,7 +194,7 @@ private struct ListeningPickFeedPage: View {
                     .font(ListeningOverviewStyle.caps(14)).tracking(2.5).textCase(.uppercase)
                     .foregroundStyle(BSColor.Stage.accent)
                     .lineLimit(1)
-                if isCurrent, room.isOnDeckAndPlaying(disc), room.isPlaying {
+                if isCurrent, isAuditioning || (room.isOnDeckAndPlaying(disc) && room.isPlaying) {
                     Image(systemName: "waveform")
                         .symbolEffect(.variableColor.iterative)
                         .font(.system(size: 13, weight: .bold))
