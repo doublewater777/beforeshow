@@ -33,6 +33,7 @@
 		0D620DE4A31883352BF3F1FF /* FootprintConstellationLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABBB47081BDB27EA7C36FA7C /* FootprintConstellationLayout.swift */; };
 		0DBEDF691A70C6C58E63B058 /* MemoryUnifiedEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45DA9AC9049A0FC08F457D46 /* MemoryUnifiedEditorView.swift */; };
 		0E31F23304E46C4BB01022A2 /* FootprintMemoryShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */; };
+		0E8D9CD478249BDDD5631AFD /* TimetablePullToClose.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CD5586CC0960656C74465A /* TimetablePullToClose.swift */; };
 		0ED24CE2E39BB617C12086AB /* MemoryFragment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9813064BA9172B0046C02A /* MemoryFragment.swift */; };
 		0F3043B2F1EE66E42BA17611 /* CurrentShowLibraryManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 503017ACE9228A563B0CA7AC /* CurrentShowLibraryManagementView.swift */; };
 		0F3BE470CA1FE8CCCA4FF900 /* LiveActivityAndNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */; };
@@ -778,6 +779,7 @@
 		16BC0D41B89058E361123A3F /* CurrentShowSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowSelectionTests.swift; sourceTree = "<group>"; };
 		1849C5DD2B33E29499644642 /* FootprintSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintSearchTests.swift; sourceTree = "<group>"; };
 		19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityAndNotificationTests.swift; sourceTree = "<group>"; };
+		19CD5586CC0960656C74465A /* TimetablePullToClose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePullToClose.swift; sourceTree = "<group>"; };
 		1A05FF048A656A3A3B2BAC4C /* ListeningWidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningWidgetTests.swift; sourceTree = "<group>"; };
 		1A265862DEF1190D5B04032E /* LiveActivityRemoteSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityRemoteSyncServiceTests.swift; sourceTree = "<group>"; };
 		1A5AF77F308C6755615D4A79 /* FootprintBookPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookPages.swift; sourceTree = "<group>"; };
@@ -2519,6 +2521,7 @@
 				A3858942B559D1FD467BDCA7 /* TimetablePerformanceInspectorSheet.swift */,
 				8A860EFCC0A5641D73C50D02 /* TimetablePreviewPlayer.swift */,
 				A939B218CBB70E33BE6DCB00 /* TimetablePreviewSearchResponse.swift */,
+				19CD5586CC0960656C74465A /* TimetablePullToClose.swift */,
 				4F52A258E2746FD67AABDBCB /* TimetableReviewIssues.swift */,
 				D12AEB58FA493D1E02B1F1A3 /* TimetableShareSheet.swift */,
 				91738D374C36140225E51F99 /* TimetableSheet.swift */,
@@ -3195,6 +3198,7 @@
 				32CA75F87F89C3EBEB394F55 /* TimetablePerformanceInspectorSheet.swift in Sources */,
 				6F079B245A452BC1F2B56BEB /* TimetablePreviewPlayer.swift in Sources */,
 				16C4A7F71C69A027B714F2D8 /* TimetablePreviewSearchResponse.swift in Sources */,
+				0E8D9CD478249BDDD5631AFD /* TimetablePullToClose.swift in Sources */,
 				19EA9BA22FCE0C48314AF88B /* TimetableRecognitionQuota.swift in Sources */,
 				C4B776EDE8B932B4457EE4EE /* TimetableReimportCarryover.swift in Sources */,
 				3899A74D7AF4ACCC0B222427 /* TimetableReviewIssues.swift in Sources */,
@@ -3471,7 +3475,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 53;
+				CURRENT_PROJECT_VERSION = 54;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;
@@ -3536,7 +3540,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 53;
+				CURRENT_PROJECT_VERSION = 54;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;
