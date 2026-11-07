@@ -318,22 +318,8 @@ struct FootprintBackstagePassView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(BSColor.Stage.muted)
                 .lineLimit(1)
-            if let song = Self.songNumber(for: pin).flatMap(FootprintNumberSongs.song(for:)) {
-                FootprintNumberRecord(song: song, diameter: 52)
-                    .fixedSize()
-                    .padding(.top, 10)
-            }
         }
         .padding(.horizontal, 24)
-    }
-
-    /// The count a pin stands for, if it stands for one.
-    private static func songNumber(for pin: FootprintMilestone) -> Int? {
-        switch pin.kind {
-        case .first: 1
-        case let .ordinal(number), let .latest(number): number
-        case .firstAway, .peakYear, .locked: nil
-        }
     }
 }
 

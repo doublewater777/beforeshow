@@ -42,4 +42,12 @@ final class ListeningPickAuditionTests: XCTestCase {
 
 private struct PickAuditionArtistSearch: ArtistSearchServicing {
     func searchArtists(query: String) async throws -> [RecognizedArtist] { [] }
+
+    func testEnteringWhileMusicPlaysWaitsForASwipeToAnotherAlbum() {
+        let hold = ListeningPickEntryHold(openingID: "open", playingID: "deck")
+        XCTAssertEqual(hold.releasing(on: nil), hold, "first layout reports no page")
+        XCTAssertEqual(hold.releasing(on: "deck"), hold, "paging layout briefly lands on the pinned record")
+        XCTAssertEqual(hold.releasing(on: "open"), hold)
+        XCTAssertNil(hold.releasing(on: "next"))
+    }
 }
