@@ -328,19 +328,21 @@ private struct CurrentShowRouteModule: View {
         Group {
             if isProminent {
                 VStack(alignment: .leading, spacing: 0) {
-                    map.frame(height: 96).clipped()
+                    map.frame(height: 150).clipped()
                     HStack(alignment: .center, spacing: 12) {
-                        venue(size: 17)
+                        venue(size: 20)
                         Spacer(minLength: 8)
-                        Text(BSLocalization.text("看路线"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(BSColor.Stage.muted)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(BSColor.Stage.dim)
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                            Text(BSLocalization.text("到这去"))
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.background)
+                        .padding(.horizontal, 12)
+                        .frame(height: 34)
+                        .background(BSColor.Stage.foreground, in: Capsule())
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(16)
                 }
             } else {
                 HStack(spacing: 12) {
@@ -351,7 +353,7 @@ private struct CurrentShowRouteModule: View {
                         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     venue(size: 15, serif: false)
                     Spacer(minLength: 8)
-                    Text(BSLocalization.text("看路线"))
+                    Text(BSLocalization.text("到这去"))
                         .font(.system(size: 12))
                         .foregroundStyle(BSColor.Stage.muted)
                     Image(systemName: "chevron.right")
@@ -376,17 +378,10 @@ private struct CurrentShowRouteModule: View {
             Color.white.opacity(0.04)
             if let coordinate {
                 Map(initialPosition: .region(MKCoordinateRegion(center: coordinate, latitudinalMeters: 1600, longitudinalMeters: 1600)), interactionModes: []) {
-                    Annotation("", coordinate: coordinate) {
-                        Circle()
-                            .fill(BSColor.Stage.foreground)
-                            .frame(width: 9, height: 9)
-                            .overlay(Circle().stroke(Color.black.opacity(0.5), lineWidth: 2))
-                    }
+                    Marker(show.venueName ?? show.name, coordinate: coordinate).tint(BSColor.Stage.live)
                 }
                 .mapStyle(.standard(emphasis: .muted, pointsOfInterest: .excludingAll))
                 .environment(\.colorScheme, .dark)
-                .saturation(0)
-                .overlay(Color.black.opacity(0.35))
                 .allowsHitTesting(false)
                 .transition(.opacity)
             } else {

@@ -49,7 +49,7 @@ enum CurrentShowQuickAction: Hashable {
         let actions: [Self]
         switch phase {
         case .pre:
-            actions = [.route, .timetable, .companion, .memoryFragments, .ticket]
+            actions = [.timetable, .companion, .memoryFragments, .route, .ticket]
         case .live:
             var live: [Self] = [.memoryFragments, .companion, .route, .timetable, .ticket]
             if canRecordEnd {

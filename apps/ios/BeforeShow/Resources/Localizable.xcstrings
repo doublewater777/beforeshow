@@ -25390,6 +25390,28 @@
           }
         }
       }
+    },
+    "到这去": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get there"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到这去"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到這去"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
