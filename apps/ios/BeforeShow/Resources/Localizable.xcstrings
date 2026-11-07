@@ -25456,6 +25456,94 @@
           }
         }
       }
+    },
+    "还没关联 Apple Music，暂时没有可听的唱片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not linked to Apple Music yet, so there's nothing to play."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没关联 Apple Music，暂时没有可听的唱片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒關聯 Apple Music，暫時沒有可聽的唱片"
+          }
+        }
+      }
+    },
+    "允许访问 Apple Music 后可以在这里听这位艺人": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Apple Music access to listen to this artist here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许访问 Apple Music 后可以在这里听这位艺人"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許訪問 Apple Music 後可以在這裡聽這位藝人"
+          }
+        }
+      }
+    },
+    "允许访问": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Access"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许访问"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許訪問"
+          }
+        }
+      }
+    },
+    "在 Apple Music 打开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Apple Music"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Apple Music 打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Apple Music 打開"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

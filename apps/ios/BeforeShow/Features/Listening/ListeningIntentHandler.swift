@@ -50,6 +50,20 @@ final class ListeningIntentHandler: ListeningIntentHandling {
         room.loadDisc(disc, autoplay: true)
     }
 
+    /// The shared player for playing from outside Listen (an artist page opened anywhere).
+    func roomForPlayback() async -> ListeningRoomCoordinator? {
+        if let cached = ListeningRoomSessionStore.shared.room { return cached }
+        guard let show = await currentShow() else { return nil }
+        let services = playbackDependencies ?? .production
+        return await ListeningChromeBootstrapper.roomForWidgetPlayback(
+            show: show.show,
+            context: show.context,
+            catalogService: services.catalogService,
+            artistSearchService: services.artistSearchService,
+            playbackFactory: services.playbackFactory
+        )
+    }
+
     /// A loaded disc stays with the room that is already playing it. Preparing the
     /// current show here would discard that disc. Play with no room loads the
     /// current show so the live-preview head can start after a cold launch.

@@ -14,11 +14,11 @@ struct ShowDetailStageHero: View {
     /// How far the stage reaches up behind the floating navigation buttons.
     var topExtension: CGFloat = 0
 
+    @State private var artistSheet: ArtistReference?
     @State private var lights = BSStageLights.fallback
     @State private var powered = false
     @State private var showsExactTime = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,6 +33,7 @@ struct ShowDetailStageHero: View {
             BSStageLineupChips(entries: reunions, accent: colors[1], onOpen: openArtist)
                 .padding(.top, 14)
         }
+        .sheet(item: $artistSheet) { ArtistProfileSheet(reference: $0, show: show) }
         .task(id: show.coverImageURL) {
             await sampleLights()
             withAnimation(reduceMotion ? nil : .easeIn(duration: 0.08).delay(0.25)) { powered = true }
@@ -228,9 +229,8 @@ struct ShowDetailStageHero: View {
     }
 
     private func openArtist(_ name: String) {
-        if let link = show.artists.first(where: { $0.name == name })?.appleMusicURL, let url = URL(string: link) {
-            openURL(url)
-        }
+        let slot = show.artists.first(where: { $0.name == name })
+        artistSheet = slot.map(ArtistReference.init(slot:)) ?? ArtistReference(name: name, appleMusicArtistID: nil)
     }
 
     private func sampleLights() async {
