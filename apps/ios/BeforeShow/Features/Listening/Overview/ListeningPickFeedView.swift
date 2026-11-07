@@ -5,14 +5,19 @@ struct ListeningPickFeedView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
     let startingDisc: ListeningDisc?
-    let onClose: () -> Void
+    /// Hands back the album the user stopped on, so Listen shows it.
+    let onClose: (ListeningDisc?) -> Void
     @State private var filter: ListeningDiscPickFilter = .all
     @State private var order: [ListeningDisc] = []
     @State private var currentID: String?
+    @State private var openingID: String?
+    /// Opened over a playing record: the opening album waits for a swipe or 就听这张.
+    @State private var heldOpeningID: String?
 
     private var scopeKey: String { ListeningDiscPickPolicy.showScopeKey }
     /// The scroll view reports nil while it first lays out; the opening album still counts as on screen.
-    private var settledID: String? { currentID ?? order.first?.id }
+    private var settledID: String? { currentID ?? openingID ?? order.first?.id }
+    private var settledDisc: ListeningDisc? { order.first { $0.id == settledID } }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -23,6 +28,7 @@ struct ListeningPickFeedView: View {
                     .foregroundStyle(BSColor.Stage.muted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
+                ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach(order) { disc in
@@ -42,18 +48,26 @@ struct ListeningPickFeedView: View {
                 .scrollTargetBehavior(.paging)
                 .scrollPosition(id: $currentID)
                 .ignoresSafeArea()
+                // Paging layouts ignore an initial scroll position; land on the opening album explicitly.
+                .onAppear { if let openingID, openingID != order.first?.id { proxy.scrollTo(openingID, anchor: .top) } }
+                }
             }
             header
         }
         .foregroundStyle(BSColor.Stage.foreground)
-        .onAppear { rebuild(startingWith: startingDisc) }
-        .onChange(of: filter) { _, _ in rebuild(startingWith: nil) }
-        .task(id: settledID) { await playSettledPage() }
+        .onAppear { rebuild(startingWith: startingDisc, keepingPlaying: true) }
+        .onChange(of: filter) { _, _ in rebuild(startingWith: nil, keepingPlaying: false) }
+        .task(id: settledID) {
+            if settledID != heldOpeningID { heldOpeningID = nil }
+            prefetchNextPage()
+            guard heldOpeningID == nil else { return }
+            await playSettledPage()
+        }
     }
 
     private var header: some View {
         HStack {
-            Button(action: onClose) {
+            Button { onClose(settledDisc) } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
@@ -81,22 +95,28 @@ struct ListeningPickFeedView: View {
         .padding(.horizontal, BSSpacing.compact)
     }
 
-    private func rebuild(startingWith start: ListeningDisc?) {
+    private func rebuild(startingWith start: ListeningDisc?, keepingPlaying: Bool) {
         let candidates = room.pickCandidates(filter: filter)
-        order = ListeningPickOrder.feed(first: start, candidates: candidates) { remaining in
+        let drawn = ListeningPickOrder.feed(first: start, candidates: candidates) { remaining in
             ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: remaining)
         }
-        currentID = order.first?.id
+        let playing = keepingPlaying && room.wantsPlayback ? room.loadedDisc : nil
+        order = ListeningPickOrder.keeping(playing, above: drawn)
+        openingID = drawn.first?.id
+        heldOpeningID = playing != nil && playing?.id != openingID ? openingID : nil
+        currentID = openingID
+    }
+
+    /// Paging is forward, so the album below is warmed while this one plays.
+    private func prefetchNextPage() {
+        guard let index = order.firstIndex(where: { $0.id == settledID }), order.indices.contains(index + 1) else { return }
+        room.prefetch(order[index + 1])
     }
 
     private func playSettledPage() async {
         guard let disc = order.first(where: { $0.id == settledID }) else { return }
+        // A page flicked past is not played; only the one the user settles on.
         try? await Task.sleep(for: .milliseconds(350))
-        // A load already under way finishes first, but a stuck one cannot hold the page forever.
-        let deadline = ContinuousClock.now + .seconds(6)
-        while !Task.isCancelled, room.busy || room.mechanism.isAutomatic, ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(60))
-        }
         guard !Task.isCancelled else { return }
         ListeningDiscPickPolicy.recordDraw(showID: show.id, scopeKey: scopeKey, discID: disc.id)
         room.play(disc)
@@ -104,7 +124,7 @@ struct ListeningPickFeedView: View {
 
     private func listen(_ disc: ListeningDisc) {
         room.play(disc)
-        onClose()
+        onClose(disc)
     }
 }
 

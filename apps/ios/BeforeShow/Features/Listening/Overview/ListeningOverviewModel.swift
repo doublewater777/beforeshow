@@ -64,6 +64,22 @@ enum ListeningPickOrder {
         }
         return order
     }
+
+    /// The record already playing stays reachable one page above the opening album,
+    /// so browsing never loses what the user was listening to.
+    static func keeping(_ playing: ListeningDisc?, above order: [ListeningDisc]) -> [ListeningDisc] {
+        guard let playing, order.first?.id != playing.id else { return order }
+        return [playing] + order.filter { $0.id != playing.id }
+    }
+}
+
+/// When the 「帮我挑一张」 card draws a new album. It never reshuffles on its own.
+enum ListeningPickCardPolicy {
+    /// An album the pool no longer offers is replaced; a playlist the user stopped on is kept.
+    static func needsNewDraw(current: ListeningDisc?, candidateIDs: [String]) -> Bool {
+        guard let current else { return true }
+        return current.origin == .album && !candidateIDs.contains(current.id)
+    }
 }
 
 struct ListeningLineupSection: Identifiable {

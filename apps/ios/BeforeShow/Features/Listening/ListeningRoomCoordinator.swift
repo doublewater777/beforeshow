@@ -9,14 +9,9 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 @MainActor @Observable final class ListeningRoomCoordinator {
     enum CatalogState { case loading, ready, unmatched, cacheFailed, unavailable }
 
-    #if DEBUG
-    /// When set (simulator previews), lid-open gestures reveal the disc
-    /// instead of stopping playback.
-    var opensWithoutStopping = false
-    #endif
-
-    let mechanism = CDMechanism()
-    /// The CD player's transport: what is loaded, and the Apple player that plays it.
+    /// The record on the deck; nil when nothing is loaded.
+    private(set) var loadedDisc: ListeningDisc?
+    /// The transport: what is loaded, and the Apple player that plays it.
     let deck: ListeningDeck
     private(set) var catalogSongs: [CatalogSong] = []
     private(set) var catalogAlbums: [CatalogAlbum] = []
@@ -30,9 +25,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     /// catalog pipeline (used by `--listen-seed-disc` for simulator previews).
     func seedDisc(_ disc: ListeningDisc) {
         if !discs.contains(disc) { discs.append(disc) }
-        mechanism.restoreSeated(disc)
-        mechanism.setLid(open: true)
-        opensWithoutStopping = true
+        loadedDisc = disc
         deck.load([disc], cursor: disc.tracks.first?.id)
     }
     #endif
@@ -55,14 +48,9 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     var browser = ListeningBrowseState()
     private(set) var browseArtists: [ListeningBrowseArtist] = []
     private(set) var compilationDiscs: [ListeningDisc] = []
-    /// A mechanical sequence (disc swap, closing the lid to play) is running.
-    private(set) var busy = false
     var errorText: String?
     var playbackError: String?
     var showsPlaybackFailureAlert = false
-    /// A shelf disc carried while another is seated; it swaps in only when dropped on the player.
-    var pendingCabinetSwap: ListeningDisc?
-    @ObservationIgnored var pendingCabinetSwapDrop: CGSize = .zero
     @ObservationIgnored private var foreground = true
     @ObservationIgnored private var musicAccessRequestGeneration = UUID()
     private(set) var accessResolved = false
@@ -81,7 +69,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
     @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
     @ObservationIgnored private var evidenceFailure = ListeningEvidenceFailureOwner()
-    @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private let widgetSync = ListeningWidgetSync()
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
@@ -130,55 +117,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             self?.applyDeckEvidence(result, representDismissedAlert: immediate)
         }
         deck.onFailure = { [weak self] in self?.reportPlaybackFailure() }
-        mechanism.onOpen = { [weak self] in
-            #if DEBUG
-            if self?.opensWithoutStopping == true { return }
-            #endif
-            self?.lidDidOpen()
-        }
-        mechanism.onTransition = { [weak self] transition in
-            self?.handleMechanismTransition(transition)
-            #if os(iOS)
-            switch transition {
-            case "seat", "close":
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            case "open", "pickup":
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            case "blocked":
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            default:
-                break
-            }
-            #endif
-        }
         restorePersistedDiscIfNeeded()
-    }
-
-    /// Opening the lid stops the motor; the track and its position stay loaded.
-    private func lidDidOpen() {
-        deck.pause()
-        persistLoadedDisc(force: true)
-    }
-
-    private func handleMechanismTransition(_ transition: String) {
-        switch transition {
-        case "seat":
-            // Automatic swaps load the deck themselves once the tray settles.
-            guard !mechanism.isAutomatic, let disc = mechanism.disc else { return }
-            deck.load([disc], cursor: discPresentation(for: disc).defaultPlayableTrackID)
-            persistLoadedDisc(force: true)
-            finalizeManualDiscInsertionIfNeeded()
-        case "remove":
-            deck.eject()
-            if !mechanism.isAutomatic { clearPersistedDisc() }
-            syncWidgetListeningState()
-        case "store":
-            deck.eject()
-            clearPersistedDisc()
-            syncWidgetListeningState()
-        default:
-            break
-        }
     }
 
     private func deckCursorDidChange() {
@@ -208,7 +147,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     }
 
     private func restorePersistedDiscIfNeeded() {
-        guard mechanism.position == .stored else { return }
+        guard loadedDisc == nil else { return }
         do {
             let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
             guard let state = states.max(by: { $0.updatedAt < $1.updatedAt }) else { return }
@@ -218,12 +157,12 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                 return
             }
             let songID = state.songID.flatMap { id in disc.tracks.contains { $0.id == id } ? id : nil }
-            mechanism.restoreSeated(disc)
+            loadedDisc = disc
             deck.load([disc], cursor: songID, resumeAt: songID == nil ? 0 : state.currentTime ?? 0)
         } catch {}
     }
     private func persistLoadedDisc(currentTime: TimeInterval? = nil, force: Bool = false) {
-        guard mechanism.position == .seated, let disc = mechanism.disc else { return }
+        guard let disc = loadedDisc else { return }
         do {
             let songID = deck.cursorSongID.flatMap { id in disc.tracks.contains { $0.id == id } ? id : nil }
             let time = currentTime ?? deck.time
@@ -254,8 +193,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         } catch {}
     }
     func discardLoadedDiscState(publishWidget: Bool = true) {
-        operation?.cancel(); operation = nil
-        deck.eject(); mechanism.discardDisc(); clearPersistedDisc()
+        deck.eject(); loadedDisc = nil; clearPersistedDisc()
         if publishWidget { syncWidgetListeningState() }
     }
     /// Disc standing on the live-preview shelf. The widget plays this when nothing is seated.
@@ -265,7 +203,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
     func syncWidgetListeningState() {
         let idle = livePreviewDisc
-        let seated = mechanism.position == .seated ? mechanism.disc : nil
+        let seated = loadedDisc
         let snapshot = WidgetListeningProjection.make(.init(
             showID: show?.id,
             showName: show?.name ?? (WidgetSnapshotStore.read()?.name ?? ""),
@@ -273,28 +211,25 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             track: seated == nil ? nil : track,
             playerPhase: deck.phase,
             playPauseAction: playPauseAction,
-            mechanicallyBusy: mechanism.isAutomatic,
-            pendingDisc: mechanism.disc,
             idleDisc: idle,
             idleCanLoad: idle.map { discPresentation(for: $0).canLoad } ?? false
         ))
         widgetSync.sync(snapshot)
     }
     var track: ListeningDiscTrack? {
-        guard mechanism.position != .stored, mechanism.disc != nil else { return nil }
-        return deck.currentTrack
+        loadedDisc == nil ? nil : deck.currentTrack
     }
 
     /// Position of the current track on the visible record.
     var trackIndex: Int {
-        guard let disc = mechanism.disc, let songID = deck.cursorSongID else { return 0 }
+        guard let disc = loadedDisc, let songID = deck.cursorSongID else { return 0 }
         return disc.tracks.firstIndex { $0.id == songID } ?? 0
     }
 
     var playerDisplayTrack: ListeningDiscTrack? { track }
 
     var playerDisplayTrackIndex: Int? {
-        guard let disc = mechanism.disc, let track else { return nil }
+        guard let disc = loadedDisc, let track else { return nil }
         return disc.tracks.firstIndex { $0.id == track.id }
     }
 
@@ -419,8 +354,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         catalogSongs = []; catalogAlbums = []; catalogSnapshots = []; artistPresentations = [:]
         compilationDiscs = []; browseArtists = []; openingTiers = []
         familiarSongIDs = []; actualSongIDs = []; excludedArtistIDs = []
-        pendingCabinetSwap = nil
-        pendingCabinetSwapDrop = .zero
         projectedShowInputs = nil
         // Visible failures belong to the room the user just left. Retry work,
         // including playback-evidence persistence, continues independently.
@@ -503,7 +436,8 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         // Subscription lookup and artist identity lookup are independent. Publish
         // resolved access immediately so cached records can play during matching.
         let initialSlots = show.artists
-        let reusableMatches = reusableArtistMatches(for: initialSlots)
+        let savedSlots = (try? context.fetch(FetchDescriptor<Show>()))?.flatMap(\.artists) ?? []
+        let reusableMatches = ArtistIdentityMatcher.reusableMatches(for: initialSlots, saved: savedSlots)
         applyAutomaticArtistMatches(reusableMatches, originalSlots: initialSlots, to: show)
 
         let slots = show.artists
@@ -526,52 +460,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         }
     }
 
-    private func reusableArtistMatches(for slots: [ArtistSlot]) -> [Int: RecognizedArtist] {
-        let unresolved = slots.enumerated().filter {
-            $0.element.appleMusicArtistID == nil
-                && AppleMusicArtistIdentity.artistID(from: $0.element.appleMusicURL) == nil
-        }
-        guard !unresolved.isEmpty,
-              let shows = try? context.fetch(FetchDescriptor<Show>()) else {
-            return [:]
-        }
-
-        var knownByName: [String: [String: ArtistSlot]] = [:]
-        for source in shows.flatMap(\.artists) {
-            guard let rawID = source.appleMusicArtistID?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !rawID.isEmpty else { continue }
-            let key = ArtistNameMatching.normalized(source.name)
-            guard !key.isEmpty else { continue }
-
-            var identities = knownByName[key, default: [:]]
-            if var existing = identities[rawID] {
-                if existing.appleMusicURL == nil { existing.appleMusicURL = source.appleMusicURL }
-                if existing.avatarURL == nil { existing.avatarURL = source.avatarURL }
-                identities[rawID] = existing
-            } else {
-                identities[rawID] = source
-            }
-            knownByName[key] = identities
-        }
-
-        var result: [Int: RecognizedArtist] = [:]
-        for (index, slot) in unresolved {
-            let key = ArtistNameMatching.normalized(slot.name)
-            guard !key.isEmpty,
-                  let identities = knownByName[key],
-                  identities.count == 1,
-                  let (artistID, source) = identities.first else { continue }
-
-            result[index] = RecognizedArtist(
-                id: artistID,
-                canonicalName: source.name,
-                avatarURL: source.avatarURL.flatMap(URL.init(string:)),
-                appleMusicURL: source.appleMusicURL.flatMap(URL.init(string:))
-            )
-        }
-        return result
-    }
-
     private func applyAutomaticArtistMatches(
         _ matches: [Int: RecognizedArtist],
         originalSlots slots: [ArtistSlot],
@@ -587,8 +475,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                       artists[index].name == slots[index].name,
                       artists[index].appleMusicURL == slots[index].appleMusicURL,
                       artists[index].appleMusicArtistID == nil else { continue }
-                artists[index].appleMusicArtistID = candidate.id
-                artists[index].appleMusicURL = candidate.appleMusicURL?.absoluteString
+                artists[index].adoptAppleMusicIdentity(candidate)
                 if candidate.isOfficialArtistPhoto, let official = candidate.avatarURL { artists[index].avatarURL = official.absoluteString }
                 changed = true
                 matchedIndices.append(index)
@@ -975,7 +862,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         return disc.tracks.contains { $0.id == recentListening.songID }
     }
     private func recordPlayingIfNeeded() {
-        guard deck.isPlaying, let show, let track, let disc = mechanism.disc else { return }
+        guard deck.isPlaying, let show, let track, let disc = loadedDisc else { return }
         let now = Date()
         let listenedToday = recentListening.map { show.timingCalendar().isDate($0.playedAt, inSameDayAs: now) } ?? false
         guard recordedPlayingSongID != track.id || !listenedToday else { return }
@@ -1182,32 +1069,30 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     }
     /// Seats a record silently, as a relaunch does, without playing it.
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
-        guard mechanism.position == .stored, !busy else { return }
-        mechanism.restoreSeated(disc)
+        guard loadedDisc == nil else { return }
+        loadedDisc = disc
         deck.load([disc], cursor: songID)
         persistLoadedDisc(force: true)
         prewarmLoadedDisc()
     }
     func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true) {
-        if mechanism.disc == disc, mechanism.position == .seated {
+        if loadedDisc == disc {
             guard let songID else { return }
             selectTrack(songID, autoplay: autoplay)
             return
         }
-        runMachine { [self] in
-            deck.endSession()
-            try await mechanism.load(disc)
-            deck.load([disc], cursor: songID)
-            persistLoadedDisc(force: true)
-            if autoplay {
-                startPlaybackIfPossible()
-            } else {
-                prewarmLoadedDisc()
-            }
+        if autoplay { AppAudioSession.claimFocus(.listening) }
+        deck.endSession()
+        loadedDisc = disc
+        deck.load([disc], cursor: songID)
+        persistLoadedDisc(force: true)
+        if autoplay {
+            startPlaybackIfPossible()
+        } else {
+            prewarmLoadedDisc()
         }
     }
     func playFromSleeve(_ disc: ListeningDisc, songID: String) {
-        guard !busy, !mechanism.isAutomatic else { return }
         guard discs.contains(where: { $0.id == disc.id }),
               let selectedTrack = disc.tracks.first(where: { $0.id == songID }),
               playbackSource(for: selectedTrack) != nil else {
@@ -1215,30 +1100,20 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             return
         }
         playbackError = nil
-        if mechanism.disc == disc, track?.id == songID, wantsPlayback {
-            return
-        }
-        guard mechanism.disc == disc, mechanism.position == .seated else {
+        if loadedDisc == disc, track?.id == songID, wantsPlayback { return }
+        guard loadedDisc == disc else {
             loadDisc(disc, songID: songID)
-            return
-        }
-        guard mechanism.isClosed else {
-            runMachine { [self] in
-                try await mechanism.closeForPlayback()
-                selectTrack(songID, autoplay: true)
-            }
             return
         }
         selectTrack(songID, autoplay: true)
     }
     private func selectTrack(_ songID: String, autoplay: Bool) {
-        guard mechanism.position == .seated, !mechanism.isAutomatic,
-              let target = deck.tracks.first(where: { $0.id == songID }) else { return }
+        guard loadedDisc != nil, let target = deck.tracks.first(where: { $0.id == songID }) else { return }
         playbackError = nil
         deck.select(songID, autoplay: autoplay, source: playbackSource(for: target))
     }
     func playPause() {
-        guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
+        guard loadedDisc != nil else { return }
         switch playPauseAction {
         case .pause:
             deck.pause()
@@ -1249,27 +1124,17 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         }
     }
     func retryCurrentPlayback() {
-        guard mechanism.position == .seated, !mechanism.isAutomatic,
-              display.player.recoveryAction == .retryPlayback else { return }
+        guard loadedDisc != nil, display.player.recoveryAction == .retryPlayback else { return }
         startPlayback()
     }
 
     private func startPlayback() {
         playbackError = nil
-        guard mechanism.isClosed else {
-            runMachine { [self] in
-                try await mechanism.closeForPlayback()
-                startPlaybackIfPossible()
-            }
-            return
-        }
         startPlaybackIfPossible()
     }
 
     private func startPlaybackIfPossible() {
-        if let disc = mechanism.disc {
-            deck.replaceIdleDiscs([disc])
-        }
+        if let disc = loadedDisc { deck.replaceIdleDiscs([disc]) }
         guard let track = deck.currentTrack, let source = playbackSource(for: track) else { return }
         deck.play(source: source)
     }
@@ -1277,25 +1142,18 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     /// Resolves the seated record's songs ahead of the first Play, so a
     /// restored disc starts as fast as one that was just playing.
     private func prewarmLoadedDisc() {
-        guard mechanism.position == .seated, let track,
-              playbackSource(for: track) == .fullCatalog else { return }
-        if let disc = mechanism.disc {
-            deck.replaceIdleDiscs([disc])
-        }
+        guard let disc = loadedDisc, let track, playbackSource(for: track) == .fullCatalog else { return }
+        deck.replaceIdleDiscs([disc])
         deck.prefetch(source: .fullCatalog)
     }
 
     func skip(_ delta: Int) {
-        guard delta != 0,
-              mechanism.position == .seated,
-              mechanism.isClosed,
-              !mechanism.isAutomatic,
+        guard delta != 0, loadedDisc != nil,
               let targetID = deck.adjacentSongID(delta),
               let target = deck.tracks.first(where: { $0.id == targetID }) else { return }
         deck.skip(by: delta, source: playbackSource(for: target))
     }
     func stop() {
-        operation?.cancel()
         deck.stop()
         persistLoadedDisc(force: true)
     }
@@ -1316,10 +1174,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
               deck.source == .fullCatalog else { return }
         deck.endSession()
         persistLoadedDisc(force: true)
-    }
-
-    func tickMechanism() {
-        mechanism.refresh()
     }
 
     private func refreshPlaybackEvidenceProjection() {
@@ -1447,7 +1301,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         if value, !wasForeground {
             deck.resynchronize()
         }
-        updateMotion()
     }
     func setActive(_ value: Bool) {
         let interval = OSSignpostID(log: listeningPerformanceLog)
@@ -1464,39 +1317,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         } else {
             cancelFeaturedPlaylistTasks()
         }
-        updateMotion()
-    }
-    /// Listening is a secondary task: tab changes and backgrounding never
-    /// touch the transport, only the mechanism's display link.
-    private func updateMotion() {
-        if active && foreground {
-            mechanism.motion.wake()
-        } else {
-            mechanism.motion.pause()
-        }
     }
     func returnToWholeShow() { selectScope(.all) }
-    /// 等待排队中的装碟操作和播放命令完成，供小组件乐观状态之后按真实结果回写。
-    func settlePendingOperation() async {
-        await operation?.value
-        await deck.settle()
-    }
-
-    /// Serializes mechanical sequences: a disc swap, or closing the lid before Play.
-    private func runMachine(_ action: @escaping @MainActor () async throws -> Void) {
-        let previous = operation
-        previous?.cancel()
-        operation = Task { @MainActor [weak self] in
-            await previous?.value
-            guard let self, !Task.isCancelled else { return }
-            self.busy = true
-            defer { self.busy = false }
-            do {
-                try await action()
-            } catch is CancellationError {
-            } catch {
-                self.reportPlaybackFailure()
-            }
-        }
-    }
 }

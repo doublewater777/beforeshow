@@ -27,13 +27,10 @@ import SwiftData
     }
     static func settle(_ room: ListeningRoomCoordinator, until condition: () -> Bool) async throws {
         for _ in 0..<1000 {
-            let m = room.mechanism.motion
-            m.lid.step(1); m.discX.step(1); m.discY.step(1); m.lift.step(1); m.discScale.step(1)
-            room.mechanism.refresh()
             if condition() { return }
             try await Task.sleep(for: .milliseconds(2))
         }
-        XCTFail("Physical operation did not settle")
+        XCTFail("Room did not settle")
     }
 }
 private struct ListenTestCatalog: ListeningMusicCatalogServicing {

@@ -78,19 +78,21 @@ struct ListeningPosterLayout: View {
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.top, BSSpacing.xl)
         .background(alignment: .bottom) {
-            ZStack {
-                ListeningArtwork(url: coverURL, title: show.name)
-                LinearGradient(
-                    stops: [.init(color: BSColor.Stage.background.opacity(0.6), location: 0),
-                            .init(color: BSColor.Stage.background.opacity(0.62), location: 0.35),
-                            .init(color: BSColor.Stage.background.opacity(0.9), location: 0.7),
-                            .init(color: BSColor.Stage.background, location: 1)],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
-            .frame(height: ListeningOverviewStyle.posterHeight)
-            .clipped()
-            .accessibilityHidden(true)
+            // The cover fades out to transparent so it melts into the room's tinted light below.
+            Color.clear
+                .frame(height: ListeningOverviewStyle.posterHeight)
+                .overlay { ListeningArtwork(url: coverURL, title: show.name) }
+                .clipped()
+                .mask {
+                    LinearGradient(
+                        stops: [.init(color: .black.opacity(0.4), location: 0),
+                                .init(color: .black.opacity(0.38), location: 0.35),
+                                .init(color: .black.opacity(0.1), location: 0.7),
+                                .init(color: .clear, location: 1)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
+                .accessibilityHidden(true)
         }
     }
 

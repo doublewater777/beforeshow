@@ -16,8 +16,11 @@ final class ListeningRoomSessionStore {
     var surface: ListeningSurface = .listen
     var isNowPlayingPresented = false
 
+    /// Cold start waits for hydration; a record the user plays in this session shows at once.
     var chromeRoom: ListeningRoomCoordinator? {
-        isChromePublished ? room : nil
+        guard let room else { return nil }
+        let isUserLoaded = room.accessResolved && room.hasLoadedDisc
+        return isChromePublished || isUserLoaded ? room : nil
     }
 
     private init() {}
@@ -46,7 +49,6 @@ final class ListeningRoomSessionStore {
 
     func discardLocalState() {
         room?.discardLoadedDiscState()
-        room?.stopHardwareMotion()
         room?.releaseShow()
         room = nil
         isChromePublished = false
@@ -58,13 +60,11 @@ final class ListeningRoomSessionStore {
         if stoppingTransport {
             current?.stop()
         }
-        current?.stopHardwareMotion()
         current?.releaseShow()
         if let published, published !== current {
             if stoppingTransport {
                 published.stop()
             }
-            published.stopHardwareMotion()
             published.releaseShow()
         }
         room = nil

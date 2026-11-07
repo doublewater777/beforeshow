@@ -9,8 +9,8 @@ struct ListeningDiscCover: View {
             switch disc.origin {
             case .album, .featuredPlaylist:
                 ListeningArtwork(url: disc.artworkURL, title: disc.title)
-            case let .compilation(_, number):
-                ListeningCompilationJacket(identity: .init(disc: disc, show: show), number: number)
+            case .compilation:
+                ListeningPlaylistArtwork(identity: .init(disc: disc, show: show))
             }
         }
         .aspectRatio(1, contentMode: .fit)
@@ -37,70 +37,32 @@ struct ListeningDiscCover: View {
     }
 }
 
-struct ListeningCompilationJacket: View {
+/// A show playlist's cover: a color field with the show's artwork washed through it and
+/// the playlist name set large, like an editorial Apple Music playlist. One cover for the
+/// entry tile and the playlist page.
+struct ListeningPlaylistArtwork: View {
     let identity: ListeningSleeveIdentity
-    let number: Int
 
     var body: some View {
         GeometryReader { proxy in
-            let inset = proxy.size.width * BSListeningTokens.sleeveInsetFraction
+            let width = proxy.size.width
             ZStack(alignment: .bottomLeading) {
                 identity.color
-                ListeningSleeveImage(url: identity.artworkURL)
-                    .padding(inset)
-                VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                    Text(String(format: "%02d", number))
-                        .font(.system(size: proxy.size.width * BSListeningTokens.sleeveNumberFraction,
-                                      weight: .bold, design: .rounded))
-                        .padding(BSSpacing.xs)
-                        .background(BSListeningTokens.paper)
-                    Spacer(minLength: 0)
-                    Text(identity.title)
-                        .font(.system(size: proxy.size.width * BSListeningTokens.sleeveTitleFraction,
-                                      weight: .semibold))
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(inset)
-                        .background(BSListeningTokens.paper.opacity(BSListeningTokens.paperOpacity))
-                }
-                .foregroundStyle(BSListeningTokens.ink)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(inset)
+                LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                ListeningArtwork(url: identity.artworkURL, title: identity.title)
+                    .frame(width: width, height: proxy.size.height)
+                    .blendMode(.softLight)
+                    .opacity(0.55)
+                LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
+                Text(identity.title)
+                    .font(.system(size: width * 0.15, weight: .heavy))
+                    .tracking(-0.5)
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                    .padding(width * 0.08)
             }
             .clipped()
-        }
-    }
-}
-
-struct ListeningSleeveImage: View {
-    let url: URL?
-    @State private var image: UIImage?
-
-    init(url: URL?) {
-        self.url = url
-        _image = State(initialValue: url.flatMap { ShowCoverImageCache.shared.memoryImage(for: $0) })
-    }
-
-    var body: some View {
-        Group {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-            }
-        }
-        .clipped()
-        .task(id: url) {
-            guard let url else { image = nil; return }
-            if image == nil {
-                image = ShowCoverImageCache.shared.memoryImage(for: url)
-            }
-            if image == nil {
-                let loaded = await ShowCoverImageCache.shared.image(from: url)
-                guard !Task.isCancelled else { return }
-                image = loaded
-            }
         }
     }
 }

@@ -13,7 +13,7 @@ enum ListeningOverviewStyle {
 
     static let posterHeight: CGFloat = 420
     static let pickCover: CGFloat = 104
-    static let playlistTile = CGSize(width: 128, height: 92)
+    static let playlistTile = CGSize(width: 140, height: 140)
     static let artistHeroHeight: CGFloat = 300
     static let featuredCover: CGFloat = 132
     static let releaseCard: CGFloat = 128

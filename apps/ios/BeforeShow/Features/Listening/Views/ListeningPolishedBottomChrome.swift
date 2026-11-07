@@ -39,14 +39,12 @@ enum ListeningBottomBarLayout {
     static let tabSize: CGFloat = 58
     static let gap: CGFloat = 10
     static let miniPlayerWidth: CGFloat = 216
-    static let iconGroupWidth = tabSize * 3 + gap * 2
     static let playerGroupWidth = tabSize * 2 + miniPlayerWidth + gap * 2
 }
 
-/// The root navigation is intentionally always compact and icon-only.
-/// SwiftUI's TabView owns destination state, while this detached chrome owns the
-/// visible root controls. Liquid Glass itself performs the Listen
-/// circle <-> compact-player morph inside the stable root-bar footprint.
+/// The root navigation is intentionally compact: two icon tabs around a resident
+/// mini player. SwiftUI's TabView owns destination state, while this detached
+/// chrome owns the visible root controls.
 struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
     @State private var store = ListeningRoomSessionStore.shared
@@ -59,13 +57,10 @@ struct ListeningPolishedBottomChrome: View {
         return room.hasLoadedDisc
     }
 
-    private var showsMiniPlayer: Bool { ListeningVideoDock.shared.isDocked || hasLoadedDisc }
-
     var body: some View {
         ListeningLiquidGlassBottomChrome(
             selectedTab: $selectedTab,
-            showsMiniPlayer: showsMiniPlayer,
-            room: room,
+            room: hasLoadedDisc ? room : nil,
             track: track
         )
         .frame(maxWidth: .infinity)
@@ -76,14 +71,9 @@ struct ListeningPolishedBottomChrome: View {
 }
 
 private enum ListeningBottomBarGeometry {
-    static func selectionOffset(
-        for tab: BeforeShowTab,
-        showsMiniPlayer: Bool
-    ) -> CGFloat {
-        let middleWidth = showsMiniPlayer
-            ? ListeningBottomBarLayout.miniPlayerWidth
-            : ListeningBottomBarLayout.tabSize
-        let sideDistance = middleWidth / 2 + ListeningBottomBarLayout.gap + ListeningBottomBarLayout.tabSize / 2
+    static func selectionOffset(for tab: BeforeShowTab) -> CGFloat {
+        let sideDistance = ListeningBottomBarLayout.miniPlayerWidth / 2
+            + ListeningBottomBarLayout.gap + ListeningBottomBarLayout.tabSize / 2
 
         switch tab {
         case .current: return -sideDistance
@@ -95,7 +85,7 @@ private enum ListeningBottomBarGeometry {
 
 private struct ListeningLiquidGlassBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
-    let showsMiniPlayer: Bool
+    /// Present only while a disc is loaded; otherwise the mini player rests empty.
     let room: ListeningRoomCoordinator?
     let track: ListeningDiscTrack?
 
@@ -108,14 +98,12 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 selectionLens
 
                 glassTabButton(.current)
-                    .offset(x: ListeningBottomBarGeometry.selectionOffset(for: .current, showsMiniPlayer: showsMiniPlayer))
-                    .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
+                    .offset(x: ListeningBottomBarGeometry.selectionOffset(for: .current))
 
                 centerControl
 
                 glassTabButton(.footprints)
-                    .offset(x: ListeningBottomBarGeometry.selectionOffset(for: .footprints, showsMiniPlayer: showsMiniPlayer))
-                    .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
+                    .offset(x: ListeningBottomBarGeometry.selectionOffset(for: .footprints))
             }
             .frame(
                 width: ListeningBottomBarLayout.playerGroupWidth,
@@ -127,10 +115,10 @@ private struct ListeningLiquidGlassBottomChrome: View {
 
     private var centerControl: some View {
         ZStack {
-            if ListeningVideoDock.shared.isDocked {
+            if ListeningVideoDock.shared.hasVideo {
                 ListeningVideoMiniPlayer(dock: .shared) { openMiniPlayer(isVideo: true) }
                     .transition(.opacity)
-            } else if showsMiniPlayer, let room, let track {
+            } else if let room, let track {
                 ListeningCompactPlaybackControl(
                     room: room,
                     track: track,
@@ -138,22 +126,16 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 )
                 .transition(.opacity)
             } else {
-                glassListenButton
+                ListeningEmptyMiniPlayer(isSelected: selectedTab == .listen, onTap: openEmptyMiniPlayer)
                     .transition(.opacity)
             }
         }
-        .animation(centerContentAnimation, value: showsMiniPlayer)
-        .frame(
-            width: showsMiniPlayer
-                ? ListeningBottomBarLayout.miniPlayerWidth
-                : ListeningBottomBarLayout.tabSize,
-            height: ListeningBottomBarLayout.tabSize
-        )
+        .animation(centerContentAnimation, value: track == nil)
+        .frame(width: ListeningBottomBarLayout.miniPlayerWidth, height: ListeningBottomBarLayout.tabSize)
         .clipShape(Capsule())
         .contentShape(Capsule())
         .bsGlass(in: Capsule())
         .bsGlassID("listen", in: glassNamespace)
-        .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
     }
 
     private var selectionLens: some View {
@@ -163,9 +145,8 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 width: ListeningBottomBarLayout.tabSize - 12,
                 height: ListeningBottomBarLayout.tabSize - 12
             )
-            .offset(x: ListeningBottomBarGeometry.selectionOffset(for: selectedTab, showsMiniPlayer: showsMiniPlayer))
+            .offset(x: ListeningBottomBarGeometry.selectionOffset(for: selectedTab))
             .animation(miniPlayerMorphAnimation, value: selectedTab)
-            .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -201,29 +182,19 @@ private struct ListeningLiquidGlassBottomChrome: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var glassListenButton: some View {
-        let isSelected = selectedTab == .listen
-        return Button {
-            selectTab(.listen)
-        } label: {
-            Image(systemName: "opticaldisc")
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
-                .frame(
-                    width: ListeningBottomBarLayout.tabSize,
-                    height: ListeningBottomBarLayout.tabSize
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(BeforeShowTab.listen.localizedTitle)
-        .accessibilityIdentifier("root.tab.listen")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
     private func selectTab(_ tab: BeforeShowTab) {
         guard selectedTab != tab else { return }
         selectedTab = tab
+    }
+
+    /// Nothing to resume: off Listen it leads there, on Listen it opens 「帮我挑一张」.
+    private func openEmptyMiniPlayer() {
+        if selectedTab == .listen {
+            NotificationCenter.default.post(name: .listeningOpenPickDisc, object: nil)
+        } else {
+            ListeningRoomSessionStore.shared.surface = .listen
+            selectTab(.listen)
+        }
     }
 
     private func openMiniPlayer(isVideo: Bool) {
@@ -267,7 +238,7 @@ private struct ListeningCompactPlaybackControl: View {
         self.onSelectListen = onSelectListen
         let initialURL = ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: track.artworkURL,
-            discArtworkURL: room.display.hardware.artworkURL
+            discArtworkURL: room.loadedDisc?.artworkURL
         )
         _artworkImage = State(
             initialValue: initialURL.flatMap {
@@ -276,15 +247,10 @@ private struct ListeningCompactPlaybackControl: View {
         )
     }
 
-    private var showsPlayingState: Bool {
-        ListeningMiniPlayerPlaybackAppearance.showsPlayingState(
-            for: room.display.player.phase
-        )
-    }
     private var artworkURL: URL? {
         ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: track.artworkURL,
-            discArtworkURL: room.display.hardware.artworkURL
+            discArtworkURL: room.loadedDisc?.artworkURL
         )
     }
     private var displayedArtwork: UIImage? {
@@ -330,7 +296,7 @@ private struct ListeningCompactPlaybackControl: View {
             .accessibilityIdentifier("listening.miniPlayer.openListen")
 
             Button {
-                room.perform(.playPause)
+                room.playPause()
             } label: {
                 Image(systemName: room.display.player.showsPauseControl ? "pause.fill" : "play.fill")
                     .font(.system(size: 15, weight: .bold))
@@ -386,7 +352,7 @@ private struct ListeningCompactPlaybackControl: View {
     private var trackSwipeGesture: some Gesture {
         DragGesture(minimumDistance: ListeningMiniPlayerSwipeIntent.activationDistance)
             .onChanged { value in
-                guard !room.busy, !isCompletingSwipe,
+                guard !isCompletingSwipe,
                       ListeningMiniPlayerSwipeIntent.isHorizontal(value.translation) else {
                     return
                 }
@@ -412,8 +378,7 @@ private struct ListeningCompactPlaybackControl: View {
                     for: value.translation,
                     predictedEndTranslation: value.predictedEndTranslation
                 )
-                guard !room.busy,
-                      let action,
+                guard let action,
                       let destination = destinationTrack(for: action) else {
                     settleSwipeBack()
                     return
@@ -426,18 +391,7 @@ private struct ListeningCompactPlaybackControl: View {
     @ViewBuilder
     private func trackPage(_ pageTrack: ListeningDiscTrack) -> some View {
         HStack(spacing: 9) {
-            CDContinuousRotationLayer(
-                identity: pageTrack.id,
-                isRotating: showsPlayingState && !reduceMotion,
-                revolutionsPerMinute: BSListeningTokens.discRotationRPM
-            ) {
-                ListeningArtworkDisc(
-                    artwork: displayedArtwork(for: pageTrack),
-                    size: 34,
-                    isPlaying: showsPlayingState
-                )
-            }
-            .frame(width: 34, height: 34)
+            ListeningMiniArtwork(artwork: displayedArtwork(for: pageTrack), size: 34)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(pageTrack.title)
@@ -460,7 +414,7 @@ private struct ListeningCompactPlaybackControl: View {
     private func displayedArtwork(for pageTrack: ListeningDiscTrack) -> UIImage? {
         let pageArtworkURL = ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: pageTrack.artworkURL,
-            discArtworkURL: room.display.hardware.artworkURL
+            discArtworkURL: room.loadedDisc?.artworkURL
         )
         if pageArtworkURL == artworkURL {
             return displayedArtwork
@@ -559,70 +513,6 @@ private struct ListeningCompactPlaybackControl: View {
             swipePreviousTrack = nil
             swipeNextTrack = nil
             isCompletingSwipe = false
-        }
-    }
-}
-
-private struct ListeningArtworkDisc: View {
-    let artwork: UIImage?
-    let size: CGFloat
-    var isPlaying: Bool = false
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(BSColor.Stage.surface)
-
-            if let artwork {
-                Image(uiImage: artwork)
-                    .resizable()
-                    .scaledToFill()
-                    .transaction { $0.animation = nil }
-            } else {
-                fallbackArtwork
-            }
-
-            Circle()
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
-                .frame(width: size * 0.72, height: size * 0.72)
-            Circle()
-                .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
-                .frame(width: size * 0.48, height: size * 0.48)
-
-            AngularGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.16),
-                    BSColor.Accent.info.opacity(0.12),
-                    Color.clear,
-                    BSColor.Accent.violet.opacity(0.14),
-                    Color.clear,
-                    Color.white.opacity(0.18),
-                    Color.clear
-                ]),
-                center: .center
-            )
-            .blendMode(.screen)
-        }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-        .drawingGroup()
-        .transaction { $0.animation = nil }
-        .overlay(
-            Circle()
-                .stroke(
-                    isPlaying ? BSColor.Accent.info.opacity(0.45) : BSColor.borderProminent,
-                    lineWidth: 0.8
-                )
-        )
-        .accessibilityHidden(true)
-    }
-
-    private var fallbackArtwork: some View {
-        ZStack {
-            BSColor.Stage.surfaceRaised
-            Image(systemName: "opticaldisc")
-                .font(.system(size: size * 0.48, weight: .regular))
-                .foregroundStyle(BSColor.Stage.muted)
         }
     }
 }

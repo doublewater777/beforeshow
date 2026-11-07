@@ -4,12 +4,14 @@ struct ListeningSleeveIdentity {
     let disc: ListeningDisc
     var show: Show?
 
+    /// Show playlists take colors in order so no two side by side match; other records hash their ID.
     private var index: Int {
-        disc.id.utf8.reduce(0) { ($0 + Int($1)) % BSListeningTokens.sleevePalette.count }
+        let count = BSListeningTokens.sleevePalette.count
+        if case let .compilation(_, number) = disc.origin { return (max(number, 1) - 1) % count }
+        return disc.id.utf8.reduce(0) { ($0 + Int($1)) % count }
     }
 
     var color: Color { BSListeningTokens.sleevePalette[index] }
-    var angle: Double { BSListeningTokens.sleeveAngles[index] }
     var title: String {
         disc.title
     }

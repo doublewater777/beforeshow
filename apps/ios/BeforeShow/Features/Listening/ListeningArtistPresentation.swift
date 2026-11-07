@@ -34,9 +34,9 @@ struct ListeningArtistPresentation: Identifiable {
     var currentAlbumTitle: String? {
         guard let track else { return nil }
         guard let albumID = catalogSongs.first(where: { $0.appleMusicSongID == track.id })?.albumID else {
-            return mechanism.disc?.title
+            return loadedDisc?.title
         }
-        return catalogAlbums.first { $0.appleMusicAlbumID == albumID }?.title ?? mechanism.disc?.title
+        return catalogAlbums.first { $0.appleMusicAlbumID == albumID }?.title ?? loadedDisc?.title
     }
     var cabinetArtists: [ListeningArtistPresentation] {
         var seen = Set<String>()
@@ -46,7 +46,7 @@ struct ListeningArtistPresentation: Identifiable {
         }
     }
     var nextTrack: ListeningDiscTrack? {
-        guard let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex + 1) else { return nil }
+        guard let disc = loadedDisc, disc.tracks.indices.contains(trackIndex + 1) else { return nil }
         return disc.tracks[trackIndex + 1]
     }
     func playLibrarySong(_ track: ListeningDiscTrack, artistID: String) {

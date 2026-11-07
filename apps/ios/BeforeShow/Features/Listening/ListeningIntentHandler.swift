@@ -34,16 +34,12 @@ final class ListeningIntentHandler: ListeningIntentHandling {
         case .play:
             play(in: room)
         case .pause:
-            if room.playPauseAction == .pause, !room.mechanism.isAutomatic {
-                room.playPause()
-            }
+            if room.playPauseAction == .pause { room.playPause() }
         }
-        await room.settlePendingOperation()
         room.syncWidgetListeningState()
     }
 
     private func play(in room: ListeningRoomCoordinator) {
-        if room.mechanism.isAutomatic { return }
         if room.hasLoadedDisc {
             if room.playPauseAction == .play {
                 room.playPause()
@@ -59,7 +55,7 @@ final class ListeningIntentHandler: ListeningIntentHandling {
     /// current show so the live-preview head can start after a cold launch.
     private func resolveRoom(for command: ListeningWidgetCommand) async -> ListeningRoomCoordinator? {
         if let cached = ListeningRoomSessionStore.shared.room {
-            let ready = cached.hasLoadedDisc || cached.busy || cached.mechanism.isAutomatic
+            let ready = cached.hasLoadedDisc
                 || (cached.accessResolved && cached.livePreviewDisc != nil)
             if ready || command == .pause {
                 return cached

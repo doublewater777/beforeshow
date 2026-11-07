@@ -25,6 +25,9 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     @ObservationIgnored private var commandAvailabilityTask: Task<Void, Never>?
     @ObservationIgnored private var artworkTask: Task<Void, Never>?
     @ObservationIgnored private var artworks: [URL: MPMediaItemArtwork] = [:]
+    /// Opening previews of discs the user is about to reach, newest last.
+    @ObservationIgnored private var warmedAssets: [(url: URL, asset: AVURLAsset)] = []
+    private static let warmedAssetLimit = 3
 
     init(player: AVQueuePlayer = AVQueuePlayer(), owner: AppAudioSession.Owner = .listening) {
         self.player = player
@@ -98,6 +101,16 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
             return seconds
         }
         return currentIndex.flatMap { queue[$0].duration }
+    }
+
+    /// Starts fetching a disc's opening preview so loading it later skips the cold network start.
+    func prefetch(_ items: [ListeningPlaybackItem]) async {
+        guard let url = items.lazy.compactMap(\.previewURL).first,
+              !warmedAssets.contains(where: { $0.url == url }) else { return }
+        let asset = AVURLAsset(url: url)
+        warmedAssets.append((url, asset))
+        if warmedAssets.count > Self.warmedAssetLimit { warmedAssets.removeFirst() }
+        _ = try? await asset.load(.isPlayable, .duration)
     }
 
     func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws {
@@ -199,7 +212,8 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         var previous: AVPlayerItem?
         for queueIndex in index..<queue.count {
             guard let url = queue[queueIndex].previewURL else { continue }
-            let item = AVPlayerItem(url: url)
+            let item = warmedAssets.first(where: { $0.url == url }).map { AVPlayerItem(asset: $0.asset) }
+                ?? AVPlayerItem(url: url)
             item.nowPlayingInfo = nowPlayingInfo(for: queue[queueIndex])
             itemIndexes[ObjectIdentifier(item)] = queueIndex
             player.insert(item, after: previous)

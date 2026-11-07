@@ -18,11 +18,8 @@ struct CurrentShowLibraryManagementView: View {
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
-    @AppStorage(CurrentShowLibraryLayout.storageKey) private var layoutRawValue = CurrentShowLibraryLayout.list.rawValue
 
     @State private var searchText = ""
-    @FocusState private var isSearchFocused: Bool
-    @State private var filter: CurrentShowLibraryFilter = .all
     @State private var destination: CurrentShowLibraryDestination?
     @State private var editingTarget: Show?
     @State private var deleteTarget: Show?
@@ -32,62 +29,74 @@ struct CurrentShowLibraryManagementView: View {
     @State private var cancelTarget: Show?
     @State private var isShowingAdd = false
     @State private var toast: BSToastPayload?
-    /// 冷启动时已有持久化数据必须直接可见；之后筛选 / 搜索不重播入场动画。
-    @State private var rowsAppeared = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
 
     var body: some View {
-        let sections = librarySections
-        let displayedSections = displayedSections(from: sections)
+        let now = Date()
         let selectedShowID = self.selectedShowID
+        let upcoming = upcomingShows(now: now).filter(matchesSearch)
+        let archive = archiveGroups(now: now)
         return ZStack {
             CurrentShowStageBackground().ignoresSafeArea()
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                   filterPicker.padding(.top, 18)
-                   searchField.padding(.top, 12)
-
-                   Group {
-                       if displayedSections.allSatisfy({ $0.shows.isEmpty }) {
-                           emptyStateView.transition(.opacity)
-                       } else {
-                           ForEach(displayedSections) { section in
-                               if !section.shows.isEmpty {
-                                   managementSection(section, selectedShowID: selectedShowID)
-                                       .transition(.opacity)
-                               }
-                           }
-                       }
-                   }
-                   .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: filter)
+                    if upcoming.isEmpty && archive.isEmpty {
+                        emptyStateView
+                    } else {
+                        if !upcoming.isEmpty {
+                            sectionHeader(BSLocalization.text("即将开始"), count: upcoming.count)
+                            LazyVStack(spacing: BSSpacing.sm) {
+                                ForEach(upcoming, id: \.persistentModelID) { show in
+                                    CurrentShowLibraryUpcomingRow(
+                                        show: show,
+                                        isCurrent: selectedShowID == show.id,
+                                        phase: session.phase(for: show, now: now),
+                                        actions: menuActions(for: show, selectedShowID: selectedShowID, now: now),
+                                        onOpen: { destination = .init(show: show) },
+                                        onAction: { action in handle(action, for: show) }
+                                    )
+                                }
+                            }
+                        }
+                        ForEach(archive) { group in
+                            sectionHeader(String(group.year), count: group.items.count)
+                            LazyVGrid(
+                                columns: Array(repeating: GridItem(.flexible(), spacing: BSSpacing.compact), count: 3),
+                                alignment: .leading,
+                                spacing: BSSpacing.md
+                            ) {
+                                ForEach(group.items, id: \.persistentModelID) { show in
+                                    CurrentShowLibraryArchiveTile(
+                                        show: show,
+                                        actions: menuActions(for: show, selectedShowID: selectedShowID, now: now),
+                                        onOpen: { destination = .init(show: show) },
+                                        onAction: { action in handle(action, for: show) }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 10)
                 .padding(.bottom, 40)
             }
-           .scrollIndicators(.hidden)
-           .scrollDismissesKeyboard(.interactively)
-           .bsNavigationScrollEdge()
-       }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .bsNavigationScrollEdge()
+        }
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: Text(BSLocalization.text("搜索艺人、城市或场馆"))
+        )
         .navigationTitle(BSLocalization.text("我的现场"))
        .navigationBarTitleDisplayMode(.inline)
        .toolbar(.visible, for: .navigationBar)
         .toolbar {
             BSChromeToolbarCloseButton { dismiss() }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(action: toggleLayout) {
-                    Image(systemName: layout == .list ? "square.grid.2x2" : "list.bullet")
-                        .foregroundStyle(BSColor.Stage.foreground)
-                }
-                .tint(BSColor.Stage.foreground)
-                .accessibilityLabel(
-                    BSLocalization.text(layout == .list ? "切换为封面展示" : "切换为列表展示")
-                )
-
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     isShowingAdd = true
                 } label: {
@@ -168,128 +177,20 @@ struct CurrentShowLibraryManagementView: View {
         .bsToastOverlay(toast, bottomPadding: 28)
     }
 
-    private var searchField: some View {
-        HStack(spacing: 9) {
-            Image(systemName: "magnifyingglass")
+    private func sectionHeader(_ title: String, count: Int) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(1.3)
+                .foregroundStyle(BSColor.Stage.muted)
+            Spacer()
+            Text(BSLocalization.format("%lld 场", count))
+                .font(.system(size: 11))
                 .foregroundStyle(BSColor.Stage.dim)
-            TextField("搜索艺人、城市或场馆", text: $searchText)
-                .font(.system(size: 13))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .focused($isSearchFocused)
         }
-        .padding(.horizontal, 13)
-        .frame(height: 47)
-        .background(BSColor.Stage.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.09), lineWidth: 1))
-    }
-
-    private var filterPicker: some View {
-        Picker(BSLocalization.text("我的现场"), selection: $filter) {
-            ForEach(CurrentShowLibraryFilter.allCases) { item in
-                Text(BSLocalization.text(key: item.rawValue)).tag(item)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .onChange(of: filter) { _, _ in isSearchFocused = false }
-    }
-
-    private func managementSection(_ section: LibrarySection, selectedShowID: UUID?) -> some View {
-        LazyVStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(section.title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(1.3)
-                    .foregroundStyle(BSColor.Stage.muted)
-                Spacer()
-                Text(BSLocalization.format("%lld 场", section.shows.count))
-                    .font(.system(size: 11))
-                    .foregroundStyle(BSColor.Stage.dim)
-            }
-            .frame(height: BSSpacing.roomy)
-            if layout == .covers {
-                LazyVGrid(
-                    columns: Array(
-                        repeating: GridItem(.flexible(), spacing: BSSpacing.compact),
-                        count: 3
-                    ),
-                    alignment: .leading,
-                    spacing: BSSpacing.md
-                ) {
-                    ForEach(Array(section.shows.enumerated()), id: \.element.persistentModelID) { index, show in
-                        CurrentShowLibraryCoverCard(
-                            show: show,
-                            isCurrent: selectedShowID == show.id,
-                            actions: menuActions(for: show, selectedShowID: selectedShowID),
-                            onOpen: { destination = .init(show: show) },
-                            onAction: { action in handle(action, for: show) }
-                        )
-                        .modifier(LibraryRowEntrance(index: index, appeared: rowsAppeared, reduceMotion: reduceMotion))
-                    }
-                }
-            } else {
-                ForEach(Array(section.shows.enumerated()), id: \.element.persistentModelID) { index, show in
-                    CurrentShowLibraryRow(
-                        show: show,
-                        isCurrent: selectedShowID == show.id,
-                        formatter: formatter,
-                        actions: menuActions(for: show, selectedShowID: selectedShowID),
-                        onOpen: { destination = .init(show: show) },
-                        onAction: { action in handle(action, for: show) }
-                    )
-                    .modifier(LibraryRowEntrance(index: index, appeared: rowsAppeared, reduceMotion: reduceMotion))
-                }
-            }
-        }
-        .padding(.top, 23)
-    }
-
-    private var layout: CurrentShowLibraryLayout {
-        CurrentShowLibraryLayout(rawValue: layoutRawValue) ?? .list
-    }
-
-    private func toggleLayout() {
-        layoutRawValue = layout == .list
-            ? CurrentShowLibraryLayout.covers.rawValue
-            : CurrentShowLibraryLayout.list.rawValue
-    }
-
-    private struct LibrarySection: Identifiable {
-        let title: String
-        let shows: [Show]
-        var id: String { title }
-    }
-
-    private var librarySections: [LibrarySection] {
-        [
-            .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
-            .init(title: BSLocalization.text("已延期"), shows: postponedShows),
-            .init(title: BSLocalization.text("已结束"), shows: endedShows),
-            .init(title: BSLocalization.text("已取消"), shows: canceledShows)
-        ]
-    }
-
-    private func displayedSections(from sections: [LibrarySection]) -> [LibrarySection] {
-        let visible: [LibrarySection]
-        switch filter {
-        case .all:
-            visible = sections
-        case .upcoming:
-            let now = Date()
-            let datedPostponements = sections[1].shows.filter { show in
-                CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
-                    newDate: show.postponedDate, now: now, calendar: show.timingCalendar()
-                )
-            }
-            visible = [sections[0], .init(title: sections[1].title, shows: datedPostponements)]
-        case .ended:
-            visible = [sections[2]]
-        }
-        return visible.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
+        .frame(height: BSSpacing.roomy)
+        .padding(.top, BSSpacing.lg)
+        .padding(.bottom, BSSpacing.sm)
     }
 
     private var visibleShows: [Show] {
@@ -301,28 +202,42 @@ struct CurrentShowLibraryManagementView: View {
         session.selectCurrentShow(from: visibleShows, manualSelection: selections.first)?.id
     }
 
-    private var upcomingShows: [Show] {
+    /// 未开场 / 当天的正常现场，加上所有延期现场。
+    private func upcomingShows(now: Date) -> [Show] {
         visibleShows.filter { show in
-            guard show.changeStatus == .scheduled else { return false }
-            let kind = session.phase(for: show, now: Date()).kind
-            return kind == .before || kind == .today || kind == .dayEnded
-        }.sorted { $0.effectiveDate < $1.effectiveDate }
+            switch show.changeStatus {
+            case .postponed: return true
+            case .canceled: return false
+            case .scheduled:
+                let kind = session.phase(for: show, now: now).kind
+                return kind == .before || kind == .today || kind == .dayEnded
+            }
+        }.map { show in
+            (show: show, key: (
+                date: CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar()),
+                isUndated: show.changeStatus == .postponed && show.postponedDate == nil
+            ))
+        }
+        .sorted { CurrentShowLibrarySectionPolicy.upcomingPrecedes($0.key, $1.key) }
+        .map(\.show)
     }
 
-    private var endedShows: [Show] {
-        visibleShows.filter { show in
-            guard show.changeStatus == .scheduled else { return false }
-            let kind = session.phase(for: show, now: Date()).kind
-            return kind == .postShow || kind == .ended
-        }.sorted { $0.effectiveDate > $1.effectiveDate }
-    }
-
-    private var postponedShows: [Show] {
-        visibleShows.filter { $0.changeStatus == .postponed }.sorted { $0.effectiveDate < $1.effectiveDate }
-    }
-
-    private var canceledShows: [Show] {
-        visibleShows.filter { $0.changeStatus == .canceled }.sorted { $0.effectiveDate > $1.effectiveDate }
+    /// 已结束与已取消，按年份倒序。
+    private func archiveGroups(now: Date) -> [CurrentShowLibrarySectionPolicy.YearGroup<Show>] {
+        let archived = visibleShows.filter { show in
+            switch show.changeStatus {
+            case .postponed: return false
+            case .canceled: return true
+            case .scheduled:
+                let kind = session.phase(for: show, now: now).kind
+                return kind == .postShow || kind == .ended
+            }
+        }.filter(matchesSearch)
+        return CurrentShowLibrarySectionPolicy.archiveYearGroups(
+            archived,
+            date: \.effectiveDate,
+            year: { $0.timingCalendar().component(.year, from: $0.effectiveDate) }
+        )
     }
 
     private func matchesSearch(_ show: Show) -> Bool {
@@ -334,10 +249,10 @@ struct CurrentShowLibraryManagementView: View {
         return ArtistNameMatching.contains(haystack, query: query)
     }
 
-    private func menuActions(for show: Show, selectedShowID: UUID?) -> [CurrentShowLibraryMenuAction] {
+    private func menuActions(for show: Show, selectedShowID: UUID?, now: Date) -> [CurrentShowLibraryMenuAction] {
         CurrentShowLibraryMenuPolicy.actions(
             for: show.changeStatus,
-            timeKind: session.phase(for: show, now: Date()).kind,
+            timeKind: session.phase(for: show, now: now).kind,
             canSetCurrent: show.id != selectedShowID && session.isManuallySelectable(show)
         )
     }
@@ -512,7 +427,7 @@ struct CurrentShowLibraryManagementView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding(.top, BSSpacing.sm)
-            } else if isSearching {
+            } else {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 32, weight: .light))
                     .foregroundStyle(BSColor.Stage.dim)
@@ -523,57 +438,10 @@ struct CurrentShowLibraryManagementView: View {
                 Text(BSLocalization.text("未找到相关现场"))
                     .font(BSFont.headline)
                     .foregroundStyle(BSColor.Stage.foreground)
-
-                Text(BSLocalization.text("尝试更换搜索词或切换筛选分类"))
-                    .font(BSFont.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
-            } else {
-                Image(systemName: filterEmptyIcon)
-                    .font(.system(size: 32, weight: .light))
-                    .foregroundStyle(BSColor.Stage.dim)
-                    .frame(width: 72, height: 72)
-                    .background(Color.white.opacity(0.04), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-
-                Text(filterEmptyTitle)
-                    .font(BSFont.headline)
-                    .foregroundStyle(BSColor.Stage.foreground)
-
-                Text(filterEmptySubtitle)
-                    .font(BSFont.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
             }
             Spacer(minLength: 40)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, BSSpacing.lg)
-    }
-
-    private var isSearching: Bool {
-        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var filterEmptyIcon: String {
-        switch filter {
-        case .upcoming: return "calendar.badge.clock"
-        case .ended: return "clock.arrow.circlepath"
-        case .all: return "music.note.list"
-        }
-    }
-
-    private var filterEmptyTitle: String {
-        switch filter {
-        case .upcoming: return BSLocalization.text("暂无即将开始的现场")
-        case .ended: return BSLocalization.text("暂无已结束的现场")
-        case .all: return BSLocalization.text("暂无现场演出")
-        }
-    }
-
-    private var filterEmptySubtitle: String {
-        switch filter {
-        case .upcoming: return BSLocalization.text("添加新的演出，或在全部记录中查看历史")
-        case .ended: return BSLocalization.text("演出结束后会自动归档到这里")
-        case .all: return BSLocalization.text("尝试更换筛选分类")
-        }
     }
 }

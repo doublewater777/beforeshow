@@ -59,6 +59,24 @@ final class ListeningOverviewModelTests: XCTestCase {
         XCTAssertEqual(empty.map(\.id), ["a", "b", "c"])
     }
 
+    func testPickFeedKeepsThePlayingRecordOnePageAboveTheOpeningAlbum() {
+        let order = ["b", "c", "a"].map { disc($0) }
+        XCTAssertEqual(ListeningPickOrder.keeping(disc("a"), above: order).map(\.id), ["a", "b", "c"])
+        XCTAssertEqual(ListeningPickOrder.keeping(disc("x"), above: order).map(\.id), ["x", "b", "c", "a"],
+                       "a playing playlist outside the pick pool is still kept")
+        XCTAssertEqual(ListeningPickOrder.keeping(disc("b"), above: order).map(\.id), ["b", "c", "a"])
+        XCTAssertEqual(ListeningPickOrder.keeping(nil, above: order).map(\.id), ["b", "c", "a"])
+    }
+
+    func testPickCardOnlyRedrawsWhenEmptyOrItsAlbumLeftThePool() {
+        XCTAssertTrue(ListeningPickCardPolicy.needsNewDraw(current: nil, candidateIDs: ["a"]))
+        XCTAssertFalse(ListeningPickCardPolicy.needsNewDraw(current: disc("a"), candidateIDs: ["a", "b"]))
+        XCTAssertTrue(ListeningPickCardPolicy.needsNewDraw(current: disc("x"), candidateIDs: ["a", "b"]))
+        XCTAssertFalse(ListeningPickCardPolicy.needsNewDraw(
+            current: disc("mix", origin: .compilation(showID: UUID(), number: 1)), candidateIDs: ["a"]
+        ), "a playlist the user stopped on stays on the card")
+    }
+
     func testLineupSectionsIndexLatinAndPutOthersLast() {
         let sections = ListeningLineupSection.sections([
             artist("Zedd"), artist("aespa"), artist("Björk"), artist("123 Band"), artist("Adele"),

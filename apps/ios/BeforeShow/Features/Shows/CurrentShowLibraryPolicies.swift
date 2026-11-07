@@ -1,30 +1,33 @@
 import SwiftUI
 
-enum CurrentShowLibraryFilter: String, CaseIterable, Identifiable {
-    case all = "全部"
-    case upcoming = "即将开始"
-    case ended = "已结束"
-
-    var id: Self { self }
-}
-
-enum CurrentShowLibraryFilterPolicy {
-    /// A dated postponement belongs in Upcoming while its local show day has not passed.
-    static func includesUpcomingPostponement(
-        newDate: Date?,
-        now: Date,
-        calendar: Calendar
-    ) -> Bool {
-        guard let newDate else { return false }
-        return calendar.compare(newDate, to: now, toGranularity: .day) != .orderedAscending
+/// 「我的现场」分区：即将开始（含延期）在前，往期（已结束 + 已取消）按年份倒序成组。
+enum CurrentShowLibrarySectionPolicy {
+    struct YearGroup<Item>: Identifiable {
+        let year: Int
+        let items: [Item]
+        var id: Int { year }
     }
-}
 
-enum CurrentShowLibraryLayout: String {
-    case list
-    case covers
+    /// 有日期的按开场时间升序；延期且日期待定的排在最后。
+    static func upcomingPrecedes(_ lhs: (date: Date, isUndated: Bool), _ rhs: (date: Date, isUndated: Bool)) -> Bool {
+        if lhs.isUndated != rhs.isUndated { return rhs.isUndated }
+        return lhs.date < rhs.date
+    }
 
-    static let storageKey = "currentShowLibraryLayout"
+    /// 按年份倒序分组；组内按日期倒序。
+    static func archiveYearGroups<Item>(_ items: [Item], date: (Item) -> Date, year: (Item) -> Int) -> [YearGroup<Item>] {
+        let sorted = items.sorted { date($0) > date($1) }
+        var groups: [YearGroup<Item>] = []
+        for item in sorted {
+            let itemYear = year(item)
+            if let last = groups.last, last.year == itemYear {
+                groups[groups.count - 1] = YearGroup(year: itemYear, items: last.items + [item])
+            } else {
+                groups.append(YearGroup(year: itemYear, items: [item]))
+            }
+        }
+        return groups
+    }
 }
 
 enum CurrentShowLibraryMenuAction: String, Hashable {
@@ -98,7 +101,3 @@ extension CurrentShowLibraryMenuAction {
         }
     }
 }
-
-
-/// 列表 / 封面网格的逐行入场:每行按索引延后 40ms 淡入并上移,
-/// 上限 8 行(第 9 行起与第 8 行同时出现),避免长列表尾部等太久。

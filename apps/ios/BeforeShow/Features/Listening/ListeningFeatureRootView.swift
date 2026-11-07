@@ -61,9 +61,6 @@ enum ListeningChromeBootstrapper {
         // access, or catalog IO before the user actually enters Listen.
         guard room.hasLoadedDisc, room.track != nil else {
             session.unpublishChrome()
-            if createdCandidate {
-                room.stopHardwareMotion()
-            }
             return nil
         }
 
@@ -167,6 +164,8 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // Matched artists from before this rule take their cached Apple Music names.
+            .task { try? ArtistAppleMusicName.sync(in: modelContext) }
             .task(id: currentShowID) {
                 _ = await ListeningChromeBootstrapper.prepare(
                     show: currentShow,

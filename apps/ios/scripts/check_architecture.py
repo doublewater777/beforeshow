@@ -21,10 +21,10 @@ TEST_ROOTS = ("BeforeShowTests", "BeforeShowUITests")
 
 OVERSIZE_LINE_PINS = {
     "BeforeShowTests/CompanionSharingTests.swift": 1_697,
-    "BeforeShow/Features/Listening/ListeningRoomCoordinator.swift": 1502,
+    "BeforeShow/Features/Listening/ListeningRoomCoordinator.swift": 1322,
     "BeforeShowTests/ShowDraftTests.swift": 1_051,
     "BeforeShowTests/TimetableImportTests.swift": 1_033,
-    "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 894,
+    "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 701,
     "BeforeShow/Features/AddShow/AddShowFlowView.swift": 838,
     "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 797,
     "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 799,
@@ -32,7 +32,6 @@ OVERSIZE_LINE_PINS = {
     "BeforeShowWidgets/CountdownWidgetViews.swift": 728,
     "BeforeShow/Supporting/Debug/LiveAndWidgetShowcaseView.swift": 725,
     "BeforeShow/Features/Timetable/TimetableSheet.swift": 699,
-    "BeforeShow/Features/Listening/Views/ListeningPolishedBottomChrome.swift": 636,
     "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 680,
     "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 655,
     "Shared/CurrentShowTimeState.swift": 636,
@@ -405,13 +404,11 @@ SHOW_DETAIL_VIEW_FORBIDDEN_TOKENS = (
 )
 
 SHOW_LIBRARY_MANAGEMENT_FORBIDDEN_TOKENS = (
-    "enum CurrentShowLibraryFilter",
-    "enum CurrentShowLibraryLayout",
+    "enum CurrentShowLibrarySectionPolicy",
     "enum CurrentShowLibraryMenuAction",
     "enum CurrentShowLibraryMenuPolicy",
-    "struct CurrentShowLibraryCoverCard",
-    "struct CurrentShowLibraryRow",
-    "struct LibraryRowEntrance",
+    "struct CurrentShowLibraryUpcomingRow",
+    "struct CurrentShowLibraryArchiveTile",
     "struct MyShowsEmptyView",
     "struct ShowRowView",
     "struct CurrentShowListHeroCard",

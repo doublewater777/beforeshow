@@ -62,7 +62,7 @@ struct ListeningDiscDetailView: View {
     private static let titleRevealOffset: CGFloat = BSListeningTokens.detailArtwork + 120
 
     private var isLoaded: Bool {
-        room.display.hardware.discID == disc.id && room.display.hardware.position != .stored
+        room.loadedDisc?.id == disc.id
     }
 
     private var presentation: ListeningDiscPresentation {
@@ -191,7 +191,6 @@ struct ListeningDiscDetailView: View {
                           systemImage: "play.fill")
                 }
                 .buttonStyle(BSListeningActionStyle())
-                .disabled(room.busy)
                 .accessibilityValue(presentation.statusText)
                 .accessibilityIdentifier("listening.loadDisc")
 
@@ -226,16 +225,14 @@ struct ListeningDiscDetailView: View {
         } else if let recovery = player.recoveryAction {
             Button(recovery.title) { room.performListeningRecovery(recovery) }
                 .buttonStyle(BSListeningActionStyle())
-                .disabled(room.busy)
         } else if player.canPlayPause {
-            Button { room.perform(.playPause) } label: {
+            Button { room.playPause() } label: {
                 Label(
                     BSLocalization.text(player.showsPauseControl ? "暂停" : "播放"),
                     systemImage: player.showsPauseControl ? "pause.fill" : "play.fill"
                 )
             }
             .buttonStyle(BSListeningActionStyle())
-            .disabled(room.busy || room.display.hardware.isAutomatic)
             .accessibilityIdentifier("listening.detail.playPause")
         } else if case .metadataOnly = presentation.capability, let url = disc.appleMusicURL {
             appleMusicPrimaryAction(url)
@@ -276,8 +273,6 @@ struct ListeningDiscDetailView: View {
         let player = room.display.player
         let currentTrackID = room.track?.id
         let isLoadedDisc = isLoaded
-        let isBusy = room.busy
-        let isAuto = room.display.hardware.isAutomatic
 
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -298,9 +293,7 @@ struct ListeningDiscDetailView: View {
                         track: item.track,
                         player: player,
                         currentTrackID: currentTrackID,
-                        isLoadedDisc: isLoadedDisc,
-                        isBusy: isBusy,
-                        isAuto: isAuto
+                        isLoadedDisc: isLoadedDisc
                     )
                     .id(item.track.id)
                     .background(item.track.id == focusTrackID ? BSColor.Stage.foreground.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 10))
@@ -331,9 +324,7 @@ struct ListeningDiscDetailView: View {
         track: ListeningDiscTrack,
         player: ListeningPlayerPresentation,
         currentTrackID: String?,
-        isLoadedDisc: Bool,
-        isBusy: Bool,
-        isAuto: Bool
+        isLoadedDisc: Bool
     ) -> some View {
         let trackPresentation = room.trackPresentation(for: track)
         let isCurrent = isLoadedDisc && currentTrackID == track.id
@@ -362,13 +353,12 @@ struct ListeningDiscDetailView: View {
                 case .selectTrack:
                     selectTrack(track)
                 case .togglePlayback:
-                    room.perform(.playPause)
+                    room.playPause()
                 }
             } label: {
                 row
             }
             .buttonStyle(BSListeningPressStyle(scale: 0.985))
-            .disabled(isBusy || isAuto)
             .accessibilityValue(accessibilityValue(for: state, presentation: trackPresentation))
             .accessibilityIdentifier("listening.track.\(track.id)")
         } else {
@@ -421,9 +411,7 @@ struct ListeningDiscDetailView: View {
 
     private func selectTrack(_ track: ListeningDiscTrack) {
         let trackPresentation = room.trackPresentation(for: track)
-        guard trackPresentation.isPlayable,
-              !room.busy,
-              !room.display.hardware.isAutomatic else { return }
+        guard trackPresentation.isPlayable else { return }
 
         let sameDisc = isLoaded
         if sameDisc, room.track?.id == track.id, room.wantsPlayback {

@@ -885,6 +885,23 @@
         }
       }
     },
+    "未在播放" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Playing"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未在播放"
+          }
+        }
+      }
+    },
     "本场歌单" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1170,23 +1187,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "試聽模式"
-          }
-        }
-      }
-    },
-    "请先合上播放器上盖" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close the player lid first"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請先闔上播放器上蓋"
           }
         }
       }

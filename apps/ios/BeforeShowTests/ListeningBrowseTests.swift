@@ -3,47 +3,6 @@ import SwiftData
 @testable import BeforeShow
 
 @MainActor final class ListeningBrowseTests: XCTestCase {
-    func testCabinetSwapRequiresDroppingOnTheTray() async throws {
-        let (container, show) = try ListenTestData.make()
-        let room = ListenTestData.room(container.mainContext)
-        await room.load(show: show)
-        defer { room.stop(); room.mechanism.motion.stop() }
-        let current = try XCTUnwrap(room.discs.first)
-        let replacement = try XCTUnwrap(room.browseArtists.first?.albums.first)
-        XCTAssertNotEqual(current.id, replacement.id)
-        room.restoreDisc(current)
-        let geometry = room.hardwareGeometry
-        let origin = CGPoint(x: 280, y: 100)
-        let scale: CGFloat = 0.8
-        room.mechanism.cabinetSlots[replacement.id] = origin
-
-        for (drop, cancelled) in [(CGPoint(x: 800, y: geometry.discCenter.y), false),
-                                  (CGPoint(x: geometry.discCenter.x, y: geometry.discCenter.y + 300), false),
-                                  (origin, false),
-                                  (geometry.discCenter, true)] {
-            XCTAssertTrue(room.beginCabinetDragIfNeeded(replacement))
-            room.updateCabinetDrag(of: replacement, translation: CGSize(
-                width: (drop.x - origin.x) * scale,
-                height: (drop.y - origin.y) * scale * cos(geometry.tiltDegrees * .pi / 180)
-            ), scale: scale)
-            room.endCabinetDrag(of: replacement, cancelled: cancelled)
-            await room.settlePendingOperation()
-            XCTAssertNil(room.pendingCabinetSwap)
-            XCTAssertEqual(room.mechanism.disc?.id, current.id, "A missed drop must retain the loaded CD")
-            XCTAssertFalse(room.isPlaying)
-        }
-
-        XCTAssertTrue(room.beginCabinetDragIfNeeded(replacement))
-        room.updateCabinetDrag(of: replacement, translation: CGSize(
-            width: (geometry.discCenter.x - origin.x) * scale,
-            height: (geometry.discCenter.y - origin.y) * scale * cos(geometry.tiltDegrees * .pi / 180)
-        ), scale: scale)
-        room.endCabinetDrag(of: replacement)
-        try await ListenTestData.settle(room) { !room.busy && room.isPlaying }
-        XCTAssertNil(room.pendingCabinetSwap)
-        XCTAssertEqual(room.mechanism.disc?.id, replacement.id)
-    }
-
     func testDelayedPlaybackFailureAllowsSleeveRetry() async throws {
         let (container, show) = try ListenTestData.make()
         let player = ListeningTestPlayer()
@@ -59,7 +18,7 @@ import SwiftData
         player.acknowledgesCommands = false
         room.playFromSleeve(album, songID: "a1")
         try await Task.sleep(for: .milliseconds(10))
-        try await ListenTestData.settle(room) { !room.busy && room.deck.isQueueLoaded }
+        try await ListenTestData.settle(room) { room.deck.isQueueLoaded }
         XCTAssertFalse(
             room.isPlaying,
             "transport truth must remain non-playing until the player actually starts"
@@ -79,7 +38,7 @@ import SwiftData
         player.failure = nil
         player.acknowledgesCommands = true
         room.playFromSleeve(album, songID: "a2")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(room.track?.id, "a2")
         room.stop()
     }
@@ -106,10 +65,9 @@ import SwiftData
         XCTAssertFalse(room.trackPresentation(for: album.tracks[1]).isPlayable)
 
         room.loadDisc(album, songID: "a2")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
 
         room.skip(1)
-        await room.settlePendingOperation()
 
         XCTAssertEqual(room.track?.id, "a1")
         XCTAssertFalse(room.wantsPlayback)
@@ -132,11 +90,11 @@ import SwiftData
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         player.playError = ListeningPlaybackError.songUnavailable("a1")
         room.playFromSleeve(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.playbackError != nil && !room.busy }
+        try await ListenTestData.settle(room) { room.playbackError != nil }
         XCTAssertFalse(room.isRecentDisc(album))
         player.playError = nil
         room.playFromSleeve(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertTrue(room.isRecentDisc(album))
         XCTAssertEqual(room.track?.id, "a1")
         room.stop()
@@ -149,7 +107,7 @@ import SwiftData
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.playFromSleeve(album, songID: "a1")
         room.setActive(false)
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(room.track?.id, "a1")
         room.setActive(true)
         XCTAssertTrue(room.isPlaying)
@@ -171,7 +129,7 @@ import SwiftData
         await room.load(show: show)
         XCTAssertTrue(room.containsHeardSongs(album))
         room.playFromSleeve(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         room.stop()
         try ListeningShowDataCleaner.deleteShowScopedData(showID: show.id, in: context)
         try context.save()
@@ -187,26 +145,11 @@ import SwiftData
         await room.load(show: show)
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.playFromSleeve(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         room.playFromSleeve(album, songID: "missing")
         XCTAssertTrue(room.isPlaying)
         XCTAssertEqual(room.track?.id, "a1")
         XCTAssertNotNil(room.playbackError)
-        room.stop()
-    }
-
-    func testSleeveSelectionClosesManuallyLoadedDiscBeforePlaying() async throws {
-        let (container, show) = try ListenTestData.make()
-        let room = ListenTestData.room(container.mainContext)
-        await room.load(show: show)
-        let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
-        room.restoreDisc(album)
-        room.mechanism.setLid(open: true)
-        try await ListenTestData.settle(room) { room.mechanism.isOpen }
-        room.playFromSleeve(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        XCTAssertTrue(room.mechanism.isClosed)
-        XCTAssertEqual(room.track?.id, "a1")
         room.stop()
     }
 
@@ -219,13 +162,13 @@ import SwiftData
         room.browser.open(album)
         XCTAssertFalse(room.isRecentDisc(album))
         room.playFromSleeve(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertTrue(room.isRecentDisc(album))
         room.stop()
         let reopened = ListenTestData.room(container.mainContext)
         await reopened.load(show: show)
         XCTAssertTrue(reopened.isRecentDisc(album))
-        XCTAssertEqual(reopened.mechanism.disc?.id, album.id)
+        XCTAssertEqual(reopened.loadedDisc?.id, album.id)
         XCTAssertNotNil(reopened.track)
         XCTAssertFalse(reopened.isPlaying)
     }
@@ -236,7 +179,7 @@ import SwiftData
         await room.load(show: show)
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.playFromSleeve(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(room.track?.id, "a1")
         try await Task.sleep(for: .milliseconds(200))
         let position = room.elapsed
@@ -251,7 +194,7 @@ import SwiftData
         let room = ListenTestData.room(container.mainContext)
         await room.load(show: show)
         XCTAssertEqual(room.browser.scope, .all)
-        XCTAssertFalse(room.mechanism.hasDisc)
+        XCTAssertFalse(room.hasLoadedDisc)
         XCTAssertNil(room.track)
         XCTAssertEqual(room.libraryDiscs, room.compilationDiscs)
         XCTAssertEqual(room.shelfDiscs, Array(room.compilationDiscs.prefix(ListeningDisplayProjector.Shelf.visibleCount)))
@@ -264,14 +207,14 @@ import SwiftData
         await room.load(show: show)
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.loadDisc(album)
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         let phase = room.deck.phase
         let track = room.track
         room.selectScope(.artist("c"))
         room.browser.open(try XCTUnwrap(room.compilationDiscs.first))
         XCTAssertEqual(room.browser.scope, .artist("c"))
         XCTAssertNotNil(room.browser.detail)
-        XCTAssertEqual(room.mechanism.disc, album)
+        XCTAssertEqual(room.loadedDisc, album)
         XCTAssertEqual(room.track, track)
         XCTAssertEqual(room.deck.phase, phase)
         room.stop()
@@ -321,11 +264,10 @@ import SwiftData
         await room.load(show: show)
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.loadDisc(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        room.perform(.playPause)
+        try await ListenTestData.settle(room) { room.isPlaying }
+        room.playPause()
         XCTAssertFalse(room.isPlaying, "Pause should be visible before the control action returns")
         XCTAssertEqual(room.display.player.phase, .paused)
-        XCTAssertFalse(room.busy, "Synchronous pause must not enter the generic async busy state")
         let pausedAt = room.elapsed
         room.loadDisc(album)
         XCTAssertEqual(room.trackIndex, 1)
@@ -336,18 +278,16 @@ import SwiftData
         XCTAssertEqual(room.trackIndex, 0)
         XCTAssertEqual(room.elapsed, 0)
         XCTAssertEqual(room.timeText, "00:00")
-        XCTAssertEqual(room.mechanism.disc, album)
+        XCTAssertEqual(room.loadedDisc, album)
 
         let reopened = ListenTestData.room(container.mainContext)
         XCTAssertEqual(reopened.trackIndex, 0)
         XCTAssertEqual(reopened.track?.id, album.tracks.first?.id)
         XCTAssertEqual(reopened.elapsed, 0)
         XCTAssertEqual(reopened.timeText, "00:00")
-        reopened.mechanism.motion.stop()
 
         room.loadDisc(album)
         XCTAssertFalse(room.isPlaying)
-        XCTAssertFalse(room.busy)
     }
 
     func testStopDuringPendingTrackImmediatelyRestoresFirstTrack() async throws {
@@ -366,7 +306,7 @@ import SwiftData
         XCTAssertNotEqual(firstSongID, targetSongID)
 
         room.loadDisc(album, songID: firstSongID)
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         room.playPause()
         room.skip(1)
         XCTAssertEqual(room.track?.id, targetSongID)
@@ -397,7 +337,7 @@ import SwiftData
         await room.load(show: show)
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.loadDisc(album, songID: "a1")
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         try await Task.sleep(for: .milliseconds(100))
 
         room.playFromSleeve(album, songID: "a2")
@@ -407,7 +347,7 @@ import SwiftData
         XCTAssertTrue(room.isPlayerDisplayPreparing)
         XCTAssertEqual(room.playerDisplayTimeText, "00:00")
 
-        try await ListenTestData.settle(room) { room.track?.id == "a2" && room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.track?.id == "a2" && room.isPlaying }
         room.stop()
     }
 
@@ -417,12 +357,12 @@ import SwiftData
         await room.load(show: show)
         let disc = try XCTUnwrap(room.compilationDiscs.first)
         room.loadDisc(disc)
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         let snapshot = try XCTUnwrap(container.mainContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>()).first { $0.artistID == "a" })
         snapshot.topSongIDs = ["a1", "a2"]
         try container.mainContext.save()
         await room.load(show: show)
-        XCTAssertEqual(room.mechanism.disc, disc)
+        XCTAssertEqual(room.loadedDisc, disc)
         XCTAssertEqual(room.track?.id, "a2")
         XCTAssertTrue(room.isPlaying)
         XCTAssertEqual(room.compilationDiscs.first?.tracks.map(\.id), ["a1", "a2"])

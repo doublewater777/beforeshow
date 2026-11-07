@@ -31,27 +31,22 @@ private final class LibraryCoverProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class CurrentShowLibraryPerformanceTests: XCTestCase {
-    func testLargeLibraryDefersOffscreenCoversAndLoadsThemAfterScrolling() async throws {
-        try await verifyLargeLibrary(layout: .list)
+    func testLargeUpcomingListDefersOffscreenCoversAndLoadsThemAfterScrolling() async throws {
+        try await verifyLargeLibrary(name: "upcoming", start: Date().addingTimeInterval(86400 * 30), dayStep: 1)
     }
 
-    func testLargeCoverGridDefersOffscreenCoversAndLoadsThemAfterScrolling() async throws {
-        try await verifyLargeLibrary(layout: .covers)
+    func testLargeArchiveGridDefersOffscreenCoversAndLoadsThemAfterScrolling() async throws {
+        try await verifyLargeLibrary(name: "archive", start: Date().addingTimeInterval(-86400 * 30), dayStep: -1)
     }
 
-    private func verifyLargeLibrary(layout: CurrentShowLibraryLayout) async throws {
+    private func verifyLargeLibrary(name: String, start: Date, dayStep: Double) async throws {
         URLProtocol.registerClass(LibraryCoverProtocol.self)
         defer { URLProtocol.unregisterClass(LibraryCoverProtocol.self) }
-        let defaults = UserDefaults.standard
-        let previousLayout = defaults.object(forKey: CurrentShowLibraryLayout.storageKey)
-        defaults.set(layout.rawValue, forKey: CurrentShowLibraryLayout.storageKey)
-        defer { defaults.set(previousLayout, forKey: CurrentShowLibraryLayout.storageKey) }
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let prefix = "/\(UUID().uuidString)"
-        let start = Date().addingTimeInterval(86400 * 30)
         var lastShow: Show?
         for index in 0..<150 {
-            let date = start.addingTimeInterval(Double(index) * 86400)
+            let date = start.addingTimeInterval(Double(index) * 86400 * dayStep)
             let show = try Show(
                 name: "Library Show \(index)", date: date, startTime: date,
                 coverImageURL: "https://library-performance.test\(prefix)/\(index)"
@@ -77,7 +72,7 @@ final class CurrentShowLibraryPerformanceTests: XCTestCase {
         host.view.layoutIfNeeded()
         try await Task.sleep(for: .seconds(1))
         let initial = LibraryCoverProtocol.requestedPaths.filter { $0.hasPrefix(prefix) }
-        print("Library \(layout.rawValue) initial cover requests: \(initial.count) of 150")
+        print("Library \(name) initial cover requests: \(initial.count) of 150")
         XCTAssertTrue(initial.contains("\(prefix)/0"))
         XCTAssertLessThan(initial.count, 75, "Opening the library must defer offscreen cover work")
         XCTAssertFalse(initial.contains("\(prefix)/149"))
@@ -130,48 +125,28 @@ final class CurrentShowLibraryMenuPolicyTests: XCTestCase {
     }
 }
 
-@MainActor
-final class CurrentShowLibraryFilterTests: XCTestCase {
-    func testSegmentedFilterOrderStartsWithAll() {
-        XCTAssertEqual(CurrentShowLibraryFilter.allCases, [.all, .upcoming, .ended])
+final class CurrentShowLibrarySectionPolicyTests: XCTestCase {
+    func testUpcomingPutsUndatedPostponementsLast() {
+        let early = Date(timeIntervalSince1970: 100)
+        let late = Date(timeIntervalSince1970: 200)
+        XCTAssertTrue(CurrentShowLibrarySectionPolicy.upcomingPrecedes((early, false), (late, false)))
+        XCTAssertFalse(CurrentShowLibrarySectionPolicy.upcomingPrecedes((late, false), (early, false)))
+        XCTAssertTrue(CurrentShowLibrarySectionPolicy.upcomingPrecedes((late, false), (early, true)))
+        XCTAssertFalse(CurrentShowLibrarySectionPolicy.upcomingPrecedes((early, true), (late, false)))
     }
 
-    func testDatedPostponementsIncludeTodayAndFutureInShowTimeZone() throws {
+    func testArchiveGroupsByYearNewestFirst() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
-        let now = try XCTUnwrap(calendar.date(from: DateComponents(
-            year: 2026, month: 11, day: 7, hour: 0, minute: 10
-        )))
-        let today = try XCTUnwrap(calendar.date(from: DateComponents(
-            year: 2026, month: 11, day: 7
-        )))
-        let future = try XCTUnwrap(calendar.date(from: DateComponents(
-            year: 2026, month: 11, day: 8
-        )))
-
-        XCTAssertTrue(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
-            newDate: today, now: now, calendar: calendar
-        ))
-        XCTAssertTrue(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
-            newDate: future, now: now, calendar: calendar
-        ))
-    }
-
-    func testUndatedAndPastPostponementsAreExcludedFromUpcoming() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
-        let now = try XCTUnwrap(calendar.date(from: DateComponents(
-            year: 2026, month: 11, day: 7, hour: 0, minute: 10
-        )))
-        let previousDay = try XCTUnwrap(calendar.date(from: DateComponents(
-            year: 2026, month: 11, day: 6, hour: 23, minute: 50
-        )))
-
-        XCTAssertFalse(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
-            newDate: nil, now: now, calendar: calendar
-        ))
-        XCTAssertFalse(CurrentShowLibraryFilterPolicy.includesUpcomingPostponement(
-            newDate: previousDay, now: now, calendar: calendar
-        ))
+        func day(_ year: Int, _ month: Int, _ day: Int) throws -> Date {
+            try XCTUnwrap(calendar.date(from: DateComponents(year: year, month: month, day: day)))
+        }
+        let dates = try [day(2025, 3, 1), day(2026, 8, 21), day(2025, 12, 31), day(2026, 1, 2)]
+        let groups = CurrentShowLibrarySectionPolicy.archiveYearGroups(
+            dates, date: { $0 }, year: { calendar.component(.year, from: $0) }
+        )
+        XCTAssertEqual(groups.map(\.year), [2026, 2025])
+        XCTAssertEqual(groups[0].items, try [day(2026, 8, 21), day(2026, 1, 2)])
+        XCTAssertEqual(groups[1].items, try [day(2025, 12, 31), day(2025, 3, 1)])
     }
 }

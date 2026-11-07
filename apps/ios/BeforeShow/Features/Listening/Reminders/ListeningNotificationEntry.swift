@@ -17,10 +17,6 @@ enum ListeningNotificationEntry {
             room.selectScope(.all)
             return
         }
-        if link.requestsPlayback {
-            await room.settlePendingOperation()
-            guard !Task.isCancelled, room.show?.id == show.id else { return }
-        }
         if let id = link.discID, let disc = room.discs.first(where: { $0.id == id }), !disc.tracks.isEmpty {
             if link.requestsPlayback, let songID = room.discPresentation(for: disc).defaultPlayableTrackID {
                 room.playFromSleeve(disc, songID: songID)

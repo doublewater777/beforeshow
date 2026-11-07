@@ -33,7 +33,7 @@ struct ListeningVideoPlayerView: View {
         ZStack {
             Color.black
             if let player = dock.player {
-                VideoPlayer(player: player)
+                ListeningVideoSurface(player: player) { dock.isExpanded = true }
             } else if dock.loadFailed {
                 Button { dock.retry() } label: {
                     Text(ListeningCopy.text("暂时无法载入视频，点按重试"))
@@ -109,6 +109,44 @@ struct ListeningVideoPlayerView: View {
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
+    }
+}
+
+/// The system player, so the video carries on in Picture in Picture when the app leaves the screen.
+private struct ListeningVideoSurface: UIViewControllerRepresentable {
+    let player: AVPlayer
+    let onRestore: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onRestore: onRestore) }
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.allowsPictureInPicturePlayback = true
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        // The dock's Now Playing session publishes the video, docked or not.
+        controller.updatesNowPlayingInfoCenter = false
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player { controller.player = player }
+        context.coordinator.onRestore = onRestore
+    }
+
+    final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+        var onRestore: () -> Void
+
+        init(onRestore: @escaping () -> Void) { self.onRestore = onRestore }
+
+        func playerViewController(
+            _ playerViewController: AVPlayerViewController,
+            restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+        ) {
+            onRestore()
+            completionHandler(true)
+        }
     }
 }
 

@@ -45,8 +45,8 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             playbackFactory: { _ in playback }
         )
         let room = try XCTUnwrap(prepared)
-        defer { room.stop(); room.mechanism.motion.stop() }
-        room.perform(.playPause)
+        defer { room.stop() }
+        room.playPause()
         try await waitUntil { room.isPlaying }
         await room.deck.settle()
         var didObserveInterruption = false
@@ -65,7 +65,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         let pauseCount = playback.pauseCount
         playback.acknowledgesCommands = false
 
-        room.perform(.playPause)
+        room.playPause()
         await room.deck.settle()
 
         XCTAssertEqual(playback.playCount, playCount + 1)
@@ -135,13 +135,12 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         let room = try XCTUnwrap(prepared)
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         XCTAssertTrue(ListeningRoomSessionStore.shared.room.map { $0 === room } == true)
         XCTAssertTrue(ListeningRoomSessionStore.shared.chromeRoom.map { $0 === room } == true)
         XCTAssertEqual(room.show?.id, show.id)
-        XCTAssertTrue(room.mechanism.hasDisc)
+        XCTAssertTrue(room.hasLoadedDisc)
         XCTAssertEqual(room.track?.id, song.appleMusicSongID)
         XCTAssertFalse(room.isPlaying, "Cold-start hydration must never autoplay")
         XCTAssertFalse(room.shouldReloadCatalog(for: show))
@@ -150,7 +149,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         // than the coordinator's initial notDetermined/preview fallback.
         try await waitUntil { playback.prefetchedSongIDs == [song.appleMusicSongID] }
         room.playPause()
-        try await waitUntil { room.isPlaying && !room.busy }
+        try await waitUntil { room.isPlaying }
         XCTAssertEqual(requestedSources, [.fullCatalog])
         XCTAssertEqual(playback.loadCount, 1)
         XCTAssertEqual(playback.pauseCount, 0)
@@ -214,7 +213,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             playbackFactory: { _ in playback }
         )
         let room = try XCTUnwrap(prepared)
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
 
         await ListeningIntentHandler.shared.perform(.play)
         XCTAssertTrue(room.isPlaying)
@@ -268,7 +267,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         let room = try XCTUnwrap(prepared)
         room.playPause()
-        try await waitUntil { room.isPlaying && !room.busy }
+        try await waitUntil { room.isPlaying }
         XCTAssertEqual(playback.phase, .playing)
         XCTAssertEqual(playback.stopCount, 0)
 
@@ -317,7 +316,6 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertNil(room.errorText)
         XCTAssertNil(room.playbackError)
         room.stop()
-        room.mechanism.motion.stop()
     }
 
     func testRootBootstrapWithoutRestoredDiscStaysLazyUntilListenActivation() async throws {
@@ -380,7 +378,6 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertEqual(catalog.fullFetchCount, 0, "Listen activation should stay on runtime topSongs until an artist browse scope needs full catalog")
         XCTAssertTrue(room.catalogSongs.contains { $0.appleMusicSongID == "lazy-song" })
         room.stop()
-        room.mechanism.motion.stop()
     }
 
     func testGlobalChromeTracksRemoteAndNaturalTransportChangesWithoutRoomTick() async throws {
@@ -426,11 +423,10 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         let room = try XCTUnwrap(prepared)
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         room.playPause()
-        try await waitUntil { room.isPlaying && !room.busy }
+        try await waitUntil { room.isPlaying }
         XCTAssertEqual(room.track?.id, "sync-a")
 
         // Lock Screen pause/play reach the system player directly; the shared
@@ -512,13 +508,12 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
         await room.load(show: show)
         room.deck.progressInterval = .milliseconds(20)
 
         room.playPause()
-        try await waitUntil { room.isPlaying && !room.busy }
+        try await waitUntil { room.isPlaying }
         // Progress samples arrive once a second while playing.
         playback.currentTime = 1.4
         try await Task.sleep(for: .milliseconds(150))
@@ -587,11 +582,10 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         room.deck.progressInterval = .milliseconds(20)
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         room.playPause()
-        try await waitUntil { room.isPlaying && !room.busy }
+        try await waitUntil { room.isPlaying }
         XCTAssertFalse(room.actualSongIDs.contains(song.appleMusicSongID))
         XCTAssertFalse(room.familiarSongIDs.contains(song.appleMusicSongID))
 
@@ -623,7 +617,6 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
     }
 
     private func resetChromeGlobals() {
-        ListeningRoomSessionStore.shared.room?.mechanism.motion.stop()
         ListeningRoomSessionStore.shared.adopt(nil)
     }
 

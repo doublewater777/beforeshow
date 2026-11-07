@@ -248,7 +248,6 @@ final class ListeningPresentationTests: XCTestCase {
         )
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show)
@@ -282,14 +281,13 @@ final class ListeningPresentationTests: XCTestCase {
         )
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
         room.restoreDisc(disc)
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
 
         let selectedTrackID = try XCTUnwrap(room.track?.id)
         let selectedIndex = room.trackIndex
@@ -306,7 +304,7 @@ final class ListeningPresentationTests: XCTestCase {
         XCTAssertEqual(room.display.roomMode, .preview)
 
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(room.track?.id, selectedTrackID)
         XCTAssertEqual(room.display.player.source, .preview)
     }
@@ -328,14 +326,13 @@ final class ListeningPresentationTests: XCTestCase {
         )
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
         room.restoreDisc(disc)
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         room.playPause()
         XCTAssertEqual(room.display.player.phase, .paused)
         player.currentTime = 42
@@ -375,14 +372,13 @@ final class ListeningPresentationTests: XCTestCase {
             )
             defer {
                 room.stop()
-                room.mechanism.motion.stop()
             }
 
             await room.load(show: show)
             let disc = try XCTUnwrap(room.discs.first { $0.tracks.count > 2 })
             room.restoreDisc(disc)
             room.playPause()
-            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            try await ListenTestData.settle(room) { room.isPlaying }
             XCTAssertEqual(room.display.player.source, .fullCatalog)
 
             catalog.setPlaybackAccessForTesting(.accessCheckFailed)
@@ -403,8 +399,8 @@ final class ListeningPresentationTests: XCTestCase {
             XCTAssertEqual(room.display.player.phase, .paused)
             XCTAssertEqual(room.display.player.playPauseAction, .play)
             room.playPause()
-            await room.settlePendingOperation()
-            XCTAssertTrue(room.isPlaying, "temporary access uncertainty must allow the established session to resume")
+            XCTAssertTrue(room.wantsPlayback, "temporary access uncertainty must allow the established session to resume")
+            try await ListenTestData.settle(room) { room.isPlaying }
             XCTAssertEqual(room.display.player.source, .fullCatalog)
             XCTAssertGreaterThanOrEqual(room.elapsed, pausedAt)
             XCTAssertEqual(playbackServices.count, 1)
@@ -424,10 +420,9 @@ final class ListeningPresentationTests: XCTestCase {
             )
 
             room.skip(1)
-            await room.settlePendingOperation()
+            try await ListenTestData.settle(room) { room.isPlaying }
 
             XCTAssertEqual(room.track?.id, nextTrack.id)
-            XCTAssertTrue(room.isPlaying)
             XCTAssertTrue(room.wantsPlayback)
             XCTAssertEqual(room.display.player.source, .fullCatalog)
             XCTAssertTrue(room.display.player.shouldRotateDisc)
@@ -439,10 +434,9 @@ final class ListeningPresentationTests: XCTestCase {
 
             let selectedTrack = disc.tracks[2]
             room.loadDisc(disc, songID: selectedTrack.id)
-            await room.settlePendingOperation()
+            try await ListenTestData.settle(room) { room.isPlaying }
 
             XCTAssertEqual(room.track?.id, selectedTrack.id)
-            XCTAssertTrue(room.isPlaying)
             XCTAssertEqual(room.display.player.source, .fullCatalog)
             XCTAssertEqual(
                 playbackServices.count,
@@ -468,14 +462,13 @@ final class ListeningPresentationTests: XCTestCase {
         )
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
         room.restoreDisc(disc)
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(room.display.player.source, .preview)
 
         catalog.setStatusForTesting(.denied)
@@ -504,7 +497,6 @@ final class ListeningPresentationTests: XCTestCase {
                 )
             )
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         let foregroundRefresh = Task { await room.refreshMusicAccessAfterForeground() }
@@ -562,7 +554,6 @@ final class ListeningPresentationTests: XCTestCase {
                 )
             )
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         let initialLoad = Task { await room.load(show: show) }
@@ -636,14 +627,13 @@ final class ListeningPresentationTests: XCTestCase {
         )
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
         room.restoreDisc(disc)
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
 
         XCTAssertEqual(room.display.player.source, .preview)
         XCTAssertEqual(room.display.roomMode, .preview)
