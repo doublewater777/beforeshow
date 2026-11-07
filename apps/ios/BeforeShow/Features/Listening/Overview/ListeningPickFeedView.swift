@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// One album per screen; whichever album settles on screen plays its previews. Only 就听这张
-/// puts it on the deck (and the mini player); browsing leaves what you were listening to alone.
+/// One album per screen. With nothing playing, the album that settles on screen plays its previews;
+/// opened over music, browsing is silent. Only 就听这张 puts an album on the deck and the mini player.
 struct ListeningPickFeedView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
@@ -12,8 +12,8 @@ struct ListeningPickFeedView: View {
     @State private var order: [ListeningDisc] = []
     @State private var currentID: String?
     @State private var openingID: String?
-    /// Opened while something plays: no audition until the user swipes to another album.
-    @State private var hold: ListeningPickEntryHold?
+    /// Opened while something plays: browsing stays silent, only 就听这张 changes the music.
+    @State private var isListeningOutside = false
     @State private var audition = ListeningPickAudition()
 
     private var scopeKey: String { ListeningDiscPickPolicy.showScopeKey }
@@ -58,12 +58,14 @@ struct ListeningPickFeedView: View {
             header
         }
         .foregroundStyle(BSColor.Stage.foreground)
-        .onAppear { rebuild(startingWith: startingDisc, keepingPlaying: true) }
+        .onAppear {
+            isListeningOutside = room.wantsPlayback
+            rebuild(startingWith: startingDisc, keepingPlaying: true)
+        }
         .onChange(of: filter) { _, _ in rebuild(startingWith: nil, keepingPlaying: false) }
         .task(id: settledID) {
-            hold = hold?.releasing(on: settledID)
             prefetchNextPage()
-            guard hold == nil else { return }
+            guard !isListeningOutside else { return }
             await playSettledPage()
         }
         .onDisappear { audition.stop(resumeListening: true) }
@@ -110,7 +112,6 @@ struct ListeningPickFeedView: View {
         let playing = keepingPlaying && room.wantsPlayback ? room.loadedDisc : nil
         order = ListeningPickOrder.keeping(playing, above: drawn)
         openingID = drawn.first?.id
-        hold = playing.map { ListeningPickEntryHold(openingID: openingID, playingID: $0.id) }
         currentID = openingID
     }
 
@@ -205,17 +206,5 @@ private struct ListeningPickFeedPage: View {
             Text(ListeningReleaseMeta.yearAndTrackCount(disc)).font(ListeningOverviewStyle.meta).foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// Entering 帮我挑一张 while music plays keeps it playing: the opening album and the record
-/// already on the deck (pinned above it) stay quiet; settling on any other album starts auditioning.
-struct ListeningPickEntryHold: Equatable {
-    let openingID: String?
-    let playingID: String
-
-    func releasing(on settledID: String?) -> ListeningPickEntryHold? {
-        guard let settledID, settledID != openingID, settledID != playingID else { return self }
-        return nil
     }
 }
