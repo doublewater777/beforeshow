@@ -16,7 +16,7 @@ When the iOS app is suspended or terminated in background during a festival or s
 - **Zero long-term user data**: The stored plan contains only presentation fields (artist name, stage name, start/end timestamps, step state) and device push tokens. It contains no photos, ticket files, companion records, user profiles, or Apple IDs.
 - **Strict TTL auto-cleanup**: Plans are ephemeral. Records are deleted upon explicit revocation or automatically purged within 24 hours after the festival day's lifecycle end (`deadline + 24h`) via TTL indexing.
 - **Installation ownership & auth**: Fixed `appSignature` serves as basic gateway check. Mutual ownership is enforced by a client-generated random `planSecret`; the server stores only `SHA-256(planSecret)` and verifies it on plan updates and revocations, preventing cross-installation tampering.
-- **1-minute poll dispatch**: CloudBase runs a lightweight cron dispatcher checking due steps, sending HTTP/2 requests to APNs with `apns-push-type: liveactivity`, and recording step consumption idempotently.
+- **5-minute poll dispatch**: CloudBase runs a lightweight cron dispatcher every 5 minutes (changed from every minute on 2026-11-07 to cut idle invocations; most timetable times fall on 5-minute marks) checking due steps, sending HTTP/2 requests to APNs with `apns-push-type: liveactivity`, and recording step consumption idempotently.
 - **Never miss safety net**: If network fails or plan sync does not complete prior to the 15-minute trigger point, the iOS `LiveActivityReminderLedger` keeps local notifications active as fallback.
 
 ## Consequences
