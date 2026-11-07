@@ -48,6 +48,8 @@ struct CurrentShowManagementSection: View {
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
     @State var notificationRouter = NotificationDeepLinkRouter.shared
+    @State var merchSource: MerchCaptureSource?
+    @State var recordToast: BSToastPayload?
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -168,6 +170,10 @@ struct CurrentShowManagementSection: View {
                         archive: FootprintArchiveSnapshot.identityOnly(shows: attachedCandidateShows)
                     )
                 }
+            case .setlist:
+                ShowSetlistSheet(show: show)
+            case .spending:
+                ShowSpendingSheet(show: show)
             case .weatherDetail:
                 CurrentShowWeatherSheet(
                     show: show,
@@ -205,6 +211,11 @@ struct CurrentShowManagementSection: View {
                 .preferredColorScheme(.dark)
             }
         }
+        .merchCapture($merchSource, show: show) { saved in
+            recordToast = BSToastPayload(tone: saved ? .success : .failure, message: BSLocalization.text(saved ? "周边已收进柜子" : "照片没有保存，请重试"))
+        }
+        .bsToastOverlay(recordToast, bottomPadding: 90)
+        .task(id: recordToast) { try? await Task.sleep(for: .seconds(2)); recordToast = nil }
         .onAppear {
             installedMapApps = ExternalMapApp.installed
         }
@@ -398,8 +409,10 @@ struct CurrentShowManagementSection: View {
                     .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
                     }
 
-                    quickActionRow(
-                        CurrentShowQuickAction.deduplicated(
+                    CurrentShowRecordSection(
+                        show: show,
+                        phase: phase,
+                        leading: CurrentShowQuickAction.deduplicated(
                             CurrentShowQuickAction.actions(
                                 for: phase,
                                 canRecordEnd: canRecordEnd && !(isLiveLayout && liveState?.phase == .fullyEnded),
@@ -409,10 +422,12 @@ struct CurrentShowManagementSection: View {
                             ),
                             primaryAction: displayedPrimaryAction,
                             hasInlineTimetableEntry: liveState != nil
-                        )
+                        ).compactMap(\.recordKind),
+                        merchSource: $merchSource,
+                        onSelect: { performRecord($0, phase: phase) }
                     )
-                        .padding(.horizontal, contentInset)
-                        .padding(.top, 17)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 28)
                         .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
                         .offset(y: homeArrivalFlags.hasArrivedActions ? 0 : 12)
 
@@ -562,38 +577,6 @@ struct CurrentShowManagementSection: View {
             todayKey: todayKey,
             todayNotificationFeature: todayNotificationFeature
         )
-    }
-
-    private func quickActionRow(_ actions: [CurrentShowQuickAction]) -> some View {
-        HStack(spacing: 8) {
-            ForEach(actions, id: \.self) { action in
-                Button {
-                    performQuickAction(action)
-                } label: {
-                    quickActionTile(action)
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func quickActionTile(_ action: CurrentShowQuickAction) -> some View {
-        switch action {
-        case .companion:
-            CurrentShowQuickActionTile(
-                action: action,
-                companion: CompanionQuickActionPresentation(
-                    status: show.companionStatus,
-                    companionNames: show.companionNames,
-                    isEnded: currentPhase == .ended,
-                    isInvitationShared: show.companionInvitationShared
-                )
-            )
-        default:
-            CurrentShowQuickActionTile(action: action)
-        }
     }
 
     private func presentedSheetDidDismiss() {

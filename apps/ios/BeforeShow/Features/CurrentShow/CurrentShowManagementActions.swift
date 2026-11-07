@@ -31,6 +31,26 @@ extension CurrentShowManagementSection {
         }
     }
 
+    func performRecord(_ kind: CurrentShowRecordKind, phase: HomeShowPhase) {
+        switch kind {
+        case .endShow: presentedSheet = .endConfirmation
+        case .dispersal: ceremonySheetShowID = show.id
+        case .memory:
+            if phase == .live || show.memoryFragments.isEmpty {
+                pendingMemoryCreate = nil
+                presentedSheet = .memoryCreate
+            } else {
+                openMemoryFragments()
+            }
+        case .setlist: presentedSheet = .setlist
+        case .spending: presentedSheet = .spending
+        case .merch: merchSource = .library
+        case .companion: presentedSheet = .companion
+        case .timetable: presentedSheet = .asset(.timetable)
+        case .ticket: presentedSheet = .asset(.ticket)
+        }
+    }
+
     func performRecommendation(_ feature: RecommendedFeature) {
         switch feature {
         case .widget:

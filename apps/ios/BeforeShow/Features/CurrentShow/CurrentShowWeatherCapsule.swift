@@ -26,14 +26,7 @@ struct CurrentShowWeatherCapsule: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(Color.white.opacity(0.08))
-                    .background(
-                        Capsule()
-                            .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
-                    )
-            )
+            .bsGlassPanel(in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

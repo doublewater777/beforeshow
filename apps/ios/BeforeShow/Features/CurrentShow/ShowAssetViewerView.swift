@@ -37,6 +37,7 @@ struct ShowAssetViewerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             VStack(spacing: 0) {
+                if kind == .ticket { ShowTicketPriceField(showID: showID) }
                 if let disclaimer = kind.viewerDisclaimer {
                     Text(disclaimer)
                         .font(.system(size: 11, weight: .regular))

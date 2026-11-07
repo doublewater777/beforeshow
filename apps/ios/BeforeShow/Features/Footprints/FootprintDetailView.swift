@@ -198,6 +198,9 @@ struct FootprintDetailView: View {
                         assetFor: asset(for:),
                         onSelect: { showingAssetKind = $0 }
                     )
+                    FootprintKeepsakeRecords(show: show) { saved in
+                        presentToast(saved ? .success : .failure, message: BSLocalization.text(saved ? "周边已收进柜子" : "照片没有保存，请重试"))
+                    }
                     if show.companionStatus == .confirmed {
                         FootprintCompanionSection(show: show, archive: archive)
                     }

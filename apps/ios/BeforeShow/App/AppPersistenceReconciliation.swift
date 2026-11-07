@@ -222,3 +222,44 @@ func reconcileShowAssetShowBoundary(
     }
     return valid
 }
+
+/// Merch photos share the ShowAssets root; keep their files out of the orphan sweep
+/// and drop records whose show or photo is gone.
+@MainActor
+func reconcileMerchShowBoundary(
+    in modelContext: ModelContext,
+    existingRelativePaths: Set<String>
+) throws -> Set<String> {
+    let showsByID = Dictionary(
+        try modelContext.fetch(FetchDescriptor<Show>()).map { ($0.id, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
+    var valid: Set<String> = []
+    var mutated = false
+    for item in try modelContext.fetch(FetchDescriptor<MerchItem>()) {
+        guard let show = showsByID[item.showID],
+              MerchItem.isValidRelativePath(item.relativePath, showID: item.showID),
+              existingRelativePaths.contains(item.relativePath) else {
+            modelContext.delete(item)
+            mutated = true
+            continue
+        }
+        if item.show?.id != show.id {
+            item.show = show
+            mutated = true
+        }
+        valid.insert(item.relativePath)
+        if let cutout = item.cutoutRelativePath {
+            if MerchItem.isValidRelativePath(cutout, showID: item.showID), existingRelativePaths.contains(cutout) {
+                valid.insert(cutout)
+            } else {
+                item.cutoutRelativePath = nil
+                mutated = true
+            }
+        }
+    }
+    if mutated {
+        try saveModelContextRollingBackOnFailure(modelContext)
+    }
+    return valid
+}

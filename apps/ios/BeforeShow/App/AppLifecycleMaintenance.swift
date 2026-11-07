@@ -156,10 +156,11 @@ func reconcileAllShowAssets(in modelContext: ModelContext) async {
     await ShowAssetMediaStore.shared.acquireCommitGate()
     do {
         let existingRelativePaths = try await ShowAssetMediaStore.shared.verifiedExistingRelativePaths()
-        let valid = try reconcileShowAssetShowBoundary(
+        var valid = try reconcileShowAssetShowBoundary(
             in: modelContext,
             existingRelativePaths: existingRelativePaths
         )
+        valid.formUnion(try reconcileMerchShowBoundary(in: modelContext, existingRelativePaths: existingRelativePaths))
         try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
         await ShowAssetMediaStore.shared.releaseCommitGate()
     } catch {

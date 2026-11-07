@@ -33,19 +33,6 @@ enum ShowCompanionMutationError: Error, Equatable {
     case invalidTransition(from: ShowCompanionStatus, to: ShowCompanionStatus)
 }
 
-/// 艺名 + 头像 URL 的最小单元。`avatarURL == nil` 表示该 slot 未识别。
-/// SwiftData 直接把 `[ArtistSlot]` 存进 `Show.artists`,`ShowDraft` 也用同一形态。
-struct ArtistSlot: Codable, Hashable, Equatable {
-    var name: String
-    var avatarURL: String?
-    /// 识别到的 Apple Music 艺人页链接,详情页点阵容头像直接跳转;未识别为 nil。
-    var appleMusicURL: String? = nil
-    /// 稳定的 Apple Music catalog artist ID；旧数据由轻量 migration 从 URL 回填。
-    var appleMusicArtistID: String? = nil
-    /// 足迹 #01 卡片背景用的代表专辑封面,由 ArtistAlbumArtworkResolver 解析后写回;未解析为 nil。
-    var albumArtworkURL: String? = nil
-}
-
 @Model
 final class Show {
     var id: UUID
@@ -83,6 +70,10 @@ final class Show {
     /// 本机卡片选择：true = 生成过，false = 明确跳过，nil = 升级前旧记录。
     /// 旧的已完成记录按生成过卡片处理，避免升级后改变原来的进入路径。
     var hasGeneratedDispersalCard: Bool? = nil
+    /// 花销：票价与路费都可选；`currencyCode` 为空时按系统地区货币展示。
+    var ticketPrice: Decimal? = nil
+    var travelCost: Decimal? = nil
+    var currencyCode: String? = nil
 
     private var companionStatusRawValue: String?
     private(set) var companionNames: [String] = []
@@ -152,6 +143,9 @@ final class Show {
 
     @Relationship(deleteRule: .cascade, inverse: \Timetable.show)
     var timetable: Timetable?
+
+    @Relationship(deleteRule: .cascade, inverse: \MerchItem.show)
+    var merchItems: [MerchItem] = []
 
     private var changeStatusRawValue: String
 

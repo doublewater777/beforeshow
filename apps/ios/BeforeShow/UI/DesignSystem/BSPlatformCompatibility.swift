@@ -23,6 +23,18 @@ extension View {
         }
     }
 
+    /// Large static glass surface (grouped lists, capsules over artwork): no interactive
+    /// wobble, plus a 0.5pt top highlight so it reads as a pane over the blurred poster.
+    @ViewBuilder
+    func bsGlassPanel<S: InsettableShape>(in shape: S) -> some View {
+        let highlighted = overlay(shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+        if #available(iOS 26, *) {
+            highlighted.glassEffect(.regular, in: shape)
+        } else {
+            highlighted.background(.regularMaterial, in: shape)
+        }
+    }
+
     @ViewBuilder
     func bsGlassID<ID: Hashable & Sendable>(_ id: ID, in namespace: Namespace.ID) -> some View {
         if #available(iOS 26, *) {

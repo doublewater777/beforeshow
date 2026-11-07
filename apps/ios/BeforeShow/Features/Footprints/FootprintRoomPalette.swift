@@ -55,4 +55,33 @@ enum FootprintRoomPalette {
     static let chapterPaper = Color(red: 0.047, green: 0.043, blue: 0.055)
     static let chapterInk = Color(red: 0.961, green: 0.937, blue: 0.886)
     static let chapterDot = Color(red: 0.910, green: 0.780, blue: 0.557)
+
+    // Setlist: a sheet of paper taped to the floor.
+    static let setlistFloor = Color(red: 0.043, green: 0.043, blue: 0.047)
+    static let setlistPaper = Color(red: 0.949, green: 0.937, blue: 0.902)
+    static let setlistInk = Color(red: 0.094, green: 0.094, blue: 0.102)
+    static let tape = Color(red: 0.588, green: 0.588, blue: 0.612)
+    static let highlighter = Color(red: 0.910, green: 0.780, blue: 0.557)
+    // Companions: fabric wristbands with a metal clasp.
+    static let wristbands: [Color] = [
+        Color(red: 0.784, green: 0.208, blue: 0.169),
+        Color(red: 0.184, green: 0.365, blue: 0.620),
+        Color(red: 0.851, green: 0.643, blue: 0.255),
+        Color(red: 0.243, green: 0.490, blue: 0.353),
+        Color(red: 0.420, green: 0.310, blue: 0.592)
+    ]
+    static let wristbandText = Color(red: 0.969, green: 0.957, blue: 0.925)
+    static let clasp = Color(red: 0.902, green: 0.902, blue: 0.918)
+    static let claspShade = Color(red: 0.549, green: 0.549, blue: 0.573)
+    // Merch: a lit wooden display case.
+    static let cabinetRoom = Color(red: 0.043, green: 0.039, blue: 0.035)
+    static let cabinetTop = Color(red: 0.106, green: 0.090, blue: 0.078)
+    static let cabinetBottom = Color(red: 0.071, green: 0.059, blue: 0.051)
+    static let cabinetFrame = Color(red: 0.165, green: 0.137, blue: 0.114)
+    static let cabinetLight = Color(red: 1.0, green: 0.910, blue: 0.745)
+    static let glassShelf = Color(red: 0.863, green: 0.922, blue: 0.941)
+    // Ledger: thermal receipt paper.
+    static let receiptPaper = Color(red: 0.957, green: 0.949, blue: 0.925)
+    static let receiptInk = Color(red: 0.102, green: 0.102, blue: 0.110)
+    static let printerSlot = Color(red: 0.133, green: 0.133, blue: 0.149)
 }

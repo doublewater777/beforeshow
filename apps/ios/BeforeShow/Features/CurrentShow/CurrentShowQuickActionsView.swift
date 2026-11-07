@@ -73,6 +73,15 @@ enum CurrentShowQuickAction: Hashable {
         }
         return embedsRouteInLocation ? actions.filter { $0 != .route } : actions
     }
+    /// 记录清单只接管主按钮没有承载的结束 / 散场入口，其余入口由清单按阶段给出。
+    var recordKind: CurrentShowRecordKind? {
+        switch self {
+        case .endShow: return .endShow
+        case .dispersal(let completed): return .dispersal(completed: completed)
+        case .route, .companion, .ticket, .timetable, .memoryFragments: return nil
+        }
+    }
+
     /// 只移除与页面实际可见操作相同的快捷入口，不依赖文案或推荐候选。
     static func deduplicated(
         _ actions: [Self],
@@ -105,91 +114,5 @@ enum CurrentShowQuickAction: Hashable {
                 }
             }
         }
-    }
-}
-
-struct CurrentShowQuickActionTile: View {
-    let action: CurrentShowQuickAction
-    var companion: CompanionQuickActionPresentation?
-
-    var body: some View {
-
-        VStack(spacing: 7) {
-            if let companion, companion.showsAvatars {
-                CompanionAvatarStack(names: companion.companionNames)
-            } else {
-                Image(systemName: action.iconName)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(BSColor.Stage.accent)
-            }
-            Text(companion?.displayTitle ?? action.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 72)
-        .background(BSColor.Stage.surface.opacity(0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
-        )
-        .overlay(alignment: .topTrailing) {
-            if companion?.displayShowsPendingIndicator == true {
-                Circle()
-                    .fill(BSColor.Stage.accent)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: BSColor.Stage.accent.opacity(0.5), radius: 5)
-                    .padding(11)
-                    .accessibilityHidden(true)
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(companion?.accessibilityLabel ?? action.title)
-    }
-}
-
-private struct CompanionAvatarStack: View {
-    let names: [String]
-
-    private static let maxVisibleOthers = 3
-    private static let palettes: [[Color]] = [
-        [BSColor.Stage.accent, BSColor.Stage.glowBlue],
-        [BSColor.Accent.violet, BSColor.Stage.accent],
-        [BSColor.Accent.warm, BSColor.Accent.violet],
-        [BSColor.Stage.glowBlue, BSColor.Accent.warm]
-    ]
-
-    var body: some View {
-        let visible = Array(CompanionNameList.normalized(names).prefix(Self.maxVisibleOthers))
-        let overflow = max(0, CompanionNameList.normalized(names).count - visible.count)
-        return HStack(spacing: -8) {
-            avatar(BSLocalization.text("我"), colors: Self.palettes[0])
-            ForEach(Array(visible.enumerated()), id: \.offset) { index, name in
-                avatar(initial(name), colors: Self.palettes[(index + 1) % Self.palettes.count])
-            }
-            if overflow > 0 {
-                avatar("+\(overflow)", colors: [BSColor.Stage.muted, BSColor.Stage.dim])
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func initial(_ name: String) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? BSLocalization.text("友") : String(trimmed.prefix(1))
-    }
-
-    private func avatar(_ text: String, colors: [Color]) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(BSColor.Stage.background)
-            .frame(width: 25, height: 25)
-            .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(BSColor.Stage.surface, lineWidth: 2))
     }
 }
