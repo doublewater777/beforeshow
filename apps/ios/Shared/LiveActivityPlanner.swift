@@ -160,7 +160,8 @@ enum LiveActivityPlanner {
                 let upcoming = liveState.upcomingPerformances.first
                 // 场间:计时倒数到下一场开演(staleDate 也随之落在开演时刻)。
                 let start = current?.startsAt ?? upcoming?.startsAt ?? now
-                let baseExpiration = current?.endsAt ?? upcoming?.startsAt
+                // The parallel set ending also makes the content out of date.
+                let baseExpiration = [current?.endsAt ?? upcoming?.startsAt, also?.endsAt].compactMap { $0 }.min()
                 let contentExpiration: Date?
                 if let reminder {
                     contentExpiration = [baseExpiration, reminder.expiresAt].compactMap({ $0 }).min()
@@ -194,6 +195,7 @@ enum LiveActivityPlanner {
                         isFestivalDayActive: true,
                         alsoArtistName: also?.artistName,
                         alsoStageName: also?.stageName,
+                        alsoEndsAt: also?.endsAt,
                         reminderArtistName: reminder?.artistName,
                         reminderStageName: reminder?.stageName,
                         reminderStartsAt: reminder?.startsAt,
