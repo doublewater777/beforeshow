@@ -5,7 +5,6 @@ import AVFoundation
 /// silent switch; they never lease playback.
 final class FootprintSoundPlayer: @unchecked Sendable {
     enum Cue: String, CaseIterable {
-        case needle
         case neon
         case clink
         case breath
@@ -14,7 +13,6 @@ final class FootprintSoundPlayer: @unchecked Sendable {
         var gain: Float {
             switch self {
             case .tear: return 0.5
-            case .needle: return 0.45
             case .neon: return 0.35
             case .clink: return 0.5
             case .breath: return 0.55

@@ -166,7 +166,6 @@ struct FootprintNumberRecord: View {
     var body: some View {
         HStack(spacing: 14) {
             Button {
-                if !isPlaying { FootprintSoundPlayer.shared.play(.needle) }
                 Task { await controller.toggle(song) }
             } label: {
                 FootprintNumberDisc(number: song.number, diameter: diameter, isPlaying: isPlaying, artworkURL: controller.previews[song.number]?.artworkURL)

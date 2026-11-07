@@ -1032,14 +1032,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     func rematch(slotIndex: Int, artist: RecognizedArtist) async {
         guard let show, slotIndex >= 0, slotIndex <= show.artists.count else { return }
         do {
-            var artists = show.artists
-            if slotIndex == artists.count { artists.append(ArtistSlot(name: artist.canonicalName, avatarURL: nil)) }
-            artists[slotIndex].name = artist.canonicalName
-            artists[slotIndex].appleMusicArtistID = artist.id
-            artists[slotIndex].appleMusicURL = artist.appleMusicURL?.absoluteString
-            artists[slotIndex].avatarURL = artist.avatarURL?.absoluteString
-            show.artists = artists
-            show.updatedAt = Date()
+            show.relinkArtist(at: slotIndex, to: artist)
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
             try context.save()
         } catch {

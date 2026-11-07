@@ -173,7 +173,6 @@ struct FootprintRecordWallView: View {
         controller.stopAll()
         selected = number
         guard isUnlocked, let song = FootprintNumberSongs.song(for: number) else { return }
-        FootprintSoundPlayer.shared.play(.needle)
         Task { await controller.toggle(song) }
     }
 
@@ -210,7 +209,6 @@ struct FootprintRecordWallView: View {
         let preview = controller.previews[song.number]
         return HStack(alignment: .top, spacing: 16) {
             Button {
-                if !isPlaying { FootprintSoundPlayer.shared.play(.needle) }
                 Task { await controller.toggle(song) }
             } label: {
                 FootprintNumberDisc(number: song.number, diameter: 112, isPlaying: isPlaying, artworkURL: preview?.artworkURL)

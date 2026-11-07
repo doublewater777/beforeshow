@@ -245,8 +245,6 @@ struct ListeningRoomView: View {
                                 .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
                         }
                     }
-                case .lineup:
-                    ListeningLineupList(room: room, show: show)
                 }
             }
             .presentationDetents([.large])

@@ -9,14 +9,14 @@ struct ListeningPosterTiers<Item> {
     let headliners: [Item]
     let second: [Item]
     let rest: [Item]
-    /// More artists than the poster shows; the full lineup lives behind a link.
+    /// More artists than the folded poster shows; expanding sets them all in the last tier.
     let hasMore: Bool
 
-    init(_ items: [Item]) {
+    init(_ items: [Item], expanded: Bool = false) {
         headliners = Array(items.prefix(Self.headlinerCount))
         second = Array(items.dropFirst(Self.headlinerCount).prefix(Self.secondCount))
         let remaining = Array(items.dropFirst(Self.headlinerCount + Self.secondCount))
-        rest = Array(remaining.prefix(Self.restLimit))
+        rest = expanded ? remaining : Array(remaining.prefix(Self.restLimit))
         hasMore = remaining.count > Self.restLimit
     }
 }
@@ -79,31 +79,5 @@ enum ListeningPickCardPolicy {
     static func needsNewDraw(current: ListeningDisc?, candidateIDs: [String]) -> Bool {
         guard let current else { return true }
         return current.origin == .album && !candidateIDs.contains(current.id)
-    }
-}
-
-struct ListeningLineupSection: Identifiable {
-    let id: String
-    let artists: [ListeningBrowseArtist]
-
-    static func sections(_ artists: [ListeningBrowseArtist], query: String = "") -> [ListeningLineupSection] {
-        let needle = query.trimmingCharacters(in: .whitespaces)
-        let matching = needle.isEmpty ? artists : artists.filter { $0.name.localizedCaseInsensitiveContains(needle) }
-        let grouped = Dictionary(grouping: matching, by: indexLetter)
-        return grouped.keys.sorted { lhs, rhs in
-            lhs == "#" ? false : rhs == "#" ? true : lhs < rhs
-        }.map { key in
-            ListeningLineupSection(id: key, artists: grouped[key, default: []].sorted {
-                $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            })
-        }
-    }
-
-    static func indexLetter(_ artist: ListeningBrowseArtist) -> String {
-        let latin = artist.name.applyingTransform(.toLatin, reverse: false)?
-            .applyingTransform(.stripDiacritics, reverse: false) ?? artist.name
-        guard let first = latin.trimmingCharacters(in: .whitespaces).first?.uppercased(),
-              first.range(of: "^[A-Z]$", options: .regularExpression) != nil else { return "#" }
-        return first
     }
 }

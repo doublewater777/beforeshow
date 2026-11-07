@@ -290,23 +290,6 @@
         }
       }
     },
-    "全部艺人" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Artists"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部藝人"
-          }
-        }
-      }
-    },
     "单曲和 EP" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -681,23 +664,6 @@
         }
       }
     },
-    "搜索艺人" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search artists"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋藝人"
-          }
-        }
-      }
-    },
     "播放中" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -711,6 +677,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "播放中"
+          }
+        }
+      }
+    },
+    "收起" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show less"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起"
           }
         }
       }

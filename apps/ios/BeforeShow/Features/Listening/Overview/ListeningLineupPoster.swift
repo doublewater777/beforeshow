@@ -4,7 +4,6 @@ struct ListeningLineupPoster: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
     let onArtist: (ListeningBrowseArtist) -> Void
-    let onLineup: () -> Void
 
     private var artists: [ListeningBrowseArtist] {
         var seen = Set<String>()
@@ -20,7 +19,7 @@ struct ListeningLineupPoster: View {
                 ListeningPosterName(id: artist.id, name: artist.name, color: nameColor(artist),
                                     accessibilityID: "listening.overview.artist.\(artist.slotIndex)") { onArtist(artist) }
             },
-            onLineup: onLineup
+            expandable: true
         )
     }
 
@@ -43,12 +42,13 @@ struct ListeningPosterLayout: View {
     let show: Show
     var fallbackCoverURL: URL?
     let names: [ListeningPosterName]
-    var onLineup: (() -> Void)?
+    var expandable = false
+    @State private var isExpanded = false
 
     private var coverURL: URL? { show.coverImageURL.flatMap(URL.init(string:)) ?? fallbackCoverURL }
 
     var body: some View {
-        let tiers = ListeningPosterTiers(names)
+        let tiers = ListeningPosterTiers(names, expanded: isExpanded)
         VStack(spacing: BSSpacing.sm) {
             Text(show.name)
                 .font(ListeningOverviewStyle.serif(22))
@@ -58,11 +58,13 @@ struct ListeningPosterLayout: View {
             tier(tiers.headliners, font: .system(size: 34, design: .serif), separator: 22)
             tier(tiers.second, font: ListeningOverviewStyle.caps(16), uppercase: true, separator: 14)
             tier(tiers.rest, font: ListeningOverviewStyle.caps(12), uppercase: true, separator: 10, opacity: 0.62)
-            if tiers.hasMore, let onLineup {
-                Button(action: onLineup) {
+            if tiers.hasMore, expandable {
+                Button {
+                    withAnimation(.snappy) { isExpanded.toggle() }
+                } label: {
                     HStack(spacing: BSSpacing.xs) {
-                        Text(ListeningCopy.format("全部 %d 组艺人", names.count))
-                        Image(systemName: "chevron.right").font(ListeningOverviewStyle.badgeGlyph)
+                        Text(isExpanded ? ListeningCopy.text("收起") : ListeningCopy.format("全部 %d 组艺人", names.count))
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down").font(ListeningOverviewStyle.badgeGlyph)
                     }
                     .font(.system(size: 12, weight: .semibold))
                     .padding(.horizontal, BSSpacing.compact)
@@ -77,7 +79,8 @@ struct ListeningPosterLayout: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.top, BSSpacing.xl)
-        .background(alignment: .bottom) {
+        // Folded, the cover fades down into the room; unfolded, it stays behind the headliners.
+        .background(alignment: isExpanded ? .top : .bottom) {
             // The cover fades out to transparent so it melts into the room's tinted light below.
             Color.clear
                 .frame(height: ListeningOverviewStyle.posterHeight)

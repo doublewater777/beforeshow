@@ -89,6 +89,9 @@ enum CurrentShowQuickAction: Hashable {
                 return true
             case .some(.route):
                 return action != .route
+            case .some(.dispersal):
+                if case .dispersal = action { return false }
+                return true
             case .some(.recommendation(let feature)):
                 switch feature {
                 case .companion: return action != .companion

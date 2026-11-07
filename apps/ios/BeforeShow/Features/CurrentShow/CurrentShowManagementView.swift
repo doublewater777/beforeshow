@@ -329,6 +329,7 @@ struct CurrentShowManagementSection: View {
                 hasEndHandler: canRecordEnd,
                 // The route has its own map module; it never takes the main button.
                 hasRouteHandler: false,
+                hasCompletedDispersal: show.hasCompletedDispersalCeremony,
                 recommendation: recommendation
             )
             : nil
