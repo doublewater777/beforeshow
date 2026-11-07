@@ -75,9 +75,9 @@
       "installDependency": true,
       "triggers": [
         {
-          "name": "everyMinute",
+          "name": "everyFiveMinutes",
           "type": "timer",
-          "config": "0 * * * * * *"
+          "config": "0 */5 * * * * *"
         }
       ],
       "envVariables": {
