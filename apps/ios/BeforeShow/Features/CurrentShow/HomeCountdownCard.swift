@@ -64,7 +64,29 @@ struct HomeCountdownLockup: View {
         .accessibilityElement(children: onEndShow == nil && onOpenRoute == nil ? .combine : .contain)
     }
 
+    @ViewBuilder
     private func tickerRow(_ ticker: Ticker) -> some View {
+        if ticker.value == nil, let headline = ticker.headline {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    if snapshot.phase == .live { HomeLivePulse(reduceMotion: reduceMotion) }
+                    Text(headline)
+                        .font(BSFont.Editorial.serif(34))
+                        .foregroundStyle(ticker.tint)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(ticker.detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(2)
+            }
+        } else {
+            numberRow(ticker)
+        }
+    }
+
+    private func numberRow(_ ticker: Ticker) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: 12) {
             if let value = ticker.value {
                 Text(value)
@@ -92,8 +114,7 @@ struct HomeCountdownLockup: View {
                         .foregroundStyle(BSColor.Stage.foreground)
                 }
                 Text(ticker.detail)
-                    .font(BSFont.Editorial.caps(11.5))
-                    .tracking(1.6)
+                    .font(.system(size: 12.5))
                     .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(2)
             }
@@ -105,8 +126,13 @@ struct HomeCountdownLockup: View {
     private func ticker(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> Ticker {
         let calendar = show.timingCalendar()
         let start = timeState.effectiveStartTime
-        let startLine = start.map {
-            BSStageDateLine.text(start: $0, calendar: calendar, end: nil, endCalendar: calendar, showsYear: false, startTime: $0)
+        let startLine = start.map { date -> String in
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.locale = .current
+            formatter.setLocalizedDateFormatFromTemplate("MMMdEEEHHmm")
+            return formatter.string(from: date)
         } ?? ""
         let tint = statusColor(for: phase, timeState: timeState)
         switch phase {
@@ -121,11 +147,11 @@ struct HomeCountdownLockup: View {
                 return Ticker(value: String(format: "%02d", days), unit: BSLocalization.text("天后"), detail: detail, tint: timeState.isDatedPostponement ? tint : BSColor.Stage.heroIvory)
             }
             if total >= 3_600 {
-                return Ticker(value: String(format: "%d:%02d", total / 3_600, (total % 3_600) / 60), unit: BSLocalization.text("后开场"), detail: detail, tint: BSColor.Stage.heroWarmGold)
+                return Ticker(value: "\(total / 3_600)", unit: BSLocalization.format("小时 %lld 分后开场", (total % 3_600) / 60), detail: detail, tint: BSColor.Stage.heroWarmGold)
             }
             return Ticker(value: "\(max(1, Int((Double(total) / 60).rounded(.up))))", unit: BSLocalization.text("分钟后开场"), detail: detail, tint: BSColor.Stage.accent)
         case .live:
-            return Ticker(value: Self.elapsedText(since: start, now: now), unit: BSLocalization.text("已开场"), detail: startLine, tint: BSColor.Stage.liveTitle)
+            return Ticker(headline: BSLocalization.text("正在演出"), unit: "", detail: BSLocalization.format("已开场 %@", Self.elapsedText(since: start, now: now)), tint: BSColor.Stage.liveTitle)
         case .ended:
             if timeState.kind == .dayEnded {
                 return Ticker(headline: BSLocalization.text("今天结束了"), unit: "", detail: dayEndedCopy(timeState), tint: BSColor.Stage.foreground)
@@ -285,9 +311,9 @@ struct HomeCountdownLockup: View {
     }
 
     private static func elapsedText(since start: Date?, now: Date) -> String {
-        guard let start else { return "0:00" }
-        let total = max(0, Int(now.timeIntervalSince(start)))
-        return String(format: "%d:%02d", total / 3_600, (total % 3_600) / 60)
+        let total = max(0, Int(now.timeIntervalSince(start ?? now)))
+        let hours = total / 3_600, minutes = (total % 3_600) / 60
+        return hours > 0 ? BSLocalization.format("%lld 小时 %lld 分", hours, minutes) : BSLocalization.format("%lld 分钟", minutes)
     }
 
     private static func originalDateText(for show: Show, calendar: Calendar) -> String {

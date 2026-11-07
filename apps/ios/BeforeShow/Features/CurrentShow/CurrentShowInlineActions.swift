@@ -32,6 +32,7 @@ struct CurrentShowActionModules: View {
 
     private enum Row: Hashable {
         case wide(CurrentShowQuickAction)
+        case strip(CurrentShowQuickAction)
         case pair(CurrentShowQuickAction, CurrentShowQuickAction?)
     }
 
@@ -49,8 +50,8 @@ struct CurrentShowActionModules: View {
                 pending = action
             }
         }
-        // A lone square takes the whole row instead of leaving half of it empty.
-        if let pending { rows.append(.wide(pending)) }
+        // A lone square becomes a slim strip instead of a half-empty row.
+        if let pending { rows.append(.strip(pending)) }
         return rows
     }
 
@@ -67,6 +68,8 @@ struct CurrentShowActionModules: View {
                 switch row {
                 case .wide(let action):
                     module(action)
+                case .strip(let action):
+                    stripModule(action)
                 case .pair(let first, let second):
                     HStack(spacing: 12) {
                         module(first)
@@ -94,6 +97,44 @@ struct CurrentShowActionModules: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .bsGlassCard(cornerRadius: 24, tint: action == .endShow ? BSColor.Stage.live.opacity(0.12) : nil)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(action == .companion ? companion.accessibilityLabel : action.title)
+    }
+
+    private func stripModule(_ action: CurrentShowQuickAction) -> some View {
+        let value: String = switch action {
+        case .companion: companion.showsAvatars ? (companion.companionName ?? companion.displayTitle) : companion.displayTitle
+        case .memoryFragments: show.memoryFragments.isEmpty ? BSLocalization.text("记一段") : BSLocalization.format("%lld 段", show.memoryFragments.count)
+        case .dispersal(let completed): BSLocalization.text(completed ? "已记下" : "这一场怎么样")
+        default: ""
+        }
+        return Button { perform(action) } label: {
+            HStack(spacing: 12) {
+                if action == .companion, companion.showsAvatars {
+                    CompanionAvatarStack(names: companion.companionNames)
+                } else {
+                    Image(systemName: action.iconName)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(BSColor.Stage.foreground.opacity(0.85))
+                        .frame(width: 30)
+                }
+                Text(action.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                Spacer(minLength: 8)
+                Text(value)
+                    .font(.system(size: 12))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(BSColor.Stage.dim)
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 60)
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .bsGlassCard(cornerRadius: 24)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(action == .companion ? companion.accessibilityLabel : action.title)
