@@ -2570,28 +2570,6 @@
         }
       }
     },
-    "。还有 3 小时，准备出门，路上让这些歌陪你出发。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": ". Three hours to go. Get ready to head out with some music for the journey."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "。还有 3 小时，准备出门，路上让这些歌陪你出发。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "。還有 3 小時，準備出門，路上讓這些歌陪你出發。"
-          }
-        }
-      }
-    },
     "「夜航」巡演 · 上海站": {
       "localizations": {
         "en": {
@@ -25453,6 +25431,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "已開場 %@"
+          }
+        }
+      }
+    },
+    "。记得留好出门时间。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ". Leave yourself time to get there."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "。记得留好出门时间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "。記得留好出門時間。"
           }
         }
       }

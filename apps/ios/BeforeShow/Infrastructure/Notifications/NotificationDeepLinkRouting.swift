@@ -88,9 +88,9 @@ final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDe
         #if DEBUG
         completionHandler([.banner, .sound, .list])
         #else
-        // Apple recommends handling foreground notifications in-app instead of
-        // presenting a duplicate system alert while the user is already here.
-        completionHandler([])
+        // The in-app page already shows the rest; only the two ringing reminders
+        // (doors in 3 hours, a wanted set in 15 minutes) still banner while the app is open.
+        completionHandler(notification.request.content.interruptionLevel == .timeSensitive ? [.banner, .sound, .list] : [])
         #endif
     }
 }

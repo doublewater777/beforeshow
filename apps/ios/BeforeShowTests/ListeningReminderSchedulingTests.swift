@@ -149,7 +149,7 @@ final class ListeningReminderSchedulingTests: XCTestCase {
             XCTAssertEqual(evening.destination, .listen)
             XCTAssertEqual(road.destination, .route)
             XCTAssertEqual(road.makeNotificationRequest().content.categoryIdentifier, "listeningReminder")
-            XCTAssertTrue(road.body.hasSuffix(BSLocalization.text("。还有 3 小时，准备出门，路上让这些歌陪你出发。")))
+            XCTAssertTrue(road.body.hasSuffix(BSLocalization.text("。还有 3 小时，准备出门。")))
             XCTAssertFalse(requests.contains { $0.milestone == .listeningReminder && $0.fireDate >= date("2026-10-14T00:00:00Z") })
         }
     }
