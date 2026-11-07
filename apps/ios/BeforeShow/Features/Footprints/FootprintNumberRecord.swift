@@ -18,6 +18,8 @@ final class FootprintNumberSongPlayer {
     private(set) var previews: [Int: SongPreview] = [:]
     /// The deck the songs went to, once one did.
     private(set) var room: ListeningRoomCoordinator?
+    /// The deck itself, even before this session sent a song to it (a record restored after relaunch).
+    private var deckRoom: ListeningRoomCoordinator? { room ?? ListeningRoomSessionStore.shared.room }
     /// Bumped by every tap and stop; a request that is no longer the latest never plays.
     private var request = 0
 
@@ -55,18 +57,24 @@ final class FootprintNumberSongPlayer {
     }
 
     private func isOnDeck(_ number: Int) -> Bool {
-        room?.loadedDisc?.id == Self.discID(number)
+        deckRoom?.loadedDisc?.id == Self.discID(number)
     }
 
     func isPlaying(_ number: Int) -> Bool {
-        if isOnDeck(number) { return room?.isPlaying == true }
+        if isOnDeck(number) { return deckRoom?.isPlaying == true }
         return currentNumber == number && player.phase.isActive
     }
 
     /// Paused partway through: tapping again picks up from here.
     func isPaused(_ number: Int) -> Bool {
-        if isOnDeck(number) { return room?.isPlaying == false }
+        if isOnDeck(number) { return deckRoom?.wantsPlayback == false }
         return currentNumber == number && !player.phase.isActive && !player.hasEnded
+    }
+
+    /// Fetching the song, or the deck has it but sound hasn't started yet.
+    func isPreparing(_ number: Int) -> Bool {
+        if loadingNumber == number { return true }
+        return isOnDeck(number) && deckRoom?.wantsPlayback == true && deckRoom?.isPlaying == false
     }
 
     /// The preview played through; its owner lets the audio go.
@@ -87,8 +95,22 @@ final class FootprintNumberSongPlayer {
         }
     }
 
+    /// Plays this record; one already playing just keeps going (opening its card never pauses it).
+    func start(_ song: FootprintNumberSong) async {
+        if isOnDeck(song.number), let room = deckRoom {
+            if !room.wantsPlayback { room.playPause() }
+            return
+        }
+        guard !isPlaying(song.number), loadingNumber != song.number else { return }
+        await toggle(song)
+    }
+
     func toggle(_ song: FootprintNumberSong) async {
-        if isOnDeck(song.number), let room {
+        if loadingNumber == song.number {
+            stop(song.number)
+            return
+        }
+        if isOnDeck(song.number), let room = deckRoom {
             room.playPause()
             return
         }
@@ -116,7 +138,11 @@ final class FootprintNumberSongPlayer {
             self.room = room
             player.stop()
             currentNumber = nil
-            room.loadDisc(Self.disc(for: song, preview: preview))
+            if room.loadedDisc?.id == Self.discID(song.number) {
+                if !room.wantsPlayback { room.playPause() }
+            } else {
+                room.loadDisc(Self.disc(for: song, preview: preview))
+            }
             return
         }
         do {
@@ -209,7 +235,7 @@ struct FootprintNumberSongStatus: View {
 
     var body: some View {
         Group {
-            if controller.loadingNumber == number {
+            if controller.isPreparing(number) {
                 Text(BSLocalization.text("正在准备…"))
             } else if controller.failedNumber == number {
                 Text(BSLocalization.text("暂时无法播放"))

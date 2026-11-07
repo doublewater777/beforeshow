@@ -163,17 +163,20 @@ struct FootprintRecordWallView: View {
             : BSLocalization.format("第 %lld 张数字唱片", number))
     }
 
-    /// Picking an unlocked record drops the needle straight away; picking it again closes it.
+    /// Picking a record plays it (one already playing keeps going); picking it again pauses or resumes.
+    /// The card closes only with its ×, and the music carries on.
     private func pick(_ number: Int, isUnlocked: Bool) {
+        guard isUnlocked, let song = FootprintNumberSongs.song(for: number) else {
+            selected = selected == number ? nil : number
+            return
+        }
         if selected == number {
-            selected = nil
-            controller.stop(number)
+            Task { await controller.toggle(song) }
             return
         }
         controller.stopAll()
         selected = number
-        guard isUnlocked, let song = FootprintNumberSongs.song(for: number) else { return }
-        Task { await controller.toggle(song) }
+        Task { await controller.start(song) }
     }
 
     // MARK: Card
@@ -189,7 +192,6 @@ struct FootprintRecordWallView: View {
                 }
                 Spacer(minLength: 0)
                 BSRoundIconButton(systemName: "xmark", label: BSLocalization.text("关闭")) {
-                    controller.stop(number)
                     selected = nil
                 }
             }
@@ -234,7 +236,19 @@ struct FootprintRecordWallView: View {
                         .foregroundStyle(BSColor.Stage.dim)
                         .lineLimit(1)
                 }
-                FootprintNumberSongStatus(number: song.number)
+                HStack(spacing: 8) {
+                    Button { Task { await controller.toggle(song) } } label: {
+                        Image(systemName: isPlaying || controller.isPreparing(song.number) ? "pause.fill" : "play.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(BSColor.Stage.background)
+                            .frame(width: 28, height: 28)
+                            .background(BSColor.Stage.foreground, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isPlaying ? BSLocalization.text("暂停") : BSLocalization.text("播放"))
+                    FootprintNumberSongStatus(number: song.number)
+                }
+                .padding(.top, 6)
                 HStack(spacing: 8) {
                     Button { detailTarget = FootprintDetailDestination(show: show) } label: {
                         Text(BSLocalization.format("第 %lld 场 · %@", song.number, show.name))
