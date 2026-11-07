@@ -4,17 +4,6 @@ import XCTest
 final class CurrentShowLiveActionTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 2_000_000_000)
 
-    func testExpandedCoverIsRememberedOnlyForTheShowThatChoseIt() {
-        let show = UUID()
-        let other = UUID()
-
-        let stored = CurrentShowCoverPreference.toggled(storedShowID: "", showID: show)
-        XCTAssertTrue(CurrentShowCoverPreference.isExpanded(storedShowID: stored, showID: show))
-        XCTAssertFalse(CurrentShowCoverPreference.isExpanded(storedShowID: stored, showID: other))
-        XCTAssertEqual(CurrentShowCoverPreference.toggled(storedShowID: stored, showID: show), "")
-        XCTAssertEqual(CurrentShowCoverPreference.toggled(storedShowID: stored, showID: other), other.uuidString)
-    }
-
     func testHomeLiveTimetableUsesFestivalTimeZoneBeforeOpening() throws {
         let day = Date(timeIntervalSince1970: 1790956800) // October 3, Taipei midnight.
         let show = try makeTimetableShow(on: day)
@@ -83,7 +72,7 @@ final class CurrentShowLiveActionTests: XCTestCase {
 
     func testQuickActionsKeepEndShowThroughoutLivePhase() {
         XCTAssertEqual(
-            CurrentShowQuickAction.actions(for: .live).first,
+            CurrentShowQuickAction.actions(for: .live).last,
             .endShow
         )
         XCTAssertTrue(
@@ -105,7 +94,7 @@ final class CurrentShowLiveActionTests: XCTestCase {
         )
         XCTAssertEqual(unfinished.first, .dispersal(completed: false))
         XCTAssertEqual(unfinished, [
-            .dispersal(completed: false), .memoryFragments, .companion, .ticket, .timetable
+            .dispersal(completed: false), .memoryFragments, .companion, .timetable, .ticket
         ])
 
         let completed = CurrentShowQuickAction.actions(
@@ -115,7 +104,7 @@ final class CurrentShowLiveActionTests: XCTestCase {
             hasCompletedDispersalCeremony: true
         )
         XCTAssertEqual(completed, [
-            .dispersal(completed: true), .memoryFragments, .companion, .ticket, .timetable
+            .dispersal(completed: true), .memoryFragments, .companion, .timetable, .ticket
         ])
 
         let archived = CurrentShowQuickAction.actions(
@@ -158,22 +147,6 @@ final class CurrentShowLiveActionTests: XCTestCase {
         XCTAssertEqual(filtered(nil), actions)
     }
 
-    func testInlineLiveTimetableIsDeduplicatedWithoutHidingMemoryFragments() {
-        let actions = CurrentShowQuickAction.actions(for: .live, embedsRouteInLocation: true)
-        let filtered = CurrentShowQuickAction.deduplicated(
-            actions,
-            primaryAction: nil,
-            hasInlineTimetableEntry: true
-        )
-        XCTAssertFalse(filtered.contains(.timetable))
-        XCTAssertTrue(filtered.contains(.memoryFragments))
-        XCTAssertTrue(filtered.contains(.endShow))
-        XCTAssertEqual(
-            CurrentShowQuickAction.deduplicated(actions, primaryAction: nil),
-            actions
-        )
-    }
-
     func testPostShowRetentionPreservesTimetableExceptWhenBannerOpensSameSheet() {
         let actions = CurrentShowQuickAction.actions(
             for: .ended,
@@ -202,7 +175,7 @@ final class CurrentShowLiveActionTests: XCTestCase {
             CurrentShowQuickAction.actions(
                 for: .live,
                 embedsRouteInLocation: true
-            ).first,
+            ).last,
             .endShow
         )
         XCTAssertFalse(

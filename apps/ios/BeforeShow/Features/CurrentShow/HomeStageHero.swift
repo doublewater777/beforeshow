@@ -11,49 +11,90 @@ struct HomeStageHero: View {
     var onChooseVideo: (() -> Void)? = nil
     /// How far the stage reaches up past its slot, behind the page header and status bar.
     var topExtension: CGFloat = 0
+    /// Festival timetable live: the screens carry the acts instead of the poster.
+    var screens: HomeStageScreens? = nil
+    var livePhase: LiveModePhase? = nil
+    var timetable: Timetable? = nil
+    var avatars: TimetableArtistAvatarStore? = nil
+    var onOpenTimetable: () -> Void = {}
+    var onFocus: (UUID) -> Void = { _ in }
 
     @State private var lights = BSStageLights.fallback
     @State private var powered = false
 
     var body: some View {
-        BSStageScene(colors: lights.map(\.color), lighting: lighting, powered: powered, height: 380 + topExtension) {
-            HomeHeroStage(
-                show: show,
-                snapshot: snapshot,
-                coverWidth: 168,
-                isPlaybackActive: isPlaybackActive,
-                reduceMotion: reduceMotion,
-                isImportingDynamicCover: isImportingDynamicCover,
-                onChooseVideo: onChooseVideo,
-                opensDetail: true,
-                onStage: true
-            )
+        BSStageScene(colors: lights.map(\.color), lighting: lighting, powered: powered, height: 336 + topExtension) {
+            if let screens, let timetable, let avatars {
+                HomeStageScreenWall(
+                    screens: screens,
+                    timetable: timetable,
+                    avatars: avatars,
+                    mainSize: CGSize(width: Self.coverWidth, height: Self.coverWidth * 4 / 3),
+                    onOpenTimetable: onOpenTimetable,
+                    onFocus: onFocus
+                )
+            } else {
+                HomeHeroStage(
+                    show: show,
+                    snapshot: snapshot,
+                    coverWidth: Self.coverWidth,
+                    isPlaybackActive: isPlaybackActive,
+                    reduceMotion: reduceMotion,
+                    isImportingDynamicCover: isImportingDynamicCover,
+                    onChooseVideo: onChooseVideo,
+                    opensDetail: true,
+                    onStage: true
+                )
+            }
         }
         .padding(.top, -topExtension)
-        // Keyed by show as well as cover: a different show never keeps the last one's colours.
-        .task(id: "\(show.id)|\(show.coverImageURL ?? "")") {
-            lights = BSStageLights.fallback
-            if let link = show.coverImageURL, let url = URL(string: link),
+        // Keyed by show and by what the main screen shows: lights follow the poster, or the act on stage.
+        .task(id: "\(show.id)|\(lightSource?.absoluteString ?? "")") {
+            if let url = lightSource,
                let image = await ShowCoverImageCache.shared.image(from: url) {
                 let picked = await BSStageLights.sampled(from: image)
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: 0.6)) { lights = picked }
+            } else {
+                lights = BSStageLights.fallback
             }
             withAnimation(reduceMotion ? nil : .easeIn(duration: 0.08).delay(0.25)) { powered = true }
         }
     }
 
+    private static let coverWidth: CGFloat = 156
+
+    private var lightSource: URL? {
+        if let screens, let timetable, let avatars {
+            let perf = screens.main.performance
+            return ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName))
+        }
+        return show.coverImageURL.flatMap(URL.init(string:))
+    }
+
     private var lighting: BSStageLighting {
+        switch livePhase {
+        case .active?:
+            // On stage the rig runs full; between sets one preset holds while the crew changes over.
+            if case .live? = screens?.main { return .show(energy: 1) }
+            return .show(energy: 0.15)
+        case .upcoming?:
+            return .show(energy: 0.4)
+        case .dayEnded?, .fullyEnded?:
+            return .house
+        case nil:
+            break
+        }
         switch snapshot.phase {
         case .pre, .live:
-            .show(energy: HomeStageEnergy.energy(
+            return .show(energy: HomeStageEnergy.energy(
                 phase: snapshot.phase,
                 start: snapshot.timeState.effectiveStartTime ?? show.effectiveDate,
                 now: snapshot.now,
                 calendar: show.timingCalendar()
             ))
-        case .ended: .house
-        case .inactive: snapshot.timeState.kind == .postponed ? .ghost : .dark
+        case .ended: return .house
+        case .inactive: return snapshot.timeState.kind == .postponed ? .ghost : .dark
         }
     }
 }

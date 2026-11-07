@@ -25,6 +25,8 @@ final class ListeningDeck {
 
     @ObservationIgnored var onCursorChange: (String) -> Void = { _ in }
     @ObservationIgnored var onTransportChange: () -> Void = {}
+    /// The last song of the loaded records ran out on its own (not a stop or a skip).
+    @ObservationIgnored var onFinish: () -> Void = {}
     @ObservationIgnored var onProgress: (TimeInterval) -> Void = { _ in }
     @ObservationIgnored var onEvidence: (ListeningPlaybackEvidenceDrainResult, _ immediate: Bool) -> Void = { _, _ in }
     @ObservationIgnored var onFailure: () -> Void = {}
@@ -385,6 +387,7 @@ final class ListeningDeck {
         }
         if change.ended {
             returnToFirstTrack()
+            onFinish()
             return
         }
         // The player owns which song is current, except while our own

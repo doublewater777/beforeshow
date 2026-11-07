@@ -15,12 +15,12 @@ struct CurrentShowFollowUpSummary: View {
             HStack(alignment: .firstTextBaseline) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(BSLocalization.text("还有"))
-                        .font(.system(size: 11, weight: .semibold))
-                        .tracking(1.3)
-                        .foregroundStyle(BSColor.Stage.muted)
+                        .font(BSFont.Editorial.caps(13))
+                        .tracking(1.5)
+                        .foregroundStyle(BSColor.Stage.foreground)
                     Text(BSLocalization.format("%lld 场", shows.count))
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(BSColor.Stage.dim)
+                        .font(BSFont.Editorial.serif(15))
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
 
                 Spacer(minLength: 8)
@@ -31,8 +31,8 @@ struct CurrentShowFollowUpSummary: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .semibold))
                     }
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.accent)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.muted)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(BSLocalization.text("全部现场"))
@@ -109,8 +109,8 @@ struct CurrentShowFollowUpSummary: View {
             Spacer(minLength: 6)
 
             Text(distanceText(to: show))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.accent)
+                .font(BSFont.Editorial.serif(15))
+                .foregroundStyle(BSColor.Stage.foreground.opacity(0.85))
                 .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: true, vertical: false)
         }

@@ -140,6 +140,10 @@ enum BSFont {
 
     /// 杂志式排版:Bodoni 数字 + 宋体标题,只用于散场记忆。两者都是 iOS 系统字体。
     enum Editorial {
+        /// Listening's voice: serif italic titles and numbers, condensed caps labels.
+        static func serif(_ size: CGFloat) -> Font { .system(size: size, weight: .regular, design: .serif).italic() }
+        static func caps(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .default).width(.condensed) }
+
         static func numerals(size: CGFloat, italic: Bool = false) -> Font {
             .custom(italic ? "BodoniSvtyTwoITCTT-BookIta" : "BodoniSvtyTwoITCTT-Book", fixedSize: size)
         }

@@ -69,11 +69,15 @@ struct ListeningArtistPage: View {
                 .frame(maxWidth: .infinity)
                 .clipped()
             LinearGradient(colors: [.clear, BSColor.Stage.background], startPoint: .center, endPoint: .bottom)
-            Text(artist.name)
-                .font(ListeningOverviewStyle.serif(44))
-                .lineLimit(2)
-                .minimumScaleFactor(0.6)
-                .padding(.horizontal, BSSpacing.roomy)
+            HStack(alignment: .bottom, spacing: BSSpacing.md) {
+                Text(artist.name)
+                    .font(ListeningOverviewStyle.serif(44))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                Spacer(minLength: 0)
+                if !artist.albums.isEmpty { shuffleButton(artist) }
+            }
+            .padding(.horizontal, BSSpacing.roomy)
         }
         .frame(height: ListeningOverviewStyle.artistHeroHeight)
     }
@@ -109,6 +113,24 @@ struct ListeningArtistPage: View {
             }
         }
         .padding(.horizontal, BSSpacing.roomy)
+    }
+
+    /// Plays the artist's records whole, one after another, in an order you don't get to see.
+    private func shuffleButton(_ artist: ListeningBrowseArtist) -> some View {
+        let isOn = room.isShuffling(artist.id)
+        return Button {
+            room.shuffleDiscography(of: artist.id, discs: artist.albums)
+        } label: {
+            Label(BSLocalization.text(isOn ? "换一张" : "随机播放"), systemImage: isOn ? "waveform" : "shuffle")
+                .font(ListeningOverviewStyle.buttonLabel)
+                .foregroundStyle(BSColor.Stage.background)
+                .padding(.horizontal, BSSpacing.md)
+                .frame(height: ListeningOverviewStyle.pillHeight)
+                .background(Capsule().fill(BSColor.Stage.foreground))
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 6)
+        .accessibilityIdentifier("listening.artist.shuffle")
     }
 
     private func play(_ disc: ListeningDisc) {

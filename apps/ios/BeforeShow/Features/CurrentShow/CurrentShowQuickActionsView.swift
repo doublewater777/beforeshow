@@ -49,11 +49,11 @@ enum CurrentShowQuickAction: Hashable {
         let actions: [Self]
         switch phase {
         case .pre:
-            actions = [.route, .ticket, .timetable, .companion, .memoryFragments]
+            actions = [.route, .timetable, .companion, .memoryFragments, .ticket]
         case .live:
-            var live: [Self] = [.companion, .memoryFragments, .route, .ticket, .timetable]
+            var live: [Self] = [.memoryFragments, .companion, .route, .timetable, .ticket]
             if canRecordEnd {
-                live.insert(.endShow, at: 0)
+                live.append(.endShow)
             }
             actions = live
         case .ended:
@@ -62,26 +62,23 @@ enum CurrentShowQuickAction: Hashable {
                     .dispersal(completed: hasCompletedDispersalCeremony),
                     .memoryFragments,
                     .companion,
-                    .ticket,
-                    .timetable
+                    .timetable,
+                    .ticket
                 ]
             } else {
-                actions = [.memoryFragments, .companion, .route, .ticket, .timetable]
+                actions = [.memoryFragments, .companion, .route, .timetable, .ticket]
             }
         case .inactive:
-            actions = [.route, .companion, .ticket, .timetable, .memoryFragments]
+            actions = [.route, .companion, .timetable, .memoryFragments, .ticket]
         }
         return embedsRouteInLocation ? actions.filter { $0 != .route } : actions
     }
     /// 只移除与页面实际可见操作相同的快捷入口，不依赖文案或推荐候选。
     static func deduplicated(
         _ actions: [Self],
-        primaryAction: HomeCountdownLockup.PrimaryAction?,
-        hasInlineTimetableEntry: Bool = false
+        primaryAction: HomeCountdownLockup.PrimaryAction?
     ) -> [Self] {
         actions.filter { action in
-            // 现场模式显示「完整时刻表」，即使它不是推荐主操作也不重复展示。
-            if hasInlineTimetableEntry && action == .timetable { return false }
             switch primaryAction {
             case .some(.end(live: _)):
                 return action != .endShow
@@ -108,51 +105,7 @@ enum CurrentShowQuickAction: Hashable {
     }
 }
 
-struct CurrentShowQuickActionTile: View {
-    let action: CurrentShowQuickAction
-    var companion: CompanionQuickActionPresentation?
-
-    var body: some View {
-
-        VStack(spacing: 7) {
-            if let companion, companion.showsAvatars {
-                CompanionAvatarStack(names: companion.companionNames)
-            } else {
-                Image(systemName: action.iconName)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(BSColor.Stage.accent)
-            }
-            Text(companion?.displayTitle ?? action.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 72)
-        .background(BSColor.Stage.surface.opacity(0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
-        )
-        .overlay(alignment: .topTrailing) {
-            if companion?.displayShowsPendingIndicator == true {
-                Circle()
-                    .fill(BSColor.Stage.accent)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: BSColor.Stage.accent.opacity(0.5), radius: 5)
-                    .padding(11)
-                    .accessibilityHidden(true)
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(companion?.accessibilityLabel ?? action.title)
-    }
-}
-
-private struct CompanionAvatarStack: View {
+struct CompanionAvatarStack: View {
     let names: [String]
 
     private static let maxVisibleOthers = 3
