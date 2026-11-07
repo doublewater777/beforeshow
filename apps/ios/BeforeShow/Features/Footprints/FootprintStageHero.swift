@@ -9,6 +9,8 @@ struct FootprintStageHero: View {
     let canOpenCover: Bool
     let coverTransition: Namespace.ID
     let onOpenCover: () -> Void
+    /// How far the stage reaches up behind the floating navigation buttons.
+    var topExtension: CGFloat = 0
 
     @State private var lights = BSStageLights.fallback
     @State private var powered = false
@@ -25,8 +27,9 @@ struct FootprintStageHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BSStageScene(colors: colors, lighting: .show(energy: 1), powered: powered) { ledWall }
+            BSStageScene(colors: colors, lighting: .show(energy: 1), powered: powered, height: 380 + topExtension) { ledWall }
                 .padding(.horizontal, -BSSpacing.roomy)
+                .padding(.top, -topExtension)
             info.padding(.top, 18)
             BSStageLineupChips(
                 entries: FootprintStagePolicy.reunions(for: show, in: archive.shows).map { .init(name: $0.name, nth: $0.nth) },

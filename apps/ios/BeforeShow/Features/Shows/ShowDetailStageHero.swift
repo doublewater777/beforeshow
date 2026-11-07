@@ -11,6 +11,8 @@ struct ShowDetailStageHero: View {
     let reunions: [BSStageLineupChips.Entry]
     let coverTransition: Namespace.ID
     let onOpenCover: () -> Void
+    /// How far the stage reaches up behind the floating navigation buttons.
+    var topExtension: CGFloat = 0
 
     @State private var lights = BSStageLights.fallback
     @State private var powered = false
@@ -20,12 +22,13 @@ struct ShowDetailStageHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BSStageScene(colors: colors, lighting: lighting, powered: powered, height: 344) {
+            BSStageScene(colors: colors, lighting: lighting, powered: powered, height: 344 + topExtension) {
                 ledWall
             } lip: {
                 clock
             }
             .padding(.horizontal, -BSSpacing.roomy)
+            .padding(.top, -topExtension)
             info.padding(.top, 18)
             BSStageLineupChips(entries: reunions, accent: colors[1], onOpen: openArtist)
                 .padding(.top, 14)

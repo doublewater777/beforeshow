@@ -146,6 +146,13 @@ struct FootprintDetailView: View {
     }
 
     var body: some View {
+        GeometryReader { proxy in
+            content(topInset: proxy.safeAreaInsets.top)
+        }
+    }
+
+    @ViewBuilder
+    private func content(topInset: CGFloat) -> some View {
         ZStack {
             footprintBackground
                 .task(id: show.id) { markFootprintRecommendationHandled() }
@@ -162,7 +169,8 @@ struct FootprintDetailView: View {
                         identity: identity,
                         canOpenCover: hasViewableCover,
                         coverTransition: coverTransition,
-                        onOpenCover: openCover
+                        onOpenCover: openCover,
+                            topExtension: topInset
                     )
                     FootprintDispersalRitualSection(
                         rating: show.rating,
@@ -207,10 +215,12 @@ struct FootprintDetailView: View {
                 .padding(.top, BSSpacing.sm)
                 .padding(.bottom, BSSpacing.xl)
             }
-                .bsNavigationScrollEdge()
+                .bsStageNavigationChrome()
             }
         }
+        // The stage carries the page; the bar keeps only its buttons. The title still names the page for Back.
         .navigationTitle(BSLocalization.text("足迹详情"))
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {

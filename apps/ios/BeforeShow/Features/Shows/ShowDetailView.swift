@@ -62,6 +62,13 @@ struct ShowDetailView: View {
     }
 
     var body: some View {
+        GeometryReader { proxy in
+            content(topInset: proxy.safeAreaInsets.top)
+        }
+    }
+
+    @ViewBuilder
+    private func content(topInset: CGFloat) -> some View {
         ZStack {
             BSColor.Stage.background
                 .ignoresSafeArea()
@@ -80,7 +87,8 @@ struct ShowDetailView: View {
                             reunions: ShowDetailStagePolicy.reunions(for: show, among: shows, now: Date())
                                 .map { .init(name: $0.name, nth: $0.nth) },
                             coverTransition: coverTransition,
-                            onOpenCover: { isShowingCoverPreview = true }
+                            onOpenCover: { isShowingCoverPreview = true },
+                            topExtension: topInset
                         )
                         ShowDetailKit(
                             isAfterShow: stageMood == .ended,
@@ -108,11 +116,13 @@ struct ShowDetailView: View {
                     .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSSpacing.xl)
                 }
-                .bsNavigationScrollEdge()
+                .bsStageNavigationChrome()
             }
         }
         .bsToastOverlay(toast, bottomPadding: 90)
+        // The stage carries the page; the bar keeps only its buttons. The title still names the page for Back.
         .navigationTitle(BSLocalization.text("现场详情"))
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
