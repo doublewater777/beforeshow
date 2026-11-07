@@ -1,15 +1,9 @@
 import SwiftUI
 
-/// Top bar of the current tab. In live mode the large "当前" title gives way to
-/// the show's identity: the cover, collapsed to a 3:4 thumbnail, plus its status.
-/// Tapping it expands the cover back; while the show is still live, the status chip
-/// beside "当前" returns to live mode.
+/// Top bar of the current tab: "当前", the weather, and the live chip while a festival timetable runs.
 struct CurrentShowHomeHeader: View {
     let show: Show
     let live: LiveModeState?
-    let isLiveLayout: Bool
-    let coverNamespace: Namespace.ID
-    let onToggleCover: () -> Void
     let onOpenSettings: () -> Void
     let onAddShow: () -> Void
     var weather: ShowWeatherDTO? = nil
@@ -17,54 +11,18 @@ struct CurrentShowHomeHeader: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let live, isLiveLayout {
-                Button(action: onToggleCover) {
-                    HStack(spacing: 12) {
-                        ShowCoverImageView(
-                            urlString: show.coverImageURL,
-                            aspectRatio: 3.0 / 4.0,
-                            contentMode: .fill,
-                            enforcesAspectRatio: false,
-                            cornerRadius: 10,
-                            restoresPersistedImageOnFirstFrame: true
-                        )
-                        .frame(width: 42, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(0.12), lineWidth: 1))
-                        .matchedGeometryEffect(id: "home-cover", in: coverNamespace)
+            Text(BSLocalization.text("当前"))
+                .font(.system(size: 32, weight: .bold))
+                .tracking(-0.5)
+                .foregroundStyle(BSColor.Stage.foreground)
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(show.name)
-                                .font(.system(size: 15, weight: .heavy))
-                                .foregroundStyle(BSColor.Stage.foreground)
-                                .lineLimit(1)
-                            statusChip(live)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .transition(.opacity.combined(with: .move(edge: .leading)))
-            } else {
-                Text(BSLocalization.text("当前"))
-                    .font(.system(size: 32, weight: .bold))
-                    .tracking(-0.5)
-                    .foregroundStyle(BSColor.Stage.foreground)
+            if let weather {
+                CurrentShowWeatherCapsule(weather: weather, action: onOpenWeather)
                     .transition(.opacity)
-
-                if let weather {
-                    CurrentShowWeatherCapsule(weather: weather, action: onOpenWeather)
-                        .transition(.opacity)
-                }
-
-                if let live {
-                    Button(action: onToggleCover) {
-                        statusChip(live)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(minHeight: BSLayout.minTouchTarget)
-                    .contentShape(Rectangle())
+            }
+            if let live {
+                statusChip(live)
                     .transition(.opacity)
-                }
             }
 
             Spacer(minLength: 0)
@@ -81,16 +39,16 @@ struct CurrentShowHomeHeader: View {
         let (text, color): (String, Color) = {
             switch live.phase {
             case .upcoming: return (BSLocalization.text("今日首场"), BSColor.Stage.accent)
-            case .dayEnded: return (BSLocalization.text("现场模式"), HomeLiveStyle.night)
+            case .dayEnded: return (BSLocalization.text("今天结束"), HomeLiveStyle.night)
             case .fullyEnded: return (BSLocalization.text("全部结束"), BSColor.Stage.accent)
             default:
                 let index = show.timetable?.orderedDays.firstIndex { $0.id == live.activeDayID }
-                return (index.map { BSLocalization.format("现场模式 · 第%d天", $0 + 1) } ?? BSLocalization.text("现场模式"), BSColor.Stage.live)
+                return (index.map { BSLocalization.format("第%d天", $0 + 1) } ?? BSLocalization.text("现场"), BSColor.Stage.live)
             }
         }()
         return HStack(spacing: 7) {
             Circle().fill(color).frame(width: 6, height: 6).shadow(color: color, radius: 3)
-            Text(text)
+            Text(text).lineLimit(1).fixedSize()
         }
         .font(.system(size: 10.5, weight: .semibold))
         .tracking(0.6)

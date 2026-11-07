@@ -2,8 +2,8 @@ import SwiftUI
 
 /// The overview's own type and sizes, shared by the poster, feed, artist page and now playing.
 enum ListeningOverviewStyle {
-    static func serif(_ size: CGFloat) -> Font { .system(size: size, weight: .regular, design: .serif).italic() }
-    static func caps(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .default).width(.condensed) }
+    static func serif(_ size: CGFloat) -> Font { BSFont.Editorial.serif(size) }
+    static func caps(_ size: CGFloat) -> Font { BSFont.Editorial.caps(size) }
     static let sectionTitle = Font.system(size: 19, weight: .bold)
     static let headerTitle = Font.system(size: 16, weight: .bold)
     static let itemTitle = Font.system(size: 14, weight: .semibold)

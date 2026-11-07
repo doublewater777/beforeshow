@@ -11,6 +11,8 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
     /// The record on the deck; nil when nothing is loaded.
     private(set) var loadedDisc: ListeningDisc?
+    /// An artist's records playing back to back at random; any manual load ends it.
+    var shuffleRun: ListeningDiscShuffle?
     /// The transport: what is loaded, and the Apple player that plays it.
     let deck: ListeningDeck
     private(set) var catalogSongs: [CatalogSong] = []
@@ -112,6 +114,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         deck.evidenceProvider = { [weak self] in try? self?.playbackEvidenceCoordinatorForUse() }
         deck.onCursorChange = { [weak self] _ in self?.deckCursorDidChange() }
         deck.onTransportChange = { [weak self] in self?.deckTransportDidChange() }
+        deck.onFinish = { [weak self] in self?.advanceShuffle() }
         deck.onProgress = { [weak self] time in self?.deckDidProgress(time) }
         deck.onEvidence = { [weak self] result, immediate in
             self?.applyDeckEvidence(result, representDismissedAlert: immediate)
@@ -128,15 +131,12 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
     private func deckTransportDidChange() {
         recordPlayingIfNeeded()
-        if !deck.wantsPlayback {
-            persistLoadedDisc(force: true)
-        }
+        if !deck.wantsPlayback { persistLoadedDisc(force: true) }
         syncWidgetListeningState()
     }
 
     private func reportPlaybackFailure() {
-        playbackError = BSLocalization.text("暂时无法播放")
-        showsPlaybackFailureAlert = true
+        playbackError = BSLocalization.text("暂时无法播放"); showsPlaybackFailureAlert = true
     }
 
     private func deckDidProgress(_ time: TimeInterval) {
@@ -193,7 +193,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         } catch {}
     }
     func discardLoadedDiscState(publishWidget: Bool = true) {
-        deck.eject(); loadedDisc = nil; clearPersistedDisc()
+        deck.eject(); loadedDisc = nil; shuffleRun = nil; clearPersistedDisc()
         if publishWidget { syncWidgetListeningState() }
     }
     /// Disc standing on the live-preview shelf. The widget plays this when nothing is seated.
@@ -1082,7 +1082,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             return
         }
         if autoplay { AppAudioSession.claimFocus(.listening) }
-        deck.endSession()
+        deck.endSession(); shuffleRun = nil
         loadedDisc = disc
         deck.load([disc], cursor: songID)
         persistLoadedDisc(force: true)

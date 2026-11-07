@@ -154,3 +154,34 @@ struct HomeHeaderScrollObserver: ViewModifier {
         }
     }
 }
+
+extension CurrentShowManagementSection {
+    var routeQuery: String? {
+        MapDestinationQuery.make(
+            venueAddress: show.venueAddress,
+            venueName: show.venueName,
+            city: show.city,
+            showName: show.name
+        )
+    }
+    var hasMapDestination: Bool {
+        guard let routeQuery else { return false }
+        return !routeQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    /// 弹窗副标题：优先场馆名，其次城市 / 演出名。
+    var mapDestinationLabel: String {
+        let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let venue, !venue.isEmpty { return venue }
+        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let city, !city.isEmpty { return city }
+        return show.name
+    }
+    var companionPresentation: CompanionQuickActionPresentation {
+        CompanionQuickActionPresentation(
+            status: show.companionStatus,
+            companionNames: show.companionNames,
+            isEnded: currentPhase == .ended,
+            isInvitationShared: show.companionInvitationShared
+        )
+    }
+}

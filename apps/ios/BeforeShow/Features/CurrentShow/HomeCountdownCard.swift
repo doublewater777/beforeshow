@@ -1,142 +1,183 @@
 import SwiftUI
 
+/// The countdown printed on the lip of the stage: one big serif number, its unit and the exact
+/// time beside it, a lit rule, then the show and the one action that matters now.
 struct HomeCountdownLockup: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
     var onEndShow: (() -> Void)? = nil
-    var onCompanion: (() -> Void)? = nil
     var onMemoryFragments: (() -> Void)? = nil
     var onMemoryCreate: (() -> Void)? = nil
     var onOpenRoute: (() -> Void)? = nil
     /// 当前阶段的功能推荐（由主卡 owner 每天定一次）。
     var recommendation: RecommendedFeature? = nil
     var onRecommendation: ((RecommendedFeature) -> Void)? = nil
-    /// 有时刻表且处于现场模式时，卡片主体换成现场内容（谁在演、接下来、明天几点）。
-    var liveTimetable: LiveModeState? = nil
-    var onOpenTimetable: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // The countdown is the visual hero. Respect the user's Dynamic Type
-    // setting so accessibility readers get the same weight, but cap at
-    // .accessibility2 — above that, a 3-digit day number at 1.85× scale
-    // would push the HStack past the safe area and break the card.
-    @ScaledMetric(relativeTo: .largeTitle) private var dayNumber: CGFloat = 72
-    @ScaledMetric(relativeTo: .title) private var clockNumber: CGFloat = 64
-
-    var body: some View {
-        lockup(phase: snapshot.phase, timeState: snapshot.timeState, now: snapshot.now)
-            .dynamicTypeSize(.large ... .accessibility2)
+    private struct Ticker {
+        /// The big number; nil when the stage has words instead (ended, cancelled).
+        var value: String? = nil
+        var headline: String? = nil
+        var unit: String
+        var detail: String
+        var tint: Color
     }
 
-    @ViewBuilder
-    private func lockup(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> some View {
+    var body: some View {
+        let phase = snapshot.phase
+        let timeState = snapshot.timeState
+        let ticker = ticker(phase: phase, timeState: timeState, now: snapshot.now)
         VStack(alignment: .leading, spacing: 0) {
-            statusRow(phase: phase, timeState: timeState, now: now)
-                .padding(.bottom, 8)
+            tickerRow(ticker)
+            LinearGradient(colors: [ticker.tint.opacity(0.9), ticker.tint.opacity(0.15), .clear], startPoint: .leading, endPoint: .trailing)
+                .frame(height: 1)
+                .padding(.top, 14)
+                .padding(.bottom, 14)
 
-            if let liveTimetable {
-                HomeLiveTimetableContent(state: liveTimetable)
-            } else {
-                let identity = ShowIdentityCopy(
-                    name: show.name,
-                    venueName: show.venueName,
-                    city: show.city
-                )
+            let identity = ShowIdentityCopy(name: show.name, venueName: show.venueName, city: show.city)
+            Text(identity.title)
+                .font(BSFont.Editorial.serif(24))
+                .foregroundStyle(BSColor.Stage.foreground)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
 
-                Text(identity.title)
-                    .font(.system(size: 22, weight: .semibold))
-                    .tracking(-0.45)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-
-                let dateText = HomeShowIdentityPresentation.dateText(for: show, timeState: timeState)
-                let venueSummary = identity.venueSummary
-
-                if dateText != nil || venueSummary != nil {
-                    ViewThatFits(in: .horizontal) {
-                        identityDetails(
-                            dateText: dateText,
-                            venueSummary: venueSummary,
-                            opensRoute: onOpenRoute != nil,
-                            stacked: false
-                        )
-                        // Keep the inline candidate unwrapped so ViewThatFits can
-                        // choose the stacked layout before a date breaks in half.
+            // The date and time are already beside the number; only the venue follows the name,
+            // and before doors the map module below carries the venue instead.
+            if identity.venueSummary != nil, phase != .pre {
+                ViewThatFits(in: .horizontal) {
+                    identityDetails(dateText: nil, venueSummary: identity.venueSummary, opensRoute: onOpenRoute != nil, stacked: false)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
-
-                        identityDetails(
-                            dateText: dateText,
-                            venueSummary: venueSummary,
-                            opensRoute: onOpenRoute != nil,
-                            stacked: true
-                        )
-                    }
-                    .padding(.top, 5)
+                    identityDetails(dateText: nil, venueSummary: identity.venueSummary, opensRoute: onOpenRoute != nil, stacked: true)
                 }
-
-                VStack(alignment: .leading, spacing: 0) {
-                    switch phase {
-                    case .pre:
-                        preCountdown(timeState: timeState, now: now)
-                    case .live:
-                        liveStatus(timeState: timeState, now: now)
-                    case .ended:
-                        if timeState.kind == .dayEnded {
-                            endedStatus(timeState: timeState)
-                        } else if show.endedAt == nil {
-                            askingEndStatus
-                        } else {
-                            endedStatus(timeState: timeState)
-                        }
-                    case .inactive:
-                        inactiveStatus(timeState: timeState)
-                    }
-                }
-                .padding(.top, 10)
+                .padding(.top, 6)
             }
 
-            // 现场模式下主按钮统一为「完整时刻表」。
-            if liveTimetable != nil, let onOpenTimetable {
-                timetableEntry(action: onOpenTimetable)
-            } else if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
+            if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
                 primaryActionButton(action)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.top, 9)
-        .padding(.bottom, 9)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(BSColor.Stage.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                colors: [BSColor.Stage.accent.opacity(0.07), .clear],
-                                startPoint: .top,
-                                endPoint: UnitPoint(x: 0.5, y: 0.55)
-                            )
-                        )
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(BSColor.Stage.border, lineWidth: 1)
-        )
+        .dynamicTypeSize(.large ... .accessibility2)
         .accessibilityElement(children: onEndShow == nil && onOpenRoute == nil ? .combine : .contain)
     }
 
-    /// 估算散场时间已过、用户尚未确认 endedAt:状态条说「待确认」,不提前宣布 ENDED。
-    private func isAwaitingEndConfirmation(_ timeState: CurrentShowTimeState) -> Bool {
-        CurrentShowTimeState.isUnconfirmedEstimatedEnd(
-            kind: timeState.kind,
-            hasConfirmedEnd: show.endedAt != nil
-        )
+    @ViewBuilder
+    private func tickerRow(_ ticker: Ticker) -> some View {
+        if ticker.value == nil, let headline = ticker.headline {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    if snapshot.phase == .live { HomeLivePulse(reduceMotion: reduceMotion) }
+                    Text(headline)
+                        .font(BSFont.Editorial.serif(34))
+                        .foregroundStyle(ticker.tint)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(ticker.detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(2)
+            }
+        } else {
+            numberRow(ticker)
+        }
+    }
+
+    private func numberRow(_ ticker: Ticker) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: 12) {
+            if let value = ticker.value {
+                Text(value)
+                    .font(BSFont.Editorial.serif(96))
+                    .tracking(-3)
+                    .monospacedDigit()
+                    .foregroundStyle(ticker.tint)
+                    .shadow(color: ticker.tint.opacity(0.45), radius: 22)
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.32), value: value)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.vertical, -14)
+            } else if let headline = ticker.headline {
+                Text(headline)
+                    .font(BSFont.Editorial.serif(40))
+                    .foregroundStyle(ticker.tint)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                if ticker.value != nil {
+                    Text(ticker.unit)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                }
+                Text(ticker.detail)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(2)
+            }
+            .layoutPriority(ticker.value == nil ? 0 : 1)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func ticker(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> Ticker {
+        let calendar = show.timingCalendar()
+        let start = timeState.effectiveStartTime
+        let startLine = start.map { date -> String in
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.locale = .current
+            formatter.setLocalizedDateFormatFromTemplate("MMMdEEEHHmm")
+            return formatter.string(from: date)
+        } ?? ""
+        let tint = statusColor(for: phase, timeState: timeState)
+        switch phase {
+        case .pre:
+            guard let total = Self.remainingSeconds(to: start, from: now) else {
+                return Ticker(value: "--", unit: "", detail: startLine, tint: BSColor.Stage.dim)
+            }
+            let detail = timeState.isDatedPostponement
+                ? BSLocalization.format("原定 %@", Self.originalDateText(for: show, calendar: calendar))
+                : startLine
+            if let days = ShowCountdownRule.dayCount(remainingSeconds: total, dayDistance: timeState.dayDistance) {
+                return Ticker(value: String(format: "%02d", days), unit: BSLocalization.text("天后"), detail: detail, tint: timeState.isDatedPostponement ? tint : BSColor.Stage.heroIvory)
+            }
+            if total >= 3_600 {
+                return Ticker(value: "\(total / 3_600)", unit: BSLocalization.format("小时 %lld 分后开场", (total % 3_600) / 60), detail: detail, tint: BSColor.Stage.heroWarmGold)
+            }
+            return Ticker(value: "\(max(1, Int((Double(total) / 60).rounded(.up))))", unit: BSLocalization.text("分钟后开场"), detail: detail, tint: BSColor.Stage.accent)
+        case .live:
+            return Ticker(headline: BSLocalization.text("正在演出"), unit: "", detail: BSLocalization.format("已开场 %@", Self.elapsedText(since: start, now: now)), tint: BSColor.Stage.liveTitle)
+        case .ended:
+            if timeState.kind == .dayEnded {
+                return Ticker(headline: BSLocalization.text("今天结束了"), unit: "", detail: dayEndedCopy(timeState), tint: BSColor.Stage.foreground)
+            }
+            if show.endedAt == nil {
+                return Ticker(headline: BSLocalization.text("这场已经结束了吗？"), unit: "", detail: startLine, tint: BSColor.Stage.foreground)
+            }
+            return Ticker(headline: BSLocalization.text("这一场结束了"), unit: "", detail: startLine, tint: BSColor.Stage.foreground)
+        case .inactive:
+            let canceled = timeState.kind == .canceled
+            return Ticker(
+                headline: canceled ? BSLocalization.text("这场取消了") : BSLocalization.text("还在等新的日期"),
+                unit: "",
+                detail: canceled ? BSLocalization.text("现场资料还帮你留着") : BSLocalization.text("新日期确定后，会继续倒数"),
+                tint: BSColor.Stage.dim
+            )
+        }
+    }
+
+    private func dayEndedCopy(_ timeState: CurrentShowTimeState) -> String {
+        guard let nextStart = timeState.nextSessionStartsAt else { return BSLocalization.text("稍作休息，下次现场见") }
+        let eventCalendar = show.timingFields.eventCalendar(fallback: .current)
+        let distance = FestivalDay.distance(from: .now, to: nextStart, calendar: eventCalendar)
+        if distance <= 1 { return BSLocalization.text("稍作休息，明天见") }
+        if distance == 2 { return BSLocalization.text("稍作休息，后天见") }
+        return BSLocalization.format("稍作休息，%@继续", FestivalDay.word(for: nextStart, distance: distance, calendar: eventCalendar))
     }
 
     @ViewBuilder
@@ -206,50 +247,6 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    private func statusRow(
-        phase: HomeShowPhase,
-        timeState: CurrentShowTimeState,
-        now: Date
-    ) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(statusColor(for: phase, timeState: timeState))
-                    .frame(width: 6, height: 6)
-
-                Text(
-                    isAwaitingEndConfirmation(timeState)
-                        ? BSLocalization.text("待确认")
-                        : HomeShowIdentityPresentation.statusText(for: timeState, now: now)
-                )
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(0.65)
-                    .foregroundStyle(statusColor(for: phase, timeState: timeState))
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(Color.white.opacity(0.03))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(statusBorderColor(for: phase, timeState: timeState), lineWidth: 1)
-            )
-
-            Spacer(minLength: 0)
-
-            let mode = modeLabel(for: phase, timeState: timeState)
-            if !mode.isEmpty {
-                Text(mode)
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .tracking(1.45)
-                    .foregroundStyle(modeLabelColor(for: phase))
-                    .lineLimit(1)
-            }
-        }
-    }
 
     private func statusColor(
         for phase: HomeShowPhase,
@@ -264,144 +261,6 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    private func statusBorderColor(
-        for phase: HomeShowPhase,
-        timeState: CurrentShowTimeState
-    ) -> Color {
-        switch phase {
-        case .pre:
-            return (timeState.isDatedPostponement ? BSColor.Accent.warm : BSColor.Stage.accent).opacity(0.24)
-        case .live: return BSColor.Stage.live.opacity(0.32)
-        case .ended: return Color.white.opacity(0.11)
-        case .inactive:
-            return timeState.kind == .canceled
-                ? Color.white.opacity(0.11)
-                : BSColor.Accent.warm.opacity(0.30)
-        }
-    }
-
-    private func modeLabel(
-        for phase: HomeShowPhase,
-        timeState: CurrentShowTimeState
-    ) -> String {
-        switch phase {
-        case .pre:
-            return timeState.kind == .today ? "TODAY" : "COUNTDOWN"
-        case .live:
-            return "LIVE"
-        case .ended:
-            // 估算散场未确认时不标 ENDED,避免状态条与「这场已经结束了吗?」自相矛盾。
-            return isAwaitingEndConfirmation(timeState) ? "" : "ENDED"
-        case .inactive:
-            return "TBD"
-        }
-    }
-
-    private func modeLabelColor(for phase: HomeShowPhase) -> Color {
-        switch phase {
-        case .pre: return BSColor.Stage.accent.opacity(0.58)
-        case .live: return BSColor.Stage.liveTitle.opacity(0.72)
-        case .ended, .inactive: return BSColor.Stage.dim
-        }
-    }
-
-    // MARK: pre:渐进精度倒计时
-    // 精度随临近程度收束:>24h 用自然日差展示「N 天」;≤24h 显示小时,<1h 显示分钟。
-    // 色温递进:远场奶白 heroIvory → 当天暖金 heroWarmGold → <1h 纯金 accent + 光晕,
-    // 字重同步加码(ultraLight → regular → semibold),视觉强度随临近升温。
-    // 天数/时钟的阈值与自然日计数规则与 widget 共用 WidgetTimelinePlanner。
-
-    @ViewBuilder
-    private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
-        if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now) {
-            if let days = ShowCountdownRule.dayCount(
-                remainingSeconds: total,
-                dayDistance: timeState.dayDistance
-            ) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .lastTextBaseline, spacing: 10) {
-                        Text("\(days)")
-                            .font(.system(size: dayNumber, weight: .ultraLight))
-                            .tracking(-1.5)
-                            .monospacedDigit()
-                            .contentTransition(.numericText(countsDown: true))
-                            // TimelineView re-renders without a transaction, so the
-                            // numericText roll needs its own animation keyed to the value.
-                            .animation(
-                                reduceMotion ? nil : .easeOut(duration: 0.32),
-                                value: days
-                            )
-                            .lineLimit(1)
-                            .foregroundStyle(BSColor.Stage.heroIvory)
-                            // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
-                            .padding(.vertical, -9)
-                        Text(BSLocalization.format("天（按天数）", days))
-                            .font(.system(size: 20, weight: .regular))
-                            .foregroundStyle(BSColor.Stage.dim)
-                    }
-                    if timeState.isDatedPostponement {
-                        Text(BSLocalization.format("原定 %@", Self.originalDateText(for: show, calendar: show.timingCalendar())))
-                            .font(.system(size: 12.5, weight: .regular))
-                            .foregroundStyle(BSColor.Stage.dim)
-                            .padding(.top, 10)
-                    }
-                }
-            } else if total >= 3_600 {
-                styledCountdown(
-                    total: total,
-                    numberWeight: .regular,
-                    numberColor: BSColor.Stage.heroWarmGold
-                )
-            } else {
-                styledCountdown(
-                    total: total,
-                    numberWeight: .semibold,
-                    numberColor: BSColor.Stage.accent
-                )
-                    .shadow(color: BSColor.Stage.accent.opacity(0.35), radius: 16)
-            }
-        } else {
-            Text("--")
-                .font(.system(size: clockNumber, weight: .thin))
-                .monospacedDigit()
-                .foregroundStyle(BSColor.Stage.dim)
-        }
-    }
-
-    // MARK: live:脉冲 + 已开场时长 + 散场确认入口
-    // 左侧保留「正在现场」状态,右侧展示已开场时长。
-
-    private func liveStatus(timeState: CurrentShowTimeState, now: Date) -> some View {
-        HStack(spacing: 14) {
-            HStack(spacing: 8) {
-                HomeLivePulse(reduceMotion: reduceMotion)
-
-                Text(BSLocalization.text("正在现场"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.liveTitle)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(alignment: .trailing, spacing: 4) {
-                let elapsed = Self.elapsedText(since: timeState.effectiveStartTime, now: now)
-                Text(elapsed)
-                    .font(.system(size: 22, weight: .semibold))
-                    .monospacedDigit()
-                    .contentTransition(.numericText(countsDown: false))
-                    .animation(
-                        reduceMotion ? nil : .easeOut(duration: 0.22),
-                        value: elapsed
-                    )
-                    .tracking(-0.3)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Text(BSLocalization.text("已开场"))
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(BSColor.Stage.dim)
-            }
-        }
-        .padding(.vertical, 4)
-    }
 
     // MARK: Primary action（规则见 HomeCountdownPrimaryAction.swift）
 
@@ -414,44 +273,23 @@ struct HomeCountdownLockup: View {
             timeState: timeState,
             hasConfirmedEnd: show.endedAt != nil,
             hasEndHandler: onEndShow != nil,
-            hasRouteHandler: onOpenRoute != nil,
+            hasRouteHandler: false,
             recommendation: onRecommendation == nil ? nil : recommendation
         )
     }
 
     private func primaryActionButton(_ action: PrimaryAction) -> some View {
-        let tint = action.usesLiveTint ? BSColor.Stage.live : BSColor.Stage.accent
-        return Button(action: primaryActionHandler(action)) {
+        Button(action: primaryActionHandler(action)) {
             Text(action.title)
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundStyle(action.usesLiveTint ? BSColor.Stage.liveTitle : BSColor.Stage.accent)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.background)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(tint.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(tint.opacity(0.32), lineWidth: 1)
-                )
+                .frame(height: 48)
+                .background(BSColor.Stage.foreground, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityHint(action.accessibilityHint)
-        .padding(.top, 8)
-    }
-
-    private func timetableEntry(action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(BSLocalization.text("完整时刻表"))
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.accent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(BSColor.Stage.accent.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(BSColor.Stage.accent.opacity(0.32), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 8)
+        .padding(.top, 16)
     }
 
     private func primaryActionHandler(_ action: PrimaryAction) -> () -> Void {
@@ -464,70 +302,6 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    // MARK: ended:冷静收束
-
-    private func endedStatus(timeState: CurrentShowTimeState) -> some View {
-        let isDayEnded = timeState.kind == .dayEnded
-        return VStack(alignment: .leading, spacing: 0) {
-            Text(isDayEnded ? BSLocalization.text("今天结束了") : BSLocalization.text("这一场结束了"))
-                .font(.system(size: 44, weight: .light))
-                .tracking(1)
-                .foregroundStyle(BSColor.Stage.foreground)
-
-            if isDayEnded {
-                let copy: String = {
-                    if let nextStart = timeState.nextSessionStartsAt {
-                        let eventCalendar = show.timingFields.eventCalendar(fallback: .current)
-                        let distance = FestivalDay.distance(from: .now, to: nextStart, calendar: eventCalendar)
-                        if distance <= 1 {
-                            return BSLocalization.text("稍作休息，明天见")
-                        } else if distance == 2 {
-                            return BSLocalization.text("稍作休息，后天见")
-                        } else {
-                            let word = FestivalDay.word(for: nextStart, distance: distance, calendar: eventCalendar)
-                            return BSLocalization.format("稍作休息，%@继续", word)
-                        }
-                    }
-                    return BSLocalization.text("稍作休息，下次现场见")
-                }()
-                Text(copy)
-                    .font(.system(size: 12.5, weight: .regular))
-                    .foregroundStyle(BSColor.Stage.dim)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 10)
-            }
-        }
-    }
-
-    private var askingEndStatus: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(BSLocalization.text("这场已经结束了吗？"))
-                .font(.system(size: 30, weight: .light))
-                .tracking(-0.5)
-                .foregroundStyle(BSColor.Stage.foreground)
-
-        }
-    }
-
-    // MARK: inactive:已取消 / 时间待定
-
-    private func inactiveStatus(timeState: CurrentShowTimeState) -> some View {
-        let canceled = timeState.kind == .canceled
-        return VStack(alignment: .leading, spacing: 0) {
-            Text(canceled ? BSLocalization.text("这场取消了") : BSLocalization.text("还在等新的日期"))
-                .font(.system(size: 44, weight: .light))
-                .tracking(1)
-                .foregroundStyle(BSColor.Stage.dim)
-
-            Text(canceled ? BSLocalization.text("现场资料还帮你留着") : BSLocalization.text("新日期确定后，会继续倒数"))
-                .font(.system(size: 12.5, weight: .regular))
-                .foregroundStyle(BSColor.Stage.dim)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 10)
-        }
-    }
 
     // MARK: 时间计算
 
@@ -536,32 +310,10 @@ struct HomeCountdownLockup: View {
         return max(0, Int(start.timeIntervalSince(now)))
     }
 
-    private func styledCountdown(
-        total: Int,
-        numberWeight: Font.Weight,
-        numberColor: Color
-    ) -> Text {
-        var attributed = AttributedString(CountdownCopy.until(remainingSeconds: total))
-        attributed.font = .system(size: 22, weight: .medium)
-        attributed.foregroundColor = BSColor.Stage.muted
-        let number = String(CountdownCopy.value(remainingSeconds: total))
-        if let range = attributed.range(of: number) {
-            attributed[range].font = .system(size: clockNumber, weight: numberWeight)
-            attributed[range].foregroundColor = numberColor
-        }
-        return Text(attributed)
-    }
-
     private static func elapsedText(since start: Date?, now: Date) -> String {
-        guard let start else { return "00:00" }
-        let total = max(0, Int(now.timeIntervalSince(start)))
-        let hours = total / 3_600
-        let minutes = (total % 3_600) / 60
-        let seconds = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-        return String(format: "%02d:%02d", minutes, seconds)
+        let total = max(0, Int(now.timeIntervalSince(start ?? now)))
+        let hours = total / 3_600, minutes = (total % 3_600) / 60
+        return hours > 0 ? BSLocalization.format("%lld 小时 %lld 分", hours, minutes) : BSLocalization.format("%lld 分钟", minutes)
     }
 
     private static func originalDateText(for show: Show, calendar: Calendar) -> String {
@@ -569,9 +321,3 @@ struct HomeCountdownLockup: View {
         return BSLocalization.format("%lld月%lld日", components.month ?? 0, components.day ?? 0)
     }
 }
-
-// MARK: - Live Pulse
-
-// MARK: - Live Pulse
-
-/// 开场中的呼吸脉冲点(设计稿 pulse-ring);Reduce Motion 时静止。
