@@ -246,14 +246,12 @@ final class ShowWeatherTests: XCTestCase {
 
         let showDayCopy = copy.showDay(
             remainingSeconds: nil,
-            hasMusic: false,
             weatherTip: "气温 26°，适合观演。"
         )
         XCTAssertTrue(showDayCopy.contains("气温 26°，适合观演。"))
 
         let sunsetCopy = copy.showDay(
             remainingSeconds: nil,
-            hasMusic: false,
             sunsetArtist: "刺猬乐队"
         )
         XCTAssertTrue(sunsetCopy.contains("今天的日落现场是刺猬乐队。"))

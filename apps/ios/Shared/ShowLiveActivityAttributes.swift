@@ -50,6 +50,8 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         /// 与主现场同时在演的另一场(现场模式)。
         var alsoArtistName: String? = nil
         var alsoStageName: String? = nil
+        /// When the parallel set ends; a late or lost push must not keep it on screen.
+        var alsoEndsAt: Date? = nil
         var reminderArtistName: String? = nil
         var reminderStageName: String? = nil
         var reminderStartsAt: Date? = nil
@@ -154,6 +156,7 @@ extension ShowLiveActivityAttributes.ContentState {
         isFestivalDayActive = try container.decodeIfPresent(Bool.self, forKey: .isFestivalDayActive) ?? false
         alsoArtistName = try container.decodeIfPresent(String.self, forKey: .alsoArtistName)
         alsoStageName = try container.decodeIfPresent(String.self, forKey: .alsoStageName)
+        alsoEndsAt = try container.decodeIfPresent(Date.self, forKey: .alsoEndsAt)
         reminderArtistName = try container.decodeIfPresent(String.self, forKey: .reminderArtistName)
         reminderStageName = try container.decodeIfPresent(String.self, forKey: .reminderStageName)
         reminderStartsAt = try container.decodeIfPresent(Date.self, forKey: .reminderStartsAt)

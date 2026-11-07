@@ -242,6 +242,8 @@ struct TimetableExperienceView: View {
         do {
             try stage.updateName(name)
             try modelContext.save()
+            // Stage names show on the widget and Live Activity too.
+            notifyShowMutation()
         } catch {
             modelContext.rollback()
         }

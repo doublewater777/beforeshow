@@ -109,6 +109,25 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         )
     }
 
+    func testParallelSetEndingFirstExpiresTheContentAndDropsItWithoutAPush() throws {
+        let main = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Coldplay", stageID: UUID(), stageName: "Main",
+            startsAt: date(20, 0), endsAt: date(22, 0), isInterested: false
+        )
+        let other = WidgetTimetablePerformance(
+            id: UUID(), artistName: "Bonobo", stageID: UUID(), stageName: "Tent",
+            startsAt: date(20, 0), endsAt: date(21, 0), isInterested: false
+        )
+        let snapshot = makeSnapshot(timetableDays: [WidgetTimetableDay(id: UUID(), date: date(0, 0), performances: [main, other])])
+        let state = try XCTUnwrap(LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(20, 30), coverFilename: nil)?.state)
+
+        XCTAssertNotNil(state.alsoArtistName)
+        XCTAssertEqual(state.alsoEndsAt, date(21, 0))
+        XCTAssertEqual(state.staleDate, date(21, 0))
+        XCTAssertNotNil(LiveActivityContent(state: state, isStale: false, now: date(20, 45)).lineup?.also)
+        XCTAssertNil(LiveActivityContent(state: state, isStale: true, now: date(21, 5)).lineup?.also)
+    }
+
     func testLiveActivityCountsDownToNextSetBetweenSets() {
         let p1 = WidgetTimetablePerformance(
             id: UUID(), artistName: "The Strokes", stageID: UUID(), stageName: "Main Stage",

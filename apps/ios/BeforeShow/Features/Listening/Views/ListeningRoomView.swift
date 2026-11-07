@@ -240,8 +240,10 @@ struct ListeningRoomView: View {
                 switch sheet {
                 case let .artist(id):
                     NavigationStack {
-                        ListeningArtistPage(room: room, artistID: id, show: show)
-                            .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
+                        if let artist = room.browseArtists.first(where: { $0.id == id }) {
+                            ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show)
+                                .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
+                        }
                     }
                 case .lineup:
                     ListeningLineupList(room: room, show: show)

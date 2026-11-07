@@ -29,7 +29,9 @@ struct ListeningLineupList: View {
             .navigationTitle(ListeningCopy.text("全部艺人"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: String.self) { id in
-                ListeningArtistPage(room: room, artistID: id, show: show)
+                if let artist = room.browseArtists.first(where: { $0.id == id }) {
+                    ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show)
+                }
             }
             .toolbar {
                 BSChromeToolbarCloseButton { dismiss() }

@@ -116,8 +116,9 @@ struct TimetableMatrixHeadersView: View {
                     .focused($focusedStageID, equals: stage.id)
                     .submitLabel(.done)
                     .onSubmit { commitRename(stage) }
-                    .onChange(of: focusedStageID) { _, focused in
-                        if focused != stage.id && editingStageID == stage.id {
+                    .onChange(of: focusedStageID) { old, focused in
+                        // Only leaving the field ends the edit; the menu closing before focus lands does not.
+                        if old == stage.id, focused != stage.id, editingStageID == stage.id {
                             commitRename(stage)
                         }
                     }
@@ -155,7 +156,11 @@ struct TimetableMatrixHeadersView: View {
             Button {
                 draftStageName = stage.name
                 editingStageID = stage.id
-                focusedStageID = stage.id
+                // Focus after the context menu has finished closing, or it takes the focus with it.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    if editingStageID == stage.id { focusedStageID = stage.id }
+                }
             } label: {
                 Label(BSLocalization.text("重命名舞台"), systemImage: "pencil")
             }

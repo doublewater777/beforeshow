@@ -28,6 +28,18 @@ extension View {
             .foregroundStyle(BSColor.brandGradient)
     }
 
+    /// A detail page whose stage runs up behind the bar: no bar background, no title text,
+    /// only the floating back and menu buttons over the lights.
+    @ViewBuilder
+    func bsStageNavigationChrome() -> some View {
+        if #available(iOS 26, *) {
+            toolbarBackground(.hidden, for: .navigationBar)
+                .scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            toolbarBackground(.hidden, for: .navigationBar)
+        }
+    }
+
     /// Keep navigation scroll edges aligned with the iOS 26 system appearance.
     /// Automatic is the platform default and avoids imposing a hard cutoff on
     /// lightweight settings and detail screens.

@@ -58,7 +58,7 @@ struct ListeningNowPlayingView: View {
             .lineLimit(1)
         if let artist = room.browseArtists.first(where: { $0.isConnected && $0.name == track.artistName }) {
             NavigationLink {
-                ListeningArtistPage(room: room, artistID: artist.id, show: show)
+                ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show)
             } label: {
                 HStack(spacing: BSSpacing.xs) {
                     label
