@@ -17,6 +17,8 @@ enum AppAudioSession {
     enum Owner: Hashable {
         case listening
         case timetablePreview
+        /// Auditioning records in 帮我挑一张 before choosing one.
+        case pickAudition
         case memoryVideo
         case footprintSong
         case artistVideo
