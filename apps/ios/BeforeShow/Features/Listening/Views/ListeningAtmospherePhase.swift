@@ -1,25 +1,16 @@
 import SwiftUI
 
-/// Light follows the mechanism and unified playback presentation, including startup waiting.
+/// The room light follows playback.
 enum ListeningAtmospherePhase: Equatable {
-    case resting, placing, playing
+    case resting, playing
 
-    init(isPlacing: Bool, isPlaying: Bool) {
-        if isPlacing {
-            self = .placing
-        } else {
-            self = isPlaying ? .playing : .resting
-        }
-    }
-
-    @MainActor init(room: ListeningRoomCoordinator) {
-        self = room.atmospherePhase
+    init(isPlaying: Bool) {
+        self = isPlaying ? .playing : .resting
     }
 
     var color: Color {
         switch self {
         case .resting: BSListeningTokens.restingLight
-        case .placing: BSListeningTokens.placingLight
         case .playing: BSColor.Stage.accent
         }
     }

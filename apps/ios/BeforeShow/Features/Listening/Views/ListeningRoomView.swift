@@ -128,7 +128,6 @@ struct ListenRootView: View {
         guard isActive else { return }
         guard let show else {
             room?.stop()
-            room?.stopHardwareMotion()
             room?.releaseShow()
             room = nil
             ListeningRoomSessionStore.shared.adopt(nil)
@@ -183,7 +182,7 @@ struct ListenRootView: View {
         ZStack {
             BSColor.Stage.background
             ListeningStageBackground(
-                artworkURL: room?.display.hardware.artworkURL,
+                artworkURL: room?.loadedDisc?.artworkURL,
                 phase: room?.atmospherePhase ?? .resting
             )
         }
@@ -193,12 +192,13 @@ struct ListenRootView: View {
 struct ListeningRoomView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var matchingSlotIndex: Int?
     @State private var matchingArtistName: String = ""
     @State private var isSearching = false
     @State private var overviewSheet: ListeningOverviewSheet?
     @State private var pickFeedStart: ListeningPickFeedStart?
+    /// The pick card's album. Owned here so switching to Watch and back keeps it.
+    @State private var pickCardDisc: ListeningDisc?
     @Bindable private var session = ListeningRoomSessionStore.shared
 
     var body: some View {
@@ -218,7 +218,8 @@ struct ListeningRoomView: View {
                     show: show,
                     onOpenSheet: { overviewSheet = $0 },
                     onMatchArtist: matchArtist,
-                    onOpenPick: { pickFeedStart = ListeningPickFeedStart(disc: $0) }
+                    onOpenPick: { pickFeedStart = ListeningPickFeedStart(disc: $0) },
+                    pickPreview: $pickCardDisc
                 )
                 .scrollClipDisabled()
             }
@@ -254,7 +255,10 @@ struct ListeningRoomView: View {
                 .presentationDragIndicator(.visible)
         }
         .fullScreenCover(item: $pickFeedStart) { start in
-            ListeningPickFeedView(room: room, show: show, startingDisc: start.disc) { pickFeedStart = nil }
+            ListeningPickFeedView(room: room, show: show, startingDisc: start.disc) { stoppedOn in
+                if let stoppedOn { pickCardDisc = stoppedOn }
+                pickFeedStart = nil
+            }
         }
         .sheet(isPresented: Binding(
             get: { matchingSlotIndex != nil },
@@ -276,13 +280,6 @@ struct ListeningRoomView: View {
             Text(room.errorText ?? "")
         }
         .listeningPlaybackFailureAlert(room)
-        .onChange(of: reduceMotion, initial: true) { _, value in room.setReducedMotion(value) }
-        .task {
-            while !Task.isCancelled {
-                room.tickMechanism()
-                try? await Task.sleep(for: .milliseconds(1000))
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .listeningOpenPickDisc)) { _ in
             openPickFeed()
         }

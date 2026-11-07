@@ -18,7 +18,8 @@ struct ListeningOverviewView: View {
     let onOpenSheet: (ListeningOverviewSheet) -> Void
     let onMatchArtist: (ListeningBrowseArtist) -> Void
     let onOpenPick: (ListeningDisc?) -> Void
-    @State private var pickPreview: ListeningDisc?
+    /// Stays put across tab and Watch switches; changes when the user stops on another album in the feed.
+    @Binding var pickPreview: ListeningDisc?
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -37,7 +38,7 @@ struct ListeningOverviewView: View {
             .padding(.bottom, BSSpacing.xl)
         }
         .onChange(of: room.pickCandidates(filter: .all).map(\.id), initial: true) { _, ids in
-            if pickPreview.map({ ids.contains($0.id) }) != true { pickPreview = drawPreview() }
+            if ListeningPickCardPolicy.needsNewDraw(current: pickPreview, candidateIDs: ids) { pickPreview = drawPreview() }
         }
     }
 
@@ -137,33 +138,25 @@ private struct ListeningPlaylistTile: View {
     let isCurrent: Bool
 
     var body: some View {
-        let size = ListeningOverviewStyle.playlistTile
-        ZStack(alignment: .bottomLeading) {
+        let size = ListeningOverviewStyle.playlistTile.width
+        VStack(alignment: .leading, spacing: BSSpacing.xs) {
             ListeningDiscCover(disc: disc, show: show)
-                .frame(width: size.width, height: size.width)
-                .frame(width: size.width, height: size.height)
-                .blur(radius: 14)
-                .opacity(0.75)
-            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(disc.title).font(ListeningOverviewStyle.serif(22)).lineLimit(1)
-                Text(ListeningCopy.format("%d 首", disc.tracks.count))
-                    .font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
-            }
-            .padding(BSSpacing.sm)
+                .frame(width: size, height: size)
+                .overlay(alignment: .topTrailing) {
+                    if isCurrent {
+                        Image(systemName: "waveform")
+                            .font(ListeningOverviewStyle.badgeGlyph)
+                            .symbolEffect(.variableColor.iterative)
+                            .foregroundStyle(BSColor.Stage.background)
+                            .frame(width: ListeningOverviewStyle.badge, height: ListeningOverviewStyle.badge)
+                            .background(Circle().fill(BSColor.Stage.foreground))
+                            .padding(BSSpacing.xs)
+                    }
+                }
+            Text(ListeningCopy.format("%d 首", disc.tracks.count))
+                .font(BSListeningTokens.caption)
+                .foregroundStyle(BSColor.Stage.muted)
         }
-        .frame(width: size.width, height: size.height)
-        .background(BSColor.Stage.surfaceRaised)
-        .overlay(alignment: .topTrailing) {
-            if isCurrent {
-                Image(systemName: "play.fill")
-                    .font(ListeningOverviewStyle.badgeGlyph)
-                    .foregroundStyle(BSColor.Stage.background)
-                    .frame(width: ListeningOverviewStyle.badge, height: ListeningOverviewStyle.badge)
-                    .background(Circle().fill(BSColor.Stage.foreground))
-                    .padding(BSSpacing.xs)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
+        .frame(width: size, alignment: .leading)
     }
 }

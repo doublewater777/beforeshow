@@ -37,7 +37,6 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         XCTAssertTrue(room.libraryDiscs.contains { $0.id == "fixture-single" })
         XCTAssertTrue(room.discs.contains { $0.id == "fixture-ep" })
         XCTAssertTrue(room.discs.contains { $0.id == "fixture-single" })
-        room.mechanism.motion.stop()
     }
 
     func testFeaturedPlaylistsAreRequestedOnlyAfterSelectingOneArtistAndThenCached() async throws {
@@ -50,7 +49,6 @@ final class ListeningReleaseCabinetTests: XCTestCase {
             artistSearchService: ListeningFixtureArtistSearch(),
             playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
-        defer { room.mechanism.motion.stop() }
 
         await room.load(show: show)
         XCTAssertEqual(catalog.featuredArtistIDs, [])
@@ -126,7 +124,6 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         }
         XCTAssertEqual(discs.dropFirst().first?.id, "album")
         XCTAssertFalse(snapshot.orderedSongIDs.contains("playlist-guest"))
-        room.mechanism.motion.stop()
     }
 
     func testArtistLibraryPlaybackPrefersFormalAlbumWhenFeaturedPlaylistContainsSameSong() async throws {
@@ -146,18 +143,17 @@ final class ListeningReleaseCabinetTests: XCTestCase {
 
         room.playLibrarySong(song, artistID: "a")
         try await ListenTestData.settle(room) {
-            !room.busy && room.mechanism.position == .seated && room.mechanism.disc?.id == "album"
+            room.loadedDisc?.id == "album"
         }
 
-        XCTAssertEqual(room.mechanism.disc?.id, "album")
-        if case .album = room.mechanism.disc?.origin {
+        XCTAssertEqual(room.loadedDisc?.id, "album")
+        if case .album = room.loadedDisc?.origin {
             // Expected: the formal release remains the playback context.
         } else {
             XCTFail("Expected album playback context")
         }
         XCTAssertEqual(room.track?.id, "a2")
         room.stop()
-        room.mechanism.motion.stop()
     }
 
     func testFeaturedPlaylistLoadedDiscRestoresAcrossCoordinatorRecreationWithoutAutoplay() async throws {
@@ -188,9 +184,9 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         }
 
         let reopened = ListenTestData.room(context)
-        XCTAssertEqual(reopened.mechanism.disc?.id, "featured-cold-start")
+        XCTAssertEqual(reopened.loadedDisc?.id, "featured-cold-start")
         XCTAssertEqual(reopened.track?.id, "a1")
-        if case let .featuredPlaylist(artistID) = reopened.mechanism.disc?.origin {
+        if case let .featuredPlaylist(artistID) = reopened.loadedDisc?.origin {
             XCTAssertEqual(artistID, "a")
         } else {
             XCTFail("Expected restored featured playlist origin")
@@ -199,11 +195,9 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         XCTAssertFalse(reopened.isPlaying)
 
         await reopened.load(show: show)
-        XCTAssertEqual(reopened.mechanism.disc?.id, "featured-cold-start")
+        XCTAssertEqual(reopened.loadedDisc?.id, "featured-cold-start")
         XCTAssertEqual(reopened.track?.id, "a1")
         XCTAssertFalse(reopened.isPlaying)
-        room.mechanism.motion.stop()
-        reopened.mechanism.motion.stop()
     }
 
     func testPlaylistOnlyGuestPlaybackCreatesHeardSongEvidenceWithoutChangingTargetArtistDenominator() async throws {
@@ -242,7 +236,7 @@ final class ListeningReleaseCabinetTests: XCTestCase {
 
         room.restoreDisc(featured, songID: "playlist-guest")
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
 
         service.currentTime = 100
         now = now.addingTimeInterval(100)
@@ -262,7 +256,6 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         XCTAssertEqual(snapshot.orderedSongIDs.count, beforeDenominator)
         XCTAssertEqual(after.all.count, beforeDenominator)
         room.stop()
-        room.mechanism.motion.stop()
     }
 
     func testFeaturedPlaylistSnapshotRoundTripsThroughPersistence() throws {

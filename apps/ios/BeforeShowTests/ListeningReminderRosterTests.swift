@@ -86,7 +86,6 @@ final class ListeningReminderRosterTests: XCTestCase {
         XCTAssertFalse(roster.completedDiscIDs.contains("album"), "Manual familiarity is not actual listening")
         XCTAssertEqual(roster.lastListenedAt, playedAt)
         let room = ListenTestData.room(context)
-        defer { room.stopHardwareMotion() }
         room.prepareForDisplay(show: show)
         XCTAssertNotNil(roster.singalong)
         XCTAssertTrue(room.compilationDiscs.contains { $0.id == roster.singalong?.id })

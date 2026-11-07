@@ -47,7 +47,7 @@ import SwiftData
         XCTAssertTrue(try XCTUnwrap(room.artistPresentation("c")).top.isEmpty)
         room.playLibrarySong(artist.all[1], artistID: "a")
         try await ListenTestData.settle(room) { room.isPlaying && room.track?.id == "a2" }
-        XCTAssertEqual(room.mechanism.disc?.id, "album")
+        XCTAssertEqual(room.loadedDisc?.id, "album")
         room.setActive(false)
     }
 }

@@ -105,22 +105,6 @@ struct ListeningArtwork: View {
     }
 }
 
-extension ListeningRoomCoordinator {
-    func perform(_ control: CDControl) {
-        switch control {
-        case .previous: skip(-1)
-        case .next: skip(1)
-        case .playPause: playPause()
-        case .stop: stop()
-        case .open: mechanism.setLid(open: (mechanism.motion.lid.target ?? mechanism.motion.lid.value) < 0.5)
-        }
-
-        #if os(iOS)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        #endif
-    }
-}
-
 struct ListeningArtistArtwork: View {
     let url: URL?
     let name: String

@@ -24,7 +24,7 @@ import SwiftData
         XCTAssertEqual(results[0]?.id, "jay")
     }
 
-    func testBilingualImportedArtistCanAutoLinkWithoutRewritingName() async throws {
+    func testBilingualImportedArtistAutoLinksAndTakesAppleMusicName() async throws {
         let matched = candidate("sunset", "Sunset Rollercoaster")
         let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [matched]))
             .matches(for: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
@@ -32,7 +32,31 @@ import SwiftData
         var draft = ShowDraft(artists: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
         draft.attachArtistIdentity(matched, at: 0)
         XCTAssertEqual(draft.artists[0].appleMusicArtistID, "sunset")
-        XCTAssertEqual(draft.artists[0].name, "落日飞车 Sunset Rollercoaster")
+        XCTAssertEqual(draft.artists[0].name, "Sunset Rollercoaster")
+        XCTAssertTrue(draft.hasConfirmedArtistIdentity(draft.artists[0]))
+    }
+
+    func testMatchedArtistsTakeCachedAppleMusicNamesAcrossShowsAndTimetables() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let show = try Show(name: "Fest", date: .now, startTime: .now, artists: [
+            ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil, appleMusicArtistID: "sunset"),
+            ArtistSlot(name: "黄泽森", avatarURL: nil)
+        ])
+        context.insert(show)
+        let performance = try TimetablePerformance(
+            artistName: "落日飞车", startsAt: .now, endsAt: .now.addingTimeInterval(3600), appleMusicArtistID: "sunset"
+        )
+        context.insert(performance)
+        context.insert(ArtistCatalogSnapshot(artistID: "sunset", artistName: "Sunset Rollercoaster"))
+        try context.save()
+
+        XCTAssertTrue(try ArtistAppleMusicName.sync(in: context))
+
+        XCTAssertEqual(show.artists.map(\.name), ["Sunset Rollercoaster", "黄泽森"])
+        XCTAssertEqual(show.artists[0].appleMusicArtistID, "sunset")
+        XCTAssertEqual(performance.artistName, "Sunset Rollercoaster")
+        XCTAssertFalse(try ArtistAppleMusicName.sync(in: context), "a second pass has nothing to rename")
     }
 
     func testPunctuationAutoMatchesButTyposRemainSuggestions() {
@@ -446,9 +470,8 @@ import SwiftData
         XCTAssertTrue(show.artists.allSatisfy { $0.appleMusicArtistID == nil })
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningFixtureCatalog(scenario: .multiFull),
                                            artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { ListeningFixturePlayer(source: $0) })
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
         await room.load(show: show)
-        try await ListenTestData.settle(room) { !room.busy }
         XCTAssertEqual(show.artists.compactMap(\.appleMusicArtistID), ["fixture-artist-0", "fixture-artist-1"])
         XCTAssertEqual(show.artists.map(\.name), ["夜航", "海岸"])
         XCTAssertEqual(room.cabinetArtists.map(\.name), ["夜航", "海岸"])
@@ -481,7 +504,7 @@ import SwiftData
             artistSearchService: search,
             playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
 
         await room.load(show: current)
 
@@ -513,7 +536,7 @@ import SwiftData
             artistSearchService: search,
             playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
 
         await room.load(show: current)
 
@@ -541,7 +564,7 @@ import SwiftData
             artistSearchService: search,
             playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
 
         await room.load(show: current)
 
@@ -561,7 +584,7 @@ import SwiftData
         let search = AutoMatchSearchStub(candidates: [candidate("late", "Artist")], delayed: true)
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningFixtureCatalog(scenario: .multiFull),
                                            artistSearchService: search, playbackFactory: { ListeningFixturePlayer(source: $0) })
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
         let loading = Task { await room.load(show: first) }
         while await search.queries.isEmpty { await Task.yield() }
         await room.load(show: second)
@@ -569,13 +592,6 @@ import SwiftData
         XCTAssertEqual(room.show?.id, second.id)
         XCTAssertNil(first.artists.first?.appleMusicArtistID)
         XCTAssertTrue(room.discs.isEmpty)
-    }
-
-    func testOpenLidStaysInsideStageAndOutOfMetadata() {
-        let geometry = CDPlayerConfiguration.standard.geometry
-        let openEdge = geometry.hingeY + geometry.lid.height * cos((geometry.tiltDegrees + geometry.maximumOpening) * .pi / 180)
-        XCTAssertGreaterThanOrEqual(openEdge, geometry.viewportTop)
-        XCTAssertLessThan(geometry.maximumOpening, 90)
     }
 
     func testAllArtistsForceRefreshStaysLazyUntilSelectedArtistRefresh() async throws {
@@ -589,19 +605,16 @@ import SwiftData
         try context.save()
         let catalog = CountingListenCatalog()
         let room = ListeningRoomCoordinator(context: context, catalogService: catalog, artistSearchService: AutoMatchSearchStub(candidates: []), playbackFactory: { ListeningFixturePlayer(source: $0) })
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
 
         await room.load(show: show)
-        try await ListenTestData.settle(room) { !room.busy }
         XCTAssertEqual(catalog.fetchCount, 0)
 
         await room.load(show: show, force: true)
-        try await ListenTestData.settle(room) { !room.busy }
         XCTAssertEqual(catalog.fetchCount, 0, "force refresh in all-artists scope must not pull the detailed artist catalog")
 
         room.selectScope(.artist("artist-1"))
         await room.reloadCatalog(force: true)
-        try await ListenTestData.settle(room) { !room.busy }
         XCTAssertEqual(catalog.fetchCount, 1, "selected artist force refresh may fetch that artist's detailed catalog")
     }
 

@@ -55,6 +55,51 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertFalse(deck.wantsPlayback)
     }
 
+    func testPlayTakesTheAppsSoundOnTheTapBeforeLoadingEnds() async throws {
+        let factory = PlayerFactory { $0.loadDelay = .milliseconds(300) }
+        let deck = ListeningDeck(makeEngine: factory.make)
+        deck.load([album("a", songs: ["a1"])], cursor: "a1")
+        var videoStopped = false
+        let token = AppAudioSession.observeFocusLoss(of: .artistVideo) { videoStopped = true }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        deck.play(source: .fullCatalog)
+
+        XCTAssertTrue(videoStopped, "a playing video must stop on the tap, not once the queue has loaded")
+        XCTAssertFalse(deck.isQueueLoaded)
+    }
+
+    // MARK: - Warming the next pick
+
+    func testPrefetchUpcomingWarmsTheNextDiscWhileAnotherPlays() async throws {
+        let factory = PlayerFactory()
+        let deck = ListeningDeck(makeEngine: factory.make)
+        deck.load([album("a", songs: ["a1"])], cursor: "a1")
+        deck.play(source: .fullCatalog)
+        try await waitUntil { deck.isPlaying }
+
+        deck.prefetchUpcoming(album("b", songs: ["b1", "b2"]), source: .fullCatalog)
+
+        try await waitUntil { factory.last.prefetchedSongIDs == ["b1", "b2"] }
+        XCTAssertTrue(deck.isPlaying, "warming the next disc must not touch what is playing")
+        XCTAssertEqual(deck.cursorSongID, "a1")
+    }
+
+    func testPrefetchUpcomingNeverSwapsTheSourceOfAPlayingDisc() async throws {
+        let factory = PlayerFactory()
+        let deck = ListeningDeck(makeEngine: factory.make)
+        deck.load([album("a", songs: ["a1"])], cursor: "a1")
+        deck.play(source: .fullCatalog)
+        try await waitUntil { deck.isPlaying }
+
+        deck.prefetchUpcoming(album("b", songs: ["b1"]), source: .preview)
+
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(deck.engine?.source, .fullCatalog)
+        XCTAssertTrue(deck.isPlaying)
+        XCTAssertTrue(factory.last.prefetchedSongIDs.isEmpty)
+    }
+
     // MARK: - Navigation stays inside the loaded queue
 
     func testSelectingAnotherSongJumpsInsideTheLoadedQueue() async throws {

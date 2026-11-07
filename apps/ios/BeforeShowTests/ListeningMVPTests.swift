@@ -32,221 +32,6 @@ import XCTest
         XCTAssertTrue(disc.isAppleDigitalMaster == true)
         XCTAssertEqual(disc.appleMusicURL, URL(string: "https://music.apple.com/example"))
     }
-    func testAutomaticSwapUsesEveryMechanicalStep() async throws {
-        let mechanism = CDMechanism()
-        var steps: [String] = []
-        mechanism.onTransition = { steps.append($0) }
-        let first = ListeningDisc(id: "a", title: "A", artworkURL: nil, tracks: [])
-        let second = ListeningDisc(id: "b", title: "B", artworkURL: nil, tracks: [])
-        // Drive analytic spring channels directly so the test has no screen or
-        // CADisplayLink dependency and still waits for physical convergence.
-        let clock = Task { @MainActor in
-            while !Task.isCancelled {
-                mechanism.motion.lid.step(1)
-                mechanism.motion.discX.step(1); mechanism.motion.discY.step(1)
-                mechanism.motion.lift.step(1); mechanism.motion.discScale.step(1)
-                try? await Task.sleep(for: .milliseconds(1))
-            }
-        }
-        defer { clock.cancel() }
-        try await mechanism.load(first)
-        steps = []
-        try await mechanism.load(second)
-        XCTAssertEqual(steps, ["open", "remove", "store", "insert", "seat", "close"])
-        XCTAssertEqual(mechanism.position, .seated)
-        XCTAssertTrue(mechanism.isClosed)
-        XCTAssertEqual(mechanism.disc?.id, "b")
-    }
-    func testMechanicalTravelSettlesWithinHalfASecondAtEveryRefreshRate() {
-        for fps in [30, 60, 120] {
-            var lid = CDSpringChannel(value: 0)
-            var disc = CDSpringChannel(value: 100, tolerance: CDPlayerConfiguration.Motion.positionTolerance)
-            lid.move(to: 1)
-            disc.move(to: 489)
-            for _ in 0..<(fps / 2) {
-                lid.step(1 / Double(fps))
-                disc.step(1 / Double(fps))
-            }
-            XCTAssertNil(lid.target, "Lid still blocking at \(fps) Hz")
-            XCTAssertNil(disc.target, "Disc still blocking at \(fps) Hz")
-            XCTAssertEqual(lid.value, 1)
-            XCTAssertEqual(disc.value, 489)
-        }
-    }
-
-    func testSpringReversalRetainsCurrentPositionAndVelocity() {
-        var lid = CDSpringChannel(value: 0)
-        lid.move(to: 1)
-        lid.step(0.08)
-        let position = lid.value
-        let velocity = lid.velocity
-        lid.move(to: 0)
-        XCTAssertEqual(lid.value, position)
-        XCTAssertEqual(lid.velocity, velocity)
-        for _ in 0..<60 { lid.step(1 / 60) }
-        XCTAssertNil(lid.target)
-        XCTAssertEqual(lid.value, 0)
-    }
-
-    func testReducedMotionSettlesAutomaticTravelButPreservesDirectDragging() {
-        var disc = CDSpringChannel(value: 100)
-        disc.move(to: 489)
-        disc.step(1 / 60, reducedMotion: true)
-        XCTAssertEqual(disc.value, 489)
-        XCTAssertNil(disc.target)
-        XCTAssertEqual(disc.velocity, 0)
-        disc.grab()
-        disc.value = 320
-        disc.step(1 / 60, reducedMotion: true)
-        XCTAssertEqual(disc.value, 320)
-    }
-
-    func testSpringGrabKeepsPresentationAngle() async throws {
-        let mechanism = CDMechanism()
-        mechanism.motion.lid.value = 0.42; mechanism.motion.lid.target = 1
-        mechanism.dragLid(0)
-        XCTAssertEqual(mechanism.motion.lid.value, 0.42, accuracy: 0.000001)
-        XCTAssertNil(mechanism.motion.lid.target)
-    }
-
-    func testManualCabinetDragSeatsAndReturnsTheSameDisc() {
-        let mechanism = CDMechanism()
-        let disc = ListeningDisc(id: "manual", title: "Manual", artworkURL: nil, tracks: [])
-        let slot = CGPoint(x: 90, y: 940)
-        let center = mechanism.configuration.geometry.discCenter
-        mechanism.cabinetSlots[disc.id] = slot
-        mechanism.cabinetDropZone = CGRect(x: 0, y: 850, width: 460, height: 200)
-        mechanism.motion.lid.value = 1
-        mechanism.beginCabinetDrag(disc)
-        mechanism.dragDisc(CGSize(width: center.x - slot.x, height: center.y - slot.y))
-        mechanism.endDiscDrag()
-        settle(mechanism)
-        XCTAssertEqual(mechanism.position, .seated)
-        XCTAssertFalse(mechanism.isCabinetDragging)
-        mechanism.dragDisc(CGSize(width: slot.x - center.x, height: slot.y - center.y))
-        mechanism.endDiscDrag()
-        XCTAssertTrue(mechanism.isReturning)
-        settle(mechanism)
-        mechanism.refresh()
-        XCTAssertEqual(mechanism.position, .stored)
-        XCTAssertEqual(mechanism.disc?.id, disc.id)
-        XCTAssertEqual(mechanism.motion.discX.value, slot.x, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, slot.y, accuracy: 0.001)
-    }
-    func testReturnAfterChangingArtistStaysInsideTheVisibleCabinet() {
-        let mechanism = CDMechanism()
-        defer { mechanism.motion.stop() }
-        let disc = ListeningDisc(id: "original", title: "Original", artworkURL: nil, tracks: [])
-        mechanism.restoreSeated(disc)
-        mechanism.motion.lid.value = 1
-        mechanism.cabinetDropZone = CGRect(x: -20, y: -10, width: 500, height: 230)
-        mechanism.cabinetSlots = ["another-artist": CGPoint(x: 80, y: 150)]
-
-        mechanism.returnCurrentDiscToCabinet()
-        settle(mechanism)
-
-        XCTAssertEqual(mechanism.position, .stored)
-        XCTAssertEqual(mechanism.motion.discX.value, mechanism.cabinetDropZone.midX, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, mechanism.cabinetDropZone.midY, accuracy: 0.001)
-    }
-    func testCabinetMissReturnsDiscAndOpenSeatedDiscCanBeDragged() {
-        let mechanism = CDMechanism()
-        let disc = ListeningDisc(id: "manual", title: "Manual", artworkURL: nil, tracks: [])
-        mechanism.motion.lid.value = 1
-        mechanism.beginCabinetDrag(disc)
-        mechanism.dragDisc(CGSize(width: -900, height: -900))
-        mechanism.endDiscDrag()
-        XCTAssertTrue(mechanism.isReturning)
-        settle(mechanism)
-        mechanism.refresh()
-        XCTAssertEqual(mechanism.position, .stored)
-        mechanism.beginCabinetDrag(disc)
-        mechanism.dragDisc(CGSize(width: mechanism.configuration.geometry.discCenter.x - mechanism.motion.discX.value,
-                                  height: mechanism.configuration.geometry.discCenter.y - mechanism.motion.discY.value))
-        mechanism.endDiscDrag()
-        settle(mechanism)
-        mechanism.setLid(open: true)
-        settle(mechanism)
-        mechanism.dragDisc(CGSize(width: 400, height: 400))
-        mechanism.endDiscDrag()
-        settle(mechanism)
-        XCTAssertEqual(mechanism.position, .stored)
-        XCTAssertEqual(mechanism.motion.discX.value, mechanism.configuration.geometry.canvas.width / 2, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, mechanism.configuration.geometry.parkedDisc.y, accuracy: 0.001)
-    }
-    func testCabinetLongPressOpensLidAndAcceptsDropBeforeItFinishesOpening() {
-        let mechanism = CDMechanism()
-        let disc = ListeningDisc(id: "fast", title: "Fast", artworkURL: nil, tracks: [])
-        let slot = CGPoint(x: 90, y: 120)
-        let center = mechanism.configuration.geometry.discCenter
-        mechanism.cabinetSlots[disc.id] = slot
-
-        XCTAssertTrue(mechanism.beginCabinetDrag(disc))
-        XCTAssertEqual(mechanism.motion.lid.target, 1)
-        mechanism.dragDisc(CGSize(width: center.x - slot.x, height: center.y - slot.y))
-        mechanism.endDiscDrag()
-        settle(mechanism)
-
-        XCTAssertEqual(mechanism.position, .seated)
-        XCTAssertTrue(mechanism.isOpen)
-    }
-    func testFastDropCannotBeInterruptedByClosingLid() {
-        let mechanism = CDMechanism()
-        let disc = ListeningDisc(id: "fast", title: "Fast", artworkURL: nil, tracks: [])
-        let slot = CGPoint(x: 90, y: 120)
-        let center = mechanism.configuration.geometry.discCenter
-        mechanism.cabinetSlots[disc.id] = slot
-
-        mechanism.beginCabinetDrag(disc)
-        mechanism.dragDisc(CGSize(width: center.x - slot.x, height: center.y - slot.y))
-        mechanism.endDiscDrag()
-        mechanism.setLid(open: false)
-        mechanism.dragLid(100)
-
-        XCTAssertEqual(mechanism.motion.lid.target, 1)
-        settle(mechanism)
-        XCTAssertEqual(mechanism.position, .seated)
-        XCTAssertTrue(mechanism.isOpen)
-    }
-    func testOccupiedPlayerRejectsAnotherCabinetDisc() {
-        let mechanism = CDMechanism()
-        let current = ListeningDisc(id: "current", title: "Current", artworkURL: nil, tracks: [])
-        let replacement = ListeningDisc(id: "replacement", title: "Replacement", artworkURL: nil, tracks: [])
-        mechanism.restoreSeated(current)
-
-        XCTAssertFalse(mechanism.beginCabinetDrag(replacement))
-        XCTAssertEqual(mechanism.disc?.id, current.id)
-        XCTAssertEqual(mechanism.occupiedAttemptCount, 1)
-    }
-    func testAutomaticSwapLeavesReplacementSeatedAndClosed() async throws {
-        let mechanism = CDMechanism()
-        let first = ListeningDisc(id: "a", title: "A", artworkURL: nil, tracks: [])
-        let second = ListeningDisc(id: "b", title: "B", artworkURL: nil, tracks: [])
-        mechanism.restoreSeated(first)
-        let clock = Task { @MainActor in
-            while !Task.isCancelled {
-                mechanism.motion.lid.step(1)
-                mechanism.motion.discX.step(1); mechanism.motion.discY.step(1)
-                mechanism.motion.lift.step(1); mechanism.motion.discScale.step(1)
-                try? await Task.sleep(for: .milliseconds(1))
-            }
-        }
-        defer { clock.cancel() }
-
-        try await mechanism.load(second)
-
-        XCTAssertEqual(mechanism.disc?.id, second.id)
-        XCTAssertEqual(mechanism.position, .seated)
-        XCTAssertTrue(mechanism.isClosed)
-    }
-    private func settle(_ mechanism: CDMechanism) {
-        for _ in 0..<20 {
-            mechanism.motion.lid.step(1)
-            mechanism.motion.discX.step(1); mechanism.motion.discY.step(1)
-            mechanism.motion.lift.step(1); mechanism.motion.discScale.step(1)
-            mechanism.refresh()
-        }
-    }
 }
 
 @MainActor final class ListeningRoomPlaybackTests: XCTestCase {
@@ -267,29 +52,22 @@ import XCTest
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningMVPCatalogStub(), playbackFactory: { _ in service })
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first)
-        let clock = Task { @MainActor in
-            while !Task.isCancelled {
-                let motion = room.mechanism.motion
-                motion.lid.step(1); motion.discX.step(1); motion.discY.step(1); motion.lift.step(1); motion.discScale.step(1)
-                try? await Task.sleep(for: .milliseconds(1))
-            }
-        }
-        defer { clock.cancel(); room.setActive(false) }
+        defer { room.setActive(false) }
         room.loadDisc(disc)
-        try await wait { room.mechanism.isClosed && room.mechanism.hasDisc && !room.busy }
+        try await wait { room.hasLoadedDisc }
         try await wait { room.isPlaying }
         XCTAssertEqual(service.source, .preview)
         service.advanceNaturally()
-        try await wait { room.trackIndex == 1 && room.isPlaying && !room.busy }
+        try await wait { room.trackIndex == 1 && room.isPlaying }
         XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
         service.finishQueue()
         try await wait { !room.isPlaying && room.trackIndex == 0 }
         XCTAssertEqual(room.display.player.phase, .stopped, "playing through the disc stops it at its first track")
-        XCTAssertEqual(room.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(room.loadedDisc?.id, disc.id)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
         XCTAssertEqual(service.loadCount, 1)
         room.playPause()
-        try await wait { room.isPlaying && !room.busy }
+        try await wait { room.isPlaying }
         XCTAssertEqual(service.loadCount, 2)
         XCTAssertEqual(service.loadedStartSongID, "a")
         XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
@@ -297,7 +75,7 @@ import XCTest
         await room.load(show: show)
         // Artist identity changes keep the loaded disc and the playback transport;
         // only the catalog around them reloads.
-        XCTAssertEqual(room.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(room.loadedDisc?.id, disc.id)
         XCTAssertEqual(room.track?.id, "a")
         XCTAssertTrue(room.isPlaying)
     }
@@ -318,29 +96,16 @@ import XCTest
         let room = ListeningRoomCoordinator(context: context, catalogService: ListeningMVPCatalogStub(), playbackFactory: { _ in service })
         await room.load(show: show)
         let disc = try XCTUnwrap(room.discs.first)
-        var steps: [String] = []
-        room.mechanism.onTransition = { steps.append($0) }
-        let clock = Task { @MainActor in
-            while !Task.isCancelled {
-                let motion = room.mechanism.motion
-                motion.lid.step(1); motion.discX.step(1); motion.discY.step(1); motion.lift.step(1); motion.discScale.step(1)
-                try? await Task.sleep(for: .milliseconds(1))
-            }
-        }
-        defer { clock.cancel(); room.setActive(false) }
+        defer { room.setActive(false) }
         room.loadDisc(disc, songID: "a", autoplay: true)
-        try await wait { room.mechanism.isClosed && room.mechanism.hasDisc && room.isPlaying && !room.busy }
-        steps = []
+        try await wait { room.hasLoadedDisc && room.isPlaying }
         room.loadDisc(disc, songID: "b", autoplay: true)
-        try await wait { room.trackIndex == 1 && room.isPlaying && !room.busy }
-        XCTAssertEqual(steps, [])
-        XCTAssertEqual(room.mechanism.position, .seated)
-        XCTAssertTrue(room.mechanism.isClosed)
-        XCTAssertEqual(room.mechanism.disc?.id, disc.id)
+        try await wait { room.trackIndex == 1 && room.isPlaying }
+        XCTAssertEqual(room.loadedDisc?.id, disc.id)
         XCTAssertEqual(service.loadedSongIDs, ["a", "b"])
         XCTAssertEqual(service.loadCount, 1, "selecting a track on the seated disc stays in its queue")
     }
-    func testSwitchingDiscsWhilePlayingStopsOldTrackAndStartsReplacementAfterAnimation() async throws {
+    func testSwitchingDiscsWhilePlayingSwapsToTheReplacementOnTheTap() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
         let now = Date()
@@ -362,25 +127,16 @@ import XCTest
                                   tracks: [ListeningDiscTrack(songA)])
         let second = ListeningDisc(id: "second", title: "Second", artworkURL: nil,
                                    tracks: [ListeningDiscTrack(songB)])
-        var steps: [String] = []
-        room.mechanism.onTransition = { steps.append($0) }
-        let clock = Task { @MainActor in
-            while !Task.isCancelled {
-                let motion = room.mechanism.motion
-                motion.lid.step(1); motion.discX.step(1); motion.discY.step(1); motion.lift.step(1); motion.discScale.step(1)
-                try? await Task.sleep(for: .milliseconds(1))
-            }
-        }
-        defer { clock.cancel(); room.setActive(false) }
+        defer { room.setActive(false) }
 
         room.loadDisc(first)
-        try await wait { room.mechanism.disc?.id == first.id && room.isPlaying && !room.busy }
-        steps = []
+        try await wait { room.loadedDisc?.id == first.id && room.isPlaying }
 
         room.loadDisc(second)
-        try await wait { room.mechanism.disc?.id == second.id && room.isPlaying && !room.busy }
+        XCTAssertEqual(room.loadedDisc?.id, second.id, "the new record is on the deck as soon as it is chosen")
+        XCTAssertEqual(room.track?.id, "b")
+        try await wait { room.isPlaying }
 
-        XCTAssertEqual(steps, ["open", "remove", "store", "insert", "seat", "close"])
         XCTAssertEqual(service.loadCount, 2)
         XCTAssertEqual(service.loadedSongIDs, ["b"])
     }

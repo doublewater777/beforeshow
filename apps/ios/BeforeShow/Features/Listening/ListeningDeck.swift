@@ -41,6 +41,7 @@ final class ListeningDeck {
     @ObservationIgnored private var observationTask: Task<Void, Never>?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var prefetchTask: Task<Void, Never>?
+    @ObservationIgnored private var upcomingPrefetchTask: Task<Void, Never>?
     @ObservationIgnored private var lastTransport: Transport?
 
     init(makeEngine: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing) {
@@ -168,11 +169,22 @@ final class ListeningDeck {
         prefetchTask = Task { await engine.prefetch(items) }
     }
 
+    /// Resolves a record that is not loaded yet (the next pick) into the player's
+    /// song cache, so loading it later skips the catalog round trip. Never swaps sources.
+    func prefetchUpcoming(_ disc: ListeningDisc, source: ListeningPlaybackSource) {
+        if let engine, engine.source != source { return }
+        let engine = engine(for: source)
+        let items = disc.tracks.map { $0.playbackItem(on: disc) }
+        upcomingPrefetchTask?.cancel()
+        upcomingPrefetchTask = Task { await engine.prefetch(items) }
+    }
+
     // MARK: - Transport commands
 
     func play(source: ListeningPlaybackSource) {
         syncWithPlayer()
         guard let cursor = cursorSongID else { return }
+        AppAudioSession.claimFocus(.listening) // others (a video) stop on the tap, not once loading ends
         let engine = engine(for: source)
         let needsLoad = !isQueueLoaded || engine.hasEnded || engine.failure != nil
         let resume = isQueueLoaded ? 0 : resumeTime
@@ -223,6 +235,7 @@ final class ListeningDeck {
         syncWithPlayer()
         guard tracks.contains(where: { $0.id == songID }) else { return }
         let continues = autoplay || wantsPlayback
+        if continues, source != nil { AppAudioSession.claimFocus(.listening) }
         if songID == cursorSongID, isQueueLoaded, !isFinished {
             if continues, !wantsPlayback, let source { play(source: source) }
             return

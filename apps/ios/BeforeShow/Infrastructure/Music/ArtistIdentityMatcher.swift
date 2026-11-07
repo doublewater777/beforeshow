@@ -52,7 +52,7 @@ struct ArtistIdentityMatcher: Sendable {
         )
     }
 
-    /// Resolve identities without rewriting saved display names.
+    /// Resolve identities; callers adopt `canonicalName` as the Apple Music display name.
     func matches(for slots: [ArtistSlot]) async throws -> [Int: RecognizedArtist] {
         var result: [Int: RecognizedArtist] = [:]
         var pending: [(indices: [Int], query: String)] = []
@@ -100,6 +100,53 @@ struct ArtistIdentityMatcher: Sendable {
                 for index in indices { result[index] = candidate }
                 if let item = remaining.next() { enqueue(item) }
             }
+        }
+        return result
+    }
+}
+
+extension ArtistIdentityMatcher {
+    /// Unmatched slots reuse an identity already confirmed elsewhere under the same name,
+    /// as long as that name points to exactly one Apple Music artist.
+    static func reusableMatches(for slots: [ArtistSlot], saved: [ArtistSlot]) -> [Int: RecognizedArtist] {
+        let unresolved = slots.enumerated().filter {
+            $0.element.appleMusicArtistID == nil
+                && AppleMusicArtistIdentity.artistID(from: $0.element.appleMusicURL) == nil
+        }
+        guard !unresolved.isEmpty else { return [:] }
+
+        var knownByName: [String: [String: ArtistSlot]] = [:]
+        for source in saved {
+            guard let rawID = source.appleMusicArtistID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawID.isEmpty else { continue }
+            let key = ArtistNameMatching.normalized(source.name)
+            guard !key.isEmpty else { continue }
+
+            var identities = knownByName[key, default: [:]]
+            if var existing = identities[rawID] {
+                if existing.appleMusicURL == nil { existing.appleMusicURL = source.appleMusicURL }
+                if existing.avatarURL == nil { existing.avatarURL = source.avatarURL }
+                identities[rawID] = existing
+            } else {
+                identities[rawID] = source
+            }
+            knownByName[key] = identities
+        }
+
+        var result: [Int: RecognizedArtist] = [:]
+        for (index, slot) in unresolved {
+            let key = ArtistNameMatching.normalized(slot.name)
+            guard !key.isEmpty,
+                  let identities = knownByName[key],
+                  identities.count == 1,
+                  let (artistID, source) = identities.first else { continue }
+
+            result[index] = RecognizedArtist(
+                id: artistID,
+                canonicalName: source.name,
+                avatarURL: source.avatarURL.flatMap(URL.init(string:)),
+                appleMusicURL: source.appleMusicURL.flatMap(URL.init(string:))
+            )
         }
         return result
     }

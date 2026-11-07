@@ -1,5 +1,6 @@
 import AVKit
 import Combine
+import MediaPlayer
 import Observation
 import SwiftUI
 
@@ -21,12 +22,15 @@ final class ListeningVideoDock {
     @ObservationIgnored private var statusObservation: AnyCancellable?
     @ObservationIgnored private var endObservation: AnyCancellable?
     @ObservationIgnored private var focusToken: NSObjectProtocol?
+    /// Publishes the video to the Lock Screen and Control Center, docked or not.
+    @ObservationIgnored private var nowPlaying: MPNowPlayingSession?
 
     init(search: any ArtistVideoSearching = BilibiliVideoSearchService.shared) {
         self.search = search
     }
 
-    var isDocked: Bool { selection != nil && !isExpanded }
+    /// A video owns the mini player while it is open or docked, so the bar never flashes back to music.
+    var hasVideo: Bool { selection != nil }
 
     func open(_ selection: ListeningVideoSelection) {
         isExpanded = true
@@ -67,6 +71,7 @@ final class ListeningVideoDock {
         endObservation = nil
         player?.pause()
         player = nil
+        nowPlaying = nil
         isPlaying = false
         loadFailed = false
         isExpanded = false
@@ -84,8 +89,10 @@ final class ListeningVideoDock {
         endObservation = nil
         player?.pause()
         player = nil
+        nowPlaying = nil
         isPlaying = false
         loadFailed = false
+        let artist = selection?.artist
         loadTask = Task { [search] in
             do {
                 let stream = try await search.stream(for: video.bvid)
@@ -93,6 +100,7 @@ final class ListeningVideoDock {
                 guard !Task.isCancelled, selection?.video.id == video.id else { return }
                 let asset = AVURLAsset(url: stream.url, options: ["AVURLAssetHTTPHeaderFieldsKey": stream.headers])
                 let item = AVPlayerItem(asset: asset)
+                item.nowPlayingInfo = [MPMediaItemPropertyTitle: video.title, MPMediaItemPropertyArtist: artist ?? video.author]
                 let player = AVPlayer(playerItem: item)
                 // With no close button, a finished video hands the mini player back to music.
                 endObservation = NotificationCenter.default.publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: item)
@@ -106,11 +114,37 @@ final class ListeningVideoDock {
                         self?.isPlaying = status != .paused
                     }
                 self.player = player
+                publishNowPlaying(for: player, item: item, cover: video.coverURL)
                 AppAudioSession.claimFocus(.artistVideo)
                 player.play()
+                _ = await nowPlaying?.becomeActiveIfPossible()
             } catch {
                 if !Task.isCancelled { loadFailed = true }
             }
+        }
+    }
+
+    private func publishNowPlaying(for player: AVPlayer, item: AVPlayerItem, cover: URL?) {
+        let session = MPNowPlayingSession(players: [player])
+        session.automaticallyPublishesNowPlayingInfo = true
+        let commands = session.remoteCommandCenter
+        commands.playCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in if self?.isPlaying == false { self?.togglePlayback() } }
+            return .success
+        }
+        commands.pauseCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in if self?.isPlaying == true { self?.togglePlayback() } }
+            return .success
+        }
+        commands.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.togglePlayback() }
+            return .success
+        }
+        nowPlaying = session
+        guard let cover else { return }
+        Task {
+            guard let image = await ShowCoverImageCache.shared.image(from: cover) else { return }
+            item.nowPlayingInfo?[MPMediaItemPropertyArtwork] = PreviewListeningPlaybackService.makeArtwork(image)
         }
     }
 }

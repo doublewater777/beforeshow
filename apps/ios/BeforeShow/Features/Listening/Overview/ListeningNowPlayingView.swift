@@ -100,17 +100,17 @@ struct ListeningNowPlayingView: View {
 
     private var controls: some View {
         HStack(spacing: BSSpacing.xl) {
-            Button { room.perform(.previous) } label: {
+            Button { room.skip(-1) } label: {
                 Image(systemName: "backward.fill").font(.system(size: 24)).frame(width: 56, height: 56)
             }
-            Button { room.perform(.playPause) } label: {
+            Button { room.playPause() } label: {
                 Image(systemName: room.display.player.showsPauseControl ? "pause.fill" : "play.fill")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(BSColor.Stage.background)
                     .frame(width: 72, height: 72)
                     .background(Circle().fill(BSColor.Stage.foreground))
             }
-            Button { room.perform(.next) } label: {
+            Button { room.skip(1) } label: {
                 Image(systemName: "forward.fill").font(.system(size: 24)).frame(width: 56, height: 56)
             }
         }
