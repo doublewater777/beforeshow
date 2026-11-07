@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// One album per screen; whichever album settles on screen plays its previews. Only 就听这张
-/// puts it on the deck (and the mini player); browsing leaves what you were listening to alone.
+/// One album per screen. With nothing playing, the album that settles on screen plays its previews;
+/// opened over music, browsing is silent. Only 就听这张 puts an album on the deck and the mini player.
 struct ListeningPickFeedView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
@@ -12,8 +12,8 @@ struct ListeningPickFeedView: View {
     @State private var order: [ListeningDisc] = []
     @State private var currentID: String?
     @State private var openingID: String?
-    /// Opened over a playing record: the opening album waits for a swipe or 就听这张.
-    @State private var heldOpeningID: String?
+    /// Opened while something plays: browsing stays silent, only 就听这张 changes the music.
+    @State private var isListeningOutside = false
     @State private var audition = ListeningPickAudition()
 
     private var scopeKey: String { ListeningDiscPickPolicy.showScopeKey }
@@ -58,12 +58,14 @@ struct ListeningPickFeedView: View {
             header
         }
         .foregroundStyle(BSColor.Stage.foreground)
-        .onAppear { rebuild(startingWith: startingDisc, keepingPlaying: true) }
+        .onAppear {
+            isListeningOutside = room.wantsPlayback
+            rebuild(startingWith: startingDisc, keepingPlaying: true)
+        }
         .onChange(of: filter) { _, _ in rebuild(startingWith: nil, keepingPlaying: false) }
         .task(id: settledID) {
-            if settledID != heldOpeningID { heldOpeningID = nil }
             prefetchNextPage()
-            guard heldOpeningID == nil else { return }
+            guard !isListeningOutside else { return }
             await playSettledPage()
         }
         .onDisappear { audition.stop(resumeListening: true) }
@@ -110,7 +112,6 @@ struct ListeningPickFeedView: View {
         let playing = keepingPlaying && room.wantsPlayback ? room.loadedDisc : nil
         order = ListeningPickOrder.keeping(playing, above: drawn)
         openingID = drawn.first?.id
-        heldOpeningID = playing != nil && playing?.id != openingID ? openingID : nil
         currentID = openingID
     }
 

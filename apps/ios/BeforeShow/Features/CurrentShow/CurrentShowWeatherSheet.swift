@@ -256,13 +256,16 @@ struct CurrentShowWeatherSheet: View {
                 let band = ShowWeatherDays.showBand(hours: weather.hourly.map(\.time), start: showWindow.start, end: showWindow.end)
                     ?? 0...(weather.hourly.count - 1)
                 let fits = weather.hourly.count <= 7
-                // The whole day is there to scroll back to; it opens just before doors.
-                let lead = weather.hourly[max(0, band.lowerBound - 2)].id
+                let hours = weather.hourly.map(\.time)
+                let now = Date()
+                let current = ShowWeatherDays.currentIndex(hours: hours, now: now)
+                // The whole day is there to scroll back to; it opens on now at the venue, otherwise just before doors.
+                let lead = weather.hourly[ShowWeatherDays.leadIndex(hours: hours, band: band, now: now)].id
                 ScrollViewReader { reader in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 0) {
                             ForEach(Array(weather.hourly.enumerated()), id: \.element.id) { index, hour in
-                                hourColumn(hour, inShow: band.contains(index), weather: weather)
+                                hourColumn(hour, inShow: band.contains(index), isNow: index == current, weather: weather)
                                     .frame(width: fits ? nil : 56)
                                     .frame(maxWidth: fits ? .infinity : nil)
                                     .id(hour.id)
@@ -282,9 +285,9 @@ struct CurrentShowWeatherSheet: View {
         }
     }
 
-    private func hourColumn(_ hour: ShowWeatherHourlyDTO, inShow: Bool, weather: ShowWeatherDTO) -> some View {
+    private func hourColumn(_ hour: ShowWeatherHourlyDTO, inShow: Bool, isNow: Bool, weather: ShowWeatherDTO) -> some View {
         VStack(spacing: 8) {
-            Text(hour.milestoneLabel ?? " ")
+            Text(hour.milestoneLabel ?? (isNow ? BSLocalization.text("现在") : " "))
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(weather.tone.primaryTint)
                 .lineLimit(1)

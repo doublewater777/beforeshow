@@ -29,6 +29,7 @@ struct CurrentShowLibraryManagementView: View {
     @State private var cancelTarget: Show?
     @State private var isShowingAdd = false
     @State private var toast: BSToastPayload?
+    @State private var revealedShowID: UUID?
 
     private let session = CurrentShowSession()
 
@@ -49,14 +50,31 @@ struct CurrentShowLibraryManagementView: View {
                             sectionHeader(BSLocalization.text("即将开始"), count: upcoming.count)
                             LazyVStack(spacing: BSSpacing.sm) {
                                 ForEach(upcoming, id: \.persistentModelID) { show in
-                                    CurrentShowLibraryUpcomingRow(
+                                    let actions = menuActions(for: show, selectedShowID: selectedShowID, now: now)
+                                    let row = CurrentShowLibraryUpcomingRow(
                                         show: show,
                                         isCurrent: selectedShowID == show.id,
                                         phase: session.phase(for: show, now: now),
-                                        actions: menuActions(for: show, selectedShowID: selectedShowID, now: now),
+                                        actions: actions,
                                         onOpen: { destination = .init(show: show) },
                                         onAction: { action in handle(action, for: show) }
                                     )
+                                    if actions.contains(.setCurrent) {
+                                        // Same gesture as 还有 N 场 on the 当前 tab.
+                                        BSSwipeRevealActionRow(
+                                            isRevealed: revealedShowID == show.id,
+                                            actionTitle: BSLocalization.text("设为当前"),
+                                            actionIcon: "pin.fill",
+                                            tint: BSColor.Stage.accent,
+                                            onReveal: { revealedShowID = $0 ? show.id : nil },
+                                            onAction: {
+                                                revealedShowID = nil
+                                                selectCurrent(show)
+                                            }
+                                        ) { row }
+                                    } else {
+                                        row
+                                    }
                                 }
                             }
                         }

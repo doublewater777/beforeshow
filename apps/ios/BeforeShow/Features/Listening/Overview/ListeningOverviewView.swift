@@ -2,12 +2,10 @@ import SwiftUI
 
 enum ListeningOverviewSheet: Identifiable {
     case artist(String)
-    case lineup
 
     var id: String {
         switch self {
         case let .artist(id): "artist-\(id)"
-        case .lineup: "lineup"
         }
     }
 }
@@ -24,9 +22,7 @@ struct ListeningOverviewView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: BSSpacing.xl) {
-                ListeningLineupPoster(room: room, show: show, onArtist: openArtist) {
-                    onOpenSheet(.lineup)
-                }
+                ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
                 if room.showsRack {
                     pickSection
                     playlistSection

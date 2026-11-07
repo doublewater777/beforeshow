@@ -274,6 +274,7 @@ struct HomeCountdownLockup: View {
             hasConfirmedEnd: show.endedAt != nil,
             hasEndHandler: onEndShow != nil,
             hasRouteHandler: false,
+            hasCompletedDispersal: show.hasCompletedDispersalCeremony,
             recommendation: onRecommendation == nil ? nil : recommendation
         )
     }
@@ -298,6 +299,7 @@ struct HomeCountdownLockup: View {
         case .memoryFragments: return { onMemoryFragments?() }
         case .memoryCreate: return { (onMemoryCreate ?? onMemoryFragments)?() }
         case .route: return { onOpenRoute?() }
+        case .dispersal: return { onRecommendation?(.dispersal) }
         case .recommendation(let feature): return { onRecommendation?(feature) }
         }
     }

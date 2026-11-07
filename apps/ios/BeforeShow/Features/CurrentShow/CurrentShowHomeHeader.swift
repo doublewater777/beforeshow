@@ -35,18 +35,30 @@ struct CurrentShowHomeHeader: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Only what the stage doesn't already say: which day of a multi-day festival, and that today is done.
+    static func chip(for phase: LiveModePhase, dayIndex: Int?, dayCount: Int) -> (text: String, color: Color)? {
+        guard dayCount > 1 else { return nil }
+        switch phase {
+        case .upcoming, .fullyEnded: return nil
+        case .dayEnded: return (BSLocalization.text("今天结束"), HomeLiveStyle.night)
+        case .active: return dayIndex.map { (BSLocalization.format("第%d天", $0 + 1), BSColor.Stage.live) }
+        }
+    }
+
+    @ViewBuilder
     private func statusChip(_ live: LiveModeState) -> some View {
-        let (text, color): (String, Color) = {
-            switch live.phase {
-            case .upcoming: return (BSLocalization.text("今日首场"), BSColor.Stage.accent)
-            case .dayEnded: return (BSLocalization.text("今天结束"), HomeLiveStyle.night)
-            case .fullyEnded: return (BSLocalization.text("全部结束"), BSColor.Stage.accent)
-            default:
-                let index = show.timetable?.orderedDays.firstIndex { $0.id == live.activeDayID }
-                return (index.map { BSLocalization.format("第%d天", $0 + 1) } ?? BSLocalization.text("现场"), BSColor.Stage.live)
-            }
-        }()
-        return HStack(spacing: 7) {
+        let days = show.timetable?.orderedDays ?? []
+        if let chip = Self.chip(
+            for: live.phase,
+            dayIndex: days.firstIndex { $0.id == live.activeDayID },
+            dayCount: days.count
+        ) {
+            chipLabel(chip.text, color: chip.color)
+        }
+    }
+
+    private func chipLabel(_ text: String, color: Color) -> some View {
+        HStack(spacing: 7) {
             Circle().fill(color).frame(width: 6, height: 6).shadow(color: color, radius: 3)
             Text(text).lineLimit(1).fixedSize()
         }

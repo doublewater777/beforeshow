@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: Primary action：单一主行动随生命周期切换
 // 开场前 → 功能推荐；当天开场前 → 路线；live → 记一段记忆；
-// 超过预计散场且未确认 → 确认已结束；确认散场后 → 功能推荐（ADR 0037）。
+// 超过预计散场且未确认 → 确认已结束；散场停留期 → 散场评价；之后 → 功能推荐（ADR 0037）。
 
 extension HomeCountdownLockup {
     enum PrimaryAction: Equatable {
@@ -10,6 +10,7 @@ extension HomeCountdownLockup {
         case memoryFragments
         case memoryCreate
         case route
+        case dispersal(completed: Bool)
         case recommendation(RecommendedFeature)
 
         var title: String {
@@ -18,6 +19,7 @@ extension HomeCountdownLockup {
             case .end(live: false): return BSLocalization.text("确认已结束")
             case .memoryFragments, .memoryCreate: return BSLocalization.text("记一段记忆")
             case .route: return BSLocalization.text("看路线")
+            case .dispersal(let completed): return BSLocalization.text(completed ? "看散场评价" : "记下感受")
             case .recommendation(let feature): return feature.cardTitle
             }
         }
@@ -28,7 +30,7 @@ extension HomeCountdownLockup {
             case .memoryFragments: return BSLocalization.text("打开记忆碎片")
             case .memoryCreate: return BSLocalization.text("打开新增记忆")
             case .route: return BSLocalization.text("打开路线")
-            case .recommendation: return ""
+            case .dispersal, .recommendation: return ""
             }
         }
 
@@ -36,7 +38,7 @@ extension HomeCountdownLockup {
         var usesLiveTint: Bool {
             switch self {
             case .end, .memoryFragments, .memoryCreate: return true
-            case .route, .recommendation: return false
+            case .route, .dispersal, .recommendation: return false
             }
         }
     }
@@ -47,11 +49,13 @@ extension HomeCountdownLockup {
         hasConfirmedEnd: Bool,
         hasEndHandler: Bool,
         hasRouteHandler: Bool = false,
+        hasCompletedDispersal: Bool = false,
         recommendation: RecommendedFeature? = nil
     ) -> PrimaryAction? {
         if hasConfirmedEnd {
             switch timeState.kind {
-            case .postShow, .ended: return recommendation.map(PrimaryAction.recommendation)
+            case .postShow: return .dispersal(completed: hasCompletedDispersal)
+            case .ended: return recommendation.map(PrimaryAction.recommendation)
             default: return nil
             }
         }

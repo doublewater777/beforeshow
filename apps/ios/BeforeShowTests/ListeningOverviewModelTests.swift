@@ -12,6 +12,7 @@ final class ListeningOverviewModelTests: XCTestCase {
         let large = ListeningPosterTiers(Array(1...40))
         XCTAssertEqual(large.rest, [6, 7, 8, 9, 10, 11])
         XCTAssertTrue(large.hasMore)
+        XCTAssertEqual(ListeningPosterTiers(Array(1...40), expanded: true).rest, Array(6...40))
     }
 
     func testArtistReleasesIncludeSinglesNewestFirst() {
@@ -77,16 +78,6 @@ final class ListeningOverviewModelTests: XCTestCase {
         ), "a playlist the user stopped on stays on the card")
     }
 
-    func testLineupSectionsIndexLatinAndPutOthersLast() {
-        let sections = ListeningLineupSection.sections([
-            artist("Zedd"), artist("aespa"), artist("Björk"), artist("123 Band"), artist("Adele"),
-        ])
-        XCTAssertEqual(sections.map(\.id), ["A", "B", "Z", "#"])
-        XCTAssertEqual(sections[0].artists.map(\.name), ["Adele", "aespa"])
-        XCTAssertEqual(ListeningLineupSection.sections([artist("Zedd"), artist("Adele")], query: "ze")
-            .flatMap(\.artists).map(\.name), ["Zedd"])
-    }
-
     private func disc(_ id: String, year: Int? = nil, isSingle: Bool = false,
                       origin: ListeningDisc.Origin = .album) -> ListeningDisc {
         ListeningDisc(
@@ -102,10 +93,5 @@ final class ListeningOverviewModelTests: XCTestCase {
 
     private func track(_ id: String) -> ListeningDiscTrack {
         ListeningDiscTrack(CatalogSong(appleMusicSongID: id, title: id, artistName: "A", duration: 100))
-    }
-
-    private func artist(_ name: String) -> ListeningBrowseArtist {
-        ListeningBrowseArtist(slotIndex: 0, id: name, name: name, artworkURL: nil,
-                              appleMusicArtistID: name, albums: [])
     }
 }

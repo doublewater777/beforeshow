@@ -99,10 +99,14 @@ extension CurrentShowManagementSection {
 
     /// 散场仪式从确认散场时间开始：还没确认的先确认，确认后接到仪式。
     func openDispersal() {
-        if show.endedAt == nil {
-            presentedSheet = .endConfirmation
-        } else {
+        if show.endedAt != nil {
             ceremonySheetShowID = show.id
+        } else if let end = CurrentShowEndPolicy.declaredEnd(for: show) {
+            Task { @MainActor in
+                if await onConfirmEnd(end) { ceremonySheetShowID = show.id }
+            }
+        } else {
+            presentedSheet = .endConfirmation
         }
     }
 
