@@ -12,6 +12,7 @@ enum AppPersistenceMigrationRunner {
         _ = try? NotificationSchedulingStateStore.canonicalize(in: modelContext)
         AppleMusicArtistIdentityMigration.migrateIfNeeded(in: modelContext)
         LocalCompanionMigration.migrateIfNeeded(in: modelContext)
+        DynamicCoverRetirement.retireIfNeeded(in: modelContext)
     }
 }
 

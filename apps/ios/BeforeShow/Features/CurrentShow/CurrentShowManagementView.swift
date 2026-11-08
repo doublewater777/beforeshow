@@ -14,8 +14,6 @@ struct CurrentShowManagementSection: View {
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
     var onSetCurrentShow: (Show) -> Void = { _ in }
-    var onChooseDynamicCover: () -> Void = {}
-    var isImportingDynamicCover = false
     var onConfirmEnd: (Date) async -> Bool
     var homeArrival: CurrentShowHomeArrival?
     var onHomeArrivalPrepared: (UUID) -> Void = { _ in }
@@ -33,7 +31,6 @@ struct CurrentShowManagementSection: View {
     @Query private var notificationRecords: [ShowNotificationScheduleRecord]
     @AppStorage(FeatureUsageEnvironment.widgetKey) private var hasInstalledWidget = false
     @State var presentedSheet: CurrentShowPresentedSheet?
-    @State var pendingMemoryCreate: MemoryCreateSourceOption?
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
@@ -55,7 +52,6 @@ struct CurrentShowManagementSection: View {
 
     private var hasPresentationRequest: Bool {
         presentedSheet != nil
-            || pendingMemoryCreate != nil
             || ceremonyLightsOutShowID != nil
             || ceremonySheetShowID != nil
     }
@@ -133,12 +129,9 @@ struct CurrentShowManagementSection: View {
                     onDetailVisibilityChange: onDetailVisibilityChange
                 )
             case .memory:
-                MemoryFragmentsSheet(show: show, pendingCreate: pendingMemoryCreate)
+                MemoryFragmentsSheet(show: show)
             case .memoryCreate:
-                MemoryCreateSourceSheet { option in
-                    pendingMemoryCreate = option
-                    presentedSheet = nil
-                }
+                MemoryFragmentsSheet(show: show, pendingCreate: .quick)
             case .mapChooser:
                 MapChooserSheet(
                     hasDestination: hasMapDestination,
@@ -211,12 +204,6 @@ struct CurrentShowManagementSection: View {
         .onChange(of: presentedSheet, initial: true) { oldSheet, newSheet in
             if newSheet != nil {
                 isPresentationVisibilityLatched = true
-            }
-            if newSheet == nil, oldSheet == .memoryCreate, pendingMemoryCreate != nil {
-                presentedSheet = .memory
-            }
-            if newSheet == nil, oldSheet == .memory {
-                pendingMemoryCreate = nil
             }
         }
         .onChange(of: ceremonyLightsOutShowID, initial: true) { _, showID in
@@ -335,9 +322,7 @@ struct CurrentShowManagementSection: View {
                     let hero = HomeStageHero(
                         show: show,
                         snapshot: snapshot,
-                        isPlaybackActive: isHeroPlaybackActive,
                         reduceMotion: reduceMotion,
-                        isImportingDynamicCover: isImportingDynamicCover, onChooseVideo: onChooseDynamicCover,
                         topExtension: topInset + BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding + 18,
                         screens: liveTimetable == nil ? nil : screens,
                         livePhase: liveState?.phase,
@@ -386,14 +371,8 @@ struct CurrentShowManagementSection: View {
                                 onEndShow: canRecordEnd
                                     ? { presentedSheet = .endConfirmation }
                                     : nil,
-                                onMemoryFragments: {
-                                    pendingMemoryCreate = nil
-                                    presentedSheet = .memory
-                                },
-                                onMemoryCreate: {
-                                    pendingMemoryCreate = nil
-                                    presentedSheet = .memoryCreate
-                                },
+                                onMemoryFragments: { presentedSheet = .memory },
+                                onMemoryCreate: { presentedSheet = .memoryCreate },
                                 onOpenRoute: embedsRouteInLocation
                                     ? { openRouteChooser() }
                                     : nil
@@ -556,7 +535,7 @@ struct CurrentShowManagementSection: View {
             return
         }
 
-        if presentedSheet != nil || pendingMemoryCreate != nil {
+        if presentedSheet != nil {
             isPresentationVisibilityLatched = true
             return
         }

@@ -34,7 +34,6 @@ enum ShowDeletionCoordinator {
             let coverImageURL = show.coverImageURL
             let showID = show.id
             let targetPersistentID = show.persistentModelID
-            let dynamicCoverPath = show.dynamicCover?.relativePath
             let remainingShows = shows.filter { $0.persistentModelID != targetPersistentID }
             let hasRemainingSameBusinessID = remainingShows.contains { $0.id == showID }
 
@@ -56,7 +55,7 @@ enum ShowDeletionCoordinator {
                 )
             }
 
-            // Show owns fragments/assets/dynamic cover with cascade relationships.
+            // Show owns fragments/assets with cascade relationships.
             // Deleting children explicitly before deleting the parent double-mutates the
             // same SwiftData graph and can leave views observing invalidated models.
             modelContext.delete(show)
@@ -73,19 +72,7 @@ enum ShowDeletionCoordinator {
 
             var cleanupPending = false
             if !hasRemainingSameBusinessID {
-                DynamicCoverFaceStore.clear(showID: showID)
                 try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
-                if let dynamicCoverPath {
-                    do {
-                        try await DynamicCoverMediaStore.shared.deleteShow(showID)
-                    } catch {
-                        ShowAssetCleanupRetry.markDynamicCoverCleanupPending(
-                            showID: showID,
-                            relativePath: dynamicCoverPath
-                        )
-                        cleanupPending = true
-                    }
-                }
                 ShowAssetCleanupRetry.markShowCleanupPending(showID)
                 do {
                     try await ShowAssetMediaStore.shared.deleteShow(showID)

@@ -2464,54 +2464,6 @@
         }
       }
     },
-    "一条记忆最多 %lld 个媒体。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A memory can hold at most %lld media items."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一則記憶最多 %lld 個媒體。"
-          }
-        }
-      }
-    },
-    "一条记忆最多 %lld 个媒体，已只载入前 %lld 个。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A memory can hold at most %lld media items. Loaded only the first %lld."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一則記憶最多 %lld 個媒體，已只載入前 %lld 個。"
-          }
-        }
-      }
-    },
-    "一条记忆最多 10 项媒体。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A memory can hold up to 10 media items."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一條記憶最多 10 項媒體。"
-          }
-        }
-      }
-    },
     "一次买断，永久有效": {
       "localizations": {
         "en": {
@@ -3238,22 +3190,6 @@
         }
       }
     },
-    "从图库选择": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose from Library"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "從圖庫選擇"
-          }
-        }
-      }
-    },
     "从相册选择": {
       "localizations": {
         "en": {
@@ -3498,22 +3434,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "儲存中…"
-          }
-        }
-      }
-    },
-    "保存修改": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save Changes"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "儲存修改"
           }
         }
       }
@@ -3778,22 +3698,6 @@
         }
       }
     },
-    "停止导入": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stop importing"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止匯入"
-          }
-        }
-      }
-    },
     "停留期还剩 %@": {
       "localizations": {
         "en": {
@@ -3806,22 +3710,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "停留期還剩 %@"
-          }
-        }
-      }
-    },
-    "像发一条私密动态，但不会公开发布。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Like posting a private story, but it won't be published publicly."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "像發一條私密動態，但不會公開發佈。"
           }
         }
       }
@@ -4296,22 +4184,6 @@
         }
       }
     },
-    "内容没有保存，请重试。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Content wasn't saved; please retry."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "內容沒有儲存，請重試。"
-          }
-        }
-      }
-    },
     "再想一下？": {
       "localizations": {
         "en": {
@@ -4340,39 +4212,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "寫下你的問題或建議"
-          }
-        }
-      }
-    },
-    "写下这一刻": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Capture This Moment"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "寫下這一刻"
-          }
-        }
-      }
-    },
-    "写点什么……（可选）": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Write something… (optional)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "寫點什麼……（可選）"
           }
         }
       }
@@ -4794,22 +4633,6 @@
         }
       }
     },
-    "删除动态封面？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete Dynamic Cover?"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除動態封面？"
-          }
-        }
-      }
-    },
     "删除后不会出现在“我的现场”和足迹中，此操作无法恢复。": {
       "localizations": {
         "en": {
@@ -4838,22 +4661,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "刪除後可以重新新增。App 內儲存的圖片會一起移除。"
-          }
-        }
-      }
-    },
-    "删除后这段视频将从这场现场移除。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deleting this video removes it from this show."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除後這段影片將從這場現場移除。"
           }
         }
       }
@@ -5158,86 +4965,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "剩餘"
-          }
-        }
-      }
-    },
-    "加入这场现场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Join This Show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入這場現場"
-          }
-        }
-      }
-    },
-    "动态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dynamic Cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動態封面"
-          }
-        }
-      }
-    },
-    "动态封面没有删除，请重试。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not delete the animated cover. Please try again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動態封面沒有刪除，請重試。"
-          }
-        }
-      }
-    },
-    "动态封面没有更新": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dynamic cover not updated"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動態封面沒有更新"
-          }
-        }
-      }
-    },
-    "动态封面视频副本": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Animated cover video copy"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動態封面影片副本"
           }
         }
       }
@@ -6736,39 +6463,6 @@
         }
       }
     },
-    "媒体导入已取消，请重新选择。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Media import canceled; choose again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "媒體匯入已取消，請重新選擇。"
-          }
-        }
-      }
-    },
-    "媒体没有载入，请重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Media didn't load; please retry."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "媒體沒有載入，請重試。"
-          }
-        }
-      }
-    },
     "存一张时刻表": {
       "localizations": {
         "en": {
@@ -6881,22 +6575,6 @@
         }
       }
     },
-    "导入一段不超过 15 秒的视频": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Import a video up to 15 seconds"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯入一段不超過 15 秒的影片"
-          }
-        }
-      }
-    },
     "导入时刻表": {
       "localizations": {
         "en": {
@@ -6958,22 +6636,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "封面圖匯入失敗"
-          }
-        }
-      }
-    },
-    "封面背面 · 默认静音": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cover back · Muted by default"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "封面背面 · 預設靜音"
           }
         }
       }
@@ -7251,23 +6913,6 @@
         }
       }
     },
-    "已保存修改": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Changes saved"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已儲存修改"
-          }
-        }
-      }
-    },
     "已保存到相册": {
       "localizations": {
         "en": {
@@ -7328,39 +6973,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已刪除現場"
-          }
-        }
-      }
-    },
-    "已删除这条记忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Memory deleted"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已刪除這條記憶"
-          }
-        }
-      }
-    },
-    "已加入这场现场": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Joined this show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已加入這場現場"
           }
         }
       }
@@ -7573,23 +7185,6 @@
         }
       }
     },
-    "已撤销删除": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deletion undone"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已撤銷刪除"
-          }
-        }
-      }
-    },
     "已撤销取消": {
       "localizations": {
         "en": {
@@ -7720,22 +7315,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已有現場保留 · 每月容量 +1"
-          }
-        }
-      }
-    },
-    "已添加": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Added"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已新增"
           }
         }
       }
@@ -8365,22 +7944,6 @@
         }
       }
     },
-    "当前为%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Currently %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目前為%@"
-          }
-        }
-      }
-    },
     "当前封面": {
       "localizations": {
         "en": {
@@ -8445,22 +8008,6 @@
         }
       }
     },
-    "当前无法使用相机。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Camera unavailable right now."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目前無法使用相機。"
-          }
-        }
-      }
-    },
     "当前格式暂不支持，请使用新版识别指令重新生成": {
       "extractionState": "manual",
       "localizations": {
@@ -8490,22 +8037,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "當前現場散場後會自動收進這裡，\\n場次、城市和回憶都會慢慢累積。"
-          }
-        }
-      }
-    },
-    "当前设备无法使用相机。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This device cannot use the camera."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目前裝置無法使用相機。"
           }
         }
       }
@@ -9065,22 +8596,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "所有修改已儲存"
-          }
-        }
-      }
-    },
-    "所选媒体的临时文件已失效，请返回图库重新选择。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The temp files for the selected media have expired; go back to the library and choose again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所選媒體的暫存檔已失效，請返回圖庫重新選擇。"
           }
         }
       }
@@ -9840,22 +9355,6 @@
         }
       }
     },
-    "撤销": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Undo"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "復原"
-          }
-        }
-      }
-    },
     "撤销结束": {
       "localizations": {
         "en": {
@@ -10605,22 +10104,6 @@
         }
       }
     },
-    "整组媒体共用一段文字": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All media in a group share one text"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "整組媒體共用一段文字"
-          }
-        }
-      }
-    },
     "文字": {
       "localizations": {
         "en": {
@@ -10633,22 +10116,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "文字"
-          }
-        }
-      }
-    },
-    "文字最多 500 字。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Text is limited to 500 characters."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "文字最多 500 字。"
           }
         }
       }
@@ -10761,23 +10228,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "新舞台名稱"
-          }
-        }
-      }
-    },
-    "新记忆": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New Memory"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新記憶"
           }
         }
       }
@@ -11300,38 +10750,6 @@
         }
       }
     },
-    "显示动态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Dynamic Cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示動態封面"
-          }
-        }
-      }
-    },
-    "显示静态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Static Cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示靜態封面"
-          }
-        }
-      }
-    },
     "晃动 iPhone 打开反馈": {
       "localizations": {
         "en": {
@@ -11472,22 +10890,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "暫停試聽"
-          }
-        }
-      }
-    },
-    "暂无动态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No dynamic cover yet"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫無動態封面"
           }
         }
       }
@@ -11829,22 +11231,6 @@
         }
       }
     },
-    "更换视频": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Change Video"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更換影片"
-          }
-        }
-      }
-    },
     "更新延期信息": {
       "extractionState": "manual",
       "localizations": {
@@ -11923,38 +11309,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "最後一首歌結束的時候，燈亮得特別慢。"
-          }
-        }
-      }
-    },
-    "最多 %lld 项": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maximum %lld items"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最多 %lld 項"
-          }
-        }
-      }
-    },
-    "最多 500 字": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Up to 500 characters"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最多 500 字"
           }
         }
       }
@@ -12538,22 +11892,6 @@
         }
       }
     },
-    "条记忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "memories"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "條記憶"
-          }
-        }
-      }
-    },
     "来听听%@的歌。": {
       "localizations": {
         "en": {
@@ -12878,22 +12216,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在準備唱片"
-          }
-        }
-      }
-    },
-    "正在准备视频…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preparing video…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在準備影片…"
           }
         }
       }
@@ -13478,38 +12800,6 @@
         }
       }
     },
-    "添加动态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Dynamic Cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增動態封面"
-          }
-        }
-      }
-    },
-    "添加动态封面视频": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Dynamic Cover Video"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增動態封面影片"
-          }
-        }
-      }
-    },
     "添加单场演出": {
       "localizations": {
         "en": {
@@ -13666,22 +12956,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "新增舞台"
-          }
-        }
-      }
-    },
-    "添加视频": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Video"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增影片"
           }
         }
       }
@@ -13995,22 +13269,6 @@
         }
       }
     },
-    "点击查看 · 拖动调整顺序": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Click to view · Drag to adjust the order"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "點選查看 · 拖曳調整順序"
-          }
-        }
-      }
-    },
     "点击浏览器底部标出的分享按钮。": {
       "extractionState": "manual",
       "localizations": {
@@ -14099,22 +13357,6 @@
         }
       }
     },
-    "照片、视频和小记都按现场阶段收在这里。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Photos, videos, and notes collected by show phase."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "照片、影片和小記都按現場階段收在這裡。"
-          }
-        }
-      }
-    },
     "照片、视频和文字都会从本地时间流中移除。": {
       "localizations": {
         "en": {
@@ -14143,23 +13385,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "照片儲存失敗，請重試。"
-          }
-        }
-      }
-    },
-    "照片没有载入，请重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Photo didn't load; please retry."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "照片沒有載入，請重試。"
           }
         }
       }
@@ -14308,22 +13533,6 @@
         }
       }
     },
-    "现场信息已变化，请重新选择视频。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show info changed; choose the video again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現場資訊已變化，請重新選擇影片。"
-          }
-        }
-      }
-    },
     "现场信息已更新": {
       "localizations": {
         "en": {
@@ -14368,38 +13577,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "現場聽到了"
-          }
-        }
-      }
-    },
-    "现场封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現場封面"
-          }
-        }
-      }
-    },
-    "现场封面，%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show cover, %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現場封面，%@"
           }
         }
       }
@@ -14817,22 +13994,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "相機"
-          }
-        }
-      }
-    },
-    "相机入口只拍照片，视频请从相册选择。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Camera captures photos only. Pick videos from your library."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "相機入口只拍照片，影片請從相簿選擇。"
           }
         }
       }
@@ -15298,22 +14459,6 @@
         }
       }
     },
-    "移除": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移除"
-          }
-        }
-      }
-    },
     "稍作休息，%@继续": {
       "localizations": {
         "en": {
@@ -15604,22 +14749,6 @@
         }
       }
     },
-    "管理这条记忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manage this memory"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "管理這條記憶"
-          }
-        }
-      }
-    },
     "粘贴%@链接并开始解析": {
       "localizations": {
         "en": {
@@ -15893,38 +15022,6 @@
         }
       }
     },
-    "给当前这条记忆增加媒体": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add media to this memory"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "為目前這條記憶增加媒體"
-          }
-        }
-      }
-    },
-    "给这场现场加一面动态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a moving cover to this show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "為這場現場加上一面動態封面"
-          }
-        }
-      }
-    },
     "继续": {
       "localizations": {
         "en": {
@@ -15941,22 +15038,6 @@
         }
       }
     },
-    "继续拍照": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keep Taking Photos"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "繼續拍照"
-          }
-        }
-      }
-    },
     "继续添加": {
       "localizations": {
         "en": {
@@ -15969,22 +15050,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "繼續新增"
-          }
-        }
-      }
-    },
-    "继续添加媒体": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Continue Adding Media"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "繼續新增媒體"
           }
         }
       }
@@ -16102,22 +15167,6 @@
         }
       }
     },
-    "编辑记忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Memory"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "編輯記憶"
-          }
-        }
-      }
-    },
     "编辑评价": {
       "localizations": {
         "en": {
@@ -16194,22 +15243,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "網路連線失敗，請檢查網路後重試"
-          }
-        }
-      }
-    },
-    "自动记录当前现场时间。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The current show time is recorded automatically."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自動記錄當前現場時間。"
           }
         }
       }
@@ -16502,54 +15535,6 @@
         }
       }
     },
-    "视频不能超过 15 秒。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Video can't exceed 15 seconds."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "影片不能超過 15 秒。"
-          }
-        }
-      }
-    },
-    "视频太大，最多支持 100 MB。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Video is too large; up to 100 MB supported."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "影片太大，最多支援 100 MB。"
-          }
-        }
-      }
-    },
-    "视频导入已取消，请重新选择。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Video import canceled; choose again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "影片匯入已取消，請重新選擇。"
-          }
-        }
-      }
-    },
     "视频封面": {
       "localizations": {
         "en": {
@@ -16562,22 +15547,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "影片封面"
-          }
-        }
-      }
-    },
-    "视频没有载入，请重试。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Video didn't load; please retry."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "影片沒有載入，請重試。"
           }
         }
       }
@@ -16884,38 +15853,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "設為想看"
-          }
-        }
-      }
-    },
-    "设备储存空间不足，暂时无法保存。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not enough device storage; can't save right now."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裝置儲存空間不足，暫時無法儲存。"
-          }
-        }
-      }
-    },
-    "设备存储空间不足。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not enough device storage."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "裝置儲存空間不足。"
           }
         }
       }
@@ -17283,22 +16220,6 @@
         }
       }
     },
-    "请保留至少一项媒体或一段文字。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keep at least one media item or a line of text."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請保留至少一項媒體或一段文字。"
-          }
-        }
-      }
-    },
     "请先取出当前 CD，并放回唱片柜": {
       "localizations": {
         "en": {
@@ -17462,23 +16383,6 @@
         }
       }
     },
-    "请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please retry later."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請稍後重試。"
-          }
-        }
-      }
-    },
     "请至少保留一个舞台": {
       "extractionState": "manual",
       "localizations": {
@@ -17559,22 +16463,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "請輸入藝人名稱"
-          }
-        }
-      }
-    },
-    "请重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please Retry"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請重試"
           }
         }
       }
@@ -17784,70 +16672,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "跳過"
-          }
-        }
-      }
-    },
-    "轻点关闭，长按管理": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap to close, press and hold to manage"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輕點關閉，長按管理"
-          }
-        }
-      }
-    },
-    "轻点封面进入现场详情。长按主封面可切换静态面与动态面。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap the cover for show details. Long-press the main cover to switch between the static and dynamic faces."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輕點封面進入現場詳情。長按主封面可切換靜態面與動態面。"
-          }
-        }
-      }
-    },
-    "轻点查看现场详情": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap for show details"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輕點查看現場詳情"
-          }
-        }
-      }
-    },
-    "轻点查看现场详情，长按翻转动态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap for show details; long-press to flip the dynamic cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輕點查看現場詳情，長按翻轉動態封面"
           }
         }
       }
@@ -18310,22 +17134,6 @@
         }
       }
     },
-    "还没有记忆碎片": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No memory fragments yet"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "還沒有記憶碎片"
-          }
-        }
-      }
-    },
     "还缺少现场信息": {
       "localizations": {
         "en": {
@@ -18370,22 +17178,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "這 %d 天我想看的"
-          }
-        }
-      }
-    },
-    "这一刻，你想记下什么？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "What do you want to remember in this moment?"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這一刻，你想記下什麼？"
           }
         }
       }
@@ -18498,38 +17290,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "這不是演出連結"
-          }
-        }
-      }
-    },
-    "这个媒体格式暂不支持，请换一张照片或视频。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This media format isn't supported; use a different photo or video."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這個媒體格式暫不支援，請換一張照片或影片。"
-          }
-        }
-      }
-    },
-    "这个文件不是可用的视频。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This file isn't a usable video."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這個檔案不是可用的影片。"
           }
         }
       }
@@ -18835,22 +17595,6 @@
         }
       }
     },
-    "这场现场的记忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Memories from this show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這場現場的記憶"
-          }
-        }
-      }
-    },
     "这场结束了，留下一点记忆。": {
       "localizations": {
         "en": {
@@ -18927,22 +17671,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "這座城市裡的現場"
-          }
-        }
-      }
-    },
-    "这张图片无法处理，请换一张图片后重试。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This image can't be processed; try a different one."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這張圖片無法處理，請換一張圖片後重試。"
           }
         }
       }
@@ -19525,22 +18253,6 @@
         }
       }
     },
-    "长按翻转动态封面，轻点返回静态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Long-press to flip the dynamic cover; tap to return to the static cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "長按翻轉動態封面，輕點返回靜態封面"
-          }
-        }
-      }
-    },
     "长按锁屏": {
       "localizations": {
         "en": {
@@ -19633,22 +18345,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "隱藏原圖對照"
-          }
-        }
-      }
-    },
-    "静态封面": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Static cover"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "靜態封面"
           }
         }
       }
@@ -22070,22 +20766,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "新日期待定"
-          }
-        }
-      }
-    },
-    "海报背面 · 添加视频": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Poster back · Add video"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "海報背面 · 加入影片"
           }
         }
       }
@@ -25513,6 +24193,198 @@
           "stringUnit": {
             "state": "translated",
             "value": "和誰一起去？記下來，散場後會留在足跡裡。"
+          }
+        }
+      }
+    },
+    "%lld 句": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld lines"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 句"
+          }
+        }
+      }
+    },
+    "%lld 张照片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld photos"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 張照片"
+          }
+        }
+      }
+    },
+    "%lld 段视频": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld videos"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 段影片"
+          }
+        }
+      }
+    },
+    "保存到相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save to Photos"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存到相簿"
+          }
+        }
+      }
+    },
+    "写一句": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write a line"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寫一句"
+          }
+        }
+      }
+    },
+    "加一句": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a line"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加一句"
+          }
+        }
+      }
+    },
+    "改一句": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit line"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改一句"
+          }
+        }
+      }
+    },
+    "拍一张、选几张，或者写一句。每一样都会按时间收进这场。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take a photo, pick a few, or write a line. Each one is kept in this show by time."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍一張、選幾張，或者寫一句。每一樣都會按時間收進這場。"
+          }
+        }
+      }
+    },
+    "此刻想记下的一句": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A line for this moment"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此刻想記下的一句"
+          }
+        }
+      }
+    },
+    "相册": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相簿"
+          }
+        }
+      }
+    },
+    "还没有记忆": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No memories yet"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有記憶"
+          }
+        }
+      }
+    },
+    "已收进这场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kept in this show"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已收進這場"
           }
         }
       }

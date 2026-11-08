@@ -31,8 +31,6 @@ OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/Timetable/TimetableSheet.swift": 699,
     "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 674,
     "Shared/CurrentShowTimeState.swift": 636,
-    "BeforeShow/Features/Memory/MemoryUnifiedEditorView.swift": 636,
-    "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 632,
     "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 613,
 }
 
@@ -69,7 +67,6 @@ ROOT_VIEW_FORBIDDEN_TOKENS = (
     "enum DebugSampleShowSeeder",
     "import PhotosUI",
     "PhotosPickerItem",
-    "DynamicCoverImportCoordinator",
     "WidgetDataSync.sync",
     "LocalNotificationCenter.shared.reconcilePortfolio",
     "struct CurrentShowManagementSection",
@@ -155,8 +152,6 @@ FOOTPRINT_DETAIL_VIEW_FORBIDDEN_TOKENS = (
     "struct FootprintMemoryTile",
     "struct FootprintKeepsakeTile",
     "struct FootprintLocalImage",
-    "struct FootprintDynamicCoverSection",
-    "DynamicCoverVideoPreviewView",
 )
 
 DISPERSAL_CEREMONY_SHEET_FORBIDDEN_TOKENS = (
@@ -197,14 +192,8 @@ APP_ENTRY_FORBIDDEN_TOKENS = (
     "func reconcileMemoryFragmentShowBoundary",
     "func saveModelContextRollingBackOnFailure",
     "func reconcileAllShowAssets",
-    "func reconcileAllDynamicCovers",
-    "func reconcileDynamicCoverModelBoundary",
     "func reconcileShowAssetShowBoundary",
 )
-
-
-
-
 
 
 SETTINGS_ROOT_FORBIDDEN_TOKENS = (
@@ -374,7 +363,6 @@ SHOW_LIBRARY_MANAGEMENT_FORBIDDEN_TOKENS = (
 )
 
 
-
 MEMORY_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
     "struct MemoryDraftMedia",
     "struct MemoryCommittedMedia",
@@ -425,50 +413,9 @@ FOOTPRINT_ARTIST_WRITEBACK_FORBIDDEN_TOKENS = (
     "struct FootprintVisibility",
 )
 
-DYNAMIC_COVER_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
-    "struct DynamicCoverImportedFile",
-    "enum DynamicCoverMediaStoreError",
-    "enum DynamicCoverCapacity",
-    "struct DynamicCoverMediaStagedVideo",
-    "struct DynamicCoverMediaCommittedVideo",
-    "enum DynamicCoverErrorMessagePolicy",
-    "func stageTransferredFile(",
-    "func commit(",
-    "func cleanupStaging(",
-    "func cleanupImportTemp(",
-    "func reconcile(",
-    "func verifiedExistingRelativePaths(",
-    "static func posterRelativePath(",
-)
-
-DYNAMIC_COVER_MEDIA_TYPES_FORBIDDEN_TOKENS = (
-    "BSLocalization",
-    "enum DynamicCoverErrorMessagePolicy",
-)
-
-DYNAMIC_COVER_PRESENTATION_FORBIDDEN_TOKENS = (
-    "struct DynamicCoverManagementSection",
-    "enum DynamicCoverImportCoordinator",
-    "struct MemoryViewerVideoPage",
-    "enum AppAudioSession",
-    "enum DynamicCoverAudioTrackProbe",
-)
-
-DYNAMIC_COVER_PLAYBACK_FORBIDDEN_TOKENS = (
-    "struct MemoryViewerVideoPage",
-    "enum AppAudioSession",
-    "enum DynamicCoverAudioTrackProbe",
-)
-
-DYNAMIC_COVER_MANAGEMENT_FORBIDDEN_TOKENS = (
-    "enum DynamicCoverImportCoordinator",
-    "struct DynamicCoverFlipView",
-    "struct MemoryViewerVideoPage",
-)
 
 APP_AUDIO_SESSION_FORBIDDEN_TOKENS = (
     "import SwiftUI",
-    "struct DynamicCoverPlaybackView",
     "struct MemoryViewerVideoPage",
 )
 
@@ -881,36 +828,6 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Footprints/FootprintArtistArtworkWriteback.swift",
         FOOTPRINT_ARTIST_WRITEBACK_FORBIDDEN_TOKENS,
         "Keep artist artwork model mutation as a narrow writeback helper rather than an archive aggregate.",
-        errors,
-    )
-    check_forbidden_tokens(
-        "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift",
-        DYNAMIC_COVER_MEDIA_STORE_CORE_FORBIDDEN_TOKENS,
-        "Keep the DynamicCover media store core limited to actor construction, storage availability, URL resolution, and commit-gate access; media values, staging, commits, cleanup/reconciliation, and file helpers belong in their dedicated files.",
-        errors,
-    )
-    check_forbidden_tokens(
-        "BeforeShow/Infrastructure/Media/DynamicCoverMediaTypes.swift",
-        DYNAMIC_COVER_MEDIA_TYPES_FORBIDDEN_TOKENS,
-        "Keep user-facing DynamicCover error copy in CurrentShow presentation support, not Infrastructure media types.",
-        errors,
-    )
-    check_forbidden_tokens(
-        "BeforeShow/Features/DynamicCover/DynamicCoverPresentation.swift",
-        DYNAMIC_COVER_PRESENTATION_FORBIDDEN_TOKENS,
-        "Keep reusable DynamicCover face/preview presentation separate from CurrentShow management, Footprints composition, Memory playback, and infrastructure services.",
-        errors,
-    )
-    check_forbidden_tokens(
-        "BeforeShow/Features/DynamicCover/DynamicCoverPlaybackView.swift",
-        DYNAMIC_COVER_PLAYBACK_FORBIDDEN_TOKENS,
-        "Keep reusable DynamicCover playback separate from Memory video pages and infrastructure audio/probe services.",
-        errors,
-    )
-    check_forbidden_tokens(
-        "BeforeShow/Features/CurrentShow/DynamicCoverManagementSection.swift",
-        DYNAMIC_COVER_MANAGEMENT_FORBIDDEN_TOKENS,
-        "Keep CurrentShow DynamicCover management focused on page UI state; import transactions and reusable/other-feature presentation belong elsewhere.",
         errors,
     )
     check_forbidden_tokens(

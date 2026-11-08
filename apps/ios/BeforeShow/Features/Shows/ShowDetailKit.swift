@@ -1,18 +1,15 @@
 import SwiftUI
 
-/// What you bring to the show, laid out as objects: ticket, timetable, a +1 wristband,
-/// and the poster's moving back side. After the show the same things are what you kept.
+/// What you bring to the show, laid out as objects: ticket, timetable, a +1 wristband.
+/// After the show the same things are what you kept.
 struct ShowDetailKit: View {
     let isAfterShow: Bool
     let assets: [ShowAssetManagementEntry]
     let assetFileURL: (ShowAssetKind) -> URL?
     let companionSubtitle: String
     let hasCompanion: Bool
-    let coverURL: String?
-    let hasDynamicCover: Bool
     let onAsset: (ShowAssetKind) -> Void
     let onCompanion: () -> Void
-    let onDynamicCover: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -28,13 +25,6 @@ struct ShowDetailKit: View {
                 }
                 tile(title: BSLocalization.text("同行"), subtitle: companionSubtitle, action: onCompanion) {
                     wristbands
-                }
-                tile(
-                    title: BSLocalization.text("动态封面"),
-                    subtitle: hasDynamicCover ? BSLocalization.text("已添加") : BSLocalization.text("海报背面 · 添加视频"),
-                    action: onDynamicCover
-                ) {
-                    posterBackSide
                 }
             }
         }
@@ -134,32 +124,6 @@ struct ShowDetailKit: View {
             .frame(width: 82, height: 28)
             .rotationEffect(.degrees(6))
             .offset(x: 2, y: 50)
-        }
-        .accessibilityHidden(true)
-    }
-
-    /// The poster's front, dimmed, and its back side where the video lives.
-    private var posterBackSide: some View {
-        ZStack(alignment: .topLeading) {
-            ShowCoverImageView(urlString: coverURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, alignment: .top, enforcesAspectRatio: false, cornerRadius: 3)
-                .frame(width: 58, height: 78)
-                .overlay { BSLEDScanlines() }
-                .brightness(-0.3)
-                .shadow(color: .black.opacity(0.55), radius: 9, y: 8)
-                .rotationEffect(.degrees(-3))
-            Group {
-                if hasDynamicCover {
-                    RoundedRectangle(cornerRadius: 3).fill(Color(white: 0.16))
-                        .overlay { Image(systemName: "play.fill").font(.system(size: 16)).foregroundStyle(BSColor.Stage.foreground) }
-                } else {
-                    RoundedRectangle(cornerRadius: 3).fill(Color(white: 0.07))
-                        .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Color.white.opacity(0.22), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])))
-                        .overlay { Image(systemName: "play.fill").font(.system(size: 14)).foregroundStyle(BSColor.Stage.muted) }
-                }
-            }
-            .frame(width: 58, height: 78)
-            .rotationEffect(.degrees(5))
-            .offset(x: 40, y: 12)
         }
         .accessibilityHidden(true)
     }

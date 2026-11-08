@@ -70,7 +70,6 @@ extension CurrentShowManagementSection {
         case .route:
             openRouteChooser()
         case .memoryCreate:
-            pendingMemoryCreate = nil
             presentedSheet = .memoryCreate
         case .memoryFragments:
             openMemoryFragments()
@@ -111,7 +110,6 @@ extension CurrentShowManagementSection {
     }
 
     func openMemoryFragments() {
-        pendingMemoryCreate = nil
         presentedSheet = .memory
     }
 

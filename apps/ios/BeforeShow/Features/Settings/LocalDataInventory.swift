@@ -6,7 +6,6 @@ struct LocalDataInventory: Equatable {
     var memoryFragmentCount = 0
     var timetableCount = 0
     var assetCount = 0
-    var dynamicCoverCount = 0
     var familiarSongCount = 0
     var setlistMemoryCount = 0
     var listeningCatalogItemCount = 0
@@ -19,7 +18,6 @@ struct LocalDataInventory: Equatable {
             && memoryFragmentCount == 0
             && timetableCount == 0
             && assetCount == 0
-            && dynamicCoverCount == 0
             && listeningRecordCount == 0
             && mediaBytes == 0
     }
@@ -33,7 +31,6 @@ enum LocalDataInventoryService {
         inventory.memoryFragmentCount = count(MemoryFragment.self, in: modelContext)
         inventory.timetableCount = count(Timetable.self, in: modelContext)
         inventory.assetCount = count(ShowAsset.self, in: modelContext)
-        inventory.dynamicCoverCount = count(DynamicCover.self, in: modelContext)
         inventory.familiarSongCount = count(SongFamiliarityRecord.self, in: modelContext)
         inventory.setlistMemoryCount = count(ShowSetlistMemory.self, in: modelContext)
         inventory.listeningCatalogItemCount = count(ArtistCatalogSnapshot.self, in: modelContext)
@@ -50,7 +47,6 @@ enum LocalDataInventoryService {
 
         var bytes: Int64 = 0
         bytes += directoryBytes(at: await ShowAssetMediaStore.shared.rootDirectoryURL())
-        bytes += directoryBytes(at: await DynamicCoverMediaStore.shared.rootDirectoryURL())
         bytes += directoryBytes(at: MemoryFragmentMediaStore.shared.location.rootDirectory)
         inventory.mediaBytes = bytes
         return inventory

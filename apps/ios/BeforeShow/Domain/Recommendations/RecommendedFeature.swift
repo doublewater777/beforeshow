@@ -1,7 +1,7 @@
 import Foundation
 
 /// 通知推荐节点与倒计时信息卡推荐主操作能带用户进入的功能（ADR 0037）。
-/// 票根、动态封面和 Pro 不进入推荐。
+/// 票根和 Pro 不进入推荐。
 enum RecommendedFeature: String, CaseIterable, Codable, Sendable {
     case widget
     case companion

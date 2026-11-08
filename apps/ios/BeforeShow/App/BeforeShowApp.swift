@@ -135,10 +135,6 @@ struct BeforeShowApp: App {
                         await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                         await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                         await reconcileAllShowAssets(in: modelContainer.mainContext)
-                        await reconcileAllDynamicCovers(
-                            in: modelContainer.mainContext,
-                            includesStagingCleanup: true
-                        )
                         lastLocalMediaMaintenanceAt = Date()
                         isLocalMediaMaintenanceRunning = false
                         await LocalNotificationCenter.shared.reconcilePortfolio(
@@ -168,10 +164,6 @@ struct BeforeShowApp: App {
                             if shouldRunMediaMaintenance {
                                 await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
                                 await reconcileAllShowAssets(in: modelContainer.mainContext)
-                                await reconcileAllDynamicCovers(
-                                    in: modelContainer.mainContext,
-                                    includesStagingCleanup: false
-                                )
                                 lastLocalMediaMaintenanceAt = Date()
                                 isLocalMediaMaintenanceRunning = false
                             }

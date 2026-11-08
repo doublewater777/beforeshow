@@ -6,12 +6,11 @@ enum DynamicCoverSource: String, Codable, CaseIterable, Sendable {
     case generated
 }
 
-/// One optional, show-bound local video used as the dynamic side of a cover.
+/// Deprecated: the retired dynamic-cover video. Kept only so shipped
+/// stores stay readable; `DynamicCoverRetirement` deletes old rows once at launch.
+/// Removing the model or any field needs its own migration plan.
 @Model
 final class DynamicCover {
-    static let maximumDuration: TimeInterval = 15
-    static let maximumFileSize: Int64 = 100_000_000
-
     private(set) var id: UUID
     private(set) var showID: UUID
     @Attribute(.unique)
@@ -44,7 +43,7 @@ final class DynamicCover {
     ) {
         self.id = id
         self.showID = showID
-        self.uniqueKey = Self.makeUniqueKey(showID: showID)
+        self.uniqueKey = showID.uuidString
         self.relativePath = relativePath
         self.posterRelativePath = posterRelativePath
         self.contentTypeIdentifier = contentTypeIdentifier
@@ -52,38 +51,5 @@ final class DynamicCover {
         self.videoDuration = videoDuration
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-    }
-
-    var source: DynamicCoverSource {
-        get { DynamicCoverSource(rawValue: sourceRawValue ?? "") ?? .manual }
-        set { sourceRawValue = newValue.rawValue }
-    }
-
-    static func makeUniqueKey(showID: UUID) -> String {
-        showID.uuidString
-    }
-
-    /// Dynamic-cover paths are limited to the show directory layout produced by
-    /// `DynamicCoverMediaStore` so persisted records cannot escape the media root.
-    static func isValidRelativePath(_ relativePath: String, showID: UUID) -> Bool {
-        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
-            .map(String.init)
-        return components.count == 2
-            && components[0] == showID.uuidString
-            && !components[1].isEmpty
-            && !components.contains(where: { $0 == "." || $0 == ".." })
-    }
-
-    func replaceVideo(
-        relativePath: String,
-        posterRelativePath: String?,
-        contentTypeIdentifier: String,
-        videoDuration: TimeInterval
-    ) {
-        self.relativePath = relativePath
-        self.posterRelativePath = posterRelativePath
-        self.contentTypeIdentifier = contentTypeIdentifier
-        self.videoDuration = videoDuration
-        updatedAt = Date()
     }
 }

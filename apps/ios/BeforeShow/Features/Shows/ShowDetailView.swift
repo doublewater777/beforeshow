@@ -95,11 +95,8 @@ struct ShowDetailView: View {
                             assetFileURL: assetFileURL,
                             companionSubtitle: companionPresentationSubtitle,
                             hasCompanion: show.hasCompanions,
-                            coverURL: show.coverImageURL,
-                            hasDynamicCover: show.dynamicCover != nil,
                             onAsset: { presentedSheet = .asset($0) },
-                            onCompanion: { presentedSheet = .companion },
-                            onDynamicCover: { presentedSheet = .dynamicCover }
+                            onCompanion: { presentedSheet = .companion }
                         )
                         .padding(.top, BSSpacing.sm)
                         MemoryContactSheet(
@@ -189,10 +186,6 @@ struct ShowDetailView: View {
                 )
             case .memory:
                 MemoryFragmentsSheet(show: show, pendingCreate: memoryCreate)
-            case .dynamicCover:
-                BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
-                    DynamicCoverManagementSection(show: show)
-                }
             case .companion:
                 CompanionEditorSheet(show: show)
             case .postpone:
