@@ -10,7 +10,6 @@ enum AnalyticsEvent {
     }
 
     enum RecommendationSurface: String {
-        case card
         case notification
     }
 
@@ -32,7 +31,6 @@ enum AnalyticsEvent {
     case dispersalCeremonySkipped(showID: UUID, trigger: String)
     case memoryCardShared(showID: UUID, materialCount: Int)
     case appOpenedFrom(source: OpenSource, destination: String, feature: RecommendedFeature?)
-    case featureRecommendationShown(showID: UUID, feature: RecommendedFeature)
     case featureRecommendationTapped(showID: UUID, feature: RecommendedFeature, surface: RecommendationSurface)
     case proPaywallViewed
     case purchaseTapped(plan: String, price: String)
@@ -65,7 +63,6 @@ enum AnalyticsEvent {
         case .dispersalCeremonySkipped: "dispersal_ceremony_skipped"
         case .memoryCardShared: "memory_card_shared"
         case .appOpenedFrom: "app_opened_from"
-        case .featureRecommendationShown: "feature_recommendation_shown"
         case .featureRecommendationTapped: "feature_recommendation_tapped"
         case .proPaywallViewed: "pro_paywall_viewed"
         case .purchaseTapped: "purchase_tapped"
@@ -158,8 +155,6 @@ enum AnalyticsEvent {
             var properties: [String: Any] = ["source": source.rawValue, "destination": destination]
             if let feature { properties["feature"] = feature.rawValue }
             return properties
-        case .featureRecommendationShown(let showID, let feature):
-            return ["show_id": showID.uuidString, "feature": feature.rawValue, "surface": RecommendationSurface.card.rawValue]
         case .featureRecommendationTapped(let showID, let feature, let surface):
             return ["show_id": showID.uuidString, "feature": feature.rawValue, "surface": surface.rawValue]
         case .proPurchaseCompleted(let plan), .proPurchaseFailed(let plan):

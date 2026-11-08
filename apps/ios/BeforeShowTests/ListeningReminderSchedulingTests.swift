@@ -117,7 +117,7 @@ final class ListeningReminderSchedulingTests: XCTestCase {
             XCTAssertFalse(requests.contains { $0.milestone == .sevenDaysBefore || $0.milestone == .threeDaysBefore })
         }
         XCTAssertEqual(FeatureRecommendationPolicy.candidate(
-            from: FeatureRecommendationSlot.cardNearBefore.chain(isFestival: false, hasFutureShow: false),
+            from: FeatureRecommendationSlot.threeDaysBefore.chain(isFestival: false, hasFutureShow: false),
             context: FeatureRecommendationContext()), .listen)
     }
 

@@ -358,31 +358,11 @@ struct ShowSetlistSheet: View {
     private func playInListen() {
         guard !items.isEmpty else { return }
         Task { @MainActor in
-            let discTracks = items.map { song -> ListeningDiscTrack in
-                ListeningDiscTrack(
-                    id: song.catalogSongID ?? UUID().uuidString,
-                    title: song.title,
-                    artistName: song.artistName,
-                    artworkURL: nil,
-                    duration: nil,
-                    previewURL: nil
-                )
-            }
-            let disc = ListeningDisc(
-                id: "setlist-\(show.id.uuidString)",
-                title: BSLocalization.text("预习歌单"),
-                artworkURL: show.coverImageURL.flatMap(URL.init(string:)),
-                tracks: discTracks,
-                artistNames: show.artistNames,
-                origin: .compilation(showID: show.id, number: 0)
+            await ShowSetlistPlayback.play(
+                items.map { ($0.catalogSongID, $0.title, $0.artistName) },
+                show: show,
+                title: BSLocalization.text("预习歌单")
             )
-            if let room = ListeningRoomSessionStore.shared.room {
-                room.loadDisc(disc, autoplay: true)
-                ListeningRoomSessionStore.shared.publishChrome(room)
-            } else if let room = await ListeningChromeBootstrapper.prepare(show: show, context: modelContext) {
-                room.loadDisc(disc, autoplay: true)
-                ListeningRoomSessionStore.shared.publishChrome(room)
-            }
             playFeedback.toggle()
         }
     }

@@ -27,9 +27,6 @@ struct CurrentShowManagementSection: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var recommendationRecords: [FeatureRecommendationRecord]
-    @Query private var notificationRecords: [ShowNotificationScheduleRecord]
-    @AppStorage(FeatureUsageEnvironment.widgetKey) private var hasInstalledWidget = false
     @State var presentedSheet: CurrentShowPresentedSheet?
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
@@ -43,6 +40,7 @@ struct CurrentShowManagementSection: View {
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
     @State var notificationRouter = NotificationDeepLinkRouter.shared
+    @State var isEditingShow = false
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -84,6 +82,9 @@ struct CurrentShowManagementSection: View {
             GeometryReader { geometry in
                 homeContent(now: now, topInset: geometry.safeAreaInsets.top, liveState: liveState)
             }
+        }
+        .navigationDestination(isPresented: $isEditingShow) {
+            ShowDetailView(show: show, startsEditing: true, onDetailVisibilityChange: onDetailVisibilityChange)
         }
         #if DEBUG
         .task {
@@ -296,18 +297,17 @@ struct CurrentShowManagementSection: View {
         )
         let phase = HomeShowPhase(timeState: timeState, now: now)
         let liveTimetable = liveState == nil ? nil : show.timetable
-        // 与倒计时卡共用同一次推荐决策；现场模式只展示时刻表，不消费推荐。
-        let recommendation = liveState == nil ? resolvedRecommendation(snapshot: snapshot) : nil
         let displayedPrimaryAction: HomeCountdownLockup.PrimaryAction? = liveState == nil
             ? HomeCountdownLockup.primaryAction(
-                phase: phase,
                 timeState: timeState,
-                hasConfirmedEnd: show.endedAt != nil,
-                hasEndHandler: canRecordEnd,
-                // The route has its own map module; it never takes the main button.
-                hasRouteHandler: false,
-                hasCompletedDispersal: show.hasCompletedDispersalCeremony,
-                recommendation: recommendation
+                now: now,
+                hasPlayedSongs: timeState.kind == .postShow
+                    && !ShowSetlistPlayback.playedSongs(showID: show.id, in: modelContext).isEmpty,
+                hasFutureShow: FeatureRecommendationLedger.nextFutureShow(
+                    excluding: show.id,
+                    in: attachedCandidateShows,
+                    now: now
+                ) != nil
             )
             : nil
 
@@ -362,17 +362,12 @@ struct CurrentShowManagementSection: View {
                         if let liveState, let timetable = liveTimetable {
                             HomeLiveModeView(show: show, timetable: timetable, state: liveState, avatars: avatars, onEndShow: canRecordEnd ? { presentedSheet = .endConfirmation } : nil) { presentedSheet = .asset(.timetable) }
                         } else {
-                            CurrentShowCountdownCard(
+                            HomeCountdownLockup(
                                 show: show,
                                 snapshot: snapshot,
-                                recommendation: recommendation,
-                                isVisible: isHeroPlaybackActive,
-                                onRecommendation: performRecommendation,
-                                onEndShow: canRecordEnd
-                                    ? { presentedSheet = .endConfirmation }
-                                    : nil,
-                                onMemoryFragments: { presentedSheet = .memory },
-                                onMemoryCreate: { presentedSheet = .memoryCreate },
+                                primaryAction: displayedPrimaryAction,
+                                isPlaying: ListeningRoomSessionStore.shared.room?.isPlaying == true,
+                                onPrimaryAction: performPrimaryAction,
                                 onOpenRoute: embedsRouteInLocation
                                     ? { openRouteChooser() }
                                     : nil
@@ -474,41 +469,6 @@ struct CurrentShowManagementSection: View {
     func openRouteChooser() {
         installedMapApps = ExternalMapApp.installed
         presentedSheet = .mapChooser
-    }
-
-    private func resolvedRecommendation(snapshot: HomeHeroSnapshot) -> RecommendedFeature? {
-        let todayKey = FeatureRecommendationDay.key(for: snapshot.now)
-        guard let slot = CurrentShowCardRecommendation.slot(
-            timeState: snapshot.timeState,
-            hasConfirmedEnd: show.endedAt != nil
-        ) else {
-            return nil
-        }
-        let facts = FeatureUsageFacts(hasInstalledWidget: hasInstalledWidget)
-        let ledger = FeatureRecommendationLedger.snapshot(
-            shows: attachedCandidateShows,
-            records: recommendationRecords,
-            facts: facts,
-            now: snapshot.now
-        )
-        let hasFutureShow = FeatureRecommendationLedger.nextFutureShow(
-            excluding: show.id,
-            in: attachedCandidateShows,
-            now: snapshot.now
-        ) != nil
-        let todayNotificationFeature = notificationRecords.first {
-            $0.showID == show.id && $0.feature != nil
-                && FeatureRecommendationDay.key(for: $0.fireDate) == todayKey
-        }?.feature
-        return CurrentShowCardRecommendation.resolve(
-            chain: slot.chain(
-                isFestival: ShowFlavor.inferred(from: show) == .festival,
-                hasFutureShow: hasFutureShow
-            ),
-            context: ledger.context(for: show.id),
-            todayKey: todayKey,
-            todayNotificationFeature: todayNotificationFeature
-        )
     }
 
     private func presentedSheetDidDismiss() {

@@ -3125,6 +3125,22 @@
         }
       }
     },
+    "今晚的歌": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tonight's songs"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今晚的歌"
+          }
+        }
+      }
+    },
     "今晚直接封神": {
       "localizations": {
         "en": {
@@ -5544,6 +5560,38 @@
         }
       }
     },
+    "听今晚的歌": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play tonight's songs"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聽今晚的歌"
+          }
+        }
+      }
+    },
+    "听几首": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play a few"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聽幾首"
+          }
+        }
+      }
+    },
     "听听%1$@的专辑《%2$@》。": {
       "localizations": {
         "en": {
@@ -6254,6 +6302,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "基礎 5 場 · 每月容量 +1"
+          }
+        }
+      }
+    },
+    "填上新时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add the new date"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填上新時間"
           }
         }
       }
@@ -18361,6 +18425,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "頂級"
+          }
+        }
+      }
+    },
+    "预习歌单": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warm-up setlist"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預習歌單"
           }
         }
       }

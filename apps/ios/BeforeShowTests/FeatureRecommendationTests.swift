@@ -2,7 +2,7 @@ import SwiftData
 import XCTest
 @testable import BeforeShow
 
-/// ADR 0037：通知与倒计时卡推荐这场还没用过的功能。
+/// ADR 0037：通知推荐这场还没用过的功能。
 final class FeatureRecommendationTests: XCTestCase {
     private var calendar: Calendar!
     private var now: Date!
@@ -28,14 +28,12 @@ final class FeatureRecommendationTests: XCTestCase {
         XCTAssertNil(FeatureRecommendationPolicy.candidate(from: chain, context: context))
     }
 
-    func testFeatureExposedTwoDaysIsSkippedButStaysForTheRestOfToday() {
+    func testFeatureExposedTwoDaysIsSkipped() {
         var context = FeatureRecommendationContext()
         context.records[.listen] = FeatureRecommendationRecordSnapshot(
             exposureDayKeys: ["2026-06-14", "2026-06-15"],
             isHandled: false
         )
-        XCTAssertTrue(FeatureRecommendationPolicy.isEligible(.listen, context: context, todayKey: "2026-06-15"))
-        XCTAssertFalse(FeatureRecommendationPolicy.isEligible(.listen, context: context, todayKey: "2026-06-16"))
         XCTAssertFalse(FeatureRecommendationPolicy.isEligible(.listen, context: context))
     }
 
@@ -203,88 +201,6 @@ final class FeatureRecommendationTests: XCTestCase {
                 .first { $0.milestone == .showDay }
         )
         XCTAssertTrue(reminder.body.contains(BSLocalization.format("%lld 分钟后开场", Int64(30))))
-    }
-
-    // MARK: - Countdown card
-
-    func testCardKeepsTodaysExposureAndCollapsesOnceHandled() {
-        var context = FeatureRecommendationContext()
-        context.records[.widget] = FeatureRecommendationRecordSnapshot(exposureDayKeys: ["2026-06-15"], isHandled: false)
-        let chain: [RecommendedFeature] = [.companion, .widget, .listen]
-
-        XCTAssertEqual(
-            CurrentShowCardRecommendation.resolve(chain: chain, context: context, todayKey: "2026-06-15", todayNotificationFeature: nil),
-            .widget
-        )
-
-        context.records[.widget]?.isHandled = true
-        XCTAssertNil(
-            CurrentShowCardRecommendation.resolve(chain: chain, context: context, todayKey: "2026-06-15", todayNotificationFeature: nil)
-        )
-        XCTAssertEqual(
-            CurrentShowCardRecommendation.resolve(chain: chain, context: context, todayKey: "2026-06-16", todayNotificationFeature: nil),
-            .companion
-        )
-    }
-
-    func testCardFollowsTodaysRecommendationNotification() {
-        let context = FeatureRecommendationContext()
-        XCTAssertEqual(
-            CurrentShowCardRecommendation.resolve(
-                chain: [.companion, .widget],
-                context: context,
-                todayKey: "2026-06-15",
-                todayNotificationFeature: .listen
-            ),
-            .listen
-        )
-    }
-
-    func testCardSlotsFollowLifecycle() throws {
-        let far = try makeShow(day: 30)
-        XCTAssertEqual(
-            CurrentShowCardRecommendation.slot(timeState: CurrentShowTimeState(show: far, calendar: calendar, now: now), hasConfirmedEnd: false),
-            .cardFarBefore
-        )
-        let near = try makeShow(day: 20)
-        XCTAssertEqual(
-            CurrentShowCardRecommendation.slot(timeState: CurrentShowTimeState(show: near, calendar: calendar, now: now), hasConfirmedEnd: false),
-            .cardNearBefore
-        )
-        let today = try makeShow(day: 15)
-        XCTAssertNil(
-            CurrentShowCardRecommendation.slot(timeState: CurrentShowTimeState(show: today, calendar: calendar, now: now), hasConfirmedEnd: false)
-        )
-    }
-
-    func testCardPrimaryActionUsesRouteOnShowDayAndRecommendationAfterConfirmedEnd() throws {
-        let today = try makeShow(day: 15)
-        let todayState = CurrentShowTimeState(show: today, calendar: calendar, now: now)
-        XCTAssertEqual(
-            HomeCountdownLockup.primaryAction(
-                phase: HomeShowPhase(timeState: todayState, now: now),
-                timeState: todayState,
-                hasConfirmedEnd: false,
-                hasEndHandler: true,
-                hasRouteHandler: true,
-                recommendation: .listen
-            ),
-            .route
-        )
-
-        let ended = try makeShow(day: 14)
-        ended.markEnded(at: makeDate(month: 6, day: 14, hour: 22))
-        let endedState = CurrentShowTimeState(show: ended, calendar: calendar, now: now)
-        XCTAssertEqual(
-            HomeCountdownLockup.primaryAction(
-                phase: HomeShowPhase(timeState: endedState, now: now),
-                timeState: endedState,
-                hasConfirmedEnd: true,
-                hasEndHandler: true,
-                recommendation: .dispersal
-            ),
-            .dispersal(completed: false)
-        )
     }
 
     // MARK: - Links

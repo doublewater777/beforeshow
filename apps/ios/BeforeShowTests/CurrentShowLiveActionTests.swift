@@ -42,34 +42,6 @@ final class CurrentShowLiveActionTests: XCTestCase {
         return show
     }
 
-    func testLivePrimaryActionKeepsMemoryCreateAfterFirstHour() throws {
-        let end = start.addingTimeInterval(8 * 3_600)
-        let show = try Show(name: "整段现场记忆", date: start, startTime: start, endTime: end)
-        for seconds in [0, 15 * 60, 3_600, 90 * 60, 7 * 3_600] {
-            let now = start.addingTimeInterval(TimeInterval(seconds))
-            let state = CurrentShowTimeState(show: show, now: now)
-            XCTAssertEqual(
-                HomeCountdownLockup.primaryAction(
-                    phase: HomeShowPhase(timeState: state, now: now),
-                    timeState: state,
-                    hasConfirmedEnd: false,
-                    hasEndHandler: true
-                ),
-                .memoryCreate
-            )
-        }
-        let state = CurrentShowTimeState(show: show, now: end)
-        XCTAssertEqual(
-            HomeCountdownLockup.primaryAction(
-                phase: HomeShowPhase(timeState: state, now: end),
-                timeState: state,
-                hasConfirmedEnd: false,
-                hasEndHandler: true
-            ),
-            .end(live: false)
-        )
-    }
-
     func testQuickActionsKeepEndShowThroughoutLivePhase() {
         XCTAssertEqual(
             CurrentShowQuickAction.actions(for: .live).last,
@@ -122,44 +94,11 @@ final class CurrentShowLiveActionTests: XCTestCase {
         XCTAssertTrue(archived.contains(.timetable))
     }
 
-    func testBannerDeduplicationUsesDestinationNotFeatureName() {
-        let actions: [CurrentShowQuickAction] = [
-            .route, .companion, .ticket, .timetable, .memoryFragments,
-            .dispersal(completed: false), .endShow
-        ]
-        func filtered(_ primary: HomeCountdownLockup.PrimaryAction?) -> [CurrentShowQuickAction] {
-            CurrentShowQuickAction.deduplicated(actions, primaryAction: primary)
-        }
-
-        XCTAssertEqual(filtered(.route), actions.filter { $0 != .route })
-        XCTAssertEqual(filtered(.recommendation(.companion)), actions.filter { $0 != .companion })
-        XCTAssertEqual(filtered(.recommendation(.timetable)), actions.filter { $0 != .timetable })
-        XCTAssertEqual(filtered(.recommendation(.memoryFragments)), actions.filter { $0 != .memoryFragments })
-        XCTAssertEqual(filtered(.memoryFragments), actions.filter { $0 != .memoryFragments })
-        XCTAssertEqual(filtered(.end(live: true)), actions.filter { $0 != .endShow })
-        XCTAssertEqual(filtered(.end(live: false)), actions.filter { $0 != .endShow })
-        XCTAssertEqual(filtered(.recommendation(.dispersal)), actions.filter {
-            if case .dispersal = $0 { return false }
-            return true
-        })
-        XCTAssertEqual(filtered(.memoryCreate), actions)
-        XCTAssertEqual(filtered(.recommendation(.listen)), actions)
-        XCTAssertEqual(filtered(nil), actions)
-    }
-
-    func testPostShowRetentionPreservesTimetableExceptWhenBannerOpensSameSheet() {
-        let actions = CurrentShowQuickAction.actions(
-            for: .ended,
-            isPostShowRetention: true,
-            hasCompletedDispersalCeremony: true
-        )
-        XCTAssertTrue(actions.contains(.timetable))
-        XCTAssertTrue(CurrentShowQuickAction.deduplicated(
-            actions, primaryAction: .recommendation(.dispersal)
-        ).contains(.timetable))
-        XCTAssertFalse(CurrentShowQuickAction.deduplicated(
-            actions, primaryAction: .recommendation(.timetable)
-        ).contains(.timetable))
+    func testQuickActionsDropRouteOnlyWhenThePrimaryActionIsRoute() {
+        let actions: [CurrentShowQuickAction] = [.route, .companion, .timetable, .memoryFragments]
+        XCTAssertEqual(CurrentShowQuickAction.deduplicated(actions, primaryAction: .route), [.companion, .timetable, .memoryFragments])
+        XCTAssertEqual(CurrentShowQuickAction.deduplicated(actions, primaryAction: .listen), actions)
+        XCTAssertEqual(CurrentShowQuickAction.deduplicated(actions, primaryAction: nil), actions)
     }
 
     func testQuickActionsOmitRouteWhenLocationEmbedsIt() {
@@ -183,34 +122,6 @@ final class CurrentShowLiveActionTests: XCTestCase {
                 for: .live,
                 embedsRouteInLocation: true
             ).contains(.route)
-        )
-    }
-
-    func testMultiDayShowKeepsMemoryCreateOnLaterDays() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let day1Start = start
-        let day2 = calendar.date(byAdding: .day, value: 1, to: day1Start)!
-        let show = try Show(
-            name: "三日音乐节",
-            date: day1Start,
-            startTime: day1Start,
-            endDate: calendar.date(byAdding: .day, value: 2, to: day1Start)
-        )
-        let day2Now = day2.addingTimeInterval(15 * 60)
-        let firstStart = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
-        let day2State = CurrentShowTimeState(show: show, calendar: calendar, now: day2Now)
-        let day2Phase = HomeShowPhase(timeState: day2State, now: day2Now)
-
-        XCTAssertEqual(firstStart, day1Start)
-        XCTAssertEqual(
-            HomeCountdownLockup.primaryAction(
-                phase: day2Phase,
-                timeState: day2State,
-                hasConfirmedEnd: false,
-                hasEndHandler: true
-            ),
-            .memoryCreate
         )
     }
 

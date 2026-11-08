@@ -29,30 +29,6 @@ final class CurrentShowPolishTests: XCTestCase {
         XCTAssertNotNil(CurrentShowEndPolicy.automaticEnd(for: show, now: start.addingTimeInterval(10 * 3_600)))
     }
 
-    // MARK: Post-show primary
-
-    func testPostShowPrimaryIsTheDispersalReview() throws {
-        let end = start.addingTimeInterval(3 * 3_600)
-        let show = try Show(name: "Club", date: start, startTime: start, endTime: end)
-        show.markEnded(at: end)
-        let now = end.addingTimeInterval(3_600)
-        let state = CurrentShowTimeState(show: show, now: now)
-        func primary(completed: Bool) -> HomeCountdownLockup.PrimaryAction? {
-            HomeCountdownLockup.primaryAction(
-                phase: HomeShowPhase(timeState: state, now: now), timeState: state,
-                hasConfirmedEnd: true, hasEndHandler: false, hasCompletedDispersal: completed,
-                recommendation: .memoryFragments
-            )
-        }
-        XCTAssertEqual(primary(completed: false), .dispersal(completed: false))
-        XCTAssertEqual(primary(completed: true), .dispersal(completed: true))
-        XCTAssertFalse(FeatureRecommendationSlot.cardPostShow.chain(isFestival: true, hasFutureShow: true).contains(.memoryFragments))
-        XCTAssertEqual(
-            CurrentShowQuickAction.deduplicated([.dispersal(completed: true), .timetable], primaryAction: .dispersal(completed: true)),
-            [.timetable]
-        )
-    }
-
     // MARK: Header chip
 
     func testHeaderChipOnlyForMultiDayFestivals() {

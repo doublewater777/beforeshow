@@ -1,5 +1,7 @@
 # Recommend unused features through notifications and the countdown card
 
+> 倒计时信息卡主操作部分已由 [ADR 0049](0049-primary-action-is-the-near-universal-minimal-step.md) 取代；本文只约束通知推荐。
+
 2026-10-01 产品决定：通知和倒计时信息卡主操作的第一目的，是把用户带进这场现场此刻用得上、还没用过的功能。覆盖优先于克制和条数上限；约束是不让用户难受。节点表与主操作表见 `PRODUCT_DEFINITION_V2.1.md` §07。
 
 ## 功能推荐

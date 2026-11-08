@@ -2,7 +2,7 @@ import Foundation
 import WidgetKit
 
 /// 推荐需要、只能问系统的事实：是否已添加「开场前」小组件。
-/// 结果缓存在本机，主卡同步读取；对账时刷新。
+/// 结果缓存在本机，通知排期同步读取；对账时刷新。
 @MainActor
 enum FeatureUsageEnvironment {
     nonisolated static let widgetKey = "FeatureUsage.hasInstalledWidget"

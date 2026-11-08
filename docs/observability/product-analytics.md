@@ -104,8 +104,7 @@ SQL、查询定义与 insight ID 存在 [product-analytics-posthog.json](product
 | `dispersal_ceremony_skipped` | `show_id`, `trigger` | 关闭散场仪式 |
 | `memory_card_shared` | `show_id`, `material_count` | 现场回忆卡片导出 |
 | `app_opened_from` | `source`（`notification` / `widget` / `live_activity`）, `destination`, `feature` | 通知、「听」小组件或 `beforeshow://open` 链接打开 App；倒计时小组件无链接，不计 |
-| `feature_recommendation_shown` | `show_id`, `feature`, `surface`（`card`） | 主卡推荐当日首次露出 |
-| `feature_recommendation_tapped` | `show_id`, `feature`, `surface`（`card` / `notification`） | 点推荐 |
+| `feature_recommendation_tapped` | `show_id`, `feature`, `surface`（`notification`） | 点推荐通知 |
 | `pro_paywall_viewed` | — | 付费墙出现 |
 | `purchase_tapped` | `plan`, `price` | 点购买；价格为商店本地化展示字符串 |
 | `purchase_cancelled` | `plan` | 用户取消系统购买确认 |

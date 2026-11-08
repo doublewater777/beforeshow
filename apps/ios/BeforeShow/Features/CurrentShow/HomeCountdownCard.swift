@@ -5,13 +5,10 @@ import SwiftUI
 struct HomeCountdownLockup: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
-    var onEndShow: (() -> Void)? = nil
-    var onMemoryFragments: (() -> Void)? = nil
-    var onMemoryCreate: (() -> Void)? = nil
+    var primaryAction: PrimaryAction? = nil
+    var isPlaying = false
+    var onPrimaryAction: (PrimaryAction) -> Void = { _ in }
     var onOpenRoute: (() -> Void)? = nil
-    /// 当前阶段的功能推荐（由主卡 owner 每天定一次）。
-    var recommendation: RecommendedFeature? = nil
-    var onRecommendation: ((RecommendedFeature) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -55,13 +52,13 @@ struct HomeCountdownLockup: View {
                 .padding(.top, 6)
             }
 
-            if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
-                primaryActionButton(action)
+            if let primaryAction {
+                primaryActionButton(primaryAction)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .dynamicTypeSize(.large ... .accessibility2)
-        .accessibilityElement(children: onEndShow == nil && onOpenRoute == nil ? .combine : .contain)
+        .accessibilityElement(children: primaryAction == nil && onOpenRoute == nil ? .combine : .contain)
     }
 
     @ViewBuilder
@@ -257,46 +254,25 @@ struct HomeCountdownLockup: View {
 
     // MARK: Primary action（规则见 HomeCountdownPrimaryAction.swift）
 
-    private func availablePrimaryAction(
-        phase: HomeShowPhase,
-        timeState: CurrentShowTimeState
-    ) -> PrimaryAction? {
-        Self.primaryAction(
-            phase: phase,
-            timeState: timeState,
-            hasConfirmedEnd: show.endedAt != nil,
-            hasEndHandler: onEndShow != nil,
-            hasRouteHandler: false,
-            hasCompletedDispersal: show.hasCompletedDispersalCeremony,
-            recommendation: onRecommendation == nil ? nil : recommendation
-        )
-    }
-
     private func primaryActionButton(_ action: PrimaryAction) -> some View {
-        Button(action: primaryActionHandler(action)) {
-            Text(action.title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.background)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(BSColor.Stage.foreground, in: Capsule())
+        let showsPause = action.playsMusic && isPlaying
+        return Button { onPrimaryAction(action) } label: {
+            HStack(spacing: 6) {
+                if action.playsMusic {
+                    Image(systemName: showsPause ? "pause.fill" : "play.fill")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                Text(showsPause ? BSLocalization.text("暂停") : action.title)
+            }
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(BSColor.Stage.background)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(BSColor.Stage.foreground, in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityHint(action.accessibilityHint)
         .padding(.top, 16)
     }
-
-    private func primaryActionHandler(_ action: PrimaryAction) -> () -> Void {
-        switch action {
-        case .end: return { onEndShow?() }
-        case .memoryFragments: return { onMemoryFragments?() }
-        case .memoryCreate: return { (onMemoryCreate ?? onMemoryFragments)?() }
-        case .route: return { onOpenRoute?() }
-        case .dispersal: return { onRecommendation?(.dispersal) }
-        case .recommendation(let feature): return { onRecommendation?(feature) }
-        }
-    }
-
 
     // MARK: 时间计算
 

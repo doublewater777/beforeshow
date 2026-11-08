@@ -206,6 +206,7 @@
 		4D79041F40B7E7FE362B6FCF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110F8472E019906BAFF8FB73 /* Assets.xcassets */; };
 		4D7AD24E6F7C43DC5CD6367F /* ListeningDiscArtistLinksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90BAACD6754AA7664C0694B /* ListeningDiscArtistLinksTests.swift */; };
 		4D8F7B807BAD77369F2196FA /* MapGeocoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754027C8055C230B7D2482BE /* MapGeocoding.swift */; };
+		4E4A9FC9BDE35CB9691CE390 /* ShowSetlistPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606B042E816E2F36A50A89E9 /* ShowSetlistPlayback.swift */; };
 		4E8B340FEE279EA93A35875F /* AppInterfaceOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76216E0E2AAC3DB9CC5A0DC7 /* AppInterfaceOrientation.swift */; };
 		4E9873AB90E408EDEBDFEE88 /* HomeCountdownPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA31DC33AA630B74AACFEF37 /* HomeCountdownPresentation.swift */; };
 		4E9D09E2004E67F208AA55F1 /* HomeLivePulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = B892168266993245CFCD5F10 /* HomeLivePulse.swift */; };
@@ -434,7 +435,6 @@
 		9ED1062B024F347C635C48FD /* TimetableOriginalImagePiP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CEA69457D4D9A28C02CAEC /* TimetableOriginalImagePiP.swift */; };
 		9F231AA64E31FCE87D0EBEFE /* ShowRecentListening.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C3ED7043FF2FE50F24229A /* ShowRecentListening.swift */; };
 		9F89E74CA691CE07C455190B /* ListeningWidgetSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = A043C0D0E2C7E8AAB154F93A /* ListeningWidgetSync.swift */; };
-		9FB1AC46DF0F11302E133A0A /* CurrentShowCountdownCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1276B611ECF18AEC295C28A /* CurrentShowCountdownCard.swift */; };
 		9FCA531702C04CED879B46AB /* ShowWeatherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168C551FF641CFBF3E352E67 /* ShowWeatherTests.swift */; };
 		9FDCCEDC5F8844ADB02FDE35 /* ShowSetlistCatalogPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA87EF47C3858D0182531D8C /* ShowSetlistCatalogPickerSheet.swift */; };
 		A079774F4123C743CC66B9DC /* ShowOpeningArtistTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9426F33F0CA0E30A6D5E252 /* ShowOpeningArtistTier.swift */; };
@@ -480,6 +480,7 @@
 		B62C8A12E494830C450C383B /* BilibiliVideoSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFFF1678EB5E850E1F661849 /* BilibiliVideoSearchTests.swift */; };
 		B6B94E119516A25894F15B28 /* ListeningRoomSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B47E3C3FC0A2A03BAD9270 /* ListeningRoomSessionStore.swift */; };
 		B7ED77892B5A660C67ED731A /* BeforeShow.storekit in Resources */ = {isa = PBXBuildFile; fileRef = A81A4C22100811A21DBD95FF /* BeforeShow.storekit */; };
+		B7F3F13F8917B1CEDD9DEC00 /* HomeCountdownPrimaryActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF7533ABD0A413E2E982CCA /* HomeCountdownPrimaryActionTests.swift */; };
 		B873B3271FAB6E781590F727 /* LocalDataInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859ABDE91690C2F3A061F2AB /* LocalDataInventory.swift */; };
 		B89AD58400153AE7C0404F7F /* FootprintCandleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A95AD3A3E7A7107A68C7EF4 /* FootprintCandleView.swift */; };
 		B9759B9ED11436110C0F6C09 /* MemoryContactGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEEF6333F80FD8A56842718 /* MemoryContactGrid.swift */; };
@@ -945,6 +946,7 @@
 		5F2A39E6920F022B3840C255 /* ListeningDiscBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDiscBackdrop.swift; sourceTree = "<group>"; };
 		5FC4361D9B83A95C1EE72C20 /* RecommendedFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedFeature.swift; sourceTree = "<group>"; };
 		6047C3EA01451E1720361555 /* BeforeShowUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BeforeShowUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		606B042E816E2F36A50A89E9 /* ShowSetlistPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowSetlistPlayback.swift; sourceTree = "<group>"; };
 		60C48B90971F3F97D8DC3E11 /* FootprintDetailDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDetailDomain.swift; sourceTree = "<group>"; };
 		60D5A43567FFF060CA50B52A /* TimetableRecognitionQuota.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableRecognitionQuota.swift; sourceTree = "<group>"; };
 		61868C6306EB9FA313C9DE8C /* TimetableAIImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableAIImportView.swift; sourceTree = "<group>"; };
@@ -978,6 +980,7 @@
 		6EDA0EA772B60E3B5CF21C92 /* LocalNotificationSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationSchedulingTests.swift; sourceTree = "<group>"; };
 		6F990474B2216E8FB6002F19 /* ListeningRoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningRoomLifecycleTests.swift; sourceTree = "<group>"; };
 		6FE63506613B0B0C26881F8A /* FootprintBook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBook.swift; sourceTree = "<group>"; };
+		6FF7533ABD0A413E2E982CCA /* HomeCountdownPrimaryActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCountdownPrimaryActionTests.swift; sourceTree = "<group>"; };
 		709BBA6D0BD46772E2BB1F5D /* ListeningColdStartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningColdStartTests.swift; sourceTree = "<group>"; };
 		70A3E74923C3782611546C27 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		70C9496AF38188C618C58968 /* ArtistProfileModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistProfileModel.swift; sourceTree = "<group>"; };
@@ -1242,7 +1245,6 @@
 		D0479ABDB615A44BA4C2EFF5 /* ShowNotificationScheduleRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowNotificationScheduleRecord.swift; sourceTree = "<group>"; };
 		D0A989EAB740E584258668E4 /* BSStageScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSStageScene.swift; sourceTree = "<group>"; };
 		D0C6B0376B5A2327F0D22F49 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
-		D1276B611ECF18AEC295C28A /* CurrentShowCountdownCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowCountdownCard.swift; sourceTree = "<group>"; };
 		D12AEB58FA493D1E02B1F1A3 /* TimetableShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableShareSheet.swift; sourceTree = "<group>"; };
 		D203B4A349DDA82CE893F020 /* ShowAssetCleanupRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowAssetCleanupRetry.swift; sourceTree = "<group>"; };
 		D21B132E7E7541968A941D26 /* TimetableImageRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableImageRecognizer.swift; sourceTree = "<group>"; };
@@ -1836,6 +1838,7 @@
 				D9D1D771DCA466D2BB4D6363 /* MerchCapture.swift */,
 				F8C815A4842BC6CE6239B619 /* MerchEditSheet.swift */,
 				FA87EF47C3858D0182531D8C /* ShowSetlistCatalogPickerSheet.swift */,
+				606B042E816E2F36A50A89E9 /* ShowSetlistPlayback.swift */,
 				B1EA4868650AE2D4D1368F60 /* ShowSetlistSheet.swift */,
 				E2026C9092566F2E26901BD5 /* ShowSpendingSheet.swift */,
 				A0F7367A109F82E055180B9B /* ShowTicketPriceField.swift */,
@@ -1870,7 +1873,6 @@
 		9BE9F4B8DA22FBDFB66ADFE8 /* CurrentShow */ = {
 			isa = PBXGroup;
 			children = (
-				D1276B611ECF18AEC295C28A /* CurrentShowCountdownCard.swift */,
 				09C22EEC49C172D1DD771DE7 /* CurrentShowEmptyStateView.swift */,
 				DE4F15B170B1C7EC5AD85E18 /* CurrentShowEndConfirmationSheet.swift */,
 				078588CFEB87081EEA5CE6DC /* CurrentShowEndPolicy.swift */,
@@ -2034,6 +2036,7 @@
 				E43C6D0A05BA223B57FD0829 /* FootprintStageTests.swift */,
 				376F149A803650CCADEBCD1E /* FootprintStarScaleTests.swift */,
 				110BCE121C4B02E6386799F1 /* FootprintVenueMapTests.swift */,
+				6FF7533ABD0A413E2E982CCA /* HomeCountdownPrimaryActionTests.swift */,
 				BF771343EA6190084824FAC9 /* HomeStageScreensTests.swift */,
 				250A110A5390FBFD9CACB5C1 /* ListeningArtistAutoMatcherTests.swift */,
 				75FF683E6949F16103EDADFF /* ListeningArtistMatchingTests.swift */,
@@ -2768,7 +2771,6 @@
 				97093D91AA08B21571043597 /* CompanionPairFootprintView.swift in Sources */,
 				867369ABADDDE06254BD3BF3 /* CompanionQuickActionPresentation.swift in Sources */,
 				32B649F4B9B6E273712514DA /* CoverAmbientColor.swift in Sources */,
-				9FB1AC46DF0F11302E133A0A /* CurrentShowCountdownCard.swift in Sources */,
 				F1BC3587386F1BEC25F892AB /* CurrentShowEmptyStateView.swift in Sources */,
 				48606CDD2A02920777AC91CC /* CurrentShowEndConfirmationSheet.swift in Sources */,
 				6399E214FFED59CFEFDDFAA8 /* CurrentShowEndPolicy.swift in Sources */,
@@ -3107,6 +3109,7 @@
 				C59C216DB3EB1AB600A28E56 /* ShowScreenshotRecognitionService.swift in Sources */,
 				9FDCCEDC5F8844ADB02FDE35 /* ShowSetlistCatalogPickerSheet.swift in Sources */,
 				968FB903040751BD650B20DD /* ShowSetlistMemory.swift in Sources */,
+				4E4A9FC9BDE35CB9691CE390 /* ShowSetlistPlayback.swift in Sources */,
 				CE487AE74BF5295D1E7EE974 /* ShowSetlistRecording.swift in Sources */,
 				A1B582951B0F5ED8FD161A59 /* ShowSetlistSheet.swift in Sources */,
 				C231720E37BEDEB7CB048B60 /* ShowSpending.swift in Sources */,
@@ -3213,6 +3216,7 @@
 				C0F682AEC581934B77F42FAE /* FootprintStageTests.swift in Sources */,
 				918A8ACEEE3868098BF59B1D /* FootprintStarScaleTests.swift in Sources */,
 				660760890464FC80FDCEF115 /* FootprintVenueMapTests.swift in Sources */,
+				B7F3F13F8917B1CEDD9DEC00 /* HomeCountdownPrimaryActionTests.swift in Sources */,
 				60039D402ADD9353344CEE4B /* HomeStageScreensTests.swift in Sources */,
 				9CC19BC646AA9F679C017987 /* ListenTestData.swift in Sources */,
 				71DD6839E9FF137C7DA41A8B /* ListeningArtistAutoMatcherTests.swift in Sources */,

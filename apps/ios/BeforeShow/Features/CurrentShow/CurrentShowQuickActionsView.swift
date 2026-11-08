@@ -74,38 +74,12 @@ enum CurrentShowQuickAction: Hashable {
         }
         return embedsRouteInLocation ? actions.filter { $0 != .route } : actions
     }
-    /// 只移除与页面实际可见操作相同的快捷入口，不依赖文案或推荐候选。
+    /// 主按钮已经是路线时，不再重复路线入口。
     static func deduplicated(
         _ actions: [Self],
         primaryAction: HomeCountdownLockup.PrimaryAction?
     ) -> [Self] {
-        actions.filter { action in
-            switch primaryAction {
-            case .some(.end(live: _)):
-                return action != .endShow
-            case .some(.memoryFragments):
-                return action != .memoryFragments
-            case .some(.memoryCreate), .none:
-                // 新增记忆与查看现有记忆碎片是两个不同操作。
-                return true
-            case .some(.route):
-                return action != .route
-            case .some(.dispersal):
-                if case .dispersal = action { return false }
-                return true
-            case .some(.recommendation(let feature)):
-                switch feature {
-                case .companion: return action != .companion
-                case .timetable: return action != .timetable
-                case .memoryFragments: return action != .memoryFragments
-                case .dispersal:
-                    if case .dispersal = action { return false }
-                    return true
-                case .widget, .listen, .footprint, .nextShow, .addShow:
-                    return true
-                }
-            }
-        }
+        primaryAction == .route ? actions.filter { $0 != .route } : actions
     }
 }
 

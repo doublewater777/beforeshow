@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 // MARK: - Current Show Management Actions
-// 快捷入口、主卡推荐和通知转来的落点，统一在当前现场首页里打开（ADR 0037）。
+// 快捷入口、主按钮和通知转来的落点，统一在当前现场首页里打开（ADR 0037）。
 
 extension CurrentShowManagementSection {
     /// 删除当前现场后，父视图切到下一场之前，本视图可能先带着上一帧的 show / 列表重算。
@@ -31,30 +31,34 @@ extension CurrentShowManagementSection {
         }
     }
 
-    func performRecommendation(_ feature: RecommendedFeature) {
-        switch feature {
-        case .widget:
-            presentedSheet = .widgetGuide
-        case .companion:
-            presentedSheet = .companion
+    func performPrimaryAction(_ action: HomeCountdownLockup.PrimaryAction) {
+        if action.playsMusic, let room = ListeningRoomSessionStore.shared.room, room.isPlaying {
+            room.playPause()
+            return
+        }
+        switch action {
         case .listen:
-            NotificationDeepLinkRouter.shared.route(to: NotificationDeepLink(showID: show.id, destination: .listen))
-        case .timetable:
-            presentedSheet = .asset(.timetable)
-        case .dispersal:
-            openDispersal()
-        case .memoryFragments:
-            openMemoryFragments()
-        case .footprint:
-            presentedSheet = .footprint
-        case .nextShow:
-            if let next = FeatureRecommendationLedger.nextFutureShow(excluding: show.id, in: attachedCandidateShows, now: Date()) {
-                onSetCurrentShow(next)
-            } else {
-                onAddShow()
+            Task { await ListeningIntentHandler.shared.perform(.play) }
+        case .listenTonight:
+            let room = ListeningRoomSessionStore.shared.room
+            if room?.loadedDisc?.id == ShowSetlistPlayback.discID(for: show.id), let room {
+                room.playPause()
+                return
             }
+            let songs = ShowSetlistPlayback.playedSongs(showID: show.id, in: modelContext)
+            Task {
+                await ShowSetlistPlayback.play(
+                    songs.map { ($0.catalogSongID, $0.manualTitle ?? "", $0.manualArtistName ?? "") },
+                    show: show,
+                    title: BSLocalization.text("今晚的歌")
+                )
+            }
+        case .route:
+            openRouteChooser()
         case .addShow:
             onAddShow()
+        case .fillNewDate:
+            isEditingShow = true
         }
     }
 

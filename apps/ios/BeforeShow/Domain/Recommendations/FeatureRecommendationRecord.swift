@@ -7,9 +7,9 @@ final class FeatureRecommendationRecord {
     var id: UUID
     var showID: UUID
     var featureRawValue: String
-    /// 露出过的自然日（设备时区 yyyy-MM-dd）。主卡首页实际可见、推荐通知送达各计一次。
+    /// 露出过的自然日（设备时区 yyyy-MM-dd）。推荐通知送达计一次。
     var exposureDayKeys: [String]
-    /// 用户点过主卡或通知。点过即算处理过，本场不再推荐。
+    /// 用户点过推荐通知或用过该功能。点过即算处理过，本场不再推荐。
     var handledAt: Date?
     var createdAt: Date
 

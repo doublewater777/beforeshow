@@ -29,7 +29,7 @@ final class ProductAnalyticsTests: XCTestCase {
         let other: [AnalyticsEvent] = [
             .showAdded(showID: showID, method: "manual", lifecycle: "future", isFirstShow: true, isFestival: false),
             .appOpenedFrom(source: .notification, destination: "listen", feature: .listen),
-            .featureRecommendationShown(showID: showID, feature: .listen),
+            .featureRecommendationTapped(showID: showID, feature: .listen, surface: .notification),
             .proPaywallViewed
         ]
         for event in other {
