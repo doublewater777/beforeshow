@@ -45,7 +45,8 @@ struct ListeningOverviewView: View {
 
     private func drawPreview() -> ListeningDisc? {
         ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: ListeningDiscPickPolicy.showScopeKey,
-                                     candidates: room.pickCandidates(filter: .all))
+                                     candidates: room.pickCandidates(filter: .all),
+                                     lineupNames: show.artistNames)
     }
 
     @ViewBuilder
@@ -109,7 +110,7 @@ private struct ListeningPickEntryCard: View {
             .frame(width: ListeningOverviewStyle.pickCover, height: ListeningOverviewStyle.pickCover)
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 if let disc {
-                    Text(disc.artistNames.first ?? "")
+                    Text(disc.displayArtistName(for: show))
                         .font(ListeningOverviewStyle.caps(12)).tracking(2).textCase(.uppercase)
                         .foregroundStyle(BSColor.Stage.accent)
                     Text(disc.title).font(ListeningOverviewStyle.serif(26)).lineLimit(1)

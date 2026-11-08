@@ -153,3 +153,35 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
         return discs(albums: albums, songsByID: songsByID)
     }
 }
+
+extension ListeningDisc {
+    /// True if the leading credited artist belongs to the show's lineup.
+    func isLeadArtist(lineupNames: [String]) -> Bool {
+        guard !lineupNames.isEmpty, let lead = artistNames.first else { return false }
+        let normalizedLineup = Set(lineupNames.map { ArtistNameMatching.normalized($0) })
+        return normalizedLineup.contains(ArtistNameMatching.normalized(lead))
+    }
+
+    /// Formats the artist credit for display in pick cards and headers,
+    /// ensuring any artist appearing in the show's lineup is front and centre.
+    func displayArtistName(for show: Show) -> String {
+        displayArtistName(lineupNames: show.artistNames)
+    }
+
+    func displayArtistName(lineupNames: [String]) -> String {
+        let names = artistNames.isEmpty
+            ? Array(Set(tracks.map(\.artistName))).sorted()
+            : artistNames
+        guard !names.isEmpty else { return "" }
+        guard names.count > 1 else { return names[0] }
+
+        let normalizedLineup = Set(lineupNames.map { ArtistNameMatching.normalized($0) })
+        let primary = names.filter { normalizedLineup.contains(ArtistNameMatching.normalized($0)) }
+        let guests = names.filter { !normalizedLineup.contains(ArtistNameMatching.normalized($0)) }
+
+        if primary.isEmpty {
+            return names.joined(separator: " & ")
+        }
+        return (primary + guests).joined(separator: " & ")
+    }
+}

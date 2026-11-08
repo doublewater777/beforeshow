@@ -77,17 +77,19 @@ enum ListeningDiscPickPolicy {
         showID: UUID,
         scopeKey: String,
         candidates: [ListeningDisc],
+        lineupNames: [String] = [],
         defaults: UserDefaults = .standard
     ) -> ListeningDisc? {
         var generator = SystemRandomNumberGenerator()
         return pick(showID: showID, scopeKey: scopeKey, candidates: candidates,
-                    defaults: defaults, using: &generator)
+                    lineupNames: lineupNames, defaults: defaults, using: &generator)
     }
 
     static func pick<R: RandomNumberGenerator>(
         showID: UUID,
         scopeKey: String,
         candidates: [ListeningDisc],
+        lineupNames: [String] = [],
         defaults: UserDefaults = .standard,
         using generator: inout R
     ) -> ListeningDisc? {
@@ -96,8 +98,18 @@ enum ListeningDiscPickPolicy {
 
         let key = storageKey(showID: showID, scopeKey: scopeKey)
         let recentIDs = load(key: key, defaults: defaults).recentIDs
-        let withoutLastDraw = pool.filter { $0.id != recentIDs.last }
-        return (withoutLastDraw.isEmpty ? pool : withoutLastDraw).randomElement(using: &generator)
+
+        // Prioritize releases where the show's artist is the lead artist over guest collaborations.
+        let activePool: [ListeningDisc]
+        if !lineupNames.isEmpty {
+            let leads = pool.filter { $0.isLeadArtist(lineupNames: lineupNames) }
+            activePool = leads.isEmpty ? pool : leads
+        } else {
+            activePool = pool
+        }
+
+        let withoutLastDraw = activePool.filter { $0.id != recentIDs.last }
+        return (withoutLastDraw.isEmpty ? activePool : withoutLastDraw).randomElement(using: &generator)
     }
 
     private static func candidatePool(from candidates: [ListeningDisc]) -> [ListeningDisc] {

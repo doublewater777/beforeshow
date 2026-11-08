@@ -230,6 +230,73 @@ final class ListeningDiscPickPolicyTests: XCTestCase {
         XCTAssertEqual(artist.map(\.id), ["connected"])
     }
 
+    func testPickPrioritizesLeadArtistReleasesOverGuestCollaborations() throws {
+        let suite = "DiscPickPolicy.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let showID = UUID()
+
+        let soloDisc = ListeningDisc(
+            id: "solo", title: "万松岭", artworkURL: nil,
+            tracks: [ListeningDiscTrack(CatalogSong(appleMusicSongID: "s1", title: "低空飞行", artistName: "许钧"))],
+            artistNames: ["许钧"]
+        )
+        let guestDisc = ListeningDisc(
+            id: "guest", title: "生活倒影", artworkURL: nil,
+            tracks: [ListeningDiscTrack(CatalogSong(appleMusicSongID: "s2", title: "生活倒影", artistName: "苏运莹"))],
+            artistNames: ["苏运莹", "许钧"]
+        )
+
+        var generator = SeededGenerator(state: 42)
+        for _ in 0..<30 {
+            let picked = ListeningDiscPickPolicy.pick(
+                showID: showID,
+                scopeKey: "all",
+                candidates: [soloDisc, guestDisc],
+                lineupNames: ["许钧"],
+                defaults: defaults,
+                using: &generator
+            )
+            XCTAssertEqual(picked?.id, "solo", "When solo/lead albums exist, guest collaborations must not be drawn first")
+        }
+    }
+
+    func testPickFallsBackToGuestCollaborationsWhenNoLeadReleasesExist() throws {
+        let suite = "DiscPickPolicy.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let showID = UUID()
+
+        let guestDisc = ListeningDisc(
+            id: "guest", title: "生活倒影", artworkURL: nil,
+            tracks: [ListeningDiscTrack(CatalogSong(appleMusicSongID: "s2", title: "生活倒影", artistName: "苏运莹"))],
+            artistNames: ["苏运莹", "许钧"]
+        )
+
+        let picked = ListeningDiscPickPolicy.pick(
+            showID: showID,
+            scopeKey: "all",
+            candidates: [guestDisc],
+            lineupNames: ["许钧"],
+            defaults: defaults
+        )
+        XCTAssertEqual(picked?.id, "guest", "When only collaborations exist, they remain drawable")
+    }
+
+    func testDisplayArtistNamePutsLineupArtistInFront() {
+        let solo = ListeningDisc(id: "1", title: "T", artworkURL: nil, tracks: [], artistNames: ["许钧"])
+        XCTAssertEqual(solo.displayArtistName(lineupNames: ["许钧"]), "许钧")
+
+        let guestFirst = ListeningDisc(id: "2", title: "T", artworkURL: nil, tracks: [], artistNames: ["苏运莹", "许钧"])
+        XCTAssertEqual(guestFirst.displayArtistName(lineupNames: ["许钧"]), "许钧 & 苏运莹")
+
+        let leadFirst = ListeningDisc(id: "3", title: "T", artworkURL: nil, tracks: [], artistNames: ["许钧", "苏运莹"])
+        XCTAssertEqual(leadFirst.displayArtistName(lineupNames: ["许钧"]), "许钧 & 苏运莹")
+
+        let multiGuest = ListeningDisc(id: "4", title: "T", artworkURL: nil, tracks: [], artistNames: ["苏运莹", "许钧", "袁娅维"])
+        XCTAssertEqual(multiGuest.displayArtistName(lineupNames: ["许钧"]), "许钧 & 苏运莹 & 袁娅维")
+    }
+
     private struct SeededGenerator: RandomNumberGenerator {
         var state: UInt64
 

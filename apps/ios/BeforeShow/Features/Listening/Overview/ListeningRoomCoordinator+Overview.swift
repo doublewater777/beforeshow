@@ -45,7 +45,8 @@ import Foundation
         if let pick = ListeningDiscPickPolicy.pick(
             showID: show.id,
             scopeKey: ListeningDiscPickPolicy.showScopeKey,
-            candidates: pool
+            candidates: pool,
+            lineupNames: show.artistNames
         ), !pick.tracks.isEmpty {
             chosenDisc = pick
         } else if let today = todayDisc(), !today.tracks.isEmpty {

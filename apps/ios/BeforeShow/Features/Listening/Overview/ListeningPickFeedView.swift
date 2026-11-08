@@ -107,7 +107,7 @@ struct ListeningPickFeedView: View {
     private func rebuild(startingWith start: ListeningDisc?, keepingPlaying: Bool) {
         let candidates = room.pickCandidates(filter: filter)
         let drawn = ListeningPickOrder.feed(first: start, candidates: candidates) { remaining in
-            ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: remaining)
+            ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: remaining, lineupNames: show.artistNames)
         }
         let playing = keepingPlaying && room.wantsPlayback ? room.loadedDisc : nil
         order = ListeningPickOrder.keeping(playing, above: drawn)
@@ -191,7 +191,7 @@ private struct ListeningPickFeedPage: View {
     private var info: some View {
         VStack(alignment: .leading, spacing: BSSpacing.xs) {
             HStack(spacing: BSSpacing.sm) {
-                Text(disc.artistNames.first ?? "")
+                Text(disc.displayArtistName(for: show))
                     .font(ListeningOverviewStyle.caps(14)).tracking(2.5).textCase(.uppercase)
                     .foregroundStyle(BSColor.Stage.accent)
                     .lineLimit(1)
