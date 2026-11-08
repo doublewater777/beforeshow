@@ -35,6 +35,7 @@ enum FootprintSetlistArchive {
         let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var grouped: [String: (title: String, artist: String, shows: [Show])] = [:]
         for memory in memories {
+            guard memory.isPlayed else { continue }
             guard let show = showsByID[memory.showID] else { continue }
             let catalog = memory.catalogSongID.flatMap { catalogSongs[$0] }
             let title = catalog?.title ?? memory.manualTitle ?? ""

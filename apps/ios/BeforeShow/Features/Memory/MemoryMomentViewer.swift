@@ -1,24 +1,26 @@
 import SwiftData
 import SwiftUI
 
-/// Every moment of the show, oldest first, one per page. Each page carries its time,
-/// its line and the two things you can do to it: write the line, or delete it.
+/// 记忆碎片大图/全屏查看器：
+/// 左右滑下一格，下滑关闭；底部原位修改说明；「…」里删除，删后回胶卷给撤销 toast，不弹 alert。
 struct MemoryMomentViewer: View {
     let show: Show
     let startID: UUID
+    var onDelete: ((MemoryMoment) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var fragments: [MemoryFragment]
+
     @State private var selection: UUID?
     @State private var isChromeVisible = true
-    @State private var editing: MemoryMoment?
-    @State private var deleting: MemoryMoment?
+    @State private var captionDraft = ""
     @State private var toast: BSToastPayload?
 
-    init(show: Show, startID: UUID) {
+    init(show: Show, startID: UUID, onDelete: ((MemoryMoment) -> Void)? = nil) {
         self.show = show
         self.startID = startID
+        self.onDelete = onDelete
         let showID = show.id
         _fragments = Query(filter: #Predicate<MemoryFragment> { $0.showID == showID })
     }
@@ -29,41 +31,46 @@ struct MemoryMomentViewer: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
+
             TabView(selection: $selection) {
                 ForEach(moments) { moment in
-                    page(moment).tag(Optional(moment.id))
+                    page(moment)
+                        .tag(Optional(moment.id))
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
+
             if isChromeVisible, let current {
-                chrome(current).transition(.opacity)
+                chrome(current)
+                    .transition(.opacity)
             }
         }
         .bsToastOverlay(toast, bottomPadding: 120)
         .animation(.easeOut(duration: 0.2), value: isChromeVisible)
         .preferredColorScheme(.dark)
-        .onAppear { if selection == nil { selection = startID } }
+        .gesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    if value.translation.height > 80 && abs(value.translation.width) < 60 {
+                        commitCaption()
+                        dismiss()
+                    }
+                }
+        )
+        .onAppear {
+            if selection == nil { selection = startID }
+            loadCaptionForSelection()
+        }
+        .onChange(of: selection) { _, _ in
+            commitCaption()
+            loadCaptionForSelection()
+        }
         .onChange(of: moments.map(\.id)) { old, ids in
             guard !ids.isEmpty else { return dismiss() }
             guard let selection, !ids.contains(selection) else { return }
             let index = old.firstIndex(of: selection) ?? 0
             self.selection = ids[min(index, ids.count - 1)]
-        }
-        .sheet(item: $editing) { moment in
-            MemoryLineSheet(
-                title: moment.caption == nil ? BSLocalization.text("加一句") : BSLocalization.text("改一句"),
-                initialText: moment.caption ?? "",
-                allowsEmpty: !moment.isText
-            ) { text in
-                try MemoryMomentEditing.setCaption(text, on: moment, in: modelContext)
-            }
-        }
-        .alert(DangerConfirmation.deleteMemory.title, isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { moment in
-            Button(DangerConfirmation.deleteMemory.confirmTitle, role: .destructive) { delete(moment) }
-            Button(BSLocalization.text("取消"), role: .cancel) {}
-        } message: { _ in
-            Text(DangerConfirmation.deleteMemory.message)
         }
     }
 
@@ -89,49 +96,88 @@ struct MemoryMomentViewer: View {
 
     private func chrome(_ moment: MemoryMoment) -> some View {
         VStack(spacing: 0) {
+            topBar(moment)
+
+            Spacer()
+
+            bottomControls(moment)
+        }
+    }
+
+    private func topBar(_ moment: MemoryMoment) -> some View {
+        HStack {
+            circleButton("xmark", label: BSLocalization.text("关闭")) {
+                commitCaption()
+                dismiss()
+            }
+
+            Spacer()
+
+            Text(stamp(moment))
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.85))
+
+            Spacer()
+
+            moreMenu(moment)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+    }
+
+    private func moreMenu(_ moment: MemoryMoment) -> some View {
+        Menu {
+            if let item = moment.item, item.kind == .video {
+                Button {
+                    save(item)
+                } label: {
+                    Label(BSLocalization.text("保存到相册"), systemImage: "square.and.arrow.down")
+                }
+            }
+
+            Button(role: .destructive) {
+                commitCaption()
+                onDelete?(moment)
+                dismiss()
+            } label: {
+                Label(BSLocalization.text("删除这条记忆"), systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .accessibilityLabel(BSLocalization.text("更多选项"))
+    }
+
+    private func bottomControls(_ moment: MemoryMoment) -> some View {
+        VStack(spacing: 8) {
             HStack {
-                circleButton("xmark", label: BSLocalization.text("关闭")) { dismiss() }
-                Spacer()
-                Text(stamp(moment))
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.85))
-                Spacer()
-                Color.clear.frame(width: 44, height: 44)
+                TextField(BSLocalization.text("写一句说明…"), text: $captionDraft)
+                    .font(.system(size: 15))
+                    .foregroundStyle(.white)
+                    .submitLabel(.done)
+                    .onSubmit(commitCaption)
             }
             .padding(.horizontal, 16)
-            Spacer()
-            VStack(alignment: .leading, spacing: 14) {
-                if !moment.isText, let caption = moment.caption {
-                    Text(caption)
-                        .font(.system(size: 16))
-                        .foregroundStyle(.white)
-                        .lineLimit(4)
-                }
-                HStack(spacing: 10) {
-                    Button { editing = moment } label: {
-                        Label(moment.caption == nil ? BSLocalization.text("加一句") : BSLocalization.text("改一句"), systemImage: "text.bubble")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .frame(height: 44)
-                            .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                    if let item = moment.item, item.kind == .video {
-                        circleButton("square.and.arrow.down", label: BSLocalization.text("保存到相册")) { save(item) }
-                    }
-                    circleButton("trash", label: BSLocalization.text("删除这条记忆")) { deleting = moment }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
-            .background(alignment: .bottom) {
-                LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 220)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-            }
+            .frame(height: 48)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.16), lineWidth: 0.5))
+            .padding(.horizontal, 16)
+
+            Text(BSLocalization.text("左右滑看下一格 · 下滑关闭"))
+                .font(.system(size: 12))
+                .foregroundStyle(Color.white.opacity(0.45))
+                .padding(.bottom, 8)
+        }
+        .padding(.bottom, 12)
+        .background(alignment: .bottom) {
+            LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+                .frame(height: 180)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
     }
 
@@ -149,25 +195,28 @@ struct MemoryMomentViewer: View {
 
     private func stamp(_ moment: MemoryMoment) -> String {
         let phase = MemoryFragmentPhase.resolved(at: moment.date, timing: show.timingFields)
-        return "\(BSDateFormat.clock(moment.date, timeZone: .current)) · \(phase.title)"
+        return "\(phase.rollTitle) · \(BSDateFormat.clock(moment.date, timeZone: .current))"
     }
 
-    private func delete(_ moment: MemoryMoment) {
-        deleting = nil
-        Task { @MainActor in
-            do {
-                try await MemoryMomentEditing.delete(moment, in: modelContext)
-            } catch {
-                show(toast: .failure, BSLocalization.text("删除失败，请重试"))
-            }
+    private func loadCaptionForSelection() {
+        guard let current else { return }
+        captionDraft = current.caption ?? (current.isText ? (current.fragment.text ?? "") : "")
+    }
+
+    private func commitCaption() {
+        guard let current else { return }
+        let text = captionDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if current.isText {
+            guard !text.isEmpty else { return }
         }
+        try? MemoryMomentEditing.setCaption(text, on: current, in: modelContext)
     }
 
     private func save(_ item: MemoryMediaItem) {
         Task { @MainActor in
             do {
                 try await BSPhotoLibrarySaver.saveFile(MemoryMediaLocation.applicationSupport().url(for: item.relativePath), as: .video)
-                show(toast: .success, BSLocalization.text("已保存"))
+                show(toast: .success, BSLocalization.text("已保存到相册"))
             } catch {
                 show(toast: .failure, BSLocalization.text("保存失败，请重试"))
             }

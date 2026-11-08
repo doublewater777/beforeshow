@@ -45,6 +45,7 @@ struct ShowRecordRows: View {
     private var rows: [CurrentShowRecordRow] {
         let facts = CurrentShowRecordFacts(
             setlistCount: setlist.count,
+            playedSetlistCount: setlist.filter(\.isPlayed).count,
             merchCount: show.merchItems.count,
             ticketPriceText: show.formattedSpending(show.ticketPrice),
             travelCostText: show.formattedSpending(show.travelCost)
@@ -66,7 +67,7 @@ struct ShowRecordRows: View {
                 }
             }
         }
-        .sheet(isPresented: $isShowingSetlist) { ShowSetlistSheet(show: show) }
+        .sheet(isPresented: $isShowingSetlist) { ShowSetlistSheet(show: show, forcedPhase: phase) }
         .sheet(isPresented: $isShowingSpending) { ShowSpendingSheet(show: show) }
         .merchCapture($merchSource, show: show) { saved in merchFailed = !saved }
         .onChange(of: merchSource) { _, source in if source != nil { merchFailed = false } }

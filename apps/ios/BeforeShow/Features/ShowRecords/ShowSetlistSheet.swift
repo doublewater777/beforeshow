@@ -1,39 +1,87 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 
-/// 「现场听到了」：按阵容艺人切换，从「听」已缓存的曲目里打勾；不在列表里的歌手动加。
-/// 勾选只在本地暂存，点完成才写入；关闭放弃本次改动。
+/// 歌单 · 三个阶段（开场前 / 演出中 / 散场后）
+/// 随现场生命周期切换展示形态与打勾、导入逻辑。
 struct ShowSetlistSheet: View {
     let show: Show
+    var forcedPhase: HomeShowPhase? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @State private var artistIndex = 0
-    @State private var catalog: [String: [ShowSetlistRecording.Song]] = [:]
-    @State private var original: Set<ShowSetlistRecording.Song> = []
-    @State private var selected: Set<ShowSetlistRecording.Song> = []
-    @State private var manual: [ShowSetlistRecording.Song] = []
+
+    @State private var items: [SetlistSongItem] = []
     @State private var draft = ""
-    @State private var saveFailed = false
+    @State private var isDraftFocused = false
+    @State private var isCatalogPickerPresented = false
+    @State private var selectedScreenshot: PhotosPickerItem?
+    @State private var isRecognizingScreenshot = false
     @State private var toggles = 0
-    @FocusState private var isDraftFocused: Bool
+    @State private var saveFailed = false
+    @State private var playFeedback = false
+    @State private var debugPhase: HomeShowPhase? = nil
 
-    private var artists: [ArtistSlot] { show.artists.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty } }
-    private var currentArtistName: String { artists.indices.contains(artistIndex) ? artists[artistIndex].name : "" }
+    struct SetlistSongItem: Identifiable, Hashable {
+        let id: UUID
+        var catalogSongID: String?
+        var title: String
+        var artistName: String
+        var wasPlayed: Bool
+        var isExtra: Bool
+        var order: Int
+    }
 
-    private var rows: [ShowSetlistRecording.Song] {
-        let listed = catalog[currentArtistName] ?? []
-        let extra = manual.filter {
-            artists.count <= 1 || ShowSetlistRecording.normalized($0.artistName) == ShowSetlistRecording.normalized(currentArtistName)
+    private var phase: HomeShowPhase {
+        debugPhase ?? forcedPhase ?? HomeShowPhase(timeState: CurrentShowTimeState(timing: show.timingFields, calendar: show.timingCalendar(), now: Date()))
+    }
+
+    private var isBefore: Bool { phase == .pre }
+    private var isLive: Bool { phase == .live }
+    private var isAfter: Bool { phase == .ended || phase == .inactive }
+
+    private var displayRows: [SetlistSongItem] {
+        if isAfter {
+            return items.filter(\.wasPlayed)
         }
-        return listed + extra.filter { song in !listed.contains { ShowSetlistRecording.normalized($0.title) == ShowSetlistRecording.normalized(song.title) } }
+        return items
+    }
+
+    private var playedCount: Int {
+        items.filter(\.wasPlayed).count
+    }
+
+    private var titleText: String {
+        isAfter ? BSLocalization.text("现场听到了") : BSLocalization.text("歌单")
+    }
+
+    private var subtitleText: String {
+        if isBefore {
+            return BSLocalization.format("%lld 首", items.count)
+        } else if isLive {
+            return BSLocalization.format("已唱 %1$lld / %2$lld", playedCount, items.count)
+        } else {
+            return BSLocalization.format("%lld 首", playedCount)
+        }
+    }
+
+    private var inputHint: String {
+        if isBefore {
+            return BSLocalization.text("加一首")
+        } else if isLive {
+            return BSLocalization.text("唱了不在单上的")
+        } else {
+            return BSLocalization.text("补一首")
+        }
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if artists.count > 1 { artistChips }
+                VStack(spacing: 16) {
+                    if isBefore {
+                        playInListenButton
+                    }
                     songList
                     if saveFailed {
                         Text(BSLocalization.text("没有保存，请重试"))
@@ -41,17 +89,43 @@ struct ShowSetlistSheet: View {
                             .foregroundStyle(BSColor.Stage.live)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 16)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 90)
             }
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom) { manualField.padding(.horizontal, 20).padding(.bottom, 8) }
-            .background(Color.clear)
-            .navigationTitle(BSLocalization.text("现场听到了"))
+            .safeAreaInset(edge: .bottom) {
+                bottomBar
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle(titleText)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                BSChromeToolbarCloseButton { dismiss() }
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 2) {
+                        Text(titleText)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.foreground)
+                        Text(subtitleText)
+                            .font(.system(size: 11))
+                            .foregroundStyle(BSColor.Stage.muted)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        #if DEBUG
+                        withAnimation {
+                            switch phase {
+                            case .pre: debugPhase = .live
+                            case .live: debugPhase = .ended
+                            case .ended, .inactive: debugPhase = .pre
+                            }
+                        }
+                        #endif
+                    }
+                }
+                BSChromeToolbarCloseButton(accessibilityLabel: "关闭") { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: commit) { Image(systemName: "checkmark") }
                         .tint(BSColor.Stage.foreground)
@@ -61,164 +135,312 @@ struct ShowSetlistSheet: View {
             }
         }
         .sensoryFeedback(.selection, trigger: toggles)
+        .sensoryFeedback(.success, trigger: playFeedback)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(.regularMaterial)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $isCatalogPickerPresented) {
+            ShowSetlistCatalogPickerSheet(artists: show.artists) { songs in
+                appendSongs(songs)
+            }
+        }
+        .onChange(of: selectedScreenshot) { _, item in
+            guard let item else { return }
+            selectedScreenshot = nil
+            Task { await processScreenshot(item) }
+        }
         .task { load() }
     }
 
-    private var artistChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+    // MARK: - Play in Listen Button (开场前)
+
+    private var playInListenButton: some View {
+        Button(action: playInListen) {
             HStack(spacing: 8) {
-                ForEach(Array(artists.enumerated()), id: \.offset) { index, artist in
-                    let isOn = index == artistIndex
-                    Button { artistIndex = index } label: {
-                        Text(artist.name)
-                            .font(.system(size: 14, weight: isOn ? .semibold : .regular))
-                            .foregroundStyle(isOn ? BSColor.Stage.background : BSColor.Stage.foreground.opacity(0.7))
-                            .padding(.horizontal, 14)
-                            .frame(height: 34)
-                            .background(isOn ? AnyShapeStyle(BSColor.Stage.foreground.opacity(0.92)) : AnyShapeStyle(Color.white.opacity(0.08)), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
+                Image(systemName: "play.fill")
+                    .font(.system(size: 13))
+                Text(BSLocalization.text("在「听」里播放"))
+                    .font(.system(size: 16, weight: .semibold))
             }
+            .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(Color.white.opacity(0.92), in: Capsule())
         }
+        .buttonStyle(.plain)
+        .disabled(items.isEmpty)
+        .opacity(items.isEmpty ? 0.4 : 1)
     }
+
+    // MARK: - Song List
 
     @ViewBuilder
     private var songList: some View {
+        let rows = displayRows
         if rows.isEmpty {
-            Text(BSLocalization.text("还没有曲目"))
-                .font(.system(size: 14))
-                .foregroundStyle(BSColor.Stage.muted)
-                .frame(maxWidth: .infinity, minHeight: 80)
+            VStack(spacing: 8) {
+                Text(BSLocalization.text("还没有曲目"))
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.muted)
+                Text(BSLocalization.text("支持截图识别、从专辑选择或直接手输"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(BSColor.Stage.dim)
+            }
+            .frame(maxWidth: .infinity, minHeight: 120)
         } else {
             VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.element) { index, song in
-                    if index > 0 { Divider().overlay(Color.white.opacity(0.12)).padding(.leading, 16) }
-                    songRow(song)
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    if index > 0 {
+                        Divider().overlay(Color.white.opacity(0.10)).padding(.leading, 16)
+                    }
+                    songRow(row, index: index + 1)
                 }
             }
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 0.5))
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.16), lineWidth: 0.5))
         }
     }
 
-    private func songRow(_ song: ShowSetlistRecording.Song) -> some View {
-        let isOn = selected.contains(song)
-        return Button {
-            if isOn { selected.remove(song) } else { selected.insert(song) }
-            toggles += 1
+    private func songRow(_ row: SetlistSongItem, index: Int) -> some View {
+        Button {
+            toggleRow(row)
         } label: {
-            HStack {
-                Text(song.title)
-                    .font(.system(size: 16, weight: isOn ? .semibold : .regular))
-                    .foregroundStyle(isOn ? BSColor.Stage.foreground : BSColor.Stage.foreground.opacity(0.6))
+            HStack(spacing: 12) {
+                Text("\(index)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .frame(width: 24, alignment: .leading)
+
+                Text(row.title)
+                    .font(.system(size: 15, weight: row.wasPlayed && isLive ? .semibold : .regular))
+                    .foregroundStyle(rowTextColor(row))
                     .lineLimit(1)
-                Spacer(minLength: 12)
-                ZStack {
-                    Circle().fill(isOn ? BSColor.Stage.foreground : .clear)
-                    Circle().strokeBorder(Color.white.opacity(isOn ? 0 : 0.25), lineWidth: 1.5)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(BSColor.Stage.background)
-                        .opacity(isOn ? 1 : 0)
+
+                Spacer(minLength: 8)
+
+                if !isBefore {
+                    ZStack {
+                        if row.wasPlayed {
+                            Circle().fill(Color.white)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 11, weight: .heavy))
+                                .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
+                        } else {
+                            Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1.5)
+                        }
+                    }
+                    .frame(width: 24, height: 24)
                 }
-                .frame(width: 24, height: 24)
             }
             .padding(.horizontal, 16)
-            .frame(minHeight: 52)
+            .frame(minHeight: 50)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
-    private var manualField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "plus")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.muted)
-            TextField(BSLocalization.text("不在列表里的歌"), text: $draft)
-                .font(.system(size: 15))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .focused($isDraftFocused)
-                .submitLabel(.done)
-                .onSubmit(addDraft)
+    private func rowTextColor(_ row: SetlistSongItem) -> Color {
+        if row.isExtra {
+            return Color(red: 232/255, green: 199/255, blue: 142/255)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 50)
-        .background(Color.white.opacity(0.06), in: Capsule())
-        .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.5))
+        if isBefore {
+            return BSColor.Stage.foreground
+        }
+        if row.wasPlayed {
+            return BSColor.Stage.foreground
+        }
+        return BSColor.Stage.foreground.opacity(0.35)
+    }
+
+    private func toggleRow(_ row: SetlistSongItem) {
+        guard isLive else { return }
+        guard let idx = items.firstIndex(where: { $0.id == row.id }) else { return }
+        items[idx].wasPlayed.toggle()
+        toggles += 1
+    }
+
+    // MARK: - Bottom Glass Bar
+
+    private var bottomBar: some View {
+        HStack(spacing: 8) {
+            PhotosPicker(selection: $selectedScreenshot, matching: .images) {
+                Image(systemName: "text.viewfinder")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.10), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(BSLocalization.text("从截图导入"))
+
+            Button {
+                isCatalogPickerPresented = true
+            } label: {
+                Image(systemName: "opticaldisc")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.10), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(BSLocalization.text("从「听」已拉取的专辑曲目里选"))
+
+            HStack {
+                TextField(inputHint, text: $draft)
+                    .font(.system(size: 15))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .submitLabel(.done)
+                    .onSubmit(addDraft)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            .background(Color.white.opacity(0.08), in: Capsule())
+        }
+        .padding(8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(Color.white.opacity(0.18), lineWidth: 0.5))
     }
 
     private func addDraft() {
         let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        let song = ShowSetlistRecording.Song(catalogSongID: nil, title: title, artistName: currentArtistName)
-        if !rows.contains(where: { ShowSetlistRecording.normalized($0.title) == ShowSetlistRecording.normalized(title) }) {
-            manual.append(song)
-        }
-        if let existing = rows.first(where: { ShowSetlistRecording.normalized($0.title) == ShowSetlistRecording.normalized(title) }) {
-            selected.insert(existing)
-        }
+        let artist = show.artistNames.first ?? ""
+        let isExtra = isLive
+        let wasPlayed = !isBefore
+        let newItem = SetlistSongItem(
+            id: UUID(),
+            catalogSongID: nil,
+            title: title,
+            artistName: artist,
+            wasPlayed: wasPlayed,
+            isExtra: isExtra,
+            order: items.count + 1
+        )
+        items.append(newItem)
         draft = ""
         toggles += 1
     }
 
-    private func load() {
-        for artist in artists {
-            catalog[artist.name] = ShowSetlistCatalog.songs(for: artist, in: modelContext)
-        }
-        let memories = (try? ShowSetlistRecording.memories(showID: show.id, in: modelContext)) ?? []
-        let catalogSongs = catalog.values.flatMap { $0 }
-        var current: Set<ShowSetlistRecording.Song> = []
-        for memory in memories {
-            if let id = memory.catalogSongID, let song = catalogSongs.first(where: { $0.catalogSongID == id }) {
-                current.insert(song)
-            } else {
-                let song = ShowSetlistRecording.Song(catalogSongID: memory.catalogSongID, title: memory.manualTitle ?? "", artistName: memory.manualArtistName ?? "")
-                guard !song.title.isEmpty else { continue }
-                manual.append(song)
-                current.insert(song)
+    private func appendSongs(_ songs: [ShowSetlistRecording.Song]) {
+        for song in songs {
+            if !items.contains(where: { ShowSetlistRecording.normalized($0.title) == ShowSetlistRecording.normalized(song.title) }) {
+                items.append(SetlistSongItem(
+                    id: UUID(),
+                    catalogSongID: song.catalogSongID,
+                    title: song.title,
+                    artistName: song.artistName,
+                    wasPlayed: !isBefore,
+                    isExtra: false,
+                    order: items.count + 1
+                ))
             }
         }
-        original = current
-        selected = current
+        toggles += 1
+    }
+
+    private func processScreenshot(_ pickerItem: PhotosPickerItem) async {
+        isRecognizingScreenshot = true
+        defer { isRecognizingScreenshot = false }
+        guard let data = try? await pickerItem.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else { return }
+        if let result = await SetlistOCRRecognizer.recognize(from: image, showArtist: show.artistNames.first) {
+            let artist = result.artistName ?? show.artistNames.first ?? ""
+            for title in result.songTitles {
+                if !items.contains(where: { ShowSetlistRecording.normalized($0.title) == ShowSetlistRecording.normalized(title) }) {
+                    items.append(SetlistSongItem(
+                        id: UUID(),
+                        catalogSongID: nil,
+                        title: title,
+                        artistName: artist,
+                        wasPlayed: !isBefore,
+                        isExtra: false,
+                        order: items.count + 1
+                    ))
+                }
+            }
+            toggles += 1
+        }
+    }
+
+    // MARK: - Play in Listen Action
+
+    private func playInListen() {
+        guard !items.isEmpty else { return }
+        Task { @MainActor in
+            let discTracks = items.map { song -> ListeningDiscTrack in
+                ListeningDiscTrack(
+                    id: song.catalogSongID ?? UUID().uuidString,
+                    title: song.title,
+                    artistName: song.artistName,
+                    artworkURL: nil,
+                    duration: nil,
+                    previewURL: nil
+                )
+            }
+            let disc = ListeningDisc(
+                id: "setlist-\(show.id.uuidString)",
+                title: BSLocalization.text("预习歌单"),
+                artworkURL: show.coverImageURL.flatMap(URL.init(string:)),
+                tracks: discTracks,
+                artistNames: show.artistNames,
+                origin: .compilation(showID: show.id, number: 0)
+            )
+            if let room = ListeningRoomSessionStore.shared.room {
+                room.loadDisc(disc, autoplay: true)
+                ListeningRoomSessionStore.shared.publishChrome(room)
+            } else if let room = await ListeningChromeBootstrapper.prepare(show: show, context: modelContext) {
+                room.loadDisc(disc, autoplay: true)
+                ListeningRoomSessionStore.shared.publishChrome(room)
+            }
+            playFeedback.toggle()
+        }
+    }
+
+    // MARK: - Persistence
+
+    private func load() {
+        let memories = (try? ShowSetlistRecording.memories(showID: show.id, in: modelContext)) ?? []
+        items = memories.enumerated().map { index, mem in
+            let isPlayedDefault = mem.wasPlayed ?? true
+            return SetlistSongItem(
+                id: mem.id,
+                catalogSongID: mem.catalogSongID,
+                title: mem.manualTitle ?? "",
+                artistName: mem.manualArtistName ?? "",
+                wasPlayed: mem.wasPlayed ?? (isBefore ? false : isPlayedDefault),
+                isExtra: mem.isMostSurprising,
+                order: mem.order ?? (index + 1)
+            )
+        }
+        .filter { !$0.title.isEmpty }
+        .sorted { $0.order < $1.order }
     }
 
     private func commit() {
         do {
-            for song in original.symmetricDifference(selected) {
-                try ShowSetlistRecording.toggle(song, showID: show.id, in: modelContext)
+            let existing = (try? ShowSetlistRecording.memories(showID: show.id, in: modelContext)) ?? []
+            for mem in existing {
+                modelContext.delete(mem)
+            }
+            for (index, item) in items.enumerated() {
+                let memory = ShowSetlistMemory(
+                    id: item.id,
+                    showID: show.id,
+                    catalogSongID: item.catalogSongID,
+                    manualTitle: item.title,
+                    manualArtistName: item.artistName,
+                    isMostSurprising: item.isExtra,
+                    wasPlayed: item.wasPlayed,
+                    order: index + 1
+                )
+                modelContext.insert(memory)
             }
             try modelContext.save()
             dismiss()
         } catch {
             modelContext.rollback()
             saveFailed = true
-        }
-    }
-}
-
-/// 只读本地已缓存的「听」目录，不发网络请求。
-@MainActor
-enum ShowSetlistCatalog {
-    static func songs(for artist: ArtistSlot, in context: ModelContext) -> [ShowSetlistRecording.Song] {
-        let snapshots = (try? context.fetch(FetchDescriptor<ArtistCatalogSnapshot>())) ?? []
-        let snapshot = artist.appleMusicArtistID.flatMap { id in snapshots.first { $0.artistID == id } }
-            ?? snapshots.first { ShowSetlistRecording.normalized($0.artistName) == ShowSetlistRecording.normalized(artist.name) }
-        guard let snapshot else { return [] }
-        let ids = snapshot.orderedSongIDs.isEmpty ? snapshot.topSongIDs : snapshot.orderedSongIDs
-        guard !ids.isEmpty else { return [] }
-        let found = (try? context.fetch(FetchDescriptor<CatalogSong>(predicate: #Predicate { ids.contains($0.appleMusicSongID) }))) ?? []
-        let byID = Dictionary(found.map { ($0.appleMusicSongID, $0) }, uniquingKeysWith: { first, _ in first })
-        var seenTitles = Set<String>()
-        return ids.compactMap { byID[$0] }.compactMap { song in
-            guard seenTitles.insert(ShowSetlistRecording.normalized(song.title)).inserted else { return nil }
-            return ShowSetlistRecording.Song(catalogSongID: song.appleMusicSongID, title: song.title, artistName: artist.name)
         }
     }
 }

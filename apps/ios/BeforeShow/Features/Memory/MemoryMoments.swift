@@ -37,8 +37,8 @@ enum MemoryMomentTimeline {
 
     static func sections(_ moments: [MemoryMoment], timing: ShowTimingFields) -> [MemoryMomentSection] {
         let grouped = Dictionary(grouping: moments) { MemoryFragmentPhase.resolved(at: $0.date, timing: timing) }
-        return [MemoryFragmentPhase.before, .live, .after].compactMap { phase in
-            grouped[phase].map { MemoryMomentSection(phase: phase, moments: $0) }
+        return [MemoryFragmentPhase.before, .live, .after].map { phase in
+            MemoryMomentSection(phase: phase, moments: grouped[phase] ?? [])
         }
     }
 

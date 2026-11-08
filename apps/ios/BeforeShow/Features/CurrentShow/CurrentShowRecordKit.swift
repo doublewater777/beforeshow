@@ -9,6 +9,7 @@ enum CurrentShowRecordKind: Hashable {
 
 struct CurrentShowRecordFacts: Equatable {
     var setlistCount = 0
+    var playedSetlistCount = 0
     var merchCount = 0
     var ticketPriceText: String?
     var travelCostText: String?
@@ -37,7 +38,8 @@ struct CurrentShowRecordRow: Identifiable, Equatable {
 enum CurrentShowRecordKit {
     static func title(for phase: HomeShowPhase) -> String? {
         switch phase {
-        case .pre, .inactive: return nil
+        case .inactive: return nil
+        case .pre: return BSLocalization.text("歌单")
         case .live: return BSLocalization.text("此刻")
         case .ended: return BSLocalization.text("留下的")
         }
@@ -45,7 +47,8 @@ enum CurrentShowRecordKit {
 
     static func kinds(for phase: HomeShowPhase) -> [CurrentShowRecordKind] {
         switch phase {
-        case .pre, .inactive: return []
+        case .inactive: return []
+        case .pre: return [.setlist]
         case .live: return [.setlist]
         case .ended: return [.setlist, .merch, .spending]
         }
@@ -60,11 +63,44 @@ enum CurrentShowRecordKit {
         let none = BSLocalization.text("还没有")
         switch kind {
         case .setlist:
-            let has = facts.setlistCount > 0
-            let action = phase == .live || !has ? BSLocalization.text("记一首") : open
-            return .init(kind: kind, title: BSLocalization.text("现场听到了"),
-                         subtitle: has ? BSLocalization.format("已记 %lld 首", facts.setlistCount) : none,
-                         action: action, isFilled: has, emphasizesAction: action != open)
+            switch phase {
+            case .pre:
+                let has = facts.setlistCount > 0
+                let action = has ? open : BSLocalization.text("加一首")
+                return .init(
+                    kind: kind,
+                    title: BSLocalization.text("歌单"),
+                    subtitle: has ? BSLocalization.format("%lld 首", facts.setlistCount) : none,
+                    action: action,
+                    isFilled: has,
+                    emphasizesAction: !has
+                )
+            case .live:
+                let played = facts.playedSetlistCount
+                let total = facts.setlistCount
+                let action = BSLocalization.text("打勾")
+                let sub = total > 0 ? BSLocalization.format("已唱 %lld / %lld", played, total) : none
+                return .init(
+                    kind: kind,
+                    title: BSLocalization.text("歌单"),
+                    subtitle: sub,
+                    action: action,
+                    isFilled: total > 0,
+                    emphasizesAction: total == 0 || played < total
+                )
+            case .ended, .inactive:
+                let count = facts.playedSetlistCount > 0 ? facts.playedSetlistCount : facts.setlistCount
+                let hasPlayed = count > 0
+                let action = hasPlayed ? open : BSLocalization.text("补一首")
+                return .init(
+                    kind: kind,
+                    title: BSLocalization.text("现场听到了"),
+                    subtitle: hasPlayed ? BSLocalization.format("%lld 首", count) : none,
+                    action: action,
+                    isFilled: hasPlayed,
+                    emphasizesAction: !hasPlayed
+                )
+            }
         case .merch:
             let has = facts.merchCount > 0
             return .init(kind: kind, title: BSLocalization.text("周边"),

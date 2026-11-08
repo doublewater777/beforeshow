@@ -19,7 +19,7 @@ enum ShowSetlistRecording {
 
     /// 已记 → 移除；未记 → 记下。返回切换后是否已记。
     @discardableResult
-    static func toggle(_ song: Song, showID: UUID, in context: ModelContext, now: Date = Date()) throws -> Bool {
+    static func toggle(_ song: Song, showID: UUID, in context: ModelContext, wasPlayed: Bool? = nil, now: Date = Date()) throws -> Bool {
         let existing = try memories(showID: showID, in: context).filter { matches($0, song) }
         if !existing.isEmpty {
             existing.forEach(context.delete)
@@ -30,19 +30,67 @@ enum ShowSetlistRecording {
             catalogSongID: song.catalogSongID,
             manualTitle: song.title,
             manualArtistName: song.artistName,
+            wasPlayed: wasPlayed,
             createdAt: now,
             updatedAt: now
         ))
         return true
     }
 
+    /// 标记是否已唱（演出中打勾，不从单子中删除）。
+    @discardableResult
+    static func togglePlayed(_ song: Song, showID: UUID, in context: ModelContext, now: Date = Date()) throws -> Bool {
+        if let existing = try memories(showID: showID, in: context).first(where: { matches($0, song) }) {
+            let next = !(existing.wasPlayed ?? false)
+            existing.wasPlayed = next
+            existing.updatedAt = now
+            return next
+        }
+        let memory = ShowSetlistMemory(
+            showID: showID,
+            catalogSongID: song.catalogSongID,
+            manualTitle: song.title,
+            manualArtistName: song.artistName,
+            wasPlayed: true,
+            createdAt: now,
+            updatedAt: now
+        )
+        context.insert(memory)
+        return true
+    }
+
     /// 手动输入不在列表里的歌；空白或已记过的同名歌不重复写。
-    static func addManual(title: String, artistName: String, showID: UUID, in context: ModelContext, now: Date = Date()) throws {
+    static func addManual(
+        title: String,
+        artistName: String,
+        showID: UUID,
+        in context: ModelContext,
+        wasPlayed: Bool? = nil,
+        isMostSurprising: Bool = false,
+        order: Int? = nil,
+        now: Date = Date()
+    ) throws {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let song = Song(catalogSongID: nil, title: trimmed, artistName: artistName)
-        guard try !memories(showID: showID, in: context).contains(where: { matches($0, song) }) else { return }
-        try toggle(song, showID: showID, in: context, now: now)
+        let list = try memories(showID: showID, in: context)
+        if let existing = list.first(where: { matches($0, song) }) {
+            if let wasPlayed { existing.wasPlayed = wasPlayed }
+            if isMostSurprising { existing.isMostSurprising = true }
+            existing.updatedAt = now
+            return
+        }
+        context.insert(ShowSetlistMemory(
+            showID: showID,
+            catalogSongID: nil,
+            manualTitle: trimmed,
+            manualArtistName: artistName,
+            isMostSurprising: isMostSurprising,
+            wasPlayed: wasPlayed,
+            order: order ?? (list.count + 1),
+            createdAt: now,
+            updatedAt: now
+        ))
     }
 
     static func matches(_ memory: ShowSetlistMemory, _ song: Song) -> Bool {

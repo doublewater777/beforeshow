@@ -12,7 +12,12 @@ import SwiftData
     func reload() {
         do {
             tiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>()).filter { $0.showID == show.id }
-            memories = try context.fetch(FetchDescriptor<ShowSetlistMemory>()).filter { $0.showID == show.id }.sorted { $0.createdAt < $1.createdAt }
+            memories = try context.fetch(FetchDescriptor<ShowSetlistMemory>())
+                .filter { $0.showID == show.id && $0.isPlayed }
+                .sorted {
+                    if let o1 = $0.order, let o2 = $1.order, o1 != o2 { return o1 < o2 }
+                    return $0.createdAt < $1.createdAt
+                }
             songs = try context.fetch(FetchDescriptor<CatalogSong>())
         } catch { self.error = BSLocalization.text("缓存读取失败") }
     }
