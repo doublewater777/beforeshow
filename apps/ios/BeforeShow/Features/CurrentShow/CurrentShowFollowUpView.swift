@@ -66,20 +66,16 @@ struct CurrentShowFollowUpSummary: View {
                     HStack(spacing: 8) {
                         Text(BSLocalization.format("查看全部现场 · %lld 场", shows.count))
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.accent)
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 49)
-                    .background(BSColor.Stage.accent.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 15)
-                            .stroke(BSColor.Stage.accent.opacity(0.18), lineWidth: 1)
-                    )
+                    .frame(height: 52)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .bsGlassCard(cornerRadius: 24)
             }
         }
     }
@@ -150,37 +146,31 @@ struct CurrentShowLibraryEntryTile: View {
         Button(action: onOpenShowLibrary) {
             HStack(spacing: 12) {
                 Image(systemName: "list.bullet.rectangle")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(BSColor.Stage.accent)
-                    .frame(width: 36, height: 36)
-                    .background(BSColor.Stage.accent.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .font(.system(size: 17))
+                    .foregroundStyle(BSColor.Stage.foreground.opacity(0.85))
+                    .frame(width: 24)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(BSLocalization.text("全部现场"))
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(BSColor.Stage.foreground)
                     Text(BSLocalization.format("%lld 场现场", totalShowCount))
-                        .font(.system(size: 11.5, weight: .regular))
+                        .font(.system(size: 12.5))
                         .foregroundStyle(BSColor.Stage.muted)
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 10)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.dim)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground.opacity(0.35))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(BSColor.Stage.surface.opacity(0.92))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.09), lineWidth: 1)
-            )
+            .padding(.horizontal, 16)
+            .frame(minHeight: 60)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .bsGlassCard(cornerRadius: 24)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(BSLocalization.format("%@，%lld 场现场", BSLocalization.text("全部现场"), totalShowCount))
     }
