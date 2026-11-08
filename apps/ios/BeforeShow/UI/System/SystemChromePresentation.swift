@@ -109,7 +109,7 @@ enum MapChooserPresentation {
     }
 
     static func title(hasDestination: Bool) -> String {
-        hasDestination ? BSLocalization.text("在地图中打开") : BSLocalization.text("还没有目的地")
+        hasDestination ? BSLocalization.text("路线") : BSLocalization.text("还没有目的地")
     }
 }
 

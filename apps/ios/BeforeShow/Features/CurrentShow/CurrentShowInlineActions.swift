@@ -403,7 +403,7 @@ private struct CurrentShowRouteModule: View {
                         Spacer(minLength: 8)
                         HStack(spacing: 5) {
                             Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                            Text(BSLocalization.text("到这去"))
+                            Text(BSLocalization.text("路线"))
                         }
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(BSColor.Stage.background)
@@ -422,7 +422,7 @@ private struct CurrentShowRouteModule: View {
                         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     venue(size: 15, serif: false)
                     Spacer(minLength: 8)
-                    Text(BSLocalization.text("到这去"))
+                    Text(BSLocalization.text("路线"))
                         .font(.system(size: 12))
                         .foregroundStyle(BSColor.Stage.muted)
                     Image(systemName: "chevron.right")

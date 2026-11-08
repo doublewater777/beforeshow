@@ -239,7 +239,7 @@ struct HomeCountdownLockup: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(summary)
-            .accessibilityHint(BSLocalization.text("打开路线"))
+            .accessibilityHint(BSLocalization.text("看路线"))
         } else {
             label
         }
