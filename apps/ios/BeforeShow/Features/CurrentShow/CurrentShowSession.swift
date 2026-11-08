@@ -111,7 +111,7 @@ struct CurrentShowFeatureRootView: View {
         .onChange(of: notificationRouter.handledRecommendation, initial: true) { _, _ in
             recordHandledRecommendation()
         }
-        .sheet(item: $notificationPresentation, onDismiss: notificationPresentationDidDismiss) { presentation in
+        .bsSheetOrCover(item: $notificationPresentation, isCover: { $0.destination == .timetable }, onDismiss: notificationPresentationDidDismiss) { presentation in
             if let show = shows.first(where: { $0.id == presentation.showID }) {
                 switch presentation.destination {
                 case .memoryFragments:

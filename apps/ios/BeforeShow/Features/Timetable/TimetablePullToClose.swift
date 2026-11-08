@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// The timetable opens full screen with a clear backdrop, so pulling it down shows the page behind.
 /// Closing the timetable by pulling down, without the grid's own scrolling ever closing it.
 /// A drag that starts anywhere in the top bar takes the whole sheet with the finger (buttons there
 /// still tap); past a clear distance or on a decisive flick it keeps going down and closes in the
@@ -14,6 +15,8 @@ struct TimetablePullToClose: ViewModifier {
     @State private var isClosing = false
 
     private static let barHeight: CGFloat = 64
+    private static let topGap: CGFloat = 14
+    private static let dimFadeDistance: CGFloat = 400
     private static let threshold: CGFloat = 120
     private static let flick: CGFloat = 300
     private static let space = "timetable.pull"
@@ -21,7 +24,11 @@ struct TimetablePullToClose: ViewModifier {
     func body(content: Content) -> some View {
         GeometryReader { proxy in
             content
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32, style: .continuous))
+                // Down past the home indicator, so nothing behind shows below the grid.
+                .mask {
+                    UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32, style: .continuous)
+                        .padding(.bottom, -proxy.safeAreaInsets.bottom)
+                }
                 .overlay(alignment: .top) {
                     Capsule()
                         .fill(Color.white.opacity(isPastThreshold ? 0.7 : 0.3))
@@ -31,10 +38,13 @@ struct TimetablePullToClose: ViewModifier {
                         .accessibilityHidden(true)
                 }
                 .offset(y: pull)
-                .simultaneousGesture(drag(height: proxy.size.height), isEnabled: isEnabled && !isClosing)
+                .simultaneousGesture(drag(height: proxy.size.height + proxy.safeAreaInsets.bottom), isEnabled: isEnabled && !isClosing)
         }
+        // Sits where a sheet would, below the status bar, with the page behind showing above.
+        .padding(.top, Self.topGap)
         .coordinateSpace(.named(Self.space))
-        .presentationBackground(.clear)
+        // The page behind is dimmed as under a sheet, and comes back up as the timetable is pulled away.
+        .presentationBackground(Color.black.opacity(0.45 * max(0, 1 - pull / Self.dimFadeDistance)))
         .sensoryFeedback(.impact(weight: .light), trigger: isPastThreshold) { _, past in past }
         .accessibilityAction(named: BSLocalization.text("关闭")) { if isEnabled { onClose() } }
     }

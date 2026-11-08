@@ -257,7 +257,7 @@ struct FootprintDetailView: View {
         .fullScreenCover(item: $memoryTarget) { target in
             MemoryMomentViewer(show: show, startID: target.id)
         }
-        .sheet(item: $showingAssetKind) { kind in
+        .bsSheetOrCover(item: $showingAssetKind, isCover: { $0 == .timetable }) { kind in
             ShowAssetSheet(
                 showID: show.id,
                 showName: show.name,

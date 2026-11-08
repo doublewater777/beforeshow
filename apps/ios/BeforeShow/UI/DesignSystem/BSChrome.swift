@@ -70,6 +70,26 @@ extension View {
             .presentationDetents(detents)
             .presentationDragIndicator(.visible)
     }
+
+    /// One item drives one presentation: items matching `isCover` open full screen, the rest as a
+    /// sheet. A `.large` sheet is always opaque, so a page that needs a see-through backdrop goes full screen.
+    func bsSheetOrCover<Item: Identifiable, Content: View>(
+        item: Binding<Item?>,
+        isCover: @escaping (Item) -> Bool,
+        onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping (Item) -> Content
+    ) -> some View {
+        sheet(
+            item: Binding(get: { item.wrappedValue.flatMap { isCover($0) ? nil : $0 } }, set: { item.wrappedValue = $0 }),
+            onDismiss: onDismiss,
+            content: content
+        )
+        .fullScreenCover(
+            item: Binding(get: { item.wrappedValue.flatMap { isCover($0) ? $0 : nil } }, set: { item.wrappedValue = $0 }),
+            onDismiss: onDismiss,
+            content: content
+        )
+    }
 }
 
 // MARK: - Stage Components

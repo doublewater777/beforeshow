@@ -97,7 +97,7 @@ struct CurrentShowManagementSection: View {
             }
         }
         #endif
-        .sheet(item: $presentedSheet, onDismiss: presentedSheetDidDismiss) { sheet in
+        .bsSheetOrCover(item: $presentedSheet, isCover: { $0 == .asset(.timetable) }, onDismiss: presentedSheetDidDismiss) { sheet in
             switch sheet {
             case .endConfirmation:
                 CurrentShowEndConfirmationSheet(

@@ -153,7 +153,7 @@ struct ShowDetailView: View {
                 }
             }
         }
-        .sheet(item: $presentedSheet) { sheet in
+        .bsSheetOrCover(item: $presentedSheet, isCover: { $0 == .asset(.timetable) }) { sheet in
             switch sheet {
             case .editor:
                 ShowDraftEditorView(
