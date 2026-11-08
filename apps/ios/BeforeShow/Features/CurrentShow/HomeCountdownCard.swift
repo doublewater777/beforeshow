@@ -9,6 +9,9 @@ struct HomeCountdownLockup: View {
     var isPlaying = false
     var onPrimaryAction: (PrimaryAction) -> Void = { _ in }
     var onOpenRoute: (() -> Void)? = nil
+    var unlocks: ShowUnlocks? = nil
+    var onOpenRecords: () -> Void = {}
+    var onOpenBadges: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -50,6 +53,11 @@ struct HomeCountdownLockup: View {
                     identityDetails(dateText: nil, venueSummary: identity.venueSummary, opensRoute: onOpenRoute != nil, stacked: true)
                 }
                 .padding(.top, 6)
+            }
+
+            if let unlocks {
+                ShowUnlockRow(unlocks: unlocks, onOpenRecords: onOpenRecords, onOpenBadges: onOpenBadges)
+                    .transition(.opacity)
             }
 
             if let primaryAction {

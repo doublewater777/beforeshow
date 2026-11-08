@@ -31,6 +31,16 @@ extension CurrentShowManagementSection {
         }
     }
 
+    /// 散场后首页第一次真正可见时揭晓一次；没有解锁就什么都不出现。
+    func revealUnlocksIfNeeded(isPostShow: Bool) {
+        let store = ShowUnlockRevealStore()
+        guard isPostShow, isHeroPlaybackActive, !store.hasShown(show.id) else { return }
+        store.markShown(show.id)
+        let unlocks = ShowUnlockReveal.unlocks(for: show, shows: attachedCandidateShows, in: modelContext)
+        guard !unlocks.isEmpty else { return }
+        withAnimation(.easeOut(duration: 0.3)) { revealedUnlocks = unlocks }
+    }
+
     func performPrimaryAction(_ action: HomeCountdownLockup.PrimaryAction) {
         if action.playsMusic, let room = ListeningRoomSessionStore.shared.room, room.isPlaying {
             room.playPause()
@@ -58,7 +68,7 @@ extension CurrentShowManagementSection {
         case .addShow:
             onAddShow()
         case .fillNewDate:
-            isEditingShow = true
+            homeRoute = .editShow
         }
     }
 
@@ -185,4 +195,10 @@ extension CurrentShowManagementSection {
     var companionPresentation: CompanionQuickActionPresentation {
         CompanionQuickActionPresentation(companionNames: show.companionNames)
     }
+}
+
+enum CurrentShowHomeRoute: Hashable {
+    case editShow
+    case recordWall
+    case badgeWall
 }

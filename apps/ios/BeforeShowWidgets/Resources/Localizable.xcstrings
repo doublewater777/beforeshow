@@ -1,37 +1,32 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "%1$@ · %2$@" : {
+    "--" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$@"
+            "value" : "--"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$@"
+            "value" : "--"
           }
         }
       }
     },
-    "%1$@–次日 %2$@" : {
+    "%@ · %@" : {
       "localizations" : {
-        "en" : {
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@–%2$@ tomorrow"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@–次日 %2$@"
+            "value" : "%1$@ · %2$@"
           }
         }
-      }
+      },
+      "shouldTranslate" : false
     },
     "%@ %@" : {
       "localizations" : {
@@ -98,17 +93,6 @@
           }
         }
       }
-    },
-    "%@ · %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@"
-          }
-        }
-      },
-      "shouldTranslate" : false
     },
     "%@ 开场" : {
       "localizations" : {
@@ -219,6 +203,38 @@
       },
       "shouldTranslate" : false
     },
+    "%1$@ · %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%1$@–次日 %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–%2$@ tomorrow"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–次日 %2$@"
+          }
+        }
+      }
+    },
     "%d月%d日" : {
       "localizations" : {
         "en" : {
@@ -286,22 +302,6 @@
         }
       }
     },
-    "%lld 天 %lld 小时" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days %lld hours"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 天 %lld 小時"
-          }
-        }
-      }
-    },
     "%lld 天 · 想看 %lld 场" : {
       "localizations" : {
         "en" : {
@@ -320,6 +320,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld 天 · 想看 %2$lld 場"
+          }
+        }
+      }
+    },
+    "%lld 天 %lld 小时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days %lld hours"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 天 %lld 小時"
           }
         }
       }
@@ -452,22 +468,6 @@
         }
       }
     },
-    "--" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--"
-          }
-        }
-      }
-    },
     "COUNTDOWN" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -555,6 +555,22 @@
         }
       }
     },
+    "下一场 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up Next · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一場 · %@"
+          }
+        }
+      }
+    },
     "下一场 %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -590,22 +606,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一場 %1$@ · %2$@"
-          }
-        }
-      }
-    },
-    "下一场 · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Up Next · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下一場 · %@"
           }
         }
       }
@@ -674,6 +674,22 @@
         }
       }
     },
+    "今天这张" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Pick"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天這張"
+          }
+        }
+      }
+    },
     "今日" : {
       "localizations" : {
         "en" : {
@@ -738,6 +754,22 @@
         }
       }
     },
+    "今日首场 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First Set · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日首場 · %@"
+          }
+        }
+      }
+    },
     "今日首场 %@ · %@" : {
       "localizations" : {
         "en" : {
@@ -756,22 +788,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今日首場 %1$@ · %2$@"
-          }
-        }
-      }
-    },
-    "今日首场 · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "First Set · %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今日首場 · %@"
           }
         }
       }
@@ -853,6 +869,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部結束 · 想看 %lld 場"
+          }
+        }
+      }
+    },
+    "最近一场现场，离开场还有多久。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See how long until your next show starts."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近一場現場，離開場還有多久。"
           }
         }
       }
@@ -1064,6 +1096,7 @@
       }
     },
     "在小组件上直接控制听模块播放或暂停" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1143,22 +1176,6 @@
         }
       }
     },
-    "天前" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "days ago"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "天前"
-          }
-        }
-      }
-    },
     "天（按天数）" : {
       "localizations" : {
         "en" : {
@@ -1199,6 +1216,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "天"
+          }
+        }
+      }
+    },
+    "天前" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "days ago"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "天前"
           }
         }
       }
@@ -1507,6 +1540,22 @@
         }
       }
     },
+    "打开听" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Listen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開聽"
+          }
+        }
+      }
+    },
     "打开开场前，添加下一场" : {
       "localizations" : {
         "en" : {
@@ -1523,7 +1572,40 @@
         }
       }
     },
+    "播放" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放"
+          }
+        }
+      }
+    },
+    "播放听模块当前的唱片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play the current record in Listen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放聽模組目前的唱片"
+          }
+        }
+      }
+    },
     "播放或暂停" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1683,18 +1765,34 @@
         }
       }
     },
-    "最近一场现场，离开场还有多久。" : {
+    "暂停" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See how long until your next show starts."
+            "value" : "Pause"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最近一場現場，離開場還有多久。"
+            "value" : "暫停"
+          }
+        }
+      }
+    },
+    "暂停听模块当前的播放" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause what's playing in Listen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫停聽模組目前的播放"
           }
         }
       }
@@ -1779,18 +1877,18 @@
         }
       }
     },
-    "打开听" : {
+    "每天为当前现场挑一张唱片，轻点就听。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open Listen"
+            "value" : "A record for your current show each day. Tap to listen."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打開聽"
+            "value" : "每天為目前現場挑一張唱片，輕點就聽。"
           }
         }
       }
@@ -2102,102 +2200,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "首場"
-          }
-        }
-      }
-    },
-    "今天这张" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today's Pick"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今天這張"
-          }
-        }
-      }
-    },
-    "每天为当前现场挑一张唱片，轻点就听。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A record for your current show each day. Tap to listen."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每天為目前現場挑一張唱片，輕點就聽。"
-          }
-        }
-      }
-    },
-    "播放" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "播放"
-          }
-        }
-      }
-    },
-    "播放听模块当前的唱片" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play the current record in Listen"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "播放聽模組目前的唱片"
-          }
-        }
-      }
-    },
-    "暂停" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pause"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫停"
-          }
-        }
-      }
-    },
-    "暂停听模块当前的播放" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pause what's playing in Listen"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫停聽模組目前的播放"
           }
         }
       }

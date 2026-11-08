@@ -40,7 +40,8 @@ struct CurrentShowManagementSection: View {
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
     @State var notificationRouter = NotificationDeepLinkRouter.shared
-    @State var isEditingShow = false
+    @State var homeRoute: CurrentShowHomeRoute?
+    @State var revealedUnlocks: ShowUnlocks?
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -83,8 +84,15 @@ struct CurrentShowManagementSection: View {
                 homeContent(now: now, topInset: geometry.safeAreaInsets.top, liveState: liveState)
             }
         }
-        .navigationDestination(isPresented: $isEditingShow) {
-            ShowDetailView(show: show, startsEditing: true, onDetailVisibilityChange: onDetailVisibilityChange)
+        .navigationDestination(item: $homeRoute) { route in
+            switch route {
+            case .editShow:
+                ShowDetailView(show: show, startsEditing: true, onDetailVisibilityChange: onDetailVisibilityChange)
+            case .recordWall:
+                FootprintRecordWallView(archive: FootprintArchiveBuilder.make(shows: attachedCandidateShows))
+            case .badgeWall:
+                FootprintBadgeWallView(archive: FootprintArchiveBuilder.make(shows: attachedCandidateShows))
+            }
         }
         #if DEBUG
         .task {
@@ -370,7 +378,10 @@ struct CurrentShowManagementSection: View {
                                 onPrimaryAction: performPrimaryAction,
                                 onOpenRoute: embedsRouteInLocation
                                     ? { openRouteChooser() }
-                                    : nil
+                                    : nil,
+                                unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,
+                                onOpenRecords: { homeRoute = .recordWall },
+                                onOpenBadges: { homeRoute = .badgeWall }
                             )
                             .id("live-section")
                         }
@@ -455,6 +466,9 @@ struct CurrentShowManagementSection: View {
                 .zIndex(1)
         }
         .animation(.smooth(duration: 0.6), value: liveState?.phase)
+        .task(id: "\(show.id)|\(timeState.kind == .postShow)|\(isHeroPlaybackActive)") {
+            revealUnlocksIfNeeded(isPostShow: timeState.kind == .postShow)
+        }
         .task(id: liveTimetable?.id) {
             guard let liveTimetable else { return }
             let names = liveTimetable.orderedDays.flatMap(\.performances).map(\.artistName)
