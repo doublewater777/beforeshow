@@ -377,7 +377,6 @@
 		89D32C45BC1ABBB811614763 /* ShowCoverLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B48CF97104780F89D7D239A /* ShowCoverLifecycle.swift */; };
 		8A02F979DD9229818975EF6E /* TimetableExperienceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F13A1B9D952484963ECEFDAC /* TimetableExperienceTests.swift */; };
 		8A77A58CFA13762779268511 /* FootprintLedgerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC57261ADB488991B2F21290 /* FootprintLedgerView.swift */; };
-		8A9B338D067709070AA8D967 /* OnboardingListeningVisual.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB08896FA81055A8F714AF95 /* OnboardingListeningVisual.swift */; };
 		8ACB257FEA3B33E87C908D73 /* ListeningOverviewStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A901C4488051332F444DBDBE /* ListeningOverviewStyle.swift */; };
 		8BD076A485B1295A3CE8D2D2 /* CurrentShowPolishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 349D842909AEE8C597F932C2 /* CurrentShowPolishTests.swift */; };
 		8BD965DA7D028A39E968D632 /* VenueAddressAutocomplete.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1EF7141252E54F06779861F /* VenueAddressAutocomplete.swift */; };
@@ -627,7 +626,6 @@
 		EC117DB895A250B78BBF8894 /* FootprintCityMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC51C168E097912289A41CB0 /* FootprintCityMapView.swift */; };
 		ECBBAF36054572BD3FB5DBEA /* ListeningDiscDetailHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA47D20900C04DFB928258E /* ListeningDiscDetailHero.swift */; };
 		ED0073F2CF7C0306E90AF48B /* ModelContainerFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110CA86A45FE96CC7A19FD5E /* ModelContainerFactory.swift */; };
-		ED14AC1311DF7525CF149535 /* OnboardingFeatureVisuals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF800B87B36281A2B5A5CCB /* OnboardingFeatureVisuals.swift */; };
 		EDA229D83E370D4D385EE7A6 /* FootprintVinylYearsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E269B5A7D28AA967405C9DC /* FootprintVinylYearsView.swift */; };
 		EDE34C99FF42E3E5801C4577 /* FootprintsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E66BD12E8F6A0C36E091E67 /* FootprintsView.swift */; };
 		EF0B4DBAA2AA696C2C914711 /* MemoryFragmentMediaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C7C70D8A4FF38179DA5CB9 /* MemoryFragmentMediaStore.swift */; };
@@ -857,7 +855,6 @@
 		3AD6F90CFFA590687D320534 /* TimetableOrientationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableOrientationController.swift; sourceTree = "<group>"; };
 		3B7816473989360DD2E135A0 /* StringCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringCatalogTests.swift; sourceTree = "<group>"; };
 		3BCCB27E81B3A5E694AEAEC9 /* FootprintDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDetailView.swift; sourceTree = "<group>"; };
-		3BF800B87B36281A2B5A5CCB /* OnboardingFeatureVisuals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFeatureVisuals.swift; sourceTree = "<group>"; };
 		3CA495B67F0985C5F9EE88B4 /* CurrentShowSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowSessionTests.swift; sourceTree = "<group>"; };
 		3E47536EE63FABAD95FC977F /* FootprintSoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintSoundPlayer.swift; sourceTree = "<group>"; };
 		3E70F1F95A4597ADC9B90F7C /* CurrentShowRecordKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowRecordKit.swift; sourceTree = "<group>"; };
@@ -1187,7 +1184,6 @@
 		BAB0DB52AF9E4237C614C2C2 /* MemoryCaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryCaptureCoordinator.swift; sourceTree = "<group>"; };
 		BADDE3DF5FFF758DAC234BDA /* FootprintPageShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintPageShareView.swift; sourceTree = "<group>"; };
 		BAE6268009CCBE8150076F83 /* BSPlatformCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSPlatformCompatibility.swift; sourceTree = "<group>"; };
-		BB08896FA81055A8F714AF95 /* OnboardingListeningVisual.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingListeningVisual.swift; sourceTree = "<group>"; };
 		BBE5A6337B5F5EF3B81B4F64 /* LocalCompanionMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCompanionMigration.swift; sourceTree = "<group>"; };
 		BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintMemoryShareCard.swift; sourceTree = "<group>"; };
 		BC13DFE54D5FD8BFEB4572F3 /* FootprintBookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookTests.swift; sourceTree = "<group>"; };
@@ -2384,9 +2380,7 @@
 		E23F962E41D8F4FF507ABA37 /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
-				3BF800B87B36281A2B5A5CCB /* OnboardingFeatureVisuals.swift */,
 				6ED93F5773988853D8947BBA /* OnboardingFlow.swift */,
-				BB08896FA81055A8F714AF95 /* OnboardingListeningVisual.swift */,
 				508DB68B83B2097DF18FB49D /* SplashView.swift */,
 			);
 			path = Onboarding;
@@ -3039,9 +3033,7 @@
 				5E5929E9F0B3149274A2C0CC /* NotificationPortfolioPlanner.swift in Sources */,
 				19645DC456965F57A491F211 /* NotificationSchedulingModels.swift in Sources */,
 				FC78E4E2F48A2B6BE9C4929B /* OnDeviceShowScreenshotRecognizer.swift in Sources */,
-				ED14AC1311DF7525CF149535 /* OnboardingFeatureVisuals.swift in Sources */,
 				F2BC1E7A7FBF5BD29809762E /* OnboardingFlow.swift in Sources */,
-				8A9B338D067709070AA8D967 /* OnboardingListeningVisual.swift in Sources */,
 				2AC8D8C3CFC67227869E894A /* OpeningFamiliarityCoordinator.swift in Sources */,
 				7F7FF7AF96C18D75CE851C99 /* PreviewListeningPlaybackService.swift in Sources */,
 				323178493CAC80221805104D /* PrivacyLocalDataView.swift in Sources */,

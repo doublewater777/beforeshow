@@ -25,7 +25,6 @@ enum OnboardingRoutingPolicy {
 
 enum OnboardingPage: Int, CaseIterable, Identifiable {
     case beforeShow
-    case listening
     case showDay
     case afterShow
     case start
@@ -35,18 +34,25 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
     var analyticsValue: String {
         switch self {
         case .beforeShow: "before_show"
-        case .listening: "listening"
         case .showDay: "show_day"
         case .afterShow: "after_show"
         case .start: "start"
         }
     }
 
+    var artworkName: String {
+        switch self {
+        case .beforeShow: "onboarding_before_show"
+        case .showDay: "onboarding_show_day"
+        case .afterShow: "onboarding_after_show"
+        case .start: "onboarding_start"
+        }
+    }
+
     var phaseText: String {
         switch self {
         case .beforeShow: return BSLocalization.text("倒数")
-        case .listening: return BSLocalization.text("听")
-        case .showDay: return BSLocalization.text("现场当天")
+        case .showDay: return BSLocalization.text("演出当天")
         case .afterShow: return BSLocalization.text("散场以后")
         case .start: return BSLocalization.text("现在开始")
         }
@@ -55,25 +61,22 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .beforeShow: return BSLocalization.text("不用打开，也在靠近")
-        case .listening: return BSLocalization.text("把歌听熟，把期待留给现场")
-        case .showDay: return BSLocalization.text("重要的内容，抬手就能找到")
-        case .afterShow: return BSLocalization.text("把这一晚，轻轻留住")
-        case .start: return BSLocalization.text("从下一场开始，慢慢靠近")
+        case .showDay: return BSLocalization.text("当天要看的，都在这一屏")
+        case .afterShow: return BSLocalization.text("每一场，都收成一张唱片")
+        case .start: return BSLocalization.text("下一场，从这里开始倒数")
         }
     }
 
     var bodyText: String {
         switch self {
-        case .listening:
-            return BSLocalization.text("从唱片柜选一张 CD，把演出的歌提前听熟。")
         case .beforeShow:
-            return BSLocalization.text("主屏幕和锁屏替你数着那一天，重要的节点轻轻提醒。")
+            return BSLocalization.text("主屏幕和锁屏替你数着那一天，\n演出的歌也能提前听熟。")
         case .showDay:
-            return BSLocalization.text("导入时刻表，按舞台看清谁在演、下一位是谁。")
+            return BSLocalization.text("路线、天气、开场时间一眼就有；\n音乐节按舞台看下一位。")
         case .afterShow:
-            return BSLocalization.text("照片、视频和小记收在一起，散场时用一个表情收尾。")
+            return BSLocalization.text("给这一晚打个分，\n照片和小记一起收进足迹。")
         case .start:
-            return BSLocalization.text("期待、时刻表和散场后的记忆，都收在同一场现场里。")
+            return BSLocalization.text("粘贴购票平台的链接，\n名称、时间和地点会自动填好。")
         }
     }
 }
@@ -105,6 +108,11 @@ struct OnboardingFlowView: View {
     var body: some View {
         ZStack {
             onboardingBackground
+
+            artwork
+                .id(page)
+                .transition(.opacity)
+                .animation(reduceMotion ? nil : .easeInOut(duration: BSMotion.emphasis), value: page)
 
             TabView(selection: $page) {
                 ForEach(OnboardingPage.allCases) { item in
@@ -143,31 +151,64 @@ struct OnboardingFlowView: View {
     private var onboardingBackground: some View {
         ZStack {
             BSColor.Stage.background
-            Image("splash_bg")
-                .resizable()
-                .scaledToFill()
-                .saturation(0.72)
-                .brightness(-0.28)
-                .opacity(0.50)
-                .accessibilityHidden(true)
-            LinearGradient(
-                colors: [
-                    BSColor.Stage.background.opacity(0.18),
-                    BSColor.Stage.background.opacity(0.64),
-                    BSColor.Stage.background
-                ],
-                startPoint: .top,
-                endPoint: .bottom
+            RadialGradient(
+                colors: [BSColor.Stage.glowBlue.opacity(0.30), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 420
+            )
+            RadialGradient(
+                colors: [BSColor.Stage.accent.opacity(0.16), .clear],
+                center: UnitPoint(x: 1, y: 0.06),
+                startRadius: 0,
+                endRadius: 380
             )
         }
         .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+
+    private var artwork: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 600)
+                .overlay {
+                    Image(page.artworkName)
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.6),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(alignment: .top) {
+                    // 顶部压暗，保证「开场前」与「跳过」可读。
+                    LinearGradient(
+                        colors: [BSColor.Stage.background.opacity(0.75), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 150)
+                }
+            Spacer(minLength: 0)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 
     private var chrome: some View {
         VStack(spacing: 0) {
             HStack {
                 Text("开场前")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(BSFont.V3.small.weight(.semibold))
                     .tracking(2.6)
                     .foregroundStyle(BSColor.Stage.foreground)
 
@@ -175,28 +216,27 @@ struct OnboardingFlowView: View {
 
                 Button(action: skipOnboarding) {
                     Text(BSLocalization.text("跳过"))
-                        .font(BSFont.caption)
+                        .font(BSFont.V3.small.weight(.medium))
                         .foregroundStyle(BSColor.Stage.muted)
-                        .frame(minWidth: 64, minHeight: BSLayout.minTouchTarget)
+                        .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 22)
-            .padding(.top, BSSpacing.xl + BSSpacing.md)
+            .padding(.horizontal, BSSpacing.roomy)
 
             Spacer()
 
-            HStack(spacing: BSSpacing.md) {
-                pageIndicator
-                Spacer()
-                if page != .start {
+            if page != .start {
+                HStack(spacing: BSSpacing.md) {
+                    pageIndicator
+                    Spacer()
                     Button(BSLocalization.text("继续"), action: advance)
                         .buttonStyle(OnboardingContinueButtonStyle())
                 }
+                .padding(.horizontal, BSSpacing.lg)
+                .padding(.bottom, BSSpacing.sm)
             }
-            .padding(.horizontal, 22)
-            .padding(.bottom, BSSpacing.xl + BSSpacing.lg)
         }
     }
 
@@ -204,9 +244,9 @@ struct OnboardingFlowView: View {
         HStack(spacing: 7) {
             ForEach(OnboardingPage.allCases) { item in
                 Capsule()
-                    .fill(item == page ? BSColor.Stage.foreground : Color.white.opacity(0.20))
+                    .fill(item == page ? BSColor.Stage.foreground : BSColor.Stage.dim)
                     .frame(width: item == page ? 22 : 6, height: 6)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: page)
+                    .animation(reduceMotion ? nil : .easeOut(duration: BSMotion.interface), value: page)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -252,96 +292,62 @@ private struct OnboardingPageView: View {
     let onAddShow: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var visualAppeared = false
     @State private var textAppeared = false
-    @State private var bodyAppeared = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Group {
-                switch page {
-                case .beforeShow:
-                    OnboardingWidgetFeatureVisual()
-                case .listening:
-                    OnboardingListeningVisual(isActive: isActive)
-                case .showDay:
-                    OnboardingTimetableFeatureVisual()
-                case .afterShow:
-                    OnboardingMemoryFeatureVisual(isActive: isActive)
-                case .start:
-                    OnboardingStartFeatureVisual()
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: page == .start ? 405 : 430)
-            .scaleEffect(visualAppeared ? 1 : 0.92)
-            .opacity(visualAppeared ? 1 : 0)
-
             Spacer(minLength: 0)
 
-            Text(page.phaseText)
-                .font(.system(size: 11, weight: .bold))
-                .tracking(1.3)
-                .foregroundStyle(BSColor.Stage.accent)
-                .opacity(textAppeared ? 1 : 0)
-                .offset(y: textAppeared ? 0 : 12)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(page.phaseText)
+                    .font(BSFont.V3.caption.weight(.bold))
+                    .tracking(1.3)
+                    .foregroundStyle(BSColor.Stage.accent)
 
-            Text(page.title)
-                .font(.custom("Songti SC", size: page == .start ? 36 : 32, relativeTo: .largeTitle))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 9)
-                .opacity(textAppeared ? 1 : 0)
-                .offset(y: textAppeared ? 0 : 12)
+                Text(page.title)
+                    .font(BSFont.Editorial.song(size: 30))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, BSSpacing.sm)
 
-            Text(page.bodyText)
-                .font(.system(size: 13))
-                .foregroundStyle(BSColor.Stage.muted)
-                .lineSpacing(5)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 10)
-                .opacity(bodyAppeared ? 1 : 0)
-                .offset(y: bodyAppeared ? 0 : 10)
+                Text(page.bodyText)
+                    .font(BSFont.V3.body)
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, BSSpacing.compact)
+            }
+            .padding(.horizontal, BSSpacing.lg)
+            .opacity(textAppeared ? 1 : 0)
+            .offset(y: textAppeared ? 0 : 10)
 
             if page == .start {
                 Button(BSLocalization.text("添加我的第一个现场"), action: onAddShow)
                     .buttonStyle(BSPrimaryButtonStyle())
-                    .padding(.top, 26)
-                    .opacity(bodyAppeared ? 1 : 0)
-                    .offset(y: bodyAppeared ? 0 : 10)
+                    .padding(.horizontal, BSSpacing.lg)
+                    .padding(.top, BSSpacing.xl + BSSpacing.lg)
+                    .padding(.bottom, BSSpacing.sm)
+                    .opacity(textAppeared ? 1 : 0)
+            } else {
+                // 与第 4 页主按钮占位对齐，底部 chrome（页码 + 继续）浮在这里。
+                Color.clear.frame(height: BSLayout.minTouchTarget + BSSpacing.xl + BSSpacing.lg + BSSpacing.sm)
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 58)
-        .padding(.bottom, BSSpacing.xl * 3 + BSSpacing.sm)
         .accessibilityElement(children: .contain)
         .onAppear { runEntrance() }
-        .onChange(of: page) { _, _ in runEntrance() }
+        .onChange(of: isActive) { _, active in
+            if active { runEntrance() }
+        }
     }
 
     private func runEntrance() {
         guard !reduceMotion else {
-            visualAppeared = true
             textAppeared = true
-            bodyAppeared = true
             return
         }
-        visualAppeared = false
         textAppeared = false
-        bodyAppeared = false
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            visualAppeared = true
-        }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(40))
-            withAnimation(.easeOut(duration: 0.25)) {
-                textAppeared = true
-            }
-            try? await Task.sleep(for: .milliseconds(40))
-            withAnimation(.easeOut(duration: 0.2)) {
-                bodyAppeared = true
-            }
+        withAnimation(.easeOut(duration: BSMotion.interface).delay(0.06)) {
+            textAppeared = true
         }
     }
 }
@@ -349,11 +355,12 @@ private struct OnboardingPageView: View {
 private struct OnboardingContinueButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(.black)
+            .font(BSFont.V3.body.weight(.semibold))
+            .foregroundStyle(BSColor.Stage.background)
             .padding(.horizontal, 22)
             .frame(minWidth: 92, minHeight: BSLayout.minTouchTarget)
-            .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 15))
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }

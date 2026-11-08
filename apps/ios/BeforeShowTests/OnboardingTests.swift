@@ -70,7 +70,7 @@ final class OnboardingTests: XCTestCase {
     func testOnboardingPageOrderFollowsShowLifecycle() {
         XCTAssertEqual(
             OnboardingPage.allCases,
-            [.beforeShow, .listening, .showDay, .afterShow, .start]
+            [.beforeShow, .showDay, .afterShow, .start]
         )
     }
 
@@ -81,8 +81,22 @@ final class OnboardingTests: XCTestCase {
     }
 
     func testFeatureCopyMatchesShippedFeatures() {
-        XCTAssertFalse(OnboardingPage.listening.bodyText.contains("想现场听"))
-        XCTAssertFalse(OnboardingPage.showDay.bodyText.contains("图片"))
-        XCTAssertTrue(OnboardingPage.showDay.bodyText.contains("时刻表"))
+        XCTAssertTrue(OnboardingPage.beforeShow.bodyText.contains("听熟"))
+        XCTAssertTrue(OnboardingPage.showDay.bodyText.contains("路线"))
+        XCTAssertTrue(OnboardingPage.showDay.bodyText.contains("舞台"))
+        XCTAssertTrue(OnboardingPage.afterShow.bodyText.contains("足迹"))
+    }
+
+    func testStartPageInvitesLinkImport() {
+        XCTAssertTrue(OnboardingPage.start.bodyText.contains("链接"))
+        XCTAssertFalse(OnboardingPage.start.bodyText.contains("截图"))
+    }
+
+    func testEveryPageHasItsOwnArtwork() {
+        let names = OnboardingPage.allCases.map(\.artworkName)
+        XCTAssertEqual(Set(names).count, names.count)
+        for name in names {
+            XCTAssertNotNil(UIImage(named: name), name)
+        }
     }
 }
