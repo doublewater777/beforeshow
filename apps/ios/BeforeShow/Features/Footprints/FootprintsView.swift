@@ -44,11 +44,11 @@ struct FootprintsView: View {
                     content: FootprintEmptyStateCopy.content(hasCurrentShow: hasCurrentShow),
                     onAdd: { isAddingShow = true }
                 )
+                .bsAdaptiveContentWidth()
             } else {
                 content(prepared)
             }
         }
-        .bsAdaptiveContentWidth()
         .background { FootprintBackground().ignoresSafeArea() }
         .bsRootBottomChrome()
             .toolbar(.hidden, for: .navigationBar)

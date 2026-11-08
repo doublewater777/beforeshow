@@ -218,6 +218,7 @@ struct ListeningRoomView: View {
                     )
                     ListeningVideosView(lineup: ListeningVideoLineup(ListeningShowInputs(show)))
                 }
+                .bsAdaptiveContentWidth()
             } else {
                 ListeningOverviewView(
                     room: room,
@@ -238,7 +239,6 @@ struct ListeningRoomView: View {
                 )
             }
         }
-        .bsAdaptiveContentWidth()
         .foregroundStyle(BSColor.Stage.foreground)
         .sheet(item: $room.browser.detail) { disc in
             ListeningDiscDetailView(room: room, disc: disc)

@@ -149,9 +149,9 @@ struct CurrentShowHomeView: View {
                         onOpenSettings: { presentedSheet = .settings },
                         onOpenShowLibrary: { presentedSheet = .showLibrary }
                     )
+                    .bsAdaptiveContentWidth()
                 }
             }
-            .bsAdaptiveContentWidth()
             .background {
                 CurrentShowAmbientBackground(weatherTone: currentWeather?.tone)
                     .opacity(

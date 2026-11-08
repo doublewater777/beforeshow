@@ -104,6 +104,17 @@ struct OnboardingFlowView: View {
     @State private var page: OnboardingPage = .beforeShow
     @State private var isShowingAddShow = false
     @State private var hasCapturedStart = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var screenSize: CGSize = .zero
+
+    private var isWide: Bool {
+        BSWideLayout.isWide(width: screenSize.width, sizeClass: horizontalSizeClass)
+    }
+
+    /// iPad 横屏：左半屏放图，右半屏放文案。
+    private var splitsHorizontally: Bool {
+        isWide && screenSize.width > screenSize.height
+    }
 
     var body: some View {
         ZStack {
@@ -124,6 +135,7 @@ struct OnboardingFlowView: View {
                             ProductAnalytics.capture(.onboardingAddShowTapped)
                         }
                     )
+                    .modifier(OnboardingCopyColumn(isWide: isWide, leadingInset: splitsHorizontally ? screenSize.width / 2 : 0))
                     .tag(item)
                 }
             }
@@ -132,6 +144,7 @@ struct OnboardingFlowView: View {
             chrome
         }
         .preferredColorScheme(.dark)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
         .sheet(isPresented: $isShowingAddShow) {
             AddShowCoordinatorSheet { _ in
                 completeOnboarding(method: "add_show")
@@ -168,10 +181,41 @@ struct OnboardingFlowView: View {
         .accessibilityHidden(true)
     }
 
+    @ViewBuilder
     private var artwork: some View {
+        if splitsHorizontally {
+            HStack(spacing: 0) {
+                Color.clear
+                    .frame(width: screenSize.width / 2)
+                    .overlay {
+                        Image(page.artworkName)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipped()
+                    .overlay {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.55),
+                                .init(color: BSColor.Stage.background, location: 1)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    }
+                Spacer(minLength: 0)
+            }
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+        } else {
+            verticalArtwork
+        }
+    }
+
+    private var verticalArtwork: some View {
         VStack(spacing: 0) {
             Color.clear
-                .frame(height: 600)
+                .frame(height: isWide ? screenSize.height * 0.8 : 600)
                 .overlay {
                     Image(page.artworkName)
                         .resizable()
@@ -236,6 +280,7 @@ struct OnboardingFlowView: View {
                 }
                 .padding(.horizontal, BSSpacing.lg)
                 .padding(.bottom, BSSpacing.sm)
+                .modifier(OnboardingCopyColumn(isWide: isWide, leadingInset: splitsHorizontally ? screenSize.width / 2 : 0))
             }
         }
     }
@@ -362,5 +407,22 @@ private struct OnboardingContinueButtonStyle: ButtonStyle {
             .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+/// iPad 上文案与按钮收成一栏：竖屏居中限宽，横屏落在右半屏。
+private struct OnboardingCopyColumn: ViewModifier {
+    let isWide: Bool
+    let leadingInset: CGFloat
+
+    func body(content: Content) -> some View {
+        if isWide {
+            content
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
+                .padding(.leading, leadingInset)
+        } else {
+            content
+        }
     }
 }

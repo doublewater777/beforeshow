@@ -19,23 +19,66 @@ struct ListeningOverviewView: View {
     /// Stays put across tab and Watch switches; changes when the user stops on another album in the feed.
     @Binding var pickPreview: ListeningDisc?
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: BSSpacing.xl) {
-                Color.clear.frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
-                ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
-                if room.showsRack {
-                    pickSection
-                    playlistSection
-                } else {
-                    ListeningOverviewStatus(room: room, onMatchArtist: onMatchArtist)
-                        .padding(.horizontal, BSSpacing.roomy)
+        GeometryReader { proxy in
+            if BSWideLayout.isWide(width: proxy.size.width, sizeClass: horizontalSizeClass) {
+                // iPad：左栏阵容海报，右栏挑唱片与歌单，各自滚动。
+                HStack(alignment: .top, spacing: 0) {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            headerSpacer
+                            ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
+                        }
+                        .padding(.bottom, BSSpacing.xl)
+                    }
+                    .frame(width: BSWideLayout.leadingColumnWidth(for: proxy.size.width))
+                    // 海报背景在栏边渐隐，避免一条硬边。
+                    .mask(
+                        LinearGradient(
+                            stops: [.init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: BSSpacing.xl) {
+                            headerSpacer
+                            rackContent
+                        }
+                        .padding(.bottom, BSSpacing.xl)
+                    }
+                }
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: BSSpacing.xl) {
+                        headerSpacer
+                        ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
+                        rackContent
+                    }
+                    .padding(.bottom, BSSpacing.xl)
                 }
             }
-            .padding(.bottom, BSSpacing.xl)
         }
         .onChange(of: room.pickCandidates(filter: .all).map(\.id), initial: true) { _, ids in
             if ListeningPickCardPolicy.needsNewDraw(current: pickPreview, candidateIDs: ids) { pickPreview = drawPreview() }
+        }
+    }
+
+    private var headerSpacer: some View {
+        Color.clear.frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
+    }
+
+    @ViewBuilder
+    private var rackContent: some View {
+        if room.showsRack {
+            pickSection
+            playlistSection
+        } else {
+            ListeningOverviewStatus(room: room, onMatchArtist: onMatchArtist)
+                .padding(.horizontal, BSSpacing.roomy)
         }
     }
 

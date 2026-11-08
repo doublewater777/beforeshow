@@ -9,7 +9,11 @@ struct FootprintDashboardView: View {
     let onAdd: () -> Void
     let onSearch: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var width: CGFloat = 0
+
     var body: some View {
+        let tileColumns = BSWideLayout.gridColumnCount(width: width, sizeClass: horizontalSizeClass)
         let marquee = FootprintStagePolicy.marquee(archived: archive.shows, allShows: allShows)
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -18,19 +22,19 @@ struct FootprintDashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 18)
 
-                FootprintEntryTiles(archive: archive, covers: covers, allShows: allShows)
+                FootprintEntryTiles(archive: archive, covers: covers, allShows: allShows, columnCount: tileColumns)
                     .padding(.horizontal, 20)
                     .padding(.top, 22)
 
                 posterWallHeader
                 ForEach(archive.years) { group in
-                    FootprintPosterWallYear(group: group, covers: covers, onShowSelected: onShowSelected)
+                    FootprintPosterWallYear(group: group, covers: covers, posterColumns: tileColumns + 1, onShowSelected: onShowSelected)
                 }
             }
-            .bsAdaptiveContentWidth()
             .padding(.bottom, BSLayout.tabBarContentInset)
         }
         .scrollIndicators(.hidden)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 
     private var header: some View {
@@ -80,9 +84,12 @@ struct FootprintDashboardView: View {
 private struct FootprintPosterWallYear: View {
     let group: FootprintYearGroup
     let covers: [UUID: FootprintCover]
+    let posterColumns: Int
     let onShowSelected: (Show) -> Void
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: posterColumns)
+    }
 
     var body: some View {
         let months = Set(group.shows.map { $0.timingCalendar().component(.month, from: $0.effectiveDate) })

@@ -27,6 +27,7 @@ struct CurrentShowManagementSection: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State var presentedSheet: CurrentShowPresentedSheet?
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
@@ -81,7 +82,13 @@ struct CurrentShowManagementSection: View {
     var liveBody: some View {
         CurrentShowLiveTimetableContent(show: show, isActive: isHeroPlaybackActive) { now, liveState in
             GeometryReader { geometry in
-                homeContent(now: now, topInset: geometry.safeAreaInsets.top, liveState: liveState)
+                homeContent(
+                    now: now,
+                    topInset: geometry.safeAreaInsets.top,
+                    isWide: BSWideLayout.isWide(width: geometry.size.width, sizeClass: horizontalSizeClass),
+                    width: geometry.size.width,
+                    liveState: liveState
+                )
             }
         }
         .navigationDestination(item: $homeRoute) { route in
@@ -289,7 +296,7 @@ struct CurrentShowManagementSection: View {
     }
 
     @ViewBuilder
-    private func homeContent(now: Date, topInset: CGFloat, liveState: LiveModeState?) -> some View {
+    private func homeContent(now: Date, topInset: CGFloat, isWide: Bool, width: CGFloat, liveState: LiveModeState?) -> some View {
         let snapshot = HomeHeroSnapshot(show: show, now: now)
         let timeState = snapshot.timeState
         let followUpShows = CurrentShowFollowUpPolicy.laterShows(
@@ -319,124 +326,155 @@ struct CurrentShowManagementSection: View {
             )
             : nil
 
-        ZStack(alignment: .top) {
-            ScrollView(.vertical, showsIndicators: false) {
-                ScrollViewReader { scrollProxy in
-                LazyVStack(spacing: 0) {
-                    Color.clear
-                        .frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
+        let screens = liveState.flatMap(HomeStageScreens.resolve)
+        let hero = HomeStageHero(
+            show: show,
+            snapshot: snapshot,
+            reduceMotion: reduceMotion,
+            topExtension: topInset + BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding + 18,
+            screens: liveTimetable == nil ? nil : screens,
+            livePhase: liveState?.phase,
+            timetable: liveTimetable,
+            avatars: avatars,
+            onOpenTimetable: { presentedSheet = .asset(.timetable) },
+            onFocus: { focusedPerformanceID = $0.uuidString }
+        )
+        let allActions = CurrentShowQuickAction.deduplicated(
+            CurrentShowQuickAction.actions(
+                for: phase,
+                canRecordEnd: canRecordEnd && liveState?.phase != .fullyEnded,
+                isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
+                hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
+            ),
+            primaryAction: displayedPrimaryAction
+        )
+        let headerSpacer = Color.clear.frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
 
-                    let screens = liveState.flatMap(HomeStageScreens.resolve)
-                    let hero = HomeStageHero(
+        let stageColumn = VStack(spacing: 0) {
+            Group {
+                if screens != nil, liveTimetable != nil {
+                    hero
+                } else {
+                    NavigationLink {
+                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                    } label: {
+                        hero
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 18)
+            .opacity(homeArrivalFlags.hasArrivedHero ? 1 : 0)
+            .scaleEffect(homeArrivalFlags.hasArrivedHero ? 1 : 0.94)
+            .offset(y: homeArrivalFlags.hasArrivedHero ? 0 : 24)
+
+            Group {
+                if let liveState, let timetable = liveTimetable {
+                    HomeLiveModeView(show: show, timetable: timetable, state: liveState, avatars: avatars, onEndShow: canRecordEnd ? { presentedSheet = .endConfirmation } : nil) { presentedSheet = .asset(.timetable) }
+                } else {
+                    HomeCountdownLockup(
                         show: show,
                         snapshot: snapshot,
-                        reduceMotion: reduceMotion,
-                        topExtension: topInset + BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding + 18,
-                        screens: liveTimetable == nil ? nil : screens,
-                        livePhase: liveState?.phase,
-                        timetable: liveTimetable,
-                        avatars: avatars,
-                        onOpenTimetable: { presentedSheet = .asset(.timetable) },
-                        onFocus: { focusedPerformanceID = $0.uuidString }
+                        primaryAction: displayedPrimaryAction,
+                        isPlaying: ListeningRoomSessionStore.shared.room?.isPlaying == true,
+                        onPrimaryAction: performPrimaryAction,
+                        onOpenRoute: embedsRouteInLocation
+                            ? { openRouteChooser() }
+                            : nil,
+                        unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,
+                        onOpenRecords: { homeRoute = .recordWall },
+                        onOpenBadges: { homeRoute = .badgeWall }
                     )
-                    Group {
-                        if screens != nil, liveTimetable != nil {
-                            hero
-                        } else {
-                            NavigationLink {
-                                ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-                            } label: {
-                                hero
+                    .id("live-section")
+                }
+            }
+            .padding(.horizontal, contentInset)
+            // The countdown is printed on the stage lip, over the crowd.
+            .padding(.top, liveTimetable == nil ? -46 : 4)
+            .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
+            .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
+        }
+
+        let actionsColumn = VStack(spacing: 0) {
+            CurrentShowActionModules(show: show, actions: allActions, companion: companionPresentation, now: now, routeIsProminent: phase == .pre, timetableIsLive: liveTimetable != nil, recordPhase: phase, perform: performQuickAction)
+                .padding(.horizontal, contentInset)
+                .padding(.top, isWide ? 18 : 28)
+                .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
+                .offset(y: homeArrivalFlags.hasArrivedActions ? 0 : 12)
+
+            if !followUpShows.isEmpty {
+                CurrentShowFollowUpSummary(
+                    shows: followUpShows,
+                    formatter: formatter,
+                    now: now,
+                    onOpenShowLibrary: onOpenShowLibrary,
+                    onSetCurrent: onSetCurrentShow,
+                    onDetailVisibilityChange: onDetailVisibilityChange
+                )
+                .padding(.horizontal, contentInset)
+                .padding(.top, 25)
+                .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
+            } else if attachedCandidateShows.count > 1 {
+                CurrentShowLibraryEntryTile(
+                    totalShowCount: attachedCandidateShows.count,
+                    onOpenShowLibrary: onOpenShowLibrary
+                )
+                .padding(.horizontal, contentInset)
+                .padding(.top, 25)
+                .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
+            }
+            Color.clear.frame(height: 1).id("home-bottom")
+        }
+
+        ZStack(alignment: .top) {
+            Group {
+                if isWide {
+                    // iPad：左栏舞台与倒计时，右栏功能卡，各自滚动。
+                    HStack(alignment: .top, spacing: 0) {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(spacing: 0) {
+                                headerSpacer
+                                stageColumn
                             }
-                            .buttonStyle(.plain)
+                            .padding(.bottom, BSLayout.tabBarContentInset)
+                        }
+                        .frame(width: BSWideLayout.leadingColumnWidth(for: width))
+
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(spacing: 0) {
+                                headerSpacer
+                                actionsColumn
+                            }
+                            .padding(.bottom, BSLayout.tabBarContentInset)
+                            .padding(.trailing, BSSpacing.sm)
                         }
                     }
-                    .padding(.top, 18)
-                    .opacity(homeArrivalFlags.hasArrivedHero ? 1 : 0)
-                    .scaleEffect(homeArrivalFlags.hasArrivedHero ? 1 : 0.94)
-                    .offset(y: homeArrivalFlags.hasArrivedHero ? 0 : 24)
-
-                    let allActions = CurrentShowQuickAction.deduplicated(
-                        CurrentShowQuickAction.actions(
-                            for: phase,
-                            canRecordEnd: canRecordEnd && liveState?.phase != .fullyEnded,
-                            isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
-                            hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
-                        ),
-                        primaryAction: displayedPrimaryAction
-                    )
-
-                    Group {
-                        if let liveState, let timetable = liveTimetable {
-                            HomeLiveModeView(show: show, timetable: timetable, state: liveState, avatars: avatars, onEndShow: canRecordEnd ? { presentedSheet = .endConfirmation } : nil) { presentedSheet = .asset(.timetable) }
-                        } else {
-                            HomeCountdownLockup(
-                                show: show,
-                                snapshot: snapshot,
-                                primaryAction: displayedPrimaryAction,
-                                isPlaying: ListeningRoomSessionStore.shared.room?.isPlaying == true,
-                                onPrimaryAction: performPrimaryAction,
-                                onOpenRoute: embedsRouteInLocation
-                                    ? { openRouteChooser() }
-                                    : nil,
-                                unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,
-                                onOpenRecords: { homeRoute = .recordWall },
-                                onOpenBadges: { homeRoute = .badgeWall }
-                            )
-                            .id("live-section")
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        ScrollViewReader { scrollProxy in
+                            LazyVStack(spacing: 0) {
+                                headerSpacer
+                                stageColumn
+                                actionsColumn
+                            }
+                            .padding(.bottom, BSLayout.tabBarContentInset)
+                            .frame(maxWidth: .infinity)
+                            #if DEBUG
+                            .task {
+                                if ProcessInfo.processInfo.arguments.contains("--scroll-to-live-section") {
+                                    try? await Task.sleep(for: .milliseconds(1200))
+                                    withAnimation(.easeInOut(duration: 0.4)) {
+                                        scrollProxy.scrollTo("live-section", anchor: .top)
+                                    }
+                                }
+                                if ProcessInfo.processInfo.arguments.contains("--scroll-to-bottom") {
+                                    try? await Task.sleep(for: .milliseconds(1500))
+                                    scrollProxy.scrollTo("home-bottom", anchor: .bottom)
+                                }
+                            }
+                            #endif
                         }
                     }
-                    .padding(.horizontal, contentInset)
-                    // The countdown is printed on the stage lip, over the crowd.
-                    .padding(.top, liveTimetable == nil ? -46 : 4)
-                    .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
-                    .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
-
-                    CurrentShowActionModules(show: show, actions: allActions, companion: companionPresentation, now: now, routeIsProminent: phase == .pre, timetableIsLive: liveTimetable != nil, recordPhase: phase, perform: performQuickAction)
-                        .padding(.horizontal, contentInset)
-                        .padding(.top, 28)
-                        .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
-                        .offset(y: homeArrivalFlags.hasArrivedActions ? 0 : 12)
-
-                    if !followUpShows.isEmpty {
-                        CurrentShowFollowUpSummary(
-                            shows: followUpShows,
-                            formatter: formatter,
-                            now: now,
-                            onOpenShowLibrary: onOpenShowLibrary,
-                            onSetCurrent: onSetCurrentShow,
-                            onDetailVisibilityChange: onDetailVisibilityChange
-                        )
-                        .padding(.horizontal, contentInset)
-                        .padding(.top, 25)
-                        .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
-                    } else if attachedCandidateShows.count > 1 {
-                        CurrentShowLibraryEntryTile(
-                            totalShowCount: attachedCandidateShows.count,
-                            onOpenShowLibrary: onOpenShowLibrary
-                        )
-                        .padding(.horizontal, contentInset)
-                        .padding(.top, 25)
-                        .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
-                    }
-                    Color.clear.frame(height: 1).id("home-bottom")
-                }
-                .padding(.bottom, BSLayout.tabBarContentInset)
-                .frame(maxWidth: .infinity)
-                #if DEBUG
-                .task {
-                    if ProcessInfo.processInfo.arguments.contains("--scroll-to-live-section") {
-                        try? await Task.sleep(for: .milliseconds(1200))
-                        withAnimation(.easeInOut(duration: 0.4)) {
-                            scrollProxy.scrollTo("live-section", anchor: .top)
-                        }
-                    }
-                    if ProcessInfo.processInfo.arguments.contains("--scroll-to-bottom") {
-                        try? await Task.sleep(for: .milliseconds(1500))
-                        scrollProxy.scrollTo("home-bottom", anchor: .bottom)
-                    }
-                }
-                #endif
                 }
             }
             .modifier(HomeHeaderScrollObserver(isOverContent: $isHeaderOverContent))

@@ -6,6 +6,7 @@ struct FootprintEntryTiles: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
     let allShows: [Show]
+    var columnCount = 2
 
     @Query private var setlistMemories: [ShowSetlistMemory]
     @Query private var merchItems: [MerchItem]
@@ -26,12 +27,13 @@ struct FootprintEntryTiles: View {
             + (more.hasLedger ? [.ledger] : [])
             + [.book]
         VStack(spacing: 12) {
-            ForEach(Array(stride(from: 0, to: doors.count, by: 2)), id: \.self) { start in
+            ForEach(Array(stride(from: 0, to: doors.count, by: columnCount)), id: \.self) { start in
                 HStack(spacing: 12) {
-                    ForEach(doors[start..<min(start + 2, doors.count)], id: \.self) { door in
+                    let end = min(start + columnCount, doors.count)
+                    ForEach(doors[start..<end], id: \.self) { door in
                         link(door, anniversary: anniversary, more: more, badges: badges)
                     }
-                    if min(start + 2, doors.count) - start == 1 {
+                    ForEach(0..<(columnCount - (end - start)), id: \.self) { _ in
                         Color.clear.frame(maxWidth: .infinity)
                     }
                 }
