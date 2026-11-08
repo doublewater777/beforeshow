@@ -616,6 +616,95 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertNotNil(record.actualListeningAt)
     }
 
+    func testEmptyPlayerStagesTrackFromAvailableDiscsWithoutAutoplay() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Staged Show", date: now, startTime: now)
+        show.artists = [ArtistSlot(name: "Test Artist", avatarURL: nil, appleMusicArtistID: "artist-1")]
+        context.insert(show)
+
+        let song = CatalogSong(
+            appleMusicSongID: "staged-song-1",
+            title: "Staged Track",
+            artistName: "Test Artist",
+            duration: 200,
+            previewURL: "https://example.invalid/staged.m4a"
+        )
+        context.insert(song)
+        let snapshot = ArtistCatalogSnapshot(
+            artistID: "artist-1",
+            artistName: "Test Artist",
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: [song.appleMusicSongID],
+            topSongIDs: [song.appleMusicSongID],
+            albumIDs: [],
+            featuredPlaylists: [],
+            fetchedAt: now
+        )
+        context.insert(snapshot)
+        try context.save()
+
+        let playback = ListeningTestPlayer()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in playback }
+        )
+        room.prepareForDisplay(show: show)
+
+        // Room has discs from local cached snapshot and should stage a track
+        XCTAssertTrue(room.hasLoadedDisc)
+        XCTAssertEqual(room.track?.id, song.appleMusicSongID)
+        XCTAssertFalse(room.isPlaying, "Staging track must not autoplay")
+        XCTAssertFalse(room.wantsPlayback)
+        XCTAssertFalse(room.display.player.showsPauseControl, "Staged track should show play icon")
+        XCTAssertTrue(room.display.player.canPlayPause)
+
+        room.stop()
+    }
+
+    func testStagedTrackPreservesExistingPlayback() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Active Show", date: now, startTime: now)
+        show.artists = [ArtistSlot(name: "Test Artist", avatarURL: nil, appleMusicArtistID: "artist-1")]
+        context.insert(show)
+
+        let song1 = CatalogSong(appleMusicSongID: "song-1", title: "Song 1", artistName: "Test Artist", duration: 180, previewURL: "https://example.invalid/1.m4a")
+        let song2 = CatalogSong(appleMusicSongID: "song-2", title: "Song 2", artistName: "Test Artist", duration: 180, previewURL: "https://example.invalid/2.m4a")
+        context.insert(song1)
+        context.insert(song2)
+        try context.save()
+
+        let disc1 = ListeningDisc(id: "disc-1", title: "Disc 1", artworkURL: nil, tracks: [ListeningDiscTrack(song1)])
+        let playback = ListeningTestPlayer()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in playback }
+        )
+        room.prepareForDisplay(show: show)
+        room.loadDisc(disc1, songID: song1.appleMusicSongID, autoplay: false)
+        XCTAssertEqual(room.track?.id, "song-1")
+
+        // Calling stageDefaultTrackIfNeeded while a track is loaded does not overwrite it
+        room.stageDefaultTrackIfNeeded()
+        XCTAssertEqual(room.track?.id, "song-1")
+        XCTAssertEqual(room.loadedDisc?.id, "disc-1")
+
+        room.stop()
+    }
+
     private func resetChromeGlobals() {
         ListeningRoomSessionStore.shared.adopt(nil)
     }

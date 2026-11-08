@@ -16,6 +16,7 @@ final class TimetablePreviewPlayer {
     // Transient song toast for the active performance
     private(set) var toastPerformanceID: UUID?
     private(set) var toastTrackTitle: String?
+    private(set) var toastIsError: Bool = false
 
     @ObservationIgnored private let playback = PreviewListeningPlaybackService(owner: .timetablePreview)
     @ObservationIgnored private var cache: [String: ListeningPlaybackItem] = [:]
@@ -135,16 +136,18 @@ final class TimetablePreviewPlayer {
         room.playPause()
     }
 
-    private func showToast(for performanceID: UUID, title: String) {
+    private func showToast(for performanceID: UUID, title: String, isError: Bool = false) {
         toastTask?.cancel()
         toastPerformanceID = performanceID
         toastTrackTitle = title
+        toastIsError = isError
         toastTask = Task {
-            try? await Task.sleep(for: .milliseconds(1800))
+            try? await Task.sleep(for: .milliseconds(isError ? 2200 : 1800))
             guard !Task.isCancelled else { return }
             if self.toastPerformanceID == performanceID {
                 self.toastPerformanceID = nil
                 self.toastTrackTitle = nil
+                self.toastIsError = false
             }
         }
     }
@@ -154,6 +157,7 @@ final class TimetablePreviewPlayer {
         toastTask = nil
         toastPerformanceID = nil
         toastTrackTitle = nil
+        toastIsError = false
     }
 
     private func playAndMonitor(performanceID: UUID) async {
@@ -186,6 +190,7 @@ final class TimetablePreviewPlayer {
         stop()
         failedPerformanceID = performanceID
         failureMessage = message
+        showToast(for: performanceID, title: message, isError: true)
     }
 
     private func resolvePreview(artistName: String, artistID: String?) async throws -> ListeningPlaybackItem? {

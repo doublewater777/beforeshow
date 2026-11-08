@@ -387,7 +387,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
         // `initialLoaded` means the fixed room and any cached records are ready to
         // present. It deliberately does not wait for artist lookup or catalog IO.
-        initialLoaded = true
+        initialLoaded = true; stageDefaultTrackIfNeeded()
     }
 
     func load(show: Show, force: Bool = false) async {
@@ -400,9 +400,8 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         defer {
             if generation == catalogGeneration {
                 isLoadingShow = false
-                // 目录到齐后未装碟时的默认唱片可能变化
-                syncWidgetListeningState()
-                prewarmLoadedDisc()
+                stageDefaultTrackIfNeeded()
+                syncWidgetListeningState(); prewarmLoadedDisc()
                 if case let .artist(artistID) = browser.scope {
                     scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
                 }

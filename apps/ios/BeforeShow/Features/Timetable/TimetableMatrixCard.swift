@@ -418,7 +418,7 @@ private struct TimetablePreviewToast: View {
         let isVisible = player.toastPerformanceID == performanceID
         ZStack {
             if isVisible, let title = player.toastTrackTitle {
-                bubble(title: title)
+                bubble(title: title, isError: player.toastIsError)
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .offset(y: 4)),
@@ -431,12 +431,12 @@ private struct TimetablePreviewToast: View {
         .animation(.spring(response: 0.32, dampingFraction: 0.8), value: isVisible)
     }
 
-    private func bubble(title: String) -> some View {
+    private func bubble(title: String, isError: Bool) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: "music.note")
+            Image(systemName: isError ? "exclamationmark.circle.fill" : "music.note")
                 .font(.system(size: 8.5, weight: .bold))
-                .foregroundStyle(TimetableStyle.mine)
-            Text(BSLocalization.format("正在试听 · %@", title))
+                .foregroundStyle(isError ? BSColor.Stage.accent : TimetableStyle.mine)
+            Text(isError ? title : BSLocalization.format("正在试听 · %@", title))
                 .font(.system(size: 9.5, weight: .semibold))
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
@@ -452,7 +452,7 @@ private struct TimetablePreviewToast: View {
         )
         .overlay(
             Capsule()
-                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
+                .strokeBorder(isError ? BSColor.Stage.accent.opacity(0.45) : Color.white.opacity(0.14), lineWidth: 0.75)
         )
         .offset(x: -4, y: -12)
     }

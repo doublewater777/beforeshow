@@ -144,6 +144,9 @@ struct ListenRootView: View {
         if room?.shouldReloadCatalog(for: show) == true {
             await room?.load(show: show)
         }
+        if let room, room.hasLoadedDisc {
+            ListeningRoomSessionStore.shared.publishChrome(room)
+        }
     }
 
     @MainActor

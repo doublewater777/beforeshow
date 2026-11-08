@@ -37,7 +37,7 @@ struct TimetableStageMatrixView: View {
     private static let minLane = TimetableStyle.matrixMinimumLaneWidth
     private static let capHeight = TimetableStyle.matrixHeaderHeight
     private static let addStageWidth = TimetableStyle.matrixAddStageWidth
-    private static let ghostAutoDismissNanoseconds: UInt64 = 3_500_000_000
+    private static let ghostAutoDismissNanoseconds: UInt64 = 1_000_000_000
 
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)

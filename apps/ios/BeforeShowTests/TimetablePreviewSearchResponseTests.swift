@@ -66,4 +66,29 @@ final class TimetablePreviewPlayerTests: XCTestCase {
         XCTAssertNil(player.activePerformanceID)
         XCTAssertNil(player.activeTrackTitle)
     }
+
+    func testFailureShowsErrorToastAndMessage() async throws {
+        let player = TimetablePreviewPlayer.shared
+        player.stop()
+
+        let id = UUID()
+        player.toggle(performanceID: id, artistName: "Unknown Nonexistent Artist 999", artistID: nil)
+
+        for _ in 0..<50 {
+            if player.failedPerformanceID == id { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        XCTAssertEqual(player.failedPerformanceID, id)
+        XCTAssertEqual(player.failureMessage, "暂无试听")
+        XCTAssertEqual(player.toastPerformanceID, id)
+        XCTAssertEqual(player.toastTrackTitle, "暂无试听")
+        XCTAssertTrue(player.toastIsError)
+
+        player.stop()
+        XCTAssertNil(player.failedPerformanceID)
+        XCTAssertNil(player.failureMessage)
+        XCTAssertNil(player.toastPerformanceID)
+        XCTAssertFalse(player.toastIsError)
+    }
 }

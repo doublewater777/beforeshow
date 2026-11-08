@@ -11,8 +11,12 @@ enum ListeningChromeBootstrapper {
             room.discardLoadedDiscState(publishWidget: false)
         }
         room.prepareForDisplay(show: show)
+        room.stageDefaultTrackIfNeeded()
         ListeningRoomSessionStore.shared.adopt(room)
         room.syncWidgetListeningState()
+        if room.hasLoadedDisc {
+            ListeningRoomSessionStore.shared.publishChrome(room)
+        }
     }
 
     static func prepare(
