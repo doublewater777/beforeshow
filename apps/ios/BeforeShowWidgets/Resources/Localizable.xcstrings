@@ -1683,22 +1683,6 @@
         }
       }
     },
-    "最近一场现场的歌，轻点接着听。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Songs for your next show, one tap to pick up where you left off."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近一場現場的歌，輕點接著聽。"
-          }
-        }
-      }
-    },
     "最近一场现场，离开场还有多久。" : {
       "localizations" : {
         "en" : {
@@ -2118,6 +2102,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "首場"
+          }
+        }
+      }
+    },
+    "今天这张" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Pick"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天這張"
+          }
+        }
+      }
+    },
+    "每天为当前现场挑一张唱片，轻点就听。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A record for your current show each day. Tap to listen."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天為目前現場挑一張唱片，輕點就聽。"
           }
         }
       }

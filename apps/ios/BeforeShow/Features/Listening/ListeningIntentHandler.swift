@@ -40,13 +40,13 @@ final class ListeningIntentHandler: ListeningIntentHandling {
     }
 
     private func play(in room: ListeningRoomCoordinator) {
-        if room.hasLoadedDisc {
+        if room.hasWidgetSession {
             if room.playPauseAction == .play {
                 room.playPause()
             }
             return
         }
-        guard let disc = room.livePreviewDisc, room.discPresentation(for: disc).canLoad else { return }
+        guard let disc = room.todayDisc(), room.discPresentation(for: disc).canLoad else { return }
         room.loadDisc(disc, autoplay: true)
     }
 
@@ -66,11 +66,11 @@ final class ListeningIntentHandler: ListeningIntentHandling {
 
     /// A loaded disc stays with the room that is already playing it. Preparing the
     /// current show here would discard that disc. Play with no room loads the
-    /// current show so the live-preview head can start after a cold launch.
+    /// current show so 「今天这张」 can start after a cold launch.
     private func resolveRoom(for command: ListeningWidgetCommand) async -> ListeningRoomCoordinator? {
         if let cached = ListeningRoomSessionStore.shared.room {
-            let ready = cached.hasLoadedDisc
-                || (cached.accessResolved && cached.livePreviewDisc != nil)
+            let ready = cached.hasWidgetSession
+                || (cached.accessResolved && cached.todayDisc() != nil)
             if ready || command == .pause {
                 return cached
             }

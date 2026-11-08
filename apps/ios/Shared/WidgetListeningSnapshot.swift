@@ -14,7 +14,7 @@ enum WidgetListeningPhase: String, Codable, Equatable {
     case failed
     case unavailable
 
-    /// Gold title and the peeking CD mean sound is actually coming out.
+    /// Gold title means sound is actually coming out.
     var showsSoundingChrome: Bool {
         self == .playing || self == .seeking
     }
@@ -24,6 +24,15 @@ enum WidgetListeningControl: String, Codable, Equatable {
     case play
     case pause
     case openListen
+}
+
+/// The next local day's 「今天这张」. The widget turns to it at `startsAt` while no session owns it.
+struct WidgetListeningNextDisc: Codable, Equatable {
+    var startsAt: Date
+    var artistName: String?
+    var discTitle: String
+    var coverImageURL: String?
+    var trackCount: Int?
 }
 
 struct WidgetListeningSnapshot: Codable, Equatable {
@@ -39,6 +48,23 @@ struct WidgetListeningSnapshot: Codable, Equatable {
     /// A seated or in-flight disc owns the widget. Changing the current show must not replace it.
     var hasSession: Bool
     var generatedAt: Date
+    /// Added in 1.0.7; absent in older snapshots.
+    var nextDisc: WidgetListeningNextDisc?
+
+    /// What the widget shows at `date`: past local midnight an idle snapshot turns to the next day's disc.
+    func shown(at date: Date) -> WidgetListeningSnapshot {
+        guard !hasSession, let next = nextDisc, date >= next.startsAt else { return self }
+        var shown = self
+        shown.artistName = next.artistName
+        shown.discTitle = next.discTitle
+        shown.trackTitle = nil
+        shown.coverImageURL = next.coverImageURL
+        shown.trackCount = next.trackCount
+        shown.phase = .idle
+        shown.control = .play
+        shown.nextDisc = nil
+        return shown
+    }
 
     func isContentEqual(to other: WidgetListeningSnapshot) -> Bool {
         showID == other.showID
@@ -51,11 +77,12 @@ struct WidgetListeningSnapshot: Codable, Equatable {
             && phase == other.phase
             && control == other.control
             && hasSession == other.hasSession
+            && nextDisc == other.nextDisc
     }
 
     private enum CodingKeys: String, CodingKey {
         case showID, showName, artistName, discTitle, trackTitle, coverImageURL, trackCount
-        case phase, control, hasSession, generatedAt, isPlaying
+        case phase, control, hasSession, generatedAt, isPlaying, nextDisc
     }
 
     init(
@@ -69,7 +96,8 @@ struct WidgetListeningSnapshot: Codable, Equatable {
         phase: WidgetListeningPhase,
         control: WidgetListeningControl,
         hasSession: Bool,
-        generatedAt: Date
+        generatedAt: Date,
+        nextDisc: WidgetListeningNextDisc? = nil
     ) {
         self.showID = showID
         self.showName = showName
@@ -82,6 +110,7 @@ struct WidgetListeningSnapshot: Codable, Equatable {
         self.control = control
         self.hasSession = hasSession
         self.generatedAt = generatedAt
+        self.nextDisc = nextDisc
     }
 
     init(from decoder: Decoder) throws {
@@ -94,6 +123,7 @@ struct WidgetListeningSnapshot: Codable, Equatable {
         coverImageURL = try container.decodeIfPresent(String.self, forKey: .coverImageURL)
         trackCount = try container.decodeIfPresent(Int.self, forKey: .trackCount)
         generatedAt = try container.decodeIfPresent(Date.self, forKey: .generatedAt) ?? .now
+        nextDisc = try? container.decodeIfPresent(WidgetListeningNextDisc.self, forKey: .nextDisc)
 
         if let phase = try container.decodeIfPresent(WidgetListeningPhase.self, forKey: .phase) {
             self.phase = phase
@@ -125,6 +155,7 @@ struct WidgetListeningSnapshot: Codable, Equatable {
         try container.encode(control, forKey: .control)
         try container.encode(hasSession, forKey: .hasSession)
         try container.encode(generatedAt, forKey: .generatedAt)
+        try container.encodeIfPresent(nextDisc, forKey: .nextDisc)
     }
 }
 
