@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// Ticket and timetable taped onto cards, like keepsakes pinned to a wall.
+/// Ticket and timetable taped onto cards, like keepsakes pinned to a wall, with what was heard,
+/// bought and spent listed underneath: everything the show left behind, under one name.
 struct FootprintKeepsakeShelf: View {
+    let show: Show
     let entries: [ShowAssetManagementEntry]
     let assetFor: (ShowAssetKind) -> ShowAsset?
     let onSelect: (ShowAssetKind) -> Void
@@ -20,6 +22,9 @@ struct FootprintKeepsakeShelf: View {
                     .accessibilityLabel(BSLocalization.format("管理%@，%@", entry.kind.title, entry.subtitle))
                 }
             }
+            ShowRecordRows(show: show, kinds: [.setlist, .merch, .spending])
+                .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.07)))
         }
     }
 

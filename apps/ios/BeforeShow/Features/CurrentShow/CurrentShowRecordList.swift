@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-/// 当前 tab 模块下方的「此刻 / 留下的」：与足迹详情同一组记录行，换成首页的磨砂模块。
+/// 当前 tab 模块下方的「歌单 / 此刻 / 留下的东西」：与足迹详情同一组记录行，换成首页的磨砂模块。
 struct CurrentShowRecordSection: View {
     let show: Show
     let phase: HomeShowPhase

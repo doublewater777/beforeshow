@@ -41,7 +41,7 @@ enum CurrentShowRecordKit {
         case .inactive: return nil
         case .pre: return BSLocalization.text("歌单")
         case .live: return BSLocalization.text("此刻")
-        case .ended: return BSLocalization.text("留下的")
+        case .ended: return BSLocalization.text("留下的东西")
         }
     }
 

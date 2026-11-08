@@ -2,6 +2,39 @@ import MapKit
 import SwiftData
 import SwiftUI
 
+/// Wide modules take a row. Square ones pair up where the first one stands; a square with no
+/// partner becomes a slim strip in its own place, so the lifecycle order stays as given.
+enum CurrentShowInlineLayout {
+    enum Row: Hashable {
+        case wide(CurrentShowQuickAction)
+        case strip(CurrentShowQuickAction)
+        case pair(CurrentShowQuickAction, CurrentShowQuickAction)
+    }
+
+    static func rows(for actions: [CurrentShowQuickAction]) -> [Row] {
+        var rows: [Row] = []
+        var used = Set<Int>()
+        for (index, action) in actions.enumerated() where !used.contains(index) {
+            if isWide(action) {
+                rows.append(.wide(action))
+            } else if let partner = actions.indices.first(where: { $0 > index && !used.contains($0) && !isWide(actions[$0]) }) {
+                used.insert(partner)
+                rows.append(.pair(action, actions[partner]))
+            } else {
+                rows.append(.strip(action))
+            }
+        }
+        return rows
+    }
+
+    private static func isWide(_ action: CurrentShowQuickAction) -> Bool {
+        switch action {
+        case .route, .timetable, .endShow, .ticket, .memoryFragments: true
+        default: false
+        }
+    }
+}
+
 /// The show's tools, each its own glass module carrying its own content: the ticket screenshot,
 /// who's coming, the latest memories. Wide modules take a row; the rest pair up.
 struct CurrentShowActionModules: View {
@@ -13,7 +46,7 @@ struct CurrentShowActionModules: View {
     var routeIsProminent = false
     /// Live mode already lists who's next; the timetable module is then just the way in.
     var timetableIsLive = false
-    /// 模块下方接「此刻 / 留下的」记录行；开场前没有。
+    /// 模块下方接「歌单 / 此刻 / 留下的东西」记录行。
     var recordPhase: HomeShowPhase = .pre
     let perform: (CurrentShowQuickAction) -> Void
 
@@ -34,36 +67,9 @@ struct CurrentShowActionModules: View {
         _tickets = Query(filter: #Predicate<ShowAsset> { $0.showID == showID && $0.kindRawValue == ticket })
     }
 
-    private enum Row: Hashable {
-        case wide(CurrentShowQuickAction)
-        case strip(CurrentShowQuickAction)
-        case pair(CurrentShowQuickAction, CurrentShowQuickAction?)
-    }
-
-    private var rows: [Row] {
-        var rows: [Row] = []
-        var pending: CurrentShowQuickAction?
+    private var rows: [CurrentShowInlineLayout.Row] {
         let ordered = timetableIsLive ? actions.filter { $0 == .timetable } + actions.filter { $0 != .timetable } : actions
-        for action in ordered {
-            if isWide(action) {
-                rows.append(.wide(action))
-            } else if let first = pending {
-                rows.append(.pair(first, action))
-                pending = nil
-            } else {
-                pending = action
-            }
-        }
-        // A lone square becomes a slim strip instead of a half-empty row.
-        if let pending { rows.append(.strip(pending)) }
-        return rows
-    }
-
-    private func isWide(_ action: CurrentShowQuickAction) -> Bool {
-        switch action {
-        case .route, .timetable, .endShow, .ticket, .memoryFragments: true
-        default: false
-        }
+        return CurrentShowInlineLayout.rows(for: ordered)
     }
 
     var body: some View {
@@ -77,7 +83,7 @@ struct CurrentShowActionModules: View {
                 case .pair(let first, let second):
                     HStack(spacing: 12) {
                         module(first)
-                        if let second { module(second) } else { Color.clear.frame(maxWidth: .infinity) }
+                        module(second)
                     }
                 }
             }

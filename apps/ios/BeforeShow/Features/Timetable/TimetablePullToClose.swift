@@ -21,7 +21,6 @@ struct TimetablePullToClose: ViewModifier {
     func body(content: Content) -> some View {
         GeometryReader { proxy in
             content
-                .background(TimetableStyle.background)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32, style: .continuous))
                 .overlay(alignment: .top) {
                     Capsule()

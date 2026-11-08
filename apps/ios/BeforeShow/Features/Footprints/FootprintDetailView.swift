@@ -199,13 +199,11 @@ struct FootprintDetailView: View {
                         }
                     )
                     FootprintKeepsakeShelf(
+                        show: show,
                         entries: ShowAssetManagementPolicy.entries(for: show, assets: assets),
                         assetFor: asset(for:),
                         onSelect: { showingAssetKind = $0 }
                     )
-                    ShowRecordRows(show: show, kinds: [.setlist, .merch, .spending])
-                        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.07)))
                     FootprintCompanionSection(show: show, archive: archive) {
                         isShowingCompanionEditor = true
                     }

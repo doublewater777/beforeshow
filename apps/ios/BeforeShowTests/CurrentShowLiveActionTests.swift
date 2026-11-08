@@ -213,4 +213,16 @@ final class CurrentShowLiveActionTests: XCTestCase {
             .memoryCreate
         )
     }
+
+    // MARK: Inline module layout
+
+    func testLoneSquareModuleKeepsItsLifecyclePosition() {
+        let rows = CurrentShowInlineLayout.rows(for: [.timetable, .companion, .memoryFragments, .route, .ticket])
+        XCTAssertEqual(rows, [.wide(.timetable), .strip(.companion), .wide(.memoryFragments), .wide(.route), .wide(.ticket)])
+    }
+
+    func testSquareModulesPairAtTheFirstOnesPosition() {
+        let rows = CurrentShowInlineLayout.rows(for: [.dispersal(completed: false), .memoryFragments, .companion, .ticket])
+        XCTAssertEqual(rows, [.pair(.dispersal(completed: false), .companion), .wide(.memoryFragments), .wide(.ticket)])
+    }
 }

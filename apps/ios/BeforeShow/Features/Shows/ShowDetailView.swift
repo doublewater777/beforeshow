@@ -90,6 +90,8 @@ struct ShowDetailView: View {
                             topExtension: topInset
                         )
                         ShowDetailKit(
+                            show: show,
+                            recordPhase: HomeShowPhase(timeState: timeState),
                             isAfterShow: stageMood == .ended,
                             assets: ShowAssetManagementPolicy.entries(for: show, assets: showAssets),
                             assetFileURL: assetFileURL,

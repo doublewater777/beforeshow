@@ -23237,22 +23237,6 @@
         }
       }
     },
-    "留下的": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kept"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "留下的"
-          }
-        }
-      }
-    },
     "看你们的 %lld 场": {
       "localizations": {
         "en": {

@@ -115,11 +115,12 @@ final class FootprintMoreArchivesTests: XCTestCase {
     // MARK: Current tab record kit
 
     func testRecordKitSectionsFollowPhase() {
-        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .pre), [])
-        XCTAssertNil(CurrentShowRecordKit.title(for: .pre))
+        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .pre), [.setlist])
+        XCTAssertEqual(CurrentShowRecordKit.title(for: .pre), "歌单")
         XCTAssertEqual(CurrentShowRecordKit.kinds(for: .live), [.setlist])
         XCTAssertEqual(CurrentShowRecordKit.kinds(for: .ended), [.setlist, .merch, .spending])
-        XCTAssertEqual(CurrentShowRecordKit.title(for: .ended), "留下的")
+        // 与现场详情、足迹详情同一个名字。
+        XCTAssertEqual(CurrentShowRecordKit.title(for: .ended), "留下的东西")
     }
 
     func testRecordKitRowsReflectRealState() {
@@ -137,6 +138,6 @@ final class FootprintMoreArchivesTests: XCTestCase {
 
         let live = CurrentShowRecordKit.rows(phase: .live, facts: facts)
         XCTAssertEqual(live.map(\.kind), [.setlist])
-        XCTAssertEqual(live.first?.action, "记一首")
+        XCTAssertEqual(live.first?.action, "打勾")
     }
 }

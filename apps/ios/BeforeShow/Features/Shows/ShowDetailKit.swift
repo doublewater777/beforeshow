@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// What you bring to the show, laid out as objects: ticket, timetable, a +1 wristband.
-/// After the show the same things are what you kept.
+/// What you bring to the show, laid out as objects: ticket, timetable, a +1 wristband, with the
+/// same record rows as the current tab underneath. After the show the same things are what you kept.
 struct ShowDetailKit: View {
+    let show: Show
+    let recordPhase: HomeShowPhase
     let isAfterShow: Bool
     let assets: [ShowAssetManagementEntry]
     let assetFileURL: (ShowAssetKind) -> URL?
@@ -26,6 +28,12 @@ struct ShowDetailKit: View {
                 tile(title: BSLocalization.text("同行"), subtitle: companionSubtitle, action: onCompanion) {
                     wristbands
                 }
+            }
+            let kinds = CurrentShowRecordKit.kinds(for: recordPhase)
+            if !kinds.isEmpty {
+                ShowRecordRows(show: show, kinds: kinds, phase: recordPhase)
+                    .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.07)))
             }
         }
     }
