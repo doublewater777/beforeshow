@@ -143,7 +143,7 @@ struct MemoryFragmentsView: View {
                     Text(BSLocalization.text("记忆碎片"))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(BSColor.Stage.foreground)
-                    Text(BSLocalization.format("%lld 格", moments.count))
+                    Text(MemoryMomentTimeline.countText(moments.count))
                         .font(.system(size: 11))
                         .foregroundStyle(BSColor.Stage.muted)
                 }

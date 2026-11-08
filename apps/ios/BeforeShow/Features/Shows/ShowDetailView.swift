@@ -89,18 +89,7 @@ struct ShowDetailView: View {
                             onOpenCover: { isShowingCoverPreview = true },
                             topExtension: topInset
                         )
-                        ShowDetailKit(
-                            show: show,
-                            recordPhase: HomeShowPhase(timeState: timeState),
-                            isAfterShow: stageMood == .ended,
-                            assets: ShowAssetManagementPolicy.entries(for: show, assets: showAssets),
-                            assetFileURL: assetFileURL,
-                            companionSubtitle: companionPresentationSubtitle,
-                            hasCompanion: show.hasCompanions,
-                            onAsset: { presentedSheet = .asset($0) },
-                            onCompanion: { presentedSheet = .companion }
-                        )
-                        .padding(.top, BSSpacing.sm)
+                        // Same blocks in the same order as footprint detail.
                         MemoryContactSheet(
                             fragments: memoryFragments.sorted { $0.createdAt < $1.createdAt },
                             currentPhase: MemoryFragmentPhase.resolved(at: Date(), timing: show.timingFields),
@@ -108,6 +97,17 @@ struct ShowDetailView: View {
                             onOpenList: { openMemory(creating: nil) },
                             onCreate: { openMemory(creating: $0) }
                         )
+                        .padding(.top, BSSpacing.sm)
+                        ShowKeepsakeSection(
+                            title: stageMood == .ended ? BSLocalization.text("留下的东西") : BSLocalization.text("随身带"),
+                            show: show,
+                            entries: ShowAssetManagementPolicy.entries(for: show, assets: showAssets),
+                            assetFor: { kind in showAssets.first { $0.kind == kind } },
+                            recordKinds: CurrentShowRecordKit.kinds(for: HomeShowPhase(timeState: timeState)),
+                            recordPhase: HomeShowPhase(timeState: timeState),
+                            onSelect: { presentedSheet = .asset($0) }
+                        )
+                        ShowCompanionSection(names: show.companionNames) { presentedSheet = .companion }
                         BSProgrammeInfo(rows: programmeRows)
                     }
                     .padding(.horizontal, BSSpacing.roomy)
@@ -269,19 +269,13 @@ struct ShowDetailView: View {
         presentedSheet = .memory
     }
 
-    private func assetFileURL(_ kind: ShowAssetKind) -> URL? {
-        guard let asset = showAssets.first(where: { $0.kind == kind }),
-              let location = try? ShowAssetMediaLocation.applicationSupport() else { return nil }
-        return location.rootDirectory.appendingPathComponent(asset.relativePath)
-    }
-
     /// The programme rows; the end time becomes an action once the show is over.
     private var programmeRows: [BSProgrammeInfo.Row] {
         let endCalendar = show.endTimingCalendar()
-        var rows = [BSProgrammeInfo.Row(label: "WHEN", value: formatter.dateText(for: show))]
+        var rows = [BSProgrammeInfo.Row(label: BSLocalization.text("时间"), value: formatter.dateText(for: show))]
         if let endedAt = show.endedAt {
             rows.append(.init(
-                label: "ENDS",
+                label: BSLocalization.text("散场"),
                 value: BSLocalization.format("已于 %@ 结束", formattedDate(endedAt, format: BSLocalization.text("M月d日 HH:mm"), calendar: endCalendar)),
                 actionTitle: BSLocalization.text("修改"),
                 action: {
@@ -291,7 +285,7 @@ struct ShowDetailView: View {
             ))
         } else if timeState.kind == .postShow || timeState.kind == .ended {
             rows.append(.init(
-                label: "ENDS",
+                label: BSLocalization.text("散场"),
                 value: BSLocalization.text("尚未确认散场时间"),
                 detail: BSLocalization.text("按实际填写，时长更准"),
                 actionTitle: BSLocalization.text("补记"),
@@ -301,21 +295,17 @@ struct ShowDetailView: View {
                 }
             ))
         } else if let endTime = timeState.effectiveEndTime {
-            rows.append(.init(label: "ENDS", value: BSLocalization.format("预计 %@ 结束", formattedDate(endTime, format: "HH:mm", calendar: endCalendar))))
+            rows.append(.init(label: BSLocalization.text("散场"), value: BSLocalization.format("预计 %@ 结束", formattedDate(endTime, format: "HH:mm", calendar: endCalendar))))
         }
-        rows.append(.init(label: "VENUE", value: show.venueName ?? BSLocalization.text("未填写场馆")))
+        rows.append(.init(label: BSLocalization.text("场馆"), value: show.venueName ?? BSLocalization.text("未填写场馆")))
         if let address = show.venueAddress?.trimmingCharacters(in: .whitespacesAndNewlines), !address.isEmpty {
-            rows.append(.init(label: "ADDR", value: address))
+            rows.append(.init(label: BSLocalization.text("地址"), value: address))
         }
-        rows.append(.init(label: "CITY", value: show.city ?? BSLocalization.text("未填写城市")))
+        rows.append(.init(label: BSLocalization.text("城市"), value: show.city ?? BSLocalization.text("未填写城市")))
         if show.artists.isEmpty {
-            rows.append(.init(label: "LINEUP", value: BSLocalization.text("未填写艺人")))
+            rows.append(.init(label: BSLocalization.text("艺人"), value: BSLocalization.text("未填写艺人")))
         }
         return rows
-    }
-
-    private var companionPresentationSubtitle: String {
-        CompanionQuickActionPresentation(companionNames: show.companionNames).displayTitle
     }
 
     @ViewBuilder

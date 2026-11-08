@@ -62,7 +62,15 @@ struct ShowRecordRows: View {
                 } else {
                     Button {
                         if row.kind == .setlist { isShowingSetlist = true } else { isShowingSpending = true }
-                    } label: { label(row) }
+                    } label: {
+                        VStack(spacing: 0) {
+                            label(row)
+                            // After the show the songs heard are listed right under their row.
+                            if row.kind == .setlist, phase == .ended || phase == .inactive, setlist.contains(where: \.isPlayed) {
+                                PlayedSongsPreview(memories: setlist)
+                            }
+                        }
+                    }
                     .buttonStyle(.plain)
                 }
             }
@@ -101,5 +109,79 @@ struct ShowRecordRows: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .animation(.easeOut(duration: 0.2), value: row)
+    }
+}
+
+struct PlayedSong: Equatable {
+    let title: String
+    let artist: String
+    let artworkURL: URL?
+    let isMostSurprising: Bool
+}
+
+enum PlayedSongs {
+    /// Songs ticked as played, in setlist order, named from the catalog when it has them.
+    static func resolve(_ memories: [ShowSetlistMemory], catalog: [CatalogSong]) -> [PlayedSong] {
+        memories
+            .filter(\.isPlayed)
+            .sorted {
+                if let o1 = $0.order, let o2 = $1.order, o1 != o2 { return o1 < o2 }
+                return $0.createdAt < $1.createdAt
+            }
+            .map { memory in
+                let song = memory.catalogSongID.flatMap { id in catalog.first { $0.appleMusicSongID == id } }
+                return PlayedSong(
+                    title: song?.title ?? memory.manualTitle ?? BSLocalization.text("现场听到了"),
+                    artist: song?.artistName ?? memory.manualArtistName ?? "",
+                    artworkURL: song?.artworkURL.flatMap(URL.init(string:)),
+                    isMostSurprising: memory.isMostSurprising
+                )
+            }
+    }
+}
+
+/// The first few songs heard, under the 现场听到了 row; the row opens the full list.
+private struct PlayedSongsPreview: View {
+    let memories: [ShowSetlistMemory]
+    @Query private var catalog: [CatalogSong]
+
+    private static let limit = 3
+
+    var body: some View {
+        let songs = PlayedSongs.resolve(memories, catalog: catalog)
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(songs.prefix(Self.limit).enumerated()), id: \.offset) { _, song in
+                HStack(spacing: 10) {
+                    ListeningArtwork(url: song.artworkURL, title: song.title)
+                        .frame(width: 36, height: 36)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(song.title)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(BSColor.Stage.foreground)
+                            .lineLimit(1)
+                        Text(song.artist)
+                            .font(.system(size: 12))
+                            .foregroundStyle(BSColor.Stage.muted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    if song.isMostSurprising {
+                        Label(BSLocalization.text("最惊喜"), systemImage: "sparkle")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.accent)
+                    }
+                }
+            }
+            if songs.count > Self.limit {
+                Text(BSLocalization.format("还有 %lld 首", songs.count - Self.limit))
+                    .font(.system(size: 12))
+                    .foregroundStyle(BSColor.Stage.muted)
+            }
+        }
+        .padding(.leading, 52)
+        .padding(.trailing, 16)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }

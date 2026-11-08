@@ -1,16 +1,19 @@
 import SwiftUI
 
-/// Ticket and timetable taped onto cards, like keepsakes pinned to a wall, with what was heard,
-/// bought and spent listed underneath: everything the show left behind, under one name.
-struct FootprintKeepsakeShelf: View {
+/// Ticket and timetable taped onto cards, with the record rows underneath. Show detail and
+/// footprint detail use this same block, so one show looks the same on both pages.
+struct ShowKeepsakeSection: View {
+    let title: String
     let show: Show
     let entries: [ShowAssetManagementEntry]
     let assetFor: (ShowAssetKind) -> ShowAsset?
+    let recordKinds: [CurrentShowRecordKind]
+    var recordPhase: HomeShowPhase = .ended
     let onSelect: (ShowAssetKind) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(BSLocalization.text("留下的东西"))
+            Text(title)
                 .font(FootprintDetailTokens.sectionFont)
                 .foregroundStyle(BSColor.Stage.foreground)
             HStack(spacing: 12) {
@@ -22,9 +25,11 @@ struct FootprintKeepsakeShelf: View {
                     .accessibilityLabel(BSLocalization.format("管理%@，%@", entry.kind.title, entry.subtitle))
                 }
             }
-            ShowRecordRows(show: show, kinds: [.setlist, .merch, .spending])
-                .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.07)))
+            if !recordKinds.isEmpty {
+                ShowRecordRows(show: show, kinds: recordKinds, phase: recordPhase)
+                    .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.07)))
+            }
         }
     }
 
@@ -73,10 +78,10 @@ struct FootprintKeepsakeShelf: View {
     }
 }
 
-/// Who came along, and how many nights you have shared.
-struct FootprintCompanionSection: View {
-    let show: Show
-    let archive: FootprintArchiveSnapshot
+/// Who came along. Footprint detail adds how many nights you have shared; an upcoming show has none yet.
+struct ShowCompanionSection: View {
+    let names: [String]
+    var sharedCount: ((String) -> Int)?
     let onEdit: () -> Void
 
     var body: some View {
@@ -86,11 +91,11 @@ struct FootprintCompanionSection: View {
                 .foregroundStyle(BSColor.Stage.foreground)
             Button(action: onEdit) {
                 VStack(spacing: 8) {
-                    if companionRows.isEmpty {
+                    if names.isEmpty {
                         emptyRow
                     }
-                    ForEach(Array(companionRows.enumerated()), id: \.offset) { _, row in
-                        companionRow(name: row.name, count: row.count)
+                    ForEach(Array(names.enumerated()), id: \.offset) { _, name in
+                        companionRow(name: name, count: sharedCount?(name))
                     }
                 }
             }
@@ -114,7 +119,7 @@ struct FootprintCompanionSection: View {
         .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
     }
 
-    private func companionRow(name: String, count: Int) -> some View {
+    private func companionRow(name: String, count: Int?) -> some View {
         HStack(spacing: BSSpacing.compact) {
             Circle()
                 .fill(
@@ -134,20 +139,16 @@ struct FootprintCompanionSection: View {
                 Text(name)
                     .font(BSFont.headline)
                     .foregroundStyle(BSColor.Stage.foreground)
-                Text(BSLocalization.format("共同留下 %lld 场足迹", count))
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
+                if let count {
+                    Text(BSLocalization.format("共同留下 %lld 场足迹", count))
+                        .font(BSFont.V3.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                }
             }
             Spacer()
         }
         .padding(BSSpacing.compact)
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
-    }
-
-    private var companionRows: [(name: String, count: Int)] {
-        show.companionNames.map { name in
-            (name, max(1, archive.shows.filter { $0.companionNames.contains(name) }.count))
-        }
     }
 }

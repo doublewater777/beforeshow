@@ -66,7 +66,8 @@ enum CurrentShowQuickAction: Hashable {
                     .ticket
                 ]
             } else {
-                actions = [.memoryFragments, .companion, .route, .timetable, .ticket]
+                // 散场后路线已经用不上。
+                actions = [.memoryFragments, .companion, .timetable, .ticket]
             }
         case .inactive:
             actions = [.route, .companion, .timetable, .memoryFragments, .ticket]

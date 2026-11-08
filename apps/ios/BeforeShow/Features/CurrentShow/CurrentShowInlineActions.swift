@@ -50,7 +50,7 @@ struct CurrentShowActionModules: View {
     var recordPhase: HomeShowPhase = .pre
     let perform: (CurrentShowQuickAction) -> Void
 
-    @Query private var tickets: [ShowAsset]
+    @Query private var assets: [ShowAsset]
     @State private var memoryCaptureSource: MemoryCreateSourceOption?
 
     init(show: Show, actions: [CurrentShowQuickAction], companion: CompanionQuickActionPresentation, now: Date = .now, routeIsProminent: Bool = false, timetableIsLive: Bool = false, recordPhase: HomeShowPhase = .pre, perform: @escaping (CurrentShowQuickAction) -> Void) {
@@ -63,8 +63,7 @@ struct CurrentShowActionModules: View {
         self.routeIsProminent = routeIsProminent
         self.perform = perform
         let showID = show.id
-        let ticket = ShowAssetKind.ticket.rawValue
-        _tickets = Query(filter: #Predicate<ShowAsset> { $0.showID == showID && $0.kindRawValue == ticket })
+        _assets = Query(filter: #Predicate<ShowAsset> { $0.showID == showID })
     }
 
     private var rows: [CurrentShowInlineLayout.Row] {
@@ -181,24 +180,30 @@ struct CurrentShowActionModules: View {
     // MARK: Ticket
 
     private var ticketModule: some View {
-        HStack(spacing: 12) {
-            Group {
-                if let ticket = tickets.first {
-                    CurrentShowTicketThumbnail(asset: ticket)
-                } else {
-                    Image(systemName: "ticket")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(BSColor.Stage.muted)
-                }
+        let ticket = assets.first { $0.kind == .ticket }
+        return assetStrip(title: BSLocalization.text("票根"), isSaved: ticket != nil) {
+            if let ticket {
+                CurrentShowTicketThumbnail(asset: ticket)
+            } else {
+                Image(systemName: "ticket")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.muted)
             }
-            .frame(width: 30, height: 40)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.white.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: tickets.isEmpty ? [3, 3] : [])))
-            Text(BSLocalization.text("票根"))
+        }
+    }
+
+    /// Ticket and an empty timetable share one slim row: thumbnail, name, saved or not.
+    private func assetStrip<Thumb: View>(title: String, isSaved: Bool, @ViewBuilder thumb: () -> Thumb) -> some View {
+        HStack(spacing: 12) {
+            thumb()
+                .frame(width: 30, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.white.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: isSaved ? [] : [3, 3])))
+            Text(title)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(BSColor.Stage.foreground)
             Spacer()
-            Text(tickets.isEmpty ? BSLocalization.text("存一张") : BSLocalization.text("已保存"))
+            Text(isSaved ? BSLocalization.text("已保存") : BSLocalization.text("存一张"))
                 .font(.system(size: 12))
                 .foregroundStyle(BSColor.Stage.muted)
             Image(systemName: "chevron.right")
@@ -237,28 +242,38 @@ struct CurrentShowActionModules: View {
         }
     }
 
+    @ViewBuilder
     private var upcomingTimetableModule: some View {
         let next = (show.timetable?.orderedDays.flatMap(\.performances) ?? [])
             .filter { $0.endsAt > now }
             .sorted(by: TimetablePerformance.chronologicalOrder)
             .prefix(3)
-        return VStack(alignment: .leading, spacing: 10) {
+        if next.isEmpty {
+            assetStrip(
+                title: BSLocalization.text("时刻表"),
+                isSaved: show.timetable != nil || assets.contains { $0.kind == .timetable }
+            ) {
+                Image(systemName: CurrentShowQuickAction.timetable.iconName)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.muted)
+            }
+        } else {
+            upcomingPerformances(Array(next))
+        }
+    }
+
+    private func upcomingPerformances(_ next: [TimetablePerformance]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             header(BSLocalization.text("时刻表"))
-            if next.isEmpty {
-                Text(BSLocalization.text("存一张时刻表"))
-                    .font(BSFont.Editorial.serif(20))
-                    .foregroundStyle(BSColor.Stage.foreground)
-            } else {
-                ForEach(Array(next)) { perf in
-                    HStack(spacing: 10) {
-                        Text(clock(perf.startsAt))
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(BSColor.Stage.muted)
-                        Text(perf.artistName)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(BSColor.Stage.foreground)
-                            .lineLimit(1)
-                    }
+            ForEach(next) { perf in
+                HStack(spacing: 10) {
+                    Text(clock(perf.startsAt))
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(BSColor.Stage.muted)
+                    Text(perf.artistName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .lineLimit(1)
                 }
             }
         }
@@ -316,7 +331,7 @@ struct CurrentShowActionModules: View {
         return VStack(alignment: .leading, spacing: 12) {
             Button { perform(.memoryFragments) } label: {
                 VStack(alignment: .leading, spacing: 12) {
-                    header(BSLocalization.text("记忆碎片"), trailing: moments.isEmpty ? nil : BSLocalization.format("%lld 段", moments.count))
+                    header(BSLocalization.text("记忆碎片"), trailing: moments.isEmpty ? nil : MemoryMomentTimeline.countText(moments.count))
                     if !recent.isEmpty {
                         HStack(spacing: 4) {
                             ForEach(0..<4, id: \.self) { index in
@@ -324,7 +339,8 @@ struct CurrentShowActionModules: View {
                                     if index < recent.count {
                                         MemoryMomentCell(moment: recent[index])
                                     } else {
-                                        Color.white.opacity(0.06).aspectRatio(1, contentMode: .fit)
+                                        Color.white.opacity(0.06).aspectRatio(3 / 4, contentMode: .fit)
+                                            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                                     }
                                 }
                                 .frame(maxWidth: .infinity)

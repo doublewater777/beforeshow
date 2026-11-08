@@ -195,7 +195,7 @@ struct CurrentShowHomeView: View {
                     WidgetDataSync.sync(shows: liveShows, manualSelection: CurrentShowSelectionStore.canonical(in: selections))
                     Task {
                         await refreshAutomaticCurrentShowIfNeeded()
-                        await endCurrentShowAtDeclaredEndIfNeeded()
+                        await endCurrentShowAutomaticallyIfNeeded()
                         await reconcileNotificationPortfolio()
                         await requestNotificationPermissionIfEligible()
                     }
@@ -206,7 +206,7 @@ struct CurrentShowHomeView: View {
                 // minute cadence also handles show starts and retention expiry.
                 while !Task.isCancelled {
                     await refreshAutomaticCurrentShowIfNeeded()
-                    await endCurrentShowAtDeclaredEndIfNeeded()
+                    await endCurrentShowAutomaticallyIfNeeded()
                     do {
                         try await Task.sleep(for: .seconds(60))
                     } catch {
@@ -430,8 +430,8 @@ struct CurrentShowHomeView: View {
         }
     }
 
-    private func endCurrentShowAtDeclaredEndIfNeeded() async {
-        guard let show = currentShow, let end = CurrentShowEndPolicy.declaredEnd(for: show) else { return }
+    private func endCurrentShowAutomaticallyIfNeeded() async {
+        guard let show = currentShow, let end = CurrentShowEndPolicy.automaticEnd(for: show) else { return }
         do {
             _ = try await ShowMutationCoordinator.commitCurrentShowChange(
                 shows: shows,

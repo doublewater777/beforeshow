@@ -24,6 +24,11 @@ struct MemoryMomentSection: Identifiable {
 }
 
 enum MemoryMomentTimeline {
+    /// The count every memory surface shows, so the unit never changes between pages.
+    static func countText(_ count: Int) -> String {
+        BSLocalization.format("%lld 段", count)
+    }
+
     /// Oldest first, the order the night happened.
     static func moments(from fragments: [MemoryFragment]) -> [MemoryMoment] {
         fragments

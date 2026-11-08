@@ -100,7 +100,7 @@ extension CurrentShowManagementSection {
     func openDispersal() {
         if show.endedAt != nil {
             ceremonySheetShowID = show.id
-        } else if let end = CurrentShowEndPolicy.declaredEnd(for: show) {
+        } else if let end = CurrentShowEndPolicy.automaticEnd(for: show) {
             Task { @MainActor in
                 if await onConfirmEnd(end) { ceremonySheetShowID = show.id }
             }

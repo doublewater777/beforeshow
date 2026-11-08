@@ -225,4 +225,13 @@ final class CurrentShowLiveActionTests: XCTestCase {
         let rows = CurrentShowInlineLayout.rows(for: [.dispersal(completed: false), .memoryFragments, .companion, .ticket])
         XCTAssertEqual(rows, [.pair(.dispersal(completed: false), .companion), .wide(.memoryFragments), .wide(.ticket)])
     }
+
+    func testEndedShowDropsRouteFromModules() {
+        XCTAssertFalse(CurrentShowQuickAction.actions(for: .ended).contains(.route))
+        XCTAssertFalse(CurrentShowQuickAction.actions(for: .ended, isPostShowRetention: true).contains(.route))
+    }
+
+    func testMemoryCountReadsTheSameEverywhere() {
+        XCTAssertEqual(MemoryMomentTimeline.countText(3), "3 段")
+    }
 }

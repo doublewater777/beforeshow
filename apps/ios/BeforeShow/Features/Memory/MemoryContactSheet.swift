@@ -12,12 +12,16 @@ struct MemoryContactSheet: View {
     let onOpenList: () -> Void
     let onCreate: (MemoryCreateSourceOption) -> Void
 
-    private static let frameSize = CGSize(width: 132, height: 168)
+    /// The same 3:4 frame as the current tab and the memory roll.
+    private static let frameSize = CGSize(width: 132, height: 176)
+
+    private var moments: [MemoryMoment] { MemoryMomentTimeline.moments(from: fragments) }
 
     /// Chapters in the order the night happened; each phase is marked once.
-    private var chapters: [(phase: MemoryFragmentPhase, fragments: [MemoryFragment])] {
-        [MemoryFragmentPhase.before, .live, .after].compactMap { phase in
-            let items = fragments.filter { $0.phase == phase }
+    private var chapters: [(phase: MemoryFragmentPhase, moments: [MemoryMoment])] {
+        let moments = moments
+        return [MemoryFragmentPhase.before, .live, .after].compactMap { phase in
+            let items = moments.filter { $0.fragment.phase == phase }
             return items.isEmpty ? nil : (phase, items)
         }
     }
@@ -32,7 +36,7 @@ struct MemoryContactSheet: View {
                 if !fragments.isEmpty {
                     Button(action: onOpenList) {
                         HStack(spacing: 3) {
-                            Text(BSLocalization.format("%lld 条", fragments.count))
+                            Text(MemoryMomentTimeline.countText(moments.count))
                             Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                         }
                         .font(BSFont.V3.caption)
@@ -62,10 +66,10 @@ struct MemoryContactSheet: View {
                         }
                         ForEach(chapters, id: \.phase) { chapter in
                             chapterMark(chapter.phase)
-                            ForEach(chapter.fragments) { fragment in
-                                Button { onOpen(fragment) } label: { frame(for: fragment) }
+                            ForEach(chapter.moments) { moment in
+                                Button { onOpen(moment.fragment) } label: { frame(for: moment) }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel(fragmentLabel(fragment, (fragments.firstIndex { $0.id == fragment.id } ?? 0) + 1))
+                                    .accessibilityLabel(fragmentLabel(moment.fragment, (fragments.firstIndex { $0.id == moment.fragment.id } ?? 0) + 1))
                             }
                         }
                     }
@@ -84,7 +88,7 @@ struct MemoryContactSheet: View {
     private func createMenu<Label: View>(@ViewBuilder label: () -> Label) -> some View {
         Menu {
             ForEach(MemoryCreateSourceOption.allCases, id: \.self) { option in
-                Button(option.title, systemImage: option.iconName) { onCreate(option) }
+                Button(option.captureTitle, systemImage: option.iconName) { onCreate(option) }
             }
         } label: {
             label()
@@ -104,45 +108,11 @@ struct MemoryContactSheet: View {
             .accessibilityHidden(true)
     }
 
-    private func frame(for fragment: MemoryFragment) -> some View {
+    private func frame(for moment: MemoryMoment) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Group {
-                if let media = fragment.orderedMediaItems.first {
-                    Color.clear
-                        .overlay { MemoryThumbnail(relativePath: media.thumbnailRelativePath ?? media.relativePath) }
-                        .overlay {
-                            if media.kind == .video {
-                                Image(systemName: "play.circle.fill").font(.system(size: 26)).foregroundStyle(.white)
-                            }
-                        }
-                        .overlay(alignment: .bottom) {
-                            if let text = fragment.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-                                Text(text)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(2)
-                                    .bsMaskUserContent()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(8)
-                                    .padding(.top, 14)
-                                    .background(LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom))
-                            }
-                        }
-                } else {
-                    Text("“\(fragment.text ?? "")”")
-                        .font(.system(size: 14, design: .serif))
-                        .lineSpacing(5)
-                        .foregroundStyle(BSColor.Stage.heroIvory.opacity(0.9))
-                        .bsMaskUserContent()
-                        .lineLimit(6)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                        .padding(12)
-                        .background(Color(white: 0.09))
-                }
-            }
-            .frame(width: Self.frameSize.width, height: Self.frameSize.height)
-            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            Text(Self.time(fragment.createdAt))
+            MemoryFrameCell(moment: moment)
+                .frame(width: Self.frameSize.width, height: Self.frameSize.height)
+            Text(Self.time(moment.date))
                 .font(.system(size: 10, weight: .medium).width(.condensed).monospacedDigit())
                 .foregroundStyle(BSColor.Stage.dim)
                 .frame(width: Self.frameSize.width, alignment: .leading)

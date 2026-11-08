@@ -117,21 +117,19 @@ final class ShowSetlistPhaseTests: XCTestCase {
         XCTAssertEqual(songs.count, 2)
     }
 
-    func testFootprintListeningCoordinatorExcludesUnplayedSongs() throws {
-        let container = try makeContainer()
-        let context = container.mainContext
-        let show = try makeShow()
-        context.insert(show)
+    func testPlayedSongsListOnlyPlayedInOrderWithCatalogNames() {
+        let showID = UUID()
+        let memories = [
+            ShowSetlistMemory(showID: showID, manualTitle: "未唱曲目", manualArtistName: "告五人", wasPlayed: false, order: 0),
+            ShowSetlistMemory(showID: showID, catalogSongID: "s1", isMostSurprising: true, wasPlayed: true, order: 2),
+            ShowSetlistMemory(showID: showID, manualTitle: "爱人错过", manualArtistName: "告五人", wasPlayed: true, order: 1)
+        ]
+        let catalog = [CatalogSong(appleMusicSongID: "s1", title: "给你一瓶魔法药水", artistName: "告五人")]
 
-        let played = ShowSetlistMemory(showID: show.id, manualTitle: "爱人错过", manualArtistName: "告五人", wasPlayed: true)
-        let unplayed = ShowSetlistMemory(showID: show.id, manualTitle: "未唱曲目", manualArtistName: "告五人", wasPlayed: false)
-        [played, unplayed].forEach(context.insert)
-        try context.save()
+        let songs = PlayedSongs.resolve(memories, catalog: catalog)
 
-        let coordinator = FootprintListeningCoordinator(context: context, show: show)
-        coordinator.reload()
-
-        let titles = coordinator.memories.map { coordinator.title($0) }
-        XCTAssertEqual(titles, ["爱人错过"])
+        XCTAssertEqual(songs.map(\.title), ["爱人错过", "给你一瓶魔法药水"])
+        XCTAssertEqual(songs.map(\.artist), ["告五人", "告五人"])
+        XCTAssertEqual(songs.map(\.isMostSurprising), [false, true])
     }
 }

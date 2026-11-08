@@ -4,21 +4,29 @@ import XCTest
 final class CurrentShowPolishTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 2_000_000_000)
 
-    // MARK: Declared end
+    // MARK: Automatic end
 
     func testFilledEndTimeEndsTheShowWithoutAsking() throws {
         let end = start.addingTimeInterval(3 * 3_600)
         let show = try Show(name: "Club", date: start, startTime: start, endTime: end)
-        XCTAssertNil(CurrentShowEndPolicy.declaredEnd(for: show, now: end.addingTimeInterval(-60)))
-        XCTAssertEqual(CurrentShowEndPolicy.declaredEnd(for: show, now: end.addingTimeInterval(60)), end)
+        XCTAssertNil(CurrentShowEndPolicy.automaticEnd(for: show, now: end.addingTimeInterval(-60)))
+        XCTAssertEqual(CurrentShowEndPolicy.automaticEnd(for: show, now: end.addingTimeInterval(60)), end)
 
         show.markEnded(at: end.addingTimeInterval(-600))
-        XCTAssertNil(CurrentShowEndPolicy.declaredEnd(for: show, now: end.addingTimeInterval(60)))
+        XCTAssertNil(CurrentShowEndPolicy.automaticEnd(for: show, now: end.addingTimeInterval(60)))
     }
 
-    func testEstimatedEndStillAsks() throws {
+    func testEstimatedEndAlsoEndsTheShowWithoutAsking() throws {
         let show = try Show(name: "No end", date: start, startTime: start)
-        XCTAssertNil(CurrentShowEndPolicy.declaredEnd(for: show, now: start.addingTimeInterval(10 * 3_600)))
+        let now = start.addingTimeInterval(10 * 3_600)
+        let estimated = start.addingTimeInterval(Double(CurrentShowTimeState.defaultDurationHours) * 3_600)
+        XCTAssertEqual(CurrentShowEndPolicy.automaticEnd(for: show, now: now), estimated)
+    }
+
+    func testHistoricalShowAlsoEndsWithoutAsking() throws {
+        let show = try Show(name: "Back then", date: start, startTime: start)
+        show.wasAddedAsHistorical = true
+        XCTAssertNotNil(CurrentShowEndPolicy.automaticEnd(for: show, now: start.addingTimeInterval(10 * 3_600)))
     }
 
     // MARK: Post-show primary

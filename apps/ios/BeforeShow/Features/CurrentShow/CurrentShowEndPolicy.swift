@@ -32,13 +32,14 @@ enum CurrentShowEndPolicy {
 }
 
 extension CurrentShowEndPolicy {
-    /// A filled-in end time is taken as the result: once it passes, the show ends there without asking.
-    static func declaredEnd(
+    /// Once the end passes, the show ends there without asking: the filled-in end time, or the
+    /// estimate from the start. Only a show with no end to work out is left for the user to confirm.
+    static func automaticEnd(
         for show: Show,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Date? {
-        guard show.endTime != nil, show.endedAt == nil, show.wasAddedAsHistorical != true else { return nil }
+        guard show.endedAt == nil else { return nil }
         let eventCalendar = show.timingCalendar(fallback: calendar)
         let state = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
         guard state.kind == .postShow || state.kind == .ended,
