@@ -49,7 +49,7 @@ extension CurrentShowManagementSection {
         switch action {
         case .listen:
             Task { await ListeningIntentHandler.shared.perform(.play) }
-        case .listenTonight:
+        case .replayShow:
             let room = ListeningRoomSessionStore.shared.room
             if room?.loadedDisc?.id == ShowSetlistPlayback.discID(for: show.id), let room {
                 room.playPause()
@@ -60,7 +60,7 @@ extension CurrentShowManagementSection {
                 await ShowSetlistPlayback.play(
                     songs.map { ($0.catalogSongID, $0.manualTitle ?? "", $0.manualArtistName ?? "") },
                     show: show,
-                    title: BSLocalization.text("今晚的歌")
+                    title: show.name
                 )
             }
         case .route:

@@ -59,11 +59,11 @@ final class HomeCountdownPrimaryActionTests: XCTestCase {
         XCTAssertNil(primary(festival, at: date(day: 16, hour: 21)))
     }
 
-    func testAfterTheShowReplaysTonightsSongsOrFallsBackToListen() throws {
+    func testAfterTheShowReplaysShowSongsOrFallsBackToListen() throws {
         let show = try show()
         show.markEnded(at: date(day: 15, hour: 22))
         let next = date(day: 16, hour: 10)
-        XCTAssertEqual(primary(show, at: next, hasPlayedSongs: true), .listenTonight)
+        XCTAssertEqual(primary(show, at: next, hasPlayedSongs: true), .replayShow)
         XCTAssertEqual(primary(show, at: next, hasPlayedSongs: false), .listen)
     }
 
@@ -91,7 +91,7 @@ final class HomeCountdownPrimaryActionTests: XCTestCase {
 
     func testOnlyListeningActionsTurnIntoPause() {
         XCTAssertTrue(HomeCountdownLockup.PrimaryAction.listen.playsMusic)
-        XCTAssertTrue(HomeCountdownLockup.PrimaryAction.listenTonight.playsMusic)
+        XCTAssertTrue(HomeCountdownLockup.PrimaryAction.replayShow.playsMusic)
         XCTAssertFalse(HomeCountdownLockup.PrimaryAction.route.playsMusic)
         XCTAssertFalse(HomeCountdownLockup.PrimaryAction.addShow.playsMusic)
         XCTAssertFalse(HomeCountdownLockup.PrimaryAction.fillNewDate.playsMusic)

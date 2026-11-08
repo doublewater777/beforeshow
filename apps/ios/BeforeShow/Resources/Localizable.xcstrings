@@ -6414,6 +6414,22 @@
         }
       }
     },
+    "再听一遍这场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay this show"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再聽一遍這場"
+          }
+        }
+      }
+    },
     "再想一下？" : {
       "localizations" : {
         "en" : {
