@@ -293,17 +293,11 @@ private struct TimetableShareFooter: View {
         VStack(spacing: 16) {
             Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
             HStack {
+                BSShareByline(tone: TimetableStyle.muted)
+                Spacer()
                 summary
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(TimetableStyle.muted)
-                Spacer()
-                HStack(spacing: 8) {
-                    Capsule().fill(BSColor.brandGradient).frame(width: 18, height: 3)
-                    Text("BeforeShow")
-                        .font(.system(size: 12, weight: .bold))
-                        .tracking(0.7)
-                        .foregroundStyle(TimetableStyle.muted)
-                }
             }
         }
     }

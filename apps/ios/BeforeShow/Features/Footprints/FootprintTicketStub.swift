@@ -148,11 +148,14 @@ struct FootprintTicketFace: View {
                     Spacer()
                     FootprintTicketBarcode().frame(width: 54, height: 18)
                 }
+                if isExport {
+                    BSShareByline(tone: Self.ink.opacity(0.55)).padding(.top, 8)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
         }
-        .frame(width: isExport ? 300 : nil, height: 118)
+        .frame(width: isExport ? 300 : nil, height: isExport ? 140 : 118)
         .background(Self.paper)
         .clipShape(UnevenRoundedRectangle(bottomTrailingRadius: 10, topTrailingRadius: 10))
         .overlay(alignment: .leading) {

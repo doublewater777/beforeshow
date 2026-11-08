@@ -131,7 +131,7 @@ struct CompanionFootprintShareCard: View {
 
     private func headerBlock(scale: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 6 * scale) {
-            Text(BSLocalization.text("BEFORESHOW · 共同足迹"))
+            Text(BSLocalization.text("共同足迹"))
                 .font(.system(size: 10.5 * scale, weight: .semibold))
                 .tracking(1.4 * scale)
                 .foregroundStyle(CompanionFootprintShareTokens.brand)
@@ -245,9 +245,7 @@ struct CompanionFootprintShareCard: View {
 
     private func footerBlock(scale: CGFloat) -> some View {
         HStack {
-            Text(BSLocalization.text("BeforeShow · 现场共同记忆"))
-                .font(.system(size: 10.5 * scale, weight: .medium))
-                .foregroundStyle(CompanionFootprintShareTokens.footer)
+            BSShareByline(tone: CompanionFootprintShareTokens.footer, scale: scale)
 
             Spacer()
 

@@ -25664,6 +25664,29 @@
           }
         }
       }
+    },
+    "开场前 · 分享图署名": {
+      "comment": "分享图署名：App Store 上的 App 名称，用于让看到图的人搜索。",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开场前"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開場前"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BeforeShow"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

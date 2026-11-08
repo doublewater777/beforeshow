@@ -32,7 +32,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShowWidgets/CountdownWidgetViews.swift": 728,
     "BeforeShow/Supporting/Debug/LiveAndWidgetShowcaseView.swift": 725,
     "BeforeShow/Features/Timetable/TimetableSheet.swift": 699,
-    "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 680,
+    "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 674,
     "Shared/CurrentShowTimeState.swift": 636,
     "BeforeShow/Features/Memory/MemoryUnifiedEditorView.swift": 636,
     "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 632,
