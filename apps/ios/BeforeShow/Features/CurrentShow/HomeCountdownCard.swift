@@ -222,16 +222,9 @@ struct HomeCountdownLockup: View {
 
     @ViewBuilder
     private func locationControl(_ summary: String, opensRoute: Bool) -> some View {
-        let label = HStack(alignment: .firstTextBaseline, spacing: 3) {
-            if opensRoute {
-                Image(systemName: "map")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.accent.opacity(0.85))
-            }
-            Text(summary)
-                .font(.system(size: 12.5, weight: .regular))
-                .foregroundStyle(opensRoute ? BSColor.Stage.foreground.opacity(0.78) : BSColor.Stage.muted)
-        }
+        let label = Text(summary)
+            .font(.system(size: 12.5, weight: .regular))
+            .foregroundStyle(BSColor.Stage.muted)
 
         if opensRoute {
             Button {
