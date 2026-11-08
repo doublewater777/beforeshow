@@ -230,3 +230,17 @@ enum BSPhotoLibrarySaver {
         return image
     }
 }
+
+/// One image, fullscreen and zoomable, nothing else on screen; a single tap closes it.
+struct BSSingleImageViewer: View {
+    let source: BSFullscreenImageSource
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var page = 0
+
+    var body: some View {
+        BSFullscreenImageViewer(pageCount: 1, currentIndex: $page) { _ in
+            BSZoomableImagePage(source: source, onSingleTap: { dismiss() }).bsMaskUserContent()
+        }
+    }
+}

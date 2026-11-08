@@ -98,7 +98,7 @@ struct MemoryContactSheet: View {
 
     /// A chapter label printed sideways on the film edge, like a frame number.
     private func chapterMark(_ phase: MemoryFragmentPhase) -> some View {
-        Text(phase.title)
+        Text(phase.rollTitle)
             .font(.system(size: 11, weight: .semibold).width(.condensed))
             .tracking(3)
             .foregroundStyle(phase == .live ? BSColor.Stage.accent : BSColor.Stage.muted)
@@ -124,7 +124,7 @@ struct MemoryContactSheet: View {
         let isCurrent = phase == currentPhase
         return createMenu {
             VStack(spacing: 8) {
-                Text(phase.title)
+                Text(phase.rollTitle)
                     .font(.system(size: 11, weight: .semibold).width(.condensed))
                     .tracking(2)
                     .foregroundStyle(isCurrent ? BSColor.Stage.accent : BSColor.Stage.dim)

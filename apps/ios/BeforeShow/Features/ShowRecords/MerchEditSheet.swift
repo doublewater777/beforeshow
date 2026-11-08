@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-/// 改一件周边的种类和名字。
+/// 改一件周边的名字和种类；看大图在全屏查看里。
 struct MerchEditSheet: View {
     let item: MerchItem
 
@@ -10,10 +10,21 @@ struct MerchEditSheet: View {
     @State private var kind: MerchKind = .other
     @State private var name = ""
     @State private var saveFailed = false
+    @FocusState private var isNameFocused: Bool
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
+                TextField(kind.title, text: $name)
+                    .focused($isNameFocused)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .submitLabel(.done)
+                    .onSubmit(commit)
+                    .padding(.horizontal, 16)
+                    .frame(height: 50)
+                    .background(Color.white.opacity(0.06), in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.5))
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], spacing: 8) {
                     ForEach(MerchKind.allCases) { option in
                         let isOn = option == kind
@@ -28,13 +39,6 @@ struct MerchEditSheet: View {
                         .accessibilityAddTraits(isOn ? .isSelected : [])
                     }
                 }
-                TextField(kind.title, text: $name)
-                    .font(.system(size: 16))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .padding(.horizontal, 16)
-                    .frame(height: 50)
-                    .background(Color.white.opacity(0.06), in: Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.5))
                 if saveFailed {
                     Text(BSLocalization.text("没有保存，请重试")).font(.system(size: 13)).foregroundStyle(BSColor.Stage.live)
                 }
@@ -61,6 +65,7 @@ struct MerchEditSheet: View {
         .onAppear {
             kind = item.kind
             name = item.name
+            isNameFocused = true
         }
     }
 

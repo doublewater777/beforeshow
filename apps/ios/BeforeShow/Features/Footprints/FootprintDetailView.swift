@@ -252,7 +252,7 @@ struct FootprintDetailView: View {
                 case .showCover(let urlString):
                     ShowCoverFullscreenPreview(urlString: urlString)
                 case .image(let source):
-                    FootprintCoverImageViewer(source: source)
+                    BSSingleImageViewer(source: source)
                 }
             }
             .bsNavigationZoom(sourceID: "cover", in: coverTransition)
@@ -526,16 +526,3 @@ struct FootprintDetailView: View {
 
 }
 
-/// A single cover image (ticket or memory photo), fullscreen and zoomable.
-private struct FootprintCoverImageViewer: View {
-    let source: BSFullscreenImageSource
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var page = 0
-
-    var body: some View {
-        BSFullscreenImageViewer(pageCount: 1, currentIndex: $page) { _ in
-            BSZoomableImagePage(source: source, onSingleTap: { dismiss() }).bsMaskUserContent()
-        }
-    }
-}

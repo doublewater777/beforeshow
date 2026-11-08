@@ -37,6 +37,7 @@ struct ShowRecordRows: View {
     @State private var merchSource: MerchCaptureSource?
     @State private var merchFailed = false
     @State private var editingMerch: MerchItem?
+    @State private var viewingMerch: MerchItem?
     @Environment(\.modelContext) private var modelContext
 
     init(show: Show, kinds: [CurrentShowRecordKind], phase: HomeShowPhase = .ended) {
@@ -69,6 +70,7 @@ struct ShowRecordRows: View {
                         if !show.merchItems.isEmpty {
                             MerchStrip(
                                 items: show.merchItems.sorted { $0.createdAt < $1.createdAt },
+                                onView: { viewingMerch = $0 },
                                 onEdit: { editingMerch = $0 },
                                 onDelete: { item in Task { try? await MerchCaptureCoordinator.delete(item, in: modelContext) } }
                             )
@@ -93,6 +95,9 @@ struct ShowRecordRows: View {
         .sheet(isPresented: $isShowingSetlist) { ShowSetlistSheet(show: show, forcedPhase: phase) }
         .sheet(isPresented: $isShowingSpending) { ShowSpendingSheet(show: show) }
         .sheet(item: $editingMerch) { MerchEditSheet(item: $0) }
+        .fullScreenCover(item: $viewingMerch) { item in
+            if let url = item.photoURL(cutout: false) { BSSingleImageViewer(source: .file(url)) }
+        }
         .merchCapture($merchSource, show: show) { saved in merchFailed = !saved }
         .onChange(of: merchSource) { _, source in if source != nil { merchFailed = false } }
     }
@@ -202,9 +207,10 @@ private struct PlayedSongsPreview: View {
     }
 }
 
-/// The merch kept from this show, under the 周边 row: tap to rename, hold to delete.
+/// The merch kept from this show, under the 周边 row, each with its name: tap to look at it full screen, hold to edit or delete.
 private struct MerchStrip: View {
     let items: [MerchItem]
+    let onView: (MerchItem) -> Void
     let onEdit: (MerchItem) -> Void
     let onDelete: (MerchItem) -> Void
 
@@ -213,11 +219,18 @@ private struct MerchStrip: View {
             HStack(spacing: 8) {
                 ForEach(items) { item in
                     let hasCutout = item.cutoutRelativePath != nil
-                    Button { onEdit(item) } label: {
-                        FootprintLocalPhoto(url: item.photoURL(cutout: true), contentMode: hasCutout ? .fit : .fill)
-                            .frame(width: 56, height: 64)
-                            .background(Color.white.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Button { onView(item) } label: {
+                        VStack(spacing: 4) {
+                            FootprintLocalPhoto(url: item.photoURL(cutout: true), contentMode: hasCutout ? .fit : .fill)
+                                .frame(width: 56, height: 64)
+                                .background(Color.white.opacity(0.05))
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text(item.displayName)
+                                .font(.system(size: 11))
+                                .foregroundStyle(BSColor.Stage.muted)
+                                .lineLimit(1)
+                                .frame(width: 56)
+                        }
                     }
                     .buttonStyle(.plain)
                     .contextMenu {

@@ -11,6 +11,7 @@ struct FootprintMerchCabinetView: View {
     @State private var selectedID: UUID?
     @State private var lightLevel: Double = 0
     @State private var editing: MerchItem?
+    @State private var viewing: MerchItem?
     @State private var detailTarget: FootprintDetailDestination?
 
     private var items: [MerchItem] { shelves.flatMap(\.items) }
@@ -41,6 +42,9 @@ struct FootprintMerchCabinetView: View {
         }
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
         .sheet(item: $editing) { MerchEditSheet(item: $0) }
+        .fullScreenCover(item: $viewing) { item in
+            if let url = item.photoURL(cutout: false) { BSSingleImageViewer(source: .file(url)) }
+        }
         .sensoryFeedback(.selection, trigger: selectedID)
         .task { await switchOnLight() }
     }
@@ -114,7 +118,8 @@ struct FootprintMerchCabinetView: View {
 
     private func itemButton(_ item: MerchItem, isSelected: Bool) -> some View {
         let hasCutout = item.cutoutRelativePath != nil
-        return Button { self.selectedID = item.id } label: {
+        // A second tap on the item already picked opens it full screen, same as the card photo.
+        return Button { if isSelected { viewing = item } else { self.selectedID = item.id } } label: {
             FootprintLocalPhoto(url: item.photoURL(cutout: true), contentMode: hasCutout ? .fit : .fill)
                 .frame(width: 76, height: 92)
                 .clipShape(RoundedRectangle(cornerRadius: hasCutout ? 0 : 10, style: .continuous))
@@ -139,13 +144,24 @@ struct FootprintMerchCabinetView: View {
         let show = archive.shows(for: [item.showID]).first
         return FootprintArchiveCard(fill: Color(white: 0.083)) {
             HStack(spacing: 14) {
-                FootprintLocalPhoto(url: item.photoURL(cutout: false))
-                    .frame(width: 88, height: 88)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Button { viewing = item } label: {
+                    FootprintLocalPhoto(url: item.photoURL(cutout: false))
+                        .frame(width: 88, height: 88)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(item.displayName)
-                        .font(.system(size: 19, weight: .black, design: .serif))
-                        .foregroundStyle(BSColor.Stage.foreground)
+                    Button { editing = item } label: {
+                        HStack(spacing: 6) {
+                            Text(item.displayName)
+                                .font(.system(size: 19, weight: .black, design: .serif))
+                                .foregroundStyle(BSColor.Stage.foreground)
+                            Image(systemName: "pencil")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(BSColor.Stage.muted)
+                        }
+                    }
+                    .buttonStyle(.plain)
                     if let show {
                         Button { detailTarget = FootprintDetailDestination(show: show) } label: {
                             Text(FootprintArchiveShowLine.place(show))
