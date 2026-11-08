@@ -8,7 +8,7 @@ struct ListeningEmptyMiniPlayer: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 9) {
-                ListeningMiniArtwork(artwork: nil, size: 34)
+                ListeningMiniArtwork(artwork: nil, size: 34, isHighlighted: isSelected)
                 Text(ListeningCopy.text("未在播放"))
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
@@ -16,7 +16,7 @@ struct ListeningEmptyMiniPlayer: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "play.fill")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(BSColor.textTertiary)
+                    .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textTertiary)
                     .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                     .padding(.trailing, 4)
             }
@@ -35,6 +35,7 @@ struct ListeningEmptyMiniPlayer: View {
 struct ListeningMiniArtwork: View {
     let artwork: UIImage?
     let size: CGFloat
+    var isHighlighted: Bool = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -48,13 +49,13 @@ struct ListeningMiniArtwork: View {
                     BSColor.Stage.surfaceRaised
                     Image(systemName: "music.note")
                         .font(.system(size: size * 0.42, weight: .medium))
-                        .foregroundStyle(BSColor.Stage.muted)
+                        .foregroundStyle(isHighlighted ? BSColor.Stage.accent : BSColor.Stage.muted)
                 }
             }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .overlay(shape.stroke(BSColor.Stage.border, lineWidth: 0.5))
+        .overlay(shape.stroke(isHighlighted ? BSColor.Stage.accent.opacity(0.35) : BSColor.Stage.border, lineWidth: 0.5))
         .transaction { $0.animation = nil }
         .accessibilityHidden(true)
     }

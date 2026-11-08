@@ -11,6 +11,29 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
         XCTAssertEqual(Bar.tap(selectedTab: .listen, isVideo: true), .video)
     }
 
+    func testBottomBarGeometryLensMatchesActiveTabShapeAndPosition() {
+        // Current tab: circle-sized lens, negative offset
+        XCTAssertEqual(
+            ListeningBottomBarGeometry.lensWidth(for: .current),
+            ListeningBottomBarLayout.tabSize - 12
+        )
+        XCTAssertLessThan(ListeningBottomBarGeometry.selectionOffset(for: .current), 0)
+
+        // Footprints tab: circle-sized lens, positive offset
+        XCTAssertEqual(
+            ListeningBottomBarGeometry.lensWidth(for: .footprints),
+            ListeningBottomBarLayout.tabSize - 12
+        )
+        XCTAssertGreaterThan(ListeningBottomBarGeometry.selectionOffset(for: .footprints), 0)
+
+        // Listen tab: capsule-sized lens, centered offset
+        XCTAssertEqual(
+            ListeningBottomBarGeometry.lensWidth(for: .listen),
+            ListeningBottomBarLayout.miniPlayerWidth - 12
+        )
+        XCTAssertEqual(ListeningBottomBarGeometry.selectionOffset(for: .listen), 0)
+    }
+
     func testPreparingUsesPlayingChromeState() {
         XCTAssertTrue(
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .preparing)

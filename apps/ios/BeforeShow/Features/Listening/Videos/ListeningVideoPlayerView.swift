@@ -153,6 +153,7 @@ private struct ListeningVideoSurface: UIViewControllerRepresentable {
 /// The docked video in the root bar: tap to open, or play/pause.
 struct ListeningVideoMiniPlayer: View {
     let dock: ListeningVideoDock
+    var isSelected: Bool = false
     let onOpen: () -> Void
 
     var body: some View {
@@ -163,7 +164,7 @@ struct ListeningVideoMiniPlayer: View {
                         .frame(width: 48, height: 32)
                     Text(video.title)
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(BSColor.textPrimary)
+                        .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textPrimary)
                         .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -184,7 +185,7 @@ struct ListeningVideoMiniPlayer: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(BSColor.textPrimary)
+                .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textPrimary)
                 .frame(width: 34, height: BSLayout.minTouchTarget)
                 .contentShape(Rectangle())
         }

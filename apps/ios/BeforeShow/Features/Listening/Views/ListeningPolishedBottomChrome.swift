@@ -70,7 +70,7 @@ struct ListeningPolishedBottomChrome: View {
     }
 }
 
-private enum ListeningBottomBarGeometry {
+enum ListeningBottomBarGeometry {
     static func selectionOffset(for tab: BeforeShowTab) -> CGFloat {
         let sideDistance = ListeningBottomBarLayout.miniPlayerWidth / 2
             + ListeningBottomBarLayout.gap + ListeningBottomBarLayout.tabSize / 2
@@ -79,6 +79,15 @@ private enum ListeningBottomBarGeometry {
         case .current: return -sideDistance
         case .listen: return 0
         case .footprints: return sideDistance
+        }
+    }
+
+    static func lensWidth(for tab: BeforeShowTab) -> CGFloat {
+        switch tab {
+        case .listen:
+            return ListeningBottomBarLayout.miniPlayerWidth - 12
+        case .current, .footprints:
+            return ListeningBottomBarLayout.tabSize - 12
         }
     }
 }
@@ -114,19 +123,21 @@ private struct ListeningLiquidGlassBottomChrome: View {
     }
 
     private var centerControl: some View {
-        ZStack {
+        let isSelected = selectedTab == .listen
+        return ZStack {
             if ListeningVideoDock.shared.hasVideo {
-                ListeningVideoMiniPlayer(dock: .shared) { openMiniPlayer(isVideo: true) }
+                ListeningVideoMiniPlayer(dock: .shared, isSelected: isSelected) { openMiniPlayer(isVideo: true) }
                     .transition(.opacity)
             } else if let room, let track {
                 ListeningCompactPlaybackControl(
                     room: room,
                     track: track,
+                    isSelected: isSelected,
                     onSelectListen: { openMiniPlayer(isVideo: false) }
                 )
                 .transition(.opacity)
             } else {
-                ListeningEmptyMiniPlayer(isSelected: selectedTab == .listen, onTap: openEmptyMiniPlayer)
+                ListeningEmptyMiniPlayer(isSelected: isSelected, onTap: openEmptyMiniPlayer)
                     .transition(.opacity)
             }
         }
@@ -139,10 +150,10 @@ private struct ListeningLiquidGlassBottomChrome: View {
     }
 
     private var selectionLens: some View {
-        Circle()
-            .fill(BSColor.Stage.accent.opacity(0.16))
+        Capsule()
+            .fill(BSColor.Stage.accent.opacity(0.18))
             .frame(
-                width: ListeningBottomBarLayout.tabSize - 12,
+                width: ListeningBottomBarGeometry.lensWidth(for: selectedTab),
                 height: ListeningBottomBarLayout.tabSize - 12
             )
             .offset(x: ListeningBottomBarGeometry.selectionOffset(for: selectedTab))
@@ -217,6 +228,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
 private struct ListeningCompactPlaybackControl: View {
     @Bindable var room: ListeningRoomCoordinator
     let track: ListeningDiscTrack
+    let isSelected: Bool
     let onSelectListen: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -231,10 +243,12 @@ private struct ListeningCompactPlaybackControl: View {
     init(
         room: ListeningRoomCoordinator,
         track: ListeningDiscTrack,
+        isSelected: Bool = false,
         onSelectListen: @escaping () -> Void
     ) {
         self.room = room
         self.track = track
+        self.isSelected = isSelected
         self.onSelectListen = onSelectListen
         let initialURL = ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: track.artworkURL,
@@ -286,7 +300,7 @@ private struct ListeningCompactPlaybackControl: View {
             }
             .gesture(trackSwipeGesture)
             .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(.isButton)
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
             .accessibilityLabel("\(track.title)，\(track.artistName)")
             .accessibilityHint(BSLocalization.text("返回听"))
             .accessibilityAction {
@@ -300,7 +314,7 @@ private struct ListeningCompactPlaybackControl: View {
             } label: {
                 Image(systemName: room.display.player.showsPauseControl ? "pause.fill" : "play.fill")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(BSColor.textPrimary)
+                    .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textPrimary)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(
                         width: BSLayout.minTouchTarget,
@@ -391,17 +405,21 @@ private struct ListeningCompactPlaybackControl: View {
     @ViewBuilder
     private func trackPage(_ pageTrack: ListeningDiscTrack) -> some View {
         HStack(spacing: 9) {
-            ListeningMiniArtwork(artwork: displayedArtwork(for: pageTrack), size: 34)
+            ListeningMiniArtwork(
+                artwork: displayedArtwork(for: pageTrack),
+                size: 34,
+                isHighlighted: isSelected
+            )
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(pageTrack.title)
                     .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(BSColor.textPrimary)
+                    .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textPrimary)
                     .lineLimit(1)
 
                 Text(pageTrack.artistName)
                     .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(BSColor.textTertiary)
+                    .foregroundStyle(isSelected ? BSColor.textSecondary : BSColor.textTertiary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
