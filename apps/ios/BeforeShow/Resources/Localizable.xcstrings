@@ -68,10 +68,10 @@
       }
     },
     "—" : {
-
+      "shouldTranslate" : false
     },
     "— %lld —" : {
-
+      "shouldTranslate" : false
     },
     "— 写于 %@" : {
       "localizations" : {
@@ -106,7 +106,7 @@
       }
     },
     "?" : {
-
+      "shouldTranslate" : false
     },
     "。别错过开场。" : {
       "localizations" : {
@@ -223,7 +223,7 @@
       }
     },
     "/ %lld" : {
-
+      "shouldTranslate" : false
     },
     "/ 年" : {
       "localizations" : {
@@ -321,7 +321,8 @@
             "value" : "%1$@ · %2$lld SHOWS"
           }
         }
-      }
+      },
+      "shouldTranslate" : false
     },
     "%@ · %lld 周年" : {
       "localizations" : {
@@ -2318,7 +2319,8 @@
             "value" : "%1$lld° / %2$lld°"
           }
         }
-      }
+      },
+      "shouldTranslate" : false
     },
     "%lld年%lld月%lld日" : {
       "localizations" : {
@@ -2452,7 +2454,7 @@
       "shouldTranslate" : false
     },
     "+1 · ADMIT TWO" : {
-
+      "shouldTranslate" : false
     },
     "$2.99/年" : {
       "localizations" : {
@@ -3146,7 +3148,7 @@
       }
     },
     "CANCELLED" : {
-
+      "shouldTranslate" : false
     },
     "CITIES 城市" : {
       "localizations" : {
@@ -3445,7 +3447,8 @@
             "value" : "No.%1$lld · %2$lld/%3$lld"
           }
         }
-      }
+      },
+      "shouldTranslate" : false
     },
     "NOW SHOWING" : {
       "localizations" : {
@@ -3512,7 +3515,7 @@
       }
     },
     "POSTPONED" : {
-
+      "shouldTranslate" : false
     },
     "Pro 不限次" : {
       "localizations" : {
@@ -4818,7 +4821,20 @@
       }
     },
     "今天的日落现场是%@。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's sunset show is %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的日落現場是%@。"
+          }
+        }
+      }
     },
     "今天结束" : {
       "localizations" : {
@@ -5020,7 +5036,20 @@
       }
     },
     "从「听」已拉取的专辑曲目里选" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose from album tracks loaded in Listen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從「聽」已載入的專輯曲目裡選"
+          }
+        }
+      }
     },
     "从%1$@到%2$@，只有%3$@没去现场。" : {
       "localizations" : {
@@ -5104,10 +5133,36 @@
       }
     },
     "从截图导入" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from Screenshot"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從截圖匯入"
+          }
+        }
+      }
     },
     "从相册添加" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add from Photos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從相簿加入"
+          }
+        }
+      }
     },
     "从相册选" : {
       "localizations" : {
@@ -6169,7 +6224,20 @@
       }
     },
     "全选此艺人" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All by This Artist"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全選此藝人"
+          }
+        }
+      }
     },
     "全部" : {
       "localizations" : {
@@ -6397,7 +6465,20 @@
       }
     },
     "关闭散场仪式" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close After-show Ritual"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉散場儀式"
+          }
+        }
+      }
     },
     "其他" : {
       "localizations" : {
@@ -6676,7 +6757,20 @@
       }
     },
     "写一句说明…" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a caption…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫一句說明…"
+          }
+        }
+      }
     },
     "写下你的问题或建议" : {
       "localizations" : {
@@ -6695,7 +6789,20 @@
       }
     },
     "写点今晚的记忆或安可时刻..." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write about tonight or the encore..."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫點今晚的記憶或安可時刻..."
+          }
+        }
+      }
     },
     "准备这场" : {
       "localizations" : {
@@ -7009,7 +7116,20 @@
       }
     },
     "分钟后开演 · %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min until start · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分鐘後開演 · %@"
+          }
+        }
+      }
     },
     "分钟后结束" : {
       "localizations" : {
@@ -7617,10 +7737,36 @@
       }
     },
     "加一首" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a Song"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加一首"
+          }
+        }
+      }
     },
     "加入 (%lld)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add (%lld)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 (%lld)"
+          }
+        }
+      }
     },
     "包含听过的歌曲" : {
       "localizations" : {
@@ -7933,7 +8079,20 @@
       }
     },
     "取消全选" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消全選"
+          }
+        }
+      }
     },
     "取消分享" : {
       "localizations" : {
@@ -8770,7 +8929,20 @@
       }
     },
     "唱了不在单上的" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Played but not on the list"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唱了不在單上的"
+          }
+        }
+      }
     },
     "唱片" : {
       "localizations" : {
@@ -9150,10 +9322,36 @@
       }
     },
     "在「听」中浏览专辑后即可在此快速选择" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse albums in Listen to pick them here"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「聽」中瀏覽專輯後即可在此快速選擇"
+          }
+        }
+      }
     },
     "在「听」里播放" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play in Listen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「聽」裡播放"
+          }
+        }
+      }
     },
     "在地图中打开" : {
       "localizations" : {
@@ -10383,7 +10581,20 @@
       }
     },
     "左右滑看下一格 · 下滑关闭" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe sideways for more · Swipe down to close"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左右滑看下一格 · 下滑關閉"
+          }
+        }
+      }
     },
     "已为你保留 %d 场想看演出，请核对后保存" : {
       "localizations" : {
@@ -10532,7 +10743,20 @@
       }
     },
     "已删除" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已刪除"
+          }
+        }
+      }
     },
     "已删除现场" : {
       "localizations" : {
@@ -10584,7 +10808,20 @@
       }
     },
     "已唱 %1$lld / %2$lld" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Played %1$lld / %2$lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已唱 %1$lld / %2$lld"
+          }
+        }
+      }
     },
     "已唱 %lld / %lld" : {
       "localizations" : {
@@ -10592,6 +10829,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "已唱 %1$lld / %2$lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Played %lld / %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已唱 %lld / %lld"
           }
         }
       }
@@ -10629,7 +10878,20 @@
       }
     },
     "已存进「%@」" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved to “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已存進「%@」"
+          }
+        }
+      }
     },
     "已延期" : {
       "localizations" : {
@@ -12546,7 +12808,20 @@
       }
     },
     "打勾" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打勾"
+          }
+        }
+      }
     },
     "打印待发通知" : {
       "extractionState" : "stale",
@@ -13000,7 +13275,20 @@
       }
     },
     "拍照" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take Photo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍照"
+          }
+        }
+      }
     },
     "拷贝后关闭浏览器，返回粘贴。" : {
       "extractionState" : "manual",
@@ -13403,7 +13691,20 @@
       }
     },
     "撤销" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復原"
+          }
+        }
+      }
     },
     "撤销结束" : {
       "localizations" : {
@@ -13477,7 +13778,20 @@
       }
     },
     "播放听模块当前的唱片" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play the current disc in Listen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放「聽」目前的唱片"
+          }
+        }
+      }
     },
     "播放器上盖" : {
       "extractionState" : "stale",
@@ -13563,7 +13877,20 @@
       }
     },
     "支持截图识别、从专辑选择或直接手输" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from a screenshot, pick from albums, or type it in"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支援截圖辨識、從專輯選擇或直接手輸"
+          }
+        }
+      }
     },
     "支持配合外部工具生成排期结果，粘贴后即可一键导入。" : {
       "localizations" : {
@@ -13848,7 +14175,20 @@
       }
     },
     "散场了，现场的心跳收进这里。" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The show's over. Its heartbeat lives here now."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "散場了，現場的心跳收進這裡。"
+          }
+        }
+      }
     },
     "散场了，记下这一刻。" : {
       "localizations" : {
@@ -14129,7 +14469,20 @@
       }
     },
     "散场短评" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After-show Note"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "散場短評"
+          }
+        }
+      }
     },
     "散场记录" : {
       "localizations" : {
@@ -15229,7 +15582,20 @@
       }
     },
     "暂停听模块当前的播放" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause playback in Listen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫停「聽」目前的播放"
+          }
+        }
+      }
     },
     "暂停试听" : {
       "localizations" : {
@@ -15635,7 +16001,20 @@
       }
     },
     "更多选项" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More Options"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多選項"
+          }
+        }
+      }
     },
     "更换图片" : {
       "localizations" : {
@@ -15929,7 +16308,20 @@
       }
     },
     "未找到已缓存的曲目" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cached tracks found"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到已快取的曲目"
+          }
+        }
+      }
     },
     "未找到有效的时刻表数据" : {
       "extractionState" : "manual",
@@ -16455,7 +16847,20 @@
       }
     },
     "歌单" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setlist"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌單"
+          }
+        }
+      }
     },
     "歌单记录员" : {
       "localizations" : {
@@ -20776,7 +21181,20 @@
       }
     },
     "补一首" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Another"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "補一首"
+          }
+        }
+      }
     },
     "补上" : {
       "localizations" : {
@@ -23952,7 +24370,20 @@
       }
     },
     "选择专辑曲目" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Album Tracks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇專輯曲目"
+          }
+        }
+      }
     },
     "选择图片" : {
       "localizations" : {
