@@ -1,21 +1,24 @@
 import SwiftData
 import SwiftUI
 
-/// 当前 tab 模块下方的「歌单 / 此刻 / 留下的东西」：与足迹详情同一组记录行，换成首页的磨砂模块。
+/// 当前 tab 模块下方的记录行：开场前只有歌单一行（不加标题），之后是「此刻 / 留下的东西」：与足迹详情同一组记录行，换成首页的磨砂模块。
 struct CurrentShowRecordSection: View {
     let show: Show
     let phase: HomeShowPhase
 
     var body: some View {
-        if let title = CurrentShowRecordKit.title(for: phase) {
+        let kinds = CurrentShowRecordKit.kinds(for: phase)
+        if !kinds.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text(title)
-                    .font(BSFont.Editorial.caps(13))
-                    .tracking(1.5)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .padding(.leading, 4)
-                    .accessibilityAddTraits(.isHeader)
-                ShowRecordRows(show: show, kinds: CurrentShowRecordKit.kinds(for: phase), phase: phase)
+                if let title = CurrentShowRecordKit.title(for: phase) {
+                    Text(title)
+                        .font(BSFont.Editorial.caps(13))
+                        .tracking(1.5)
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .padding(.leading, 4)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                ShowRecordRows(show: show, kinds: kinds, phase: phase)
                     .bsGlassCard(cornerRadius: 24)
             }
         }

@@ -102,4 +102,11 @@ final class MemoryMomentTests: XCTestCase {
         XCTAssertThrowsError(try MemoryMomentEditing.setCaption("", on: moments.first(where: \.isText)!, in: context))
         XCTAssertEqual(line.text, "只有字")
     }
+
+    func testBeforeShowRangeEndsAtStartWithoutInventingABeginning() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "Club", date: start, startTime: start)
+        let clock = BSDateFormat.clock(start, timeZone: show.timingFields.eventCalendar(fallback: .current).timeZone)
+        XCTAssertEqual(MemoryRollTimeRange.rangeText(for: .before, timing: show.timingFields, moments: []), "– \(clock)")
+    }
 }

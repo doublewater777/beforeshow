@@ -21,8 +21,8 @@ enum MemoryRollTimeRange {
             if let first = moments.first?.date, first < start {
                 return "\(clock(first)) – \(clock(start))"
             }
-            let est = start.addingTimeInterval(-3600)
-            return "\(clock(est)) – \(clock(start))"
+            // 开场前没有固定起点：记得多早都算，只标到开场为止。
+            return "– \(clock(start))"
         case .live:
             let start = timing.startTime
             let end = timing.endedAt ?? timing.endTime ?? start.addingTimeInterval(2 * 3600)

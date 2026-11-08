@@ -79,7 +79,7 @@ struct ShowSetlistSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    if isBefore {
+                    if isBefore, !items.isEmpty {
                         playInListenButton
                     }
                     songList
@@ -157,24 +157,10 @@ struct ShowSetlistSheet: View {
 
     private var playInListenButton: some View {
         Button(action: playInListen) {
-            HStack(spacing: 8) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
-                Text(BSLocalization.text("在「听」里播放"))
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(Color.white.opacity(items.isEmpty ? 0.35 : 0.92), in: Capsule())
-            .contentShape(Capsule())
+            Label(BSLocalization.text("在「听」里播放"), systemImage: "play.fill")
+                .lineLimit(1)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
-        .tint(Color(red: 11/255, green: 13/255, blue: 18/255))
-        .disabled(items.isEmpty)
+        .buttonStyle(BSPrimaryButtonStyle())
     }
 
     // MARK: - Song List
