@@ -79,8 +79,8 @@ struct ListeningPosterLayout: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.top, BSSpacing.xl)
-        // Folded, the cover fades down into the room; unfolded, it stays behind the headliners.
-        .background(alignment: isExpanded ? .top : .bottom) {
+        // The cover stays pinned behind the title; unfolding only lengthens the bill below it.
+        .background(alignment: .top) {
             // The cover fades out to transparent so it melts into the room's tinted light below.
             Color.clear
                 .frame(height: ListeningOverviewStyle.posterHeight)

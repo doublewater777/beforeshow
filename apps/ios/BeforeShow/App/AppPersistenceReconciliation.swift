@@ -85,72 +85,6 @@ func saveModelContextRollingBackOnFailure(_ modelContext: ModelContext) throws {
 }
 
 @MainActor
-func reconcileDynamicCoverModelBoundary(
-    in modelContext: ModelContext,
-    existingRelativePaths: Set<String>
-) throws -> Set<String> {
-    let shows = try modelContext.fetch(FetchDescriptor<Show>())
-    let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    let covers = try modelContext.fetch(FetchDescriptor<DynamicCover>())
-    var validPaths = Set<String>()
-    var mutated = false
-    var keptByShowID: [UUID: DynamicCover] = [:]
-
-    for cover in covers.sorted(by: { $0.updatedAt > $1.updatedAt }) {
-        guard let show = showsByID[cover.showID],
-              cover.showID == show.id,
-              DynamicCover.isValidRelativePath(cover.relativePath, showID: show.id),
-              existingRelativePaths.contains(cover.relativePath) else {
-            if let show = showsByID[cover.showID], show.dynamicCover?.id == cover.id {
-                show.dynamicCover = nil
-                DynamicCoverFaceStore.clear(showID: show.id)
-                mutated = true
-            }
-            modelContext.delete(cover)
-            mutated = true
-            continue
-        }
-        if let kept = keptByShowID[show.id], kept.id != cover.id {
-            modelContext.delete(cover)
-            mutated = true
-            continue
-        }
-        if cover.show?.id != show.id {
-            cover.show = show
-            mutated = true
-        }
-        keptByShowID[show.id] = cover
-        validPaths.insert(cover.relativePath)
-        if let posterPath = cover.posterRelativePath {
-            if DynamicCover.isValidRelativePath(posterPath, showID: show.id),
-               existingRelativePaths.contains(posterPath) {
-                validPaths.insert(posterPath)
-            } else {
-                cover.posterRelativePath = nil
-                mutated = true
-            }
-        }
-    }
-    for show in shows {
-        let reconciledCover = keptByShowID[show.id]
-        if show.dynamicCover?.id != reconciledCover?.id {
-            show.dynamicCover = reconciledCover
-            if reconciledCover == nil {
-                DynamicCoverFaceStore.clear(showID: show.id)
-            }
-            mutated = true
-        }
-        if show.dynamicCover?.showID != show.id {
-            show.dynamicCover = nil
-            DynamicCoverFaceStore.clear(showID: show.id)
-            mutated = true
-        }
-    }
-    if mutated { try modelContext.save() }
-    return validPaths
-}
-
-@MainActor
 func reconcileShowAssetShowBoundary(
     in modelContext: ModelContext,
     existingRelativePaths: Set<String>
@@ -217,6 +151,47 @@ func reconcileShowAssetShowBoundary(
         valid.insert(asset.relativePath)
     }
 
+    if mutated {
+        try saveModelContextRollingBackOnFailure(modelContext)
+    }
+    return valid
+}
+
+/// Merch photos share the ShowAssets root; keep their files out of the orphan sweep
+/// and drop records whose show or photo is gone.
+@MainActor
+func reconcileMerchShowBoundary(
+    in modelContext: ModelContext,
+    existingRelativePaths: Set<String>
+) throws -> Set<String> {
+    let showsByID = Dictionary(
+        try modelContext.fetch(FetchDescriptor<Show>()).map { ($0.id, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
+    var valid: Set<String> = []
+    var mutated = false
+    for item in try modelContext.fetch(FetchDescriptor<MerchItem>()) {
+        guard let show = showsByID[item.showID],
+              MerchItem.isValidRelativePath(item.relativePath, showID: item.showID),
+              existingRelativePaths.contains(item.relativePath) else {
+            modelContext.delete(item)
+            mutated = true
+            continue
+        }
+        if item.show?.id != show.id {
+            item.show = show
+            mutated = true
+        }
+        valid.insert(item.relativePath)
+        if let cutout = item.cutoutRelativePath {
+            if MerchItem.isValidRelativePath(cutout, showID: item.showID), existingRelativePaths.contains(cutout) {
+                valid.insert(cutout)
+            } else {
+                item.cutoutRelativePath = nil
+                mutated = true
+            }
+        }
+    }
     if mutated {
         try saveModelContextRollingBackOnFailure(modelContext)
     }

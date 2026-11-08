@@ -27,7 +27,7 @@ final class ShowAssetTests: XCTestCase {
             XCTAssertEqual(entries.first { $0.kind == .ticket }?.hasSavedAsset, false)
             let used = FeatureRecommendationLedger.usedFeatures(
                 in: show,
-                facts: FeatureUsageFacts(hasInstalledWidget: false, isICloudAvailable: false),
+                facts: FeatureUsageFacts(hasInstalledWidget: false),
                 hasFutureShow: false
             )
             XCTAssertEqual(used.contains(.timetable), hasSchedule || hasImage)

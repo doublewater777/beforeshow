@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// One door per Footprints room; each tile is a live miniature of the room behind it.
@@ -6,18 +7,29 @@ struct FootprintEntryTiles: View {
     let covers: [UUID: FootprintCover]
     let allShows: [Show]
 
+    @Query private var setlistMemories: [ShowSetlistMemory]
+    @Query private var merchItems: [MerchItem]
+    @Query private var fragments: [MemoryFragment]
+    @Query private var assets: [ShowAsset]
     @State private var isReadingBook = false
 
-    private enum Door: Hashable { case years, artists, venues, cities, pass, candle, book }
+    private enum Door: Hashable { case years, artists, venues, cities, pass, badges, candle, setlist, companions, merch, ledger, book }
 
     var body: some View {
         let anniversary = FootprintAnniversaryFinder.featured(in: FootprintAnniversaryFinder.upcoming(in: archive.shows))
-        let doors: [Door] = [.years, .artists, .venues, .cities, .pass] + (anniversary == nil ? [] : [.candle]) + [.book]
+        let more = FootprintMoreArchiveData(archive: archive, memories: setlistMemories, merch: merchItems)
+        let badges = FootprintBadgeCatalog.badges(FootprintBadgeCatalog.facts(archive: archive, memories: setlistMemories, merch: merchItems, fragments: fragments, assets: assets))
+        let doors: [Door] = [.years, .artists, .venues, .cities, .pass, .badges] + (anniversary == nil ? [] : [.candle])
+            + (more.songs.isEmpty ? [] : [.setlist])
+            + (more.bands.isEmpty ? [] : [.companions])
+            + (more.shelves.isEmpty ? [] : [.merch])
+            + (more.hasLedger ? [.ledger] : [])
+            + [.book]
         VStack(spacing: 12) {
             ForEach(Array(stride(from: 0, to: doors.count, by: 2)), id: \.self) { start in
                 HStack(spacing: 12) {
                     ForEach(doors[start..<min(start + 2, doors.count)], id: \.self) { door in
-                        link(door, anniversary: anniversary)
+                        link(door, anniversary: anniversary, more: more, badges: badges)
                     }
                 }
             }
@@ -32,7 +44,7 @@ struct FootprintEntryTiles: View {
     }
 
     @ViewBuilder
-    private func link(_ door: Door, anniversary: FootprintAnniversary?) -> some View {
+    private func link(_ door: Door, anniversary: FootprintAnniversary?, more: FootprintMoreArchiveData, badges: [FootprintBadge]) -> some View {
         switch door {
         case .years:
             NavigationLink { FootprintVinylYearsView(archive: archive, covers: covers) } label: { yearsTile }
@@ -56,6 +68,21 @@ struct FootprintEntryTiles: View {
                 } label: { candleTile(anniversary) }
                     .buttonStyle(BSPressStyle())
             }
+        case .badges:
+            NavigationLink { FootprintBadgeWallView(archive: archive) } label: { badgesTile(badges) }
+                .buttonStyle(BSPressStyle())
+        case .setlist:
+            NavigationLink { FootprintSetlistView(archive: archive, songs: more.songs) } label: { setlistTile(more.songs) }
+                .buttonStyle(BSPressStyle())
+        case .companions:
+            NavigationLink { FootprintCompanionBandsView(archive: archive, bands: more.bands) } label: { companionsTile(more.bands) }
+                .buttonStyle(BSPressStyle())
+        case .merch:
+            NavigationLink { FootprintMerchCabinetView(archive: archive, shelves: more.shelves) } label: { merchTile(more.shelves) }
+                .buttonStyle(BSPressStyle())
+        case .ledger:
+            NavigationLink { FootprintLedgerView(archive: archive) } label: { ledgerTile }
+                .buttonStyle(BSPressStyle())
         case .book:
             Button { isReadingBook = true } label: { bookTile }
                 .buttonStyle(BSPressStyle())
@@ -156,7 +183,7 @@ struct FootprintEntryTiles: View {
         }
     }
 
-    private func tile<Art: View>(
+    func tile<Art: View>(
         title: String,
         subtitle: String,
         background: AnyShapeStyle,

@@ -14,8 +14,6 @@ struct CurrentShowManagementSection: View {
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
     var onSetCurrentShow: (Show) -> Void = { _ in }
-    var onChooseDynamicCover: () -> Void = {}
-    var isImportingDynamicCover = false
     var onConfirmEnd: (Date) async -> Bool
     var homeArrival: CurrentShowHomeArrival?
     var onHomeArrivalPrepared: (UUID) -> Void = { _ in }
@@ -28,14 +26,11 @@ struct CurrentShowManagementSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) var modelContext
     @Environment(\.openURL) private var openURL
-    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Environment(\.scenePhase) private var scenePhase
     @Query private var recommendationRecords: [FeatureRecommendationRecord]
     @Query private var notificationRecords: [ShowNotificationScheduleRecord]
     @AppStorage(FeatureUsageEnvironment.widgetKey) private var hasInstalledWidget = false
-    @AppStorage(FeatureUsageEnvironment.iCloudKey) private var isICloudAvailable = false
     @State var presentedSheet: CurrentShowPresentedSheet?
-    @State var pendingMemoryCreate: MemoryCreateSourceOption?
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
@@ -57,7 +52,6 @@ struct CurrentShowManagementSection: View {
 
     private var hasPresentationRequest: Bool {
         presentedSheet != nil
-            || pendingMemoryCreate != nil
             || ceremonyLightsOutShowID != nil
             || ceremonySheetShowID != nil
     }
@@ -126,12 +120,7 @@ struct CurrentShowManagementSection: View {
                     }
                 )
             case .companion:
-                CurrentShowCompanionSheet(
-                    show: show,
-                    sharedHistory: companionHistory,
-                    isEnded: currentPhase == .ended,
-                    coordinator: companionCoordinator
-                )
+                CompanionEditorSheet(show: show)
             case .asset(let kind):
                 ShowAssetSheet(
                     showID: show.id,
@@ -140,12 +129,9 @@ struct CurrentShowManagementSection: View {
                     onDetailVisibilityChange: onDetailVisibilityChange
                 )
             case .memory:
-                MemoryFragmentsSheet(show: show, pendingCreate: pendingMemoryCreate)
+                MemoryFragmentsSheet(show: show)
             case .memoryCreate:
-                MemoryCreateSourceSheet { option in
-                    pendingMemoryCreate = option
-                    presentedSheet = nil
-                }
+                MemoryFragmentsSheet(show: show, pendingCreate: .quick)
             case .mapChooser:
                 MapChooserSheet(
                     hasDestination: hasMapDestination,
@@ -219,12 +205,6 @@ struct CurrentShowManagementSection: View {
             if newSheet != nil {
                 isPresentationVisibilityLatched = true
             }
-            if newSheet == nil, oldSheet == .memoryCreate, pendingMemoryCreate != nil {
-                presentedSheet = .memory
-            }
-            if newSheet == nil, oldSheet == .memory {
-                pendingMemoryCreate = nil
-            }
         }
         .onChange(of: ceremonyLightsOutShowID, initial: true) { _, showID in
             if showID != nil {
@@ -238,9 +218,6 @@ struct CurrentShowManagementSection: View {
         }
         .onChange(of: isPresentationActive, initial: true) { _, isActive in
             onPresentationVisibilityChange(isActive)
-        }
-        .task(id: show.companionCloudRecordName) {
-            await companionCoordinator.refreshCompanion(for: show, in: modelContext)
         }
         .task(id: homeArrival) {
             await runHomeArrivalIfNeeded()
@@ -345,9 +322,7 @@ struct CurrentShowManagementSection: View {
                     let hero = HomeStageHero(
                         show: show,
                         snapshot: snapshot,
-                        isPlaybackActive: isHeroPlaybackActive,
                         reduceMotion: reduceMotion,
-                        isImportingDynamicCover: isImportingDynamicCover, onChooseVideo: onChooseDynamicCover,
                         topExtension: topInset + BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding + 18,
                         screens: liveTimetable == nil ? nil : screens,
                         livePhase: liveState?.phase,
@@ -396,14 +371,8 @@ struct CurrentShowManagementSection: View {
                                 onEndShow: canRecordEnd
                                     ? { presentedSheet = .endConfirmation }
                                     : nil,
-                                onMemoryFragments: {
-                                    pendingMemoryCreate = nil
-                                    presentedSheet = .memory
-                                },
-                                onMemoryCreate: {
-                                    pendingMemoryCreate = nil
-                                    presentedSheet = .memoryCreate
-                                },
+                                onMemoryFragments: { presentedSheet = .memory },
+                                onMemoryCreate: { presentedSheet = .memoryCreate },
                                 onOpenRoute: embedsRouteInLocation
                                     ? { openRouteChooser() }
                                     : nil
@@ -417,7 +386,7 @@ struct CurrentShowManagementSection: View {
                     .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
                     .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
 
-                    CurrentShowActionModules(show: show, actions: allActions, companion: companionPresentation, now: now, routeIsProminent: phase == .pre, timetableIsLive: liveTimetable != nil, perform: performQuickAction)
+                    CurrentShowActionModules(show: show, actions: allActions, companion: companionPresentation, now: now, routeIsProminent: phase == .pre, timetableIsLive: liveTimetable != nil, recordPhase: phase, perform: performQuickAction)
                         .padding(.horizontal, contentInset)
                         .padding(.top, 28)
                         .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
@@ -515,7 +484,7 @@ struct CurrentShowManagementSection: View {
         ) else {
             return nil
         }
-        let facts = FeatureUsageFacts(hasInstalledWidget: hasInstalledWidget, isICloudAvailable: isICloudAvailable)
+        let facts = FeatureUsageFacts(hasInstalledWidget: hasInstalledWidget)
         let ledger = FeatureRecommendationLedger.snapshot(
             shows: attachedCandidateShows,
             records: recommendationRecords,
@@ -566,7 +535,7 @@ struct CurrentShowManagementSection: View {
             return
         }
 
-        if presentedSheet != nil || pendingMemoryCreate != nil {
+        if presentedSheet != nil {
             isPresentationVisibilityLatched = true
             return
         }
@@ -588,13 +557,6 @@ struct CurrentShowManagementSection: View {
         guard let query = routeQuery,
               let url = app.openURL(for: query) else { return }
         openURL(url)
-    }
-
-    private var companionHistory: [Show] {
-        CompanionSharedHistory.shows(
-            matching: show,
-            from: attachedCandidateShows
-        )
     }
 
 }

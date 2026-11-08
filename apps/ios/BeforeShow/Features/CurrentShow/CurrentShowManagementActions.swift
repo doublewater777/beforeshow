@@ -70,7 +70,6 @@ extension CurrentShowManagementSection {
         case .route:
             openRouteChooser()
         case .memoryCreate:
-            pendingMemoryCreate = nil
             presentedSheet = .memoryCreate
         case .memoryFragments:
             openMemoryFragments()
@@ -111,7 +110,6 @@ extension CurrentShowManagementSection {
     }
 
     func openMemoryFragments() {
-        pendingMemoryCreate = nil
         presentedSheet = .memory
     }
 
@@ -181,11 +179,6 @@ extension CurrentShowManagementSection {
         return show.name
     }
     var companionPresentation: CompanionQuickActionPresentation {
-        CompanionQuickActionPresentation(
-            status: show.companionStatus,
-            companionNames: show.companionNames,
-            isEnded: currentPhase == .ended,
-            isInvitationShared: show.companionInvitationShared
-        )
+        CompanionQuickActionPresentation(companionNames: show.companionNames)
     }
 }

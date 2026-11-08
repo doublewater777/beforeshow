@@ -45,8 +45,6 @@ struct PrivacyLocalDataView: View {
                             .listRowBackground(BSColor.Stage.surface)
                         inventoryRow(BSLocalization.text("票根与时刻表"), value: BSLocalization.format("%lld 个", inventory.assetCount))
                             .listRowBackground(BSColor.Stage.surface)
-                        inventoryRow(BSLocalization.text("动态封面"), value: BSLocalization.format("%lld 个", inventory.dynamicCoverCount))
-                            .listRowBackground(BSColor.Stage.surface)
                         inventoryRow(BSLocalization.text("App 内占用"), value: formattedBytes(inventory.appBytes))
                             .listRowBackground(BSColor.Stage.surface)
                     }
@@ -167,6 +165,7 @@ struct PrivacyLocalDataView: View {
                     try context.save()
                     ListeningDailyFeaturedDiscPolicy.clearSelections()
                     ListeningDiscPickPolicy.clearDraws()
+                    ListeningTodayDiscPolicy.clearSelections()
                     FreeShowCapacityCoordinator().reset()
                     // 系统通知中心里的 pending 请求不受 SwiftData 删除影响，
                     // 必须显式清掉，否则清空数据后通知仍按时弹出、深链指向已删除的现场。
@@ -175,7 +174,6 @@ struct PrivacyLocalDataView: View {
                     context.rollback()
                     throw error
                 }
-                DynamicCoverFaceStore.clearAll()
                 ShowAssetCleanupRetry.markFullCleanupPending()
                 ShowAssetCleanupRetry.clearFullCleanupPrepared()
 
@@ -185,11 +183,6 @@ struct PrivacyLocalDataView: View {
                     try await ShowAssetMediaStore.shared.deleteAll()
                 } catch {
                     cleanupFailures.append(BSLocalization.text("票根和时刻表副本"))
-                }
-                do {
-                    try await DynamicCoverMediaStore.shared.deleteAll()
-                } catch {
-                    cleanupFailures.append(BSLocalization.text("动态封面视频副本"))
                 }
                 if cleanupFailures.isEmpty {
                     ShowAssetCleanupRetry.clearFullCleanupPending()

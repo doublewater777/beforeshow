@@ -39,14 +39,12 @@ func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) async {
     guard ShowAssetCleanupRetry.isFullCleanupPrepared
             || ShowAssetCleanupRetry.isFullCleanupPending
             || !ShowAssetCleanupRetry.pendingShowCleanupIDs.isEmpty
-            || !ShowAssetCleanupRetry.pendingAssets.isEmpty
-            || !ShowAssetCleanupRetry.pendingDynamicCovers.isEmpty else { return }
+            || !ShowAssetCleanupRetry.pendingAssets.isEmpty else { return }
 
     await ShowAssetMediaStore.shared.acquireCommitGate()
     if ShowAssetCleanupRetry.isFullCleanupPrepared {
         let hasPersistedShowData = ((try? context.fetch(FetchDescriptor<Show>()).isEmpty == false) ?? true)
             || ((try? context.fetch(FetchDescriptor<ShowAsset>()).isEmpty == false) ?? true)
-            || ((try? context.fetch(FetchDescriptor<DynamicCover>()).isEmpty == false) ?? true)
         if hasPersistedShowData {
             // The crash happened before the model transaction committed. Do not
             // delete any live ticket/timetable files; the next clear can start fresh.
@@ -57,13 +55,9 @@ func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) async {
         }
     }
     if ShowAssetCleanupRetry.isFullCleanupPending {
-        DynamicCoverFaceStore.clearAll()
         await retryPendingFullCleanup(
             deleteShowAssets: {
                 try await ShowAssetMediaStore.shared.deleteAll()
-            },
-            deleteDynamicCovers: {
-                try await DynamicCoverMediaStore.shared.deleteAll()
             }
         )
     }
@@ -87,40 +81,20 @@ func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) async {
             // Keep this exact path marked for the next retry.
         }
     }
-    for pending in ShowAssetCleanupRetry.pendingDynamicCovers {
-        do {
-            try await DynamicCoverMediaStore.shared.delete(
-                relativePath: pending.relativePath,
-                showID: pending.showID
-            )
-            ShowAssetCleanupRetry.clearDynamicCoverCleanupPending(pending)
-        } catch {
-            // Keep this exact path marked for the next retry.
-        }
-    }
     await ShowAssetMediaStore.shared.releaseCommitGate()
 }
 
 @MainActor
 func retryPendingFullCleanup(
-    deleteShowAssets: @escaping () async throws -> Void,
-    deleteDynamicCovers: @escaping () async throws -> Void
+    deleteShowAssets: @escaping () async throws -> Void
 ) async {
     guard ShowAssetCleanupRetry.isFullCleanupPending else { return }
 
-    var cleanupSucceeded = true
     do {
         try await deleteShowAssets()
-    } catch {
-        cleanupSucceeded = false
-    }
-    do {
-        try await deleteDynamicCovers()
-    } catch {
-        cleanupSucceeded = false
-    }
-    if cleanupSucceeded {
         ShowAssetCleanupRetry.clearFullCleanupPending()
+    } catch {
+        // Stay pending for the next retry.
     }
 }
 
@@ -156,42 +130,16 @@ func reconcileAllShowAssets(in modelContext: ModelContext) async {
     await ShowAssetMediaStore.shared.acquireCommitGate()
     do {
         let existingRelativePaths = try await ShowAssetMediaStore.shared.verifiedExistingRelativePaths()
-        let valid = try reconcileShowAssetShowBoundary(
+        var valid = try reconcileShowAssetShowBoundary(
             in: modelContext,
             existingRelativePaths: existingRelativePaths
         )
+        valid.formUnion(try reconcileMerchShowBoundary(in: modelContext, existingRelativePaths: existingRelativePaths))
         try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
         await ShowAssetMediaStore.shared.releaseCommitGate()
     } catch {
         modelContext.rollback()
         await ShowAssetMediaStore.shared.releaseCommitGate()
         // Best-effort recovery; next launch/active retries.
-    }
-}
-
-@MainActor
-func reconcileAllDynamicCovers(
-    in modelContext: ModelContext,
-    includesStagingCleanup: Bool
-) async {
-    await LocalMediaCommitGate.shared.acquire()
-    defer { Task { await LocalMediaCommitGate.shared.release() } }
-    do {
-        let existingPaths = try await DynamicCoverMediaStore.shared.verifiedExistingRelativePaths()
-        let validPaths = try reconcileDynamicCoverModelBoundary(
-            in: modelContext,
-            existingRelativePaths: existingPaths
-        )
-        try await DynamicCoverMediaStore.shared.reconcile(validRelativePaths: validPaths)
-        if includesStagingCleanup {
-            try await DynamicCoverMediaStore.shared.cleanupStaging(
-                olderThan: Date().addingTimeInterval(-86_400)
-            )
-            try await DynamicCoverMediaStore.shared.cleanupImportTemp(
-                olderThan: Date().addingTimeInterval(-86_400)
-            )
-        }
-    } catch {
-        modelContext.rollback()
     }
 }

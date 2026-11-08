@@ -116,18 +116,6 @@ enum FootprintCoverResolver {
             )
         }
 
-        if let posterPath = show.dynamicCover?.posterRelativePath,
-           !posterPath.isEmpty,
-           let location = try? DynamicCoverMediaLocation.applicationSupport() {
-            return FootprintCover(
-                showID: show.id,
-                source: .local(location.url(for: posterPath)),
-                badge: .archive,
-                ordinal: ordinal,
-                variant: FootprintArchiveCoverLayout.variant(for: show.id)
-            )
-        }
-
         return FootprintCover(
             showID: show.id,
             source: .archive,

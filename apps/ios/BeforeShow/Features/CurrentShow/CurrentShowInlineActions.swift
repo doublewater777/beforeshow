@@ -13,12 +13,16 @@ struct CurrentShowActionModules: View {
     var routeIsProminent = false
     /// Live mode already lists who's next; the timetable module is then just the way in.
     var timetableIsLive = false
+    /// 模块下方接「此刻 / 留下的」记录行；开场前没有。
+    var recordPhase: HomeShowPhase = .pre
     let perform: (CurrentShowQuickAction) -> Void
 
     @Query private var tickets: [ShowAsset]
+    @State private var memoryCaptureSource: MemoryCreateSourceOption?
 
-    init(show: Show, actions: [CurrentShowQuickAction], companion: CompanionQuickActionPresentation, now: Date = .now, routeIsProminent: Bool = false, timetableIsLive: Bool = false, perform: @escaping (CurrentShowQuickAction) -> Void) {
+    init(show: Show, actions: [CurrentShowQuickAction], companion: CompanionQuickActionPresentation, now: Date = .now, routeIsProminent: Bool = false, timetableIsLive: Bool = false, recordPhase: HomeShowPhase = .pre, perform: @escaping (CurrentShowQuickAction) -> Void) {
         self.timetableIsLive = timetableIsLive
+        self.recordPhase = recordPhase
         self.show = show
         self.actions = actions
         self.companion = companion
@@ -57,7 +61,7 @@ struct CurrentShowActionModules: View {
 
     private func isWide(_ action: CurrentShowQuickAction) -> Bool {
         switch action {
-        case .route, .timetable, .endShow, .ticket: true
+        case .route, .timetable, .endShow, .ticket, .memoryFragments: true
         default: false
         }
     }
@@ -77,10 +81,23 @@ struct CurrentShowActionModules: View {
                     }
                 }
             }
+            CurrentShowRecordSection(show: show, phase: recordPhase)
+                .padding(.top, 16)
         }
     }
 
+    @ViewBuilder
     private func module(_ action: CurrentShowQuickAction) -> some View {
+        if action == .memoryFragments {
+            memoryModule
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .bsGlassCard(cornerRadius: 24)
+        } else {
+            tappableModule(action)
+        }
+    }
+
+    private func tappableModule(_ action: CurrentShowQuickAction) -> some View {
         Button { perform(action) } label: {
             Group {
                 switch action {
@@ -88,7 +105,7 @@ struct CurrentShowActionModules: View {
                 case .timetable: timetableModule
                 case .endShow: endModule
                 case .companion: companionModule
-                case .memoryFragments: memoryModule
+                case .memoryFragments: EmptyView()
                 case .route: CurrentShowRouteModule(show: show, isProminent: routeIsProminent)
                 case .dispersal(let completed):
                     square(action, value: BSLocalization.text(completed ? "已记下" : "这一场怎么样"), note: nil)
@@ -105,7 +122,6 @@ struct CurrentShowActionModules: View {
     private func stripModule(_ action: CurrentShowQuickAction) -> some View {
         let value: String = switch action {
         case .companion: companion.showsAvatars ? (companion.companionName ?? companion.displayTitle) : companion.displayTitle
-        case .memoryFragments: show.memoryFragments.isEmpty ? BSLocalization.text("记一段") : BSLocalization.format("%lld 段", show.memoryFragments.count)
         case .dispersal(let completed): BSLocalization.text(completed ? "已记下" : "这一场怎么样")
         default: ""
         }
@@ -285,50 +301,40 @@ struct CurrentShowActionModules: View {
         }
         .padding(16)
         .frame(minHeight: 140)
-        .overlay(alignment: .topTrailing) {
-            if companion.displayShowsPendingIndicator {
-                Circle().fill(BSColor.Stage.live).frame(width: 7, height: 7).padding(10)
-            }
-        }
     }
 
+    /// The latest frames of the night, and the three ways to add one without leaving the page.
     private var memoryModule: some View {
-        let fragments = show.memoryFragments
-        let media = fragments
-            .sorted { $0.createdAt > $1.createdAt }
-            .flatMap(\.orderedMediaItems)
-            .prefix(3)
-        return VStack(alignment: .leading, spacing: 0) {
-            header(BSLocalization.text("记忆碎片"))
-            Spacer(minLength: 12)
-            if media.isEmpty {
-                Image(systemName: CurrentShowQuickAction.memoryFragments.iconName)
-                    .font(.system(size: 20))
-                    .foregroundStyle(BSColor.Stage.muted)
-            } else {
-            HStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { index in
-                    Group {
-                        if index < media.count {
-                            let item = media[media.startIndex + index]
-                            MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
-                        } else {
-                            Color.white.opacity(0.06)
+        let moments = MemoryMomentTimeline.moments(from: show.memoryFragments)
+        let recent = Array(moments.suffix(4).reversed())
+        return VStack(alignment: .leading, spacing: 12) {
+            Button { perform(.memoryFragments) } label: {
+                VStack(alignment: .leading, spacing: 12) {
+                    header(BSLocalization.text("记忆碎片"), trailing: moments.isEmpty ? nil : BSLocalization.format("%lld 段", moments.count))
+                    if !recent.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(0..<4, id: \.self) { index in
+                                Group {
+                                    if index < recent.count {
+                                        MemoryMomentCell(moment: recent[index])
+                                    } else {
+                                        Color.white.opacity(0.06).aspectRatio(1, contentMode: .fit)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(1, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
+                .contentShape(Rectangle())
             }
-            }
-            Spacer(minLength: 12)
-            Text(fragments.isEmpty ? BSLocalization.text("记一段") : BSLocalization.format("%lld 段", fragments.count))
-                .font(BSFont.Editorial.serif(19))
-                .foregroundStyle(BSColor.Stage.foreground)
+            .buttonStyle(.plain)
+            MemoryCaptureBar { memoryCaptureSource = $0 }
         }
         .padding(16)
-        .frame(minHeight: 140)
+        .memoryCapture($memoryCaptureSource, show: show) { saved in
+            UINotificationFeedbackGenerator().notificationOccurred(saved ? .success : .error)
+        }
     }
 
     private func square(_ action: CurrentShowQuickAction, value: String, note: String?) -> some View {

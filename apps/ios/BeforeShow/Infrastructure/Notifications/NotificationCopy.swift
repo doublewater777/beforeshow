@@ -37,7 +37,7 @@ struct NotificationCopy {
         let line: String
         switch feature {
         case .companion:
-            line = BSLocalization.text("和朋友一起去？邀请他们加入这场。")
+            line = BSLocalization.text("和谁一起去？记下来，散场后会留在足迹里。")
         case .timetable:
             line = BSLocalization.text("把时刻表存进这里，在现场能随时查看。")
         default:

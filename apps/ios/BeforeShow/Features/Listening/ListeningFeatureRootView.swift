@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import SwiftData
 
@@ -86,7 +87,7 @@ enum ListeningChromeBootstrapper {
     }
 
     /// Widget play when no seated session is in memory. Unlike `prepare`, this may
-    /// load the current show: the user asked to hear its live-preview disc.
+    /// load the current show: the user asked to hear its 「今天这张」.
     static func roomForWidgetPlayback(
         show: Show,
         context: ModelContext,
@@ -96,7 +97,7 @@ enum ListeningChromeBootstrapper {
     ) async -> ListeningRoomCoordinator {
         let session = ListeningRoomSessionStore.shared
         if let cached = session.room, cached.show?.id == show.id {
-            if !cached.accessResolved || cached.livePreviewDisc == nil {
+            if !cached.accessResolved || cached.todayDisc() == nil {
                 await cached.load(show: show)
             }
             return cached
@@ -181,7 +182,11 @@ struct ListeningRootChromeModifier: ViewModifier {
                 room.setForeground(isForeground)
                 if isForeground {
                     Task { await room.refreshMusicAccessAfterForeground() }
+                    room.refreshWidgetForDay()
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in
+                ListeningRoomSessionStore.shared.room?.refreshWidgetForDay()
             }
     }
 }

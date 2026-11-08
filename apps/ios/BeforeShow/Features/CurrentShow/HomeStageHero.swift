@@ -5,10 +5,7 @@ import SwiftUI
 struct HomeStageHero: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
-    var isPlaybackActive = true
     var reduceMotion = false
-    var isImportingDynamicCover = false
-    var onChooseVideo: (() -> Void)? = nil
     /// How far the stage reaches up past its slot, behind the page header and status bar.
     var topExtension: CGFloat = 0
     /// Festival timetable live: the screens carry the acts instead of the poster.
@@ -38,11 +35,7 @@ struct HomeStageHero: View {
                     show: show,
                     snapshot: snapshot,
                     coverWidth: Self.coverWidth,
-                    isPlaybackActive: isPlaybackActive,
                     reduceMotion: reduceMotion,
-                    isImportingDynamicCover: isImportingDynamicCover,
-                    onChooseVideo: onChooseVideo,
-                    opensDetail: true,
                     onStage: true
                 )
             }

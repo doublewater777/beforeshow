@@ -72,7 +72,7 @@ private struct FootprintCoverLocalImage<Fallback: View>: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        // `.local` 封面全部来自用户现场素材（记忆照片 / 票根 / 动态封面 /
+        // `.local` 封面全部来自用户现场素材（记忆照片 / 票根 /
         // 本地封面文件），一律遮罩；远程 CDN 封面走 remote 分支，不遮。
         .bsMaskUserContent()
         .task(id: url) {

@@ -1,4 +1,3 @@
-import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -40,16 +39,11 @@ struct CurrentShowHomeView: View {
     @State private var isShowingWidgetPreview = false
     #endif
     @State private var toast: BSToastPayload?
-    @State private var isShowingDynamicCoverPicker = false
-    @State private var selectedDynamicCoverItem: PhotosPickerItem?
     /// 刚刚散场确认成功后由 `ceremonyLightsOutShowID` 拉起独立 fullScreen 熄灯；
     /// 熄灯结束后再串行切到 `ceremonySheetShowID`。补记散场时间则直接进入仪式 sheet。
     /// 两份均为 nil = 无仪式 presentation。
     @State private var ceremonyLightsOutShowID: UUID?
     @State private var ceremonySheetShowID: UUID?
-    @State private var dynamicCoverImportTask: Task<Void, Never>?
-    @State private var isImportingDynamicCover = false
-    @State private var dynamicCoverErrorMessage: String?
     @State private var isDetailVisible = false
     @State private var isManagementPresentationActive = false
     @State private var isRequestingNotificationPermission = false
@@ -81,9 +75,6 @@ struct CurrentShowHomeView: View {
 
         return isDetailVisible
             || presentedSheet != nil
-            || isShowingDynamicCoverPicker
-            || isImportingDynamicCover
-            || dynamicCoverErrorMessage != nil
             || debugPresentationActive
     }
 
@@ -129,8 +120,6 @@ struct CurrentShowHomeView: View {
                         onOpenSettings: { presentedSheet = .settings },
                         onOpenShowLibrary: { presentedSheet = .showLibrary },
                         onSetCurrentShow: selectCurrentShow,
-                        onChooseDynamicCover: presentDynamicCoverPicker,
-                        isImportingDynamicCover: isImportingDynamicCover,
                         onConfirmEnd: { endDate in
                             await confirmEnd(show, at: endDate)
                         },
@@ -178,30 +167,6 @@ struct CurrentShowHomeView: View {
             .bsToastOverlay(toast, bottomPadding: 90)
             .toolbar(.hidden, for: .navigationBar)
             .bsRootBottomChrome()
-            .photosPicker(
-                isPresented: $isShowingDynamicCoverPicker,
-                selection: $selectedDynamicCoverItem,
-                matching: .videos
-            )
-            .onChange(of: selectedDynamicCoverItem) { _, item in
-                guard let item, !isImportingDynamicCover, let show = currentShow else { return }
-                dynamicCoverImportTask?.cancel()
-                isImportingDynamicCover = true
-                dynamicCoverImportTask = Task { @MainActor in
-                    await importDynamicCover(item, for: show)
-                }
-            }
-            .alert(
-                BSLocalization.text("动态封面没有更新"),
-                isPresented: Binding(
-                    get: { dynamicCoverErrorMessage != nil },
-                    set: { if !$0 { dynamicCoverErrorMessage = nil } }
-                )
-            ) {
-                Button(BSLocalization.text("知道了"), role: .cancel) { dynamicCoverErrorMessage = nil }
-            } message: {
-                Text(dynamicCoverErrorMessage ?? BSLocalization.text("请重试"))
-            }
             #if DEBUG
             .fullScreenCover(isPresented: $isShowingWidgetPreview) {
                 LiveAndWidgetShowcaseView()
@@ -344,11 +309,6 @@ struct CurrentShowHomeView: View {
         }
     }
 
-    private func presentDynamicCoverPicker() {
-        guard !isImportingDynamicCover else { return }
-        isShowingDynamicCoverPicker = true
-    }
-
     /// 按此刻重算全部 eligible 现场并对齐已排通知。空转很便宜：计划没变时不重写任何东西。
     @MainActor
     private func reconcileNotificationPortfolio() async {
@@ -414,24 +374,6 @@ struct CurrentShowHomeView: View {
 
         _ = await center.requestAuthorization()
         await reconcileNotificationPortfolio()
-    }
-
-    @MainActor
-    private func importDynamicCover(_ item: PhotosPickerItem, for show: Show) async {
-        defer {
-            selectedDynamicCoverItem = nil
-            isImportingDynamicCover = false
-            dynamicCoverImportTask = nil
-        }
-        do {
-            try await DynamicCoverImportCoordinator.importVideo(item, for: show, in: modelContext)
-        } catch is CancellationError {
-            return
-        } catch let error as DynamicCoverMediaStoreError {
-            dynamicCoverErrorMessage = DynamicCoverErrorMessagePolicy.message(for: error)
-        } catch {
-            dynamicCoverErrorMessage = BSLocalization.text("视频没有载入，请重试。")
-        }
     }
 
     private func handleHomeArrivalPrepared(_ showID: UUID) {

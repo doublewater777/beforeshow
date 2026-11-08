@@ -200,7 +200,7 @@ final class ListeningDeletionTests: XCTestCase {
         let snapshot = FeatureRecommendationLedger.snapshot(
             shows: staleViewInput.filter(\.isAttached),
             records: [],
-            facts: FeatureUsageFacts(hasInstalledWidget: false, isICloudAvailable: false),
+            facts: FeatureUsageFacts(hasInstalledWidget: false),
             now: Date()
         )
         XCTAssertEqual(snapshot.shows.map(\.showID), [kept.id])

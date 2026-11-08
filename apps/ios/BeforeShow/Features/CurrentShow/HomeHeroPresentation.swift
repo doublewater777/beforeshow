@@ -31,13 +31,8 @@ struct HomeHeroStage: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
     let coverWidth: CGFloat
-    var isPlaybackActive = true
     var reduceMotion: Bool = false
     @State private var glowBreathing = false
-    /// 动态封面正在从照片图库导入,封面上盖一层进度态。
-    var isImportingDynamicCover = false
-    var onChooseVideo: (() -> Void)? = nil
-    var opensDetail = false
     /// Hung as the LED wall of the stage: square corners, scanlines, the stage does the glow.
     var onStage = false
 
@@ -52,31 +47,15 @@ struct HomeHeroStage: View {
     }
 
     private func heroVisual(width: CGFloat, height: CGFloat) -> some View {
-        DynamicCoverFlipView(
-            showID: show.id,
-            dynamicCover: show.dynamicCover,
-            width: width,
-            height: height,
-            isPlaybackActive: isPlaybackActive && phase != .inactive,
-            reduceMotion: reduceMotion,
-            onChooseVideo: onChooseVideo,
-            opensDetail: opensDetail,
-            accessibilityName: show.name
-        ) {
-            ShowCoverImageView(
-                urlString: show.coverImageURL,
-                aspectRatio: 3.0 / 4.0,
-                contentMode: .fill,
-                alignment: .center,
-                enforcesAspectRatio: false,
-                cornerRadius: cornerRadius,
-                restoresPersistedImageOnFirstFrame: true
-            )
-        }
-        // CurrentShowManagementSection is structurally reused when the selected
-        // show changes. Give the cover subtree a show-bound identity so its @State
-        // reloads DynamicCoverFaceStore instead of leaking the previous show's face
-        // and media URL into the newly selected show.
+        ShowCoverImageView(
+            urlString: show.coverImageURL,
+            aspectRatio: 3.0 / 4.0,
+            contentMode: .fill,
+            alignment: .center,
+            enforcesAspectRatio: false,
+            cornerRadius: cornerRadius,
+            restoresPersistedImageOnFirstFrame: true
+        )
         .id(show.id)
         .frame(width: width, height: height)
         .saturation(phase == .inactive ? 0.35 : (phase == .ended ? 0.72 : 1.0))
@@ -88,15 +67,6 @@ struct HomeHeroStage: View {
         .overlay(
             RoundedRectangle(cornerRadius: cornerRadius)
                 .stroke(Color.white.opacity(0.07), lineWidth: 1)
-        )
-        .overlay {
-            if isImportingDynamicCover {
-                importingOverlay
-            }
-        }
-        .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.22),
-            value: isImportingDynamicCover
         )
         .shadow(color: .black.opacity(onStage ? 0 : 0.55), radius: 30, y: 15)
         .background {
@@ -128,24 +98,4 @@ struct HomeHeroStage: View {
     }
 
     /// 导入耗时不可预估(图库可能要先下载 iCloud 原件),所以用不确定进度 + 一句说明。
-    private var importingOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.42)
-
-            VStack(spacing: BSSpacing.sm) {
-                ProgressView()
-                    .tint(.white)
-                Text("正在准备视频…")
-                    .font(BSFont.V3.caption)
-                    .foregroundStyle(.white.opacity(0.86))
-            }
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, BSSpacing.compact)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BSRadius.md))
-        }
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        .transition(.opacity)
-        .accessibilityElement()
-        .accessibilityLabel(BSLocalization.text("正在准备视频…"))
-    }
 }

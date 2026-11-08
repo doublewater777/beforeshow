@@ -63,10 +63,6 @@ final class ProductAnalyticsTests: XCTestCase {
         XCTAssertEqual(rated["has_rating"] as? Bool, true)
     }
 
-    func testOnboardingInviteCarriesNoTokenOrShowName() {
-        XCTAssertTrue(AnalyticsEvent.onboardingInviteAccepted.properties.isEmpty)
-    }
-
     @MainActor
     func testContextResolvesCurrentShowPhase() throws {
         let now = date(day: 15, hour: 12)

@@ -7,12 +7,6 @@ import XCTest
 /// end policy without a separate phase arg, cover lifecycle is in
 /// `ShowCoverLifecycleTests`.
 final class ArchitectureModuleTests: XCTestCase {
-    @MainActor
-    func testDynamicCoverPlaybackExcludesAudioTracks() {
-        XCTAssertTrue(DynamicCoverPlaybackPolicy.includes(mediaType: .video))
-        XCTAssertFalse(DynamicCoverPlaybackPolicy.includes(mediaType: .audio))
-    }
-
     func testForegroundMediaMaintenanceRunsInitiallyAndAfterThrottleWindow() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 
@@ -62,7 +56,6 @@ final class ArchitectureModuleTests: XCTestCase {
         try Data(repeating: 0x2A, count: 1_024).write(to: source)
 
         XCTAssertFalse(MemoryCapacity.requiresCopyCapacity(from: source, to: destination))
-        XCTAssertFalse(DynamicCoverCapacity.requiresCopyCapacity(from: source, to: destination))
     }
 
     func testHomeHeroSnapshotFoldsPhaseAndTimeState() throws {

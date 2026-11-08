@@ -92,7 +92,6 @@ struct CurrentShowFeatureRootView: View {
     @Query private var selections: [CurrentShowSelection]
     @State private var notificationRouter = NotificationDeepLinkRouter.shared
     @State private var notificationPresentation: CurrentShowNotificationPresentation?
-    @State private var pendingMemoryCreate: PendingNotificationMemoryCreate?
     /// `notificationPresentation` may become nil before the sheet dismissal
     /// animation has actually finished. Keep a root-owned latch until onDismiss
     /// decides whether another notification destination follows immediately.
@@ -116,15 +115,9 @@ struct CurrentShowFeatureRootView: View {
             if let show = shows.first(where: { $0.id == presentation.showID }) {
                 switch presentation.destination {
                 case .memoryFragments:
-                    MemoryFragmentsSheet(show: show, pendingCreate: presentation.pendingCreate)
+                    MemoryFragmentsSheet(show: show)
                 case .memoryCreate:
-                    MemoryCreateSourceSheet { option in
-                        pendingMemoryCreate = PendingNotificationMemoryCreate(
-                            showID: show.id,
-                            option: option
-                        )
-                        notificationPresentation = nil
-                    }
+                    MemoryFragmentsSheet(show: show, pendingCreate: .quick)
                 case .addShow:
                     AddShowCoordinatorSheet()
                 case .timetable:
@@ -198,8 +191,7 @@ struct CurrentShowFeatureRootView: View {
         isNotificationPresentationActive = true
         notificationPresentation = CurrentShowNotificationPresentation(
             showID: showID,
-            destination: destination,
-            pendingCreate: nil
+            destination: destination
         )
     }
 
@@ -223,21 +215,6 @@ struct CurrentShowFeatureRootView: View {
     }
 
     private func notificationPresentationDidDismiss() {
-        if let pendingMemoryCreate {
-            self.pendingMemoryCreate = nil
-            // Keep the latch raised across the sheet-to-sheet handoff. The next
-            // presentation is installed only after the previous sheet is gone.
-            Task { @MainActor in
-                await Task.yield()
-                notificationPresentation = CurrentShowNotificationPresentation(
-                    showID: pendingMemoryCreate.showID,
-                    destination: .memoryFragments,
-                    pendingCreate: pendingMemoryCreate.option
-                )
-            }
-            return
-        }
-
         // A second notification may have arrived while the previous destination
         // was presented. Consume it only after presentation ownership is free.
         consumeNotificationRouteIfNeeded()
@@ -247,17 +224,11 @@ struct CurrentShowFeatureRootView: View {
     }
 }
 
-private struct PendingNotificationMemoryCreate {
-    let showID: UUID
-    let option: MemoryCreateSourceOption
-}
-
 private struct CurrentShowNotificationPresentation: Identifiable {
     let showID: UUID
     let destination: NotificationDeepLink.Destination
-    let pendingCreate: MemoryCreateSourceOption?
 
     var id: String {
-        "\(showID.uuidString)|\(destination.rawValue)|\(pendingCreate?.rawValue ?? "-")"
+        "\(showID.uuidString)|\(destination.rawValue)"
     }
 }

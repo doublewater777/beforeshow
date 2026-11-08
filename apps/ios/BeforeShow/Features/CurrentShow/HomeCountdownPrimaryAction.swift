@@ -17,7 +17,8 @@ extension HomeCountdownLockup {
             switch self {
             case .end(live: true): return BSLocalization.text("结束现场")
             case .end(live: false): return BSLocalization.text("确认已结束")
-            case .memoryFragments, .memoryCreate: return BSLocalization.text("记一段记忆")
+            case .memoryCreate: return BSLocalization.text("记一笔")
+            case .memoryFragments: return BSLocalization.text("记一段记忆")
             case .route: return BSLocalization.text("看路线")
             case .dispersal(let completed): return BSLocalization.text(completed ? "看散场评价" : "记下感受")
             case .recommendation(let feature): return feature.cardTitle
@@ -83,7 +84,7 @@ extension RecommendedFeature {
     var cardTitle: String {
         switch self {
         case .widget: return BSLocalization.text("把小组件放到主屏幕")
-        case .companion: return BSLocalization.text("邀请同行")
+        case .companion: return BSLocalization.text("记下和谁一起去")
         case .listen: return BSLocalization.text("去听几首")
         case .timetable: return BSLocalization.text("存一张时刻表")
         case .dispersal: return BSLocalization.text("记下感受")

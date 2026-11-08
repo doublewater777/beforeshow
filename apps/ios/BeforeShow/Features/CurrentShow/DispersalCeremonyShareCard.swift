@@ -120,7 +120,6 @@ struct DispersalCeremonyShareCard: View {
         HStack {
             Text(BSLocalization.format("第 %lld 场", identity.showOrdinal))
             Spacer()
-            Text(verbatim: "BEFORESHOW")
         }
         .font(.system(size: 10, weight: .medium))
         .tracking(BSFont.Editorial.kickerTracking)
@@ -234,15 +233,18 @@ struct DispersalCeremonyShareCard: View {
     }
 
     private var footer: some View {
-        Text(DispersalCeremonyCardCopy.footerLeading(identity: identity))
-            .font(BSFont.Editorial.song(size: 13))
-            .foregroundStyle(BSColor.Paper.inkMuted)
-            .frame(maxWidth: 160, alignment: .leading)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .padding(.leading, Self.margin)
-            .frame(maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, 26)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(DispersalCeremonyCardCopy.footerLeading(identity: identity))
+                .font(BSFont.Editorial.song(size: 13))
+                .foregroundStyle(BSColor.Paper.inkMuted)
+                .frame(maxWidth: 160, alignment: .leading)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            BSShareByline(tone: BSColor.Paper.inkMuted)
+        }
+        .padding(.leading, Self.margin)
+        .frame(maxHeight: .infinity, alignment: .bottom)
+        .padding(.bottom, 18)
     }
 
     private var ticketStub: some View {

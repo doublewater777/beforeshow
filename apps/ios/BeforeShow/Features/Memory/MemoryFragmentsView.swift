@@ -1,12 +1,10 @@
 import AVFoundation
-import AVKit
 import PhotosUI
 import SwiftData
 import SwiftUI
-import UniformTypeIdentifiers
 import UIKit
 
-/// Scoped memory task: sheet for the list, push for editor, full-screen cover for media viewer.
+/// The show's memories as one sheet: a contact sheet of the night plus the three ways to add.
 struct MemoryFragmentsSheet: View {
     let show: Show
     var pendingCreate: MemoryCreateSourceOption? = nil
@@ -17,7 +15,7 @@ struct MemoryFragmentsSheet: View {
         NavigationStack {
             MemoryFragmentsView(show: show, pendingCreate: pendingCreate)
                 .toolbar {
-                    BSChromeToolbarCloseButton(accessibilityLabel: "取消") { dismiss() }
+                    BSChromeToolbarCloseButton(accessibilityLabel: "关闭") { dismiss() }
                 }
         }
         .presentationDetents([.large])
@@ -26,607 +24,368 @@ struct MemoryFragmentsSheet: View {
     }
 }
 
-// MARK: - Timeline
+private struct MemoryViewerStart: Identifiable {
+    let id: UUID
+}
 
+private struct DeletedFragmentSnapshot {
+    let showID: UUID
+    let text: String?
+    let createdAt: Date
+    let mediaItems: [MemoryMediaItemSnapshot]
+}
+
+private struct MemoryMediaItemSnapshot {
+    let id: UUID
+    let kind: MemoryMediaKind
+    let relativePath: String
+    let thumbPath: String?
+    let contentType: String
+    let duration: TimeInterval?
+    let sortOrder: Int
+}
+
+/// 整晚一卷胶卷：开场前 / 现场 / 散场后 三段，每段一条齿孔胶片 + 时间范围。
+/// 底部常驻玻璃输入栏（相册、写一句、大快门），点一格全屏看。
 struct MemoryFragmentsView: View {
     let show: Show
     var pendingCreate: MemoryCreateSourceOption? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Query private var fragments: [MemoryFragment]
-    @State private var isShowingCreateOptions = false
-    @State private var editorLaunch: MemoryEditorLaunch?
-    @State private var didAutoOpenCreate = false
-    @State private var isPhotoPickerPresented = false
-    @State private var isCameraPresented = false
-    @State private var selectedCreateMedia: [PhotosPickerItem] = []
-    @State private var directImportTask: Task<Void, Never>?
-    @State private var directImportDraftID: UUID?
-    @State private var pendingCameraResult: MemoryCameraResult?
-    @State private var pendingPresentation: MemoryPendingPresentation?
-    @State private var pendingCreateDestination: MemoryCreateDestination?
-    @State private var createSourceError: String?
-    @State private var pendingDelete: MemoryFragment?
-    @State private var pendingDeleteTask: Task<Void, Never>?
-    @State private var viewerTarget: MemoryViewerTarget?
 
-    @State private var deleteConfirmationTarget: MemoryFragment?
-    @State private var toast: BSToastPayload?
+    @State private var draftText = ""
+    @State private var viewerStart: MemoryViewerStart?
+    @State private var newlyAddedIDs: Set<UUID> = []
+    @State private var undoToastMessage: String?
+    @State private var onUndoAction: (() -> Void)?
+    @State private var undoDismissTask: Task<Void, Never>?
+
+    // Camera & PhotosPicker
+    @State private var isCameraPresented = false
+    @State private var isPhotosPickerPresented = false
+    @State private var pickedPhotoItems: [PhotosPickerItem] = []
+    @State private var didHandlePendingCreate = false
+    @State private var cameraError: String?
+
+    // Undo storage
+    @State private var lastCreatedFragmentIDs: [UUID] = []
+    @State private var lastDeletedSnapshot: DeletedFragmentSnapshot?
 
     init(show: Show, pendingCreate: MemoryCreateSourceOption? = nil) {
         self.show = show
         self.pendingCreate = pendingCreate
         let showID = show.id
-        _fragments = Query(
-            filter: #Predicate<MemoryFragment> { $0.showID == showID },
-            sort: [
-                SortDescriptor(\MemoryFragment.createdAt, order: .reverse),
-                SortDescriptor(\MemoryFragment.id, order: .reverse)
-            ]
-        )
+        _fragments = Query(filter: #Predicate<MemoryFragment> { $0.showID == showID })
+    }
+
+    private var moments: [MemoryMoment] { MemoryMomentTimeline.moments(from: fragments) }
+
+    private var currentPhase: MemoryFragmentPhase {
+        MemoryFragmentPhase.resolved(at: Date(), timing: show.timingFields)
     }
 
     var body: some View {
-        ZStack {
-            BSColor.Stage.background.ignoresSafeArea()
+        let moments = moments
+        let sections = MemoryMomentTimeline.sections(moments, timing: show.timingFields)
 
+        ZStack(alignment: .bottom) {
             ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        header
-                            .padding(.top, 4)
-
-                        if visibleFragments.isEmpty {
-                            timelineEmptyState
-                        } else {
-                            ForEach(timelineSections, id: \.phase) { section in
-                                MemoryTimelineSection(
-                                    phase: section.phase,
-                                    fragments: section.fragments,
-                                    onEdit: openExistingEditor,
-                                    onDelete: confirmDeleteFragment,
-                                    onOpenMedia: openViewer
-                                )
-                                .id(section.phase)
-                                }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        ForEach(sections) { section in
+                            FilmStripSectionView(
+                                section: section,
+                                timing: show.timingFields,
+                                currentPhase: currentPhase,
+                                newlyAddedIDs: newlyAddedIDs
+                            ) { moment in
+                                viewerStart = MemoryViewerStart(id: moment.id)
+                            }
                         }
 
+                        Color.clear.frame(height: 1).id("roll-bottom")
                     }
-                    .animation(.spring(response: 0.4, dampingFraction: 0.85), value: fragments.count)
-                    .padding(.bottom, 96)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 120)
                 }
-                .bsNavigationScrollEdge()
-                .onChange(of: fragments.count) { oldCount, newCount in
-                    guard newCount > oldCount, let firstID = fragments.first?.id else { return }
-                    withAnimation { proxy.scrollTo(firstID, anchor: .top) }
+                .onChange(of: moments.count) { old, new in
+                    if new > old {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                            proxy.scrollTo("roll-bottom", anchor: .bottom)
+                        }
+                    }
                 }
             }
+
+            VStack(spacing: 12) {
+                if let message = undoToastMessage, let action = onUndoAction {
+                    MemoryUndoToast(message: message, onUndo: action)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                MemoryRollInputBar(
+                    draftText: $draftText,
+                    onOpenLibrary: { isPhotosPickerPresented = true },
+                    onSubmitText: submitText,
+                    onShoot: openCamera
+                )
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
-        .navigationTitle("记忆碎片")
+        .background(Color(red: 6/255, green: 8/255, blue: 12/255).ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .overlay(alignment: .bottomTrailing) {
-            Button {
-                guard directImportTask == nil else { return }
-                isShowingCreateOptions = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black)
-                    .frame(width: 54, height: 54)
-                    .background(Color.white, in: Circle())
-                    .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
-            }
-            .accessibilityLabel("新增记忆")
-            .disabled(directImportTask != nil)
-            .opacity(directImportTask != nil ? 0.5 : 1)
-            .padding(.trailing, 20)
-            .padding(.bottom, 20)
-        }
-        .bsToastOverlay(toast, bottomPadding: 80)
-       .overlay(alignment: .bottom) {
-           if pendingDelete != nil {
-               HStack(spacing: BSSpacing.md) {
-                    Text(BSLocalization.text("已删除这条记忆"))
-                       .font(BSFont.caption)
-                       .foregroundStyle(BSColor.Stage.foreground)
-                    Button(BSLocalization.text("撤销"), action: undoDelete)
-                       .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.accent)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 2) {
+                    Text(BSLocalization.text("记忆碎片"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                    Text(BSLocalization.format("%lld 格", moments.count))
+                        .font(.system(size: 11))
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.vertical, BSSpacing.compact)
-                .background(Color.black.opacity(0.86), in: Capsule())
-                .overlay(Capsule().stroke(BSColor.Stage.border, lineWidth: 1))
-                .padding(.bottom, 80)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: pendingDelete?.id)
-        .sheet(isPresented: $isShowingCreateOptions) {
-            MemoryCreateSourceSheet { option in
-                beginCreate(from: option)
+        .fullScreenCover(item: $viewerStart) { start in
+            MemoryMomentViewer(show: show, startID: start.id) { deletedMoment in
+                handleViewerDelete(deletedMoment)
             }
         }
-        .onChange(of: isShowingCreateOptions) { _, isShowing in
-            if !isShowing {
-                performPendingCreateDestination()
-            }
-        }
-        .photosPicker(
-            isPresented: $isPhotoPickerPresented,
-            selection: $selectedCreateMedia,
-            maxSelectionCount: MemoryFragment.maximumMediaCount,
-            selectionBehavior: .ordered,
-            matching: .any(of: [.images, .videos])
-        )
-        .onChange(of: selectedCreateMedia) { _, items in
-            guard !items.isEmpty else { return }
-            importDirectLibrarySelection(items)
-        }
-        .fullScreenCover(isPresented: $isCameraPresented, onDismiss: {
-            guard let result = pendingCameraResult else { return }
-            pendingCameraResult = nil
-            importDirectCameraResult(result)
-        }) {
+        .fullScreenCover(isPresented: $isCameraPresented) {
             SystemMemoryCameraPicker { result in
                 isCameraPresented = false
-                pendingCameraResult = result
+                guard case .photo(let data) = result else { return }
+                Task { @MainActor in
+                    await savePhoto(data)
+                }
             }
             .ignoresSafeArea()
         }
-        .alert("无法继续", isPresented: Binding(
-            get: { createSourceError != nil },
-            set: { if !$0 { createSourceError = nil } }
-        )) {
-            if AVCaptureDevice.authorizationStatus(for: .video) == .denied {
-                Button("前往设置") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                }
-            }
-            Button("知道了", role: .cancel) {}
-        } message: {
-            Text(createSourceError ?? "请稍后重试。")
-        }
-        .memoryInternalPushes(
-            editorLaunch: $editorLaunch,
-            viewerTarget: $viewerTarget,
-            onCreate: createFragment,
-            onEdit: saveEditedFragment,
-            onViewerEdit: { fragment in
-                pendingPresentation = .edit(fragment)
-                viewerTarget = nil
-            },
-            onViewerDelete: { fragment in
-                pendingPresentation = .delete(fragment)
-                viewerTarget = nil
-            },
-            onViewerDismissed: performPendingPresentation
+        .photosPicker(
+            isPresented: $isPhotosPickerPresented,
+            selection: $pickedPhotoItems,
+            selectionBehavior: .ordered,
+            matching: .any(of: [.images, .videos])
         )
-        .task {
-            guard let pendingCreate, !didAutoOpenCreate else { return }
-            didAutoOpenCreate = true
-            beginCreate(from: pendingCreate)
-            performPendingCreateDestination()
+        .onChange(of: pickedPhotoItems) { _, items in
+            guard !items.isEmpty else { return }
+            pickedPhotoItems = []
+            Task { @MainActor in
+                await saveLibraryItems(items)
+            }
         }
         .alert(
-            DangerConfirmation.deleteMemory.title,
-            isPresented: Binding(
-                get: { deleteConfirmationTarget != nil },
-                set: { if !$0 { deleteConfirmationTarget = nil } }
-            ),
-            presenting: deleteConfirmationTarget
-        ) { fragment in
-            Button(DangerConfirmation.deleteMemory.confirmTitle, role: .destructive) {
-                deleteConfirmationTarget = nil
-                stageDelete(fragment)
-            }
-            Button(BSLocalization.text("取消"), role: .cancel) {}
-        } message: { _ in
-            Text(DangerConfirmation.deleteMemory.message)
-        }
-
-        .onDisappear {
-            cancelDirectImport()
-            if let pendingDelete {
-                pendingDeleteTask?.cancel()
-                commitDelete(pendingDelete)
-            }
-        }
-        .task(id: fragments.map(\.id)) {
-            await MemoryFragmentMediaStore.shared.acquireCommitGate()
-            var validFilesByFragmentID: [UUID: Set<String>] = [:]
-            let showID = show.id
-            let descriptor = FetchDescriptor<MemoryFragment>(
-                predicate: #Predicate<MemoryFragment> { $0.showID == showID }
-            )
-            guard let current = try? modelContext.fetch(descriptor) else {
-                await MemoryFragmentMediaStore.shared.releaseCommitGate()
-                return
-            }
-            for fragment in current {
-                let paths = fragment.mediaItems.flatMap { item in
-                    [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+            BSLocalization.text("无法继续"),
+            isPresented: Binding(get: { cameraError != nil }, set: { if !$0 { cameraError = nil } })
+        ) {
+            if AVCaptureDevice.authorizationStatus(for: .video) == .denied {
+                Button(BSLocalization.text("前往设置")) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
-                validFilesByFragmentID[fragment.id] = Set(paths)
             }
-            try? await MemoryFragmentMediaStore.shared.reconcileFragmentFiles(
-                showID: show.id,
-                validFilesByFragmentID: validFilesByFragmentID
-            )
-            await MemoryFragmentMediaStore.shared.releaseCommitGate()
+            Button(BSLocalization.text("知道了"), role: .cancel) {}
+        } message: {
+            Text(cameraError ?? "")
         }
+        .task {
+            handleInitialPendingCreate()
+        }
+        .task(id: fragments.map(\.id)) { await reconcileFiles() }
     }
 
-    private var header: some View {
-        let stats = timelineStats
-        return VStack(alignment: .leading, spacing: BSSpacing.sm) {
-           Text(headerEyebrow)
-               .font(.system(size: 10, weight: .semibold))
-               .tracking(1.1)
-               .foregroundStyle(BSColor.Stage.accent)
-            Text(BSLocalization.text("这场现场的记忆"))
-               .font(.system(size: 20, weight: .bold))
-               .foregroundStyle(BSColor.Stage.foreground)
-            Text(BSLocalization.text("照片、视频和小记都按现场阶段收在这里。"))
-               .font(.system(size: 11))
-               .foregroundStyle(BSColor.Stage.muted)
-            HStack(spacing: BSSpacing.lg) {
-                timelineStat(value: "\(stats.memories)", label: BSLocalization.text("条记忆"))
-                timelineStat(value: "\(stats.photos)", label: BSLocalization.text("照片"))
-                timelineStat(value: "\(stats.videos)", label: BSLocalization.text("视频"))
-            }
-            .padding(.top, 2)
+    // MARK: - Capture Handlers
+
+    private func openCamera() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            isPhotosPickerPresented = true
+            return
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: BSRadius.v3Medium)
-                .fill(BSColor.Stage.surface.opacity(0.92))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.v3Medium)
-                        .stroke(BSColor.Stage.accent.opacity(0.15), lineWidth: 1)
-                )
-        )
-        .padding(.horizontal, 20)
-    }
-
-    private func timelineStat(value: String, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.foreground)
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(BSColor.Stage.dim)
-        }
-    }
-
-
-    private var timelineEmptyState: some View {
-        VStack(spacing: 0) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 24, weight: .light))
-                .foregroundStyle(BSColor.Stage.muted)
-               .frame(width: 68, height: 68)
-               .background(Color.white.opacity(0.04), in: Circle())
-               .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-            Text(BSLocalization.text("还没有记忆碎片"))
-               .font(.system(size: 20, weight: .regular))
-               .foregroundStyle(BSColor.Stage.foreground)
-               .padding(.top, 18)
-            Text(BSLocalization.text("拍一张照片、选择一段短视频，\n或者写下此刻的一句话。"))
-               .font(.system(size: 13))
-               .foregroundStyle(BSColor.Stage.muted)
-                .multilineTextAlignment(.center)
-                .lineSpacing(5)
-                .padding(.top, 9)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 32)
-        .padding(.bottom, 18)
-    }
-
-    private func createDestination(for option: MemoryCreateSourceOption) -> MemoryCreateDestination {
-        switch option {
-        case .camera: return .camera
-        case .library: return .library
-        case .text: return .text
-        }
-    }
-
-    private func beginCreate(from option: MemoryCreateSourceOption) {
-        switch option {
-        case .text:
-            editorLaunch = MemoryEditorLaunch(kind: .createText)
-            isShowingCreateOptions = false
-        case .library, .camera:
-            pendingCreateDestination = createDestination(for: option)
-            isShowingCreateOptions = false
-        }
-    }
-
-    private func performPendingCreateDestination() {
-        guard let destination = pendingCreateDestination else { return }
-        pendingCreateDestination = nil
-        switch destination {
-        case .text:
-            editorLaunch = MemoryEditorLaunch(kind: .createText)
-        case .library:
-            guard directImportTask == nil else { return }
-            selectedCreateMedia = []
-            isPhotoPickerPresented = true
-        case .camera:
-            guard directImportTask == nil else { return }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            isCameraPresented = true
+        case .notDetermined:
             Task { @MainActor in
-            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-                createSourceError = BSLocalization.text("当前设备无法使用相机。")
-                return
-            }
-            switch AVCaptureDevice.authorizationStatus(for: .video) {
-            case .authorized:
-                isCameraPresented = true
-            case .notDetermined:
                 if await AVCaptureDevice.requestAccess(for: .video) {
                     isCameraPresented = true
                 } else {
-createSourceError = BSLocalization.text("没有相机权限。你可以在系统设置中允许访问。")
+                    cameraError = BSLocalization.text("没有相机权限。你可以在系统设置中允许访问。")
                 }
-            case .denied, .restricted:
-                createSourceError = "没有相机权限。你可以在系统设置中允许访问。"
-            @unknown default:
-                createSourceError = BSLocalization.text("当前无法使用相机。")
             }
-            }
+        default:
+            cameraError = BSLocalization.text("没有相机权限。你可以在系统设置中允许访问。")
         }
     }
 
-    private func importDirectLibrarySelection(_ pickerItems: [PhotosPickerItem]) {
-        selectedCreateMedia = []
-        guard directImportTask == nil else { return }
-        let draftID = UUID()
-        directImportDraftID = draftID
-        directImportTask = Task { @MainActor in
-            do {
-                var stagedItems: [MemoryDraftMedia] = []
-                for item in pickerItems.prefix(MemoryFragment.maximumMediaCount) {
-                    guard let imported = try await item.loadTransferable(type: MemoryImportedFile.self) else {
-                        continue
-                    }
-                    let staged = try await MemoryFragmentMediaStore.shared.stageTransferredFile(
-                        imported,
-                        draftID: draftID
-                    )
-                    stagedItems.append(staged)
-                }
-                guard !stagedItems.isEmpty else {
-                    try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
-                    directImportDraftID = nil
-                    directImportTask = nil
-                    createSourceError = "媒体没有载入，请重试。"
-                    return
-                }
-                guard !Task.isCancelled else {
-                    try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
-                    directImportDraftID = nil
-                    directImportTask = nil
-                    return
-                }
-                directImportDraftID = nil
-                directImportTask = nil
-                editorLaunch = MemoryEditorLaunch(kind: .createMedia(draftID: draftID, media: stagedItems))
-            } catch {
-                try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
-                directImportDraftID = nil
-                directImportTask = nil
-                guard !Task.isCancelled else { return }
-                createSourceError = "媒体没有载入，请重试。"
-            }
+    private func handleInitialPendingCreate() {
+        guard let pending = pendingCreate, !didHandlePendingCreate else { return }
+        didHandlePendingCreate = true
+        if pending == .camera || pending == .quick {
+            openCamera()
+        } else if pending == .library {
+            isPhotosPickerPresented = true
         }
     }
 
-    private func importDirectCameraResult(_ result: MemoryCameraResult) {
-        guard directImportTask == nil else { return }
-        let draftID = UUID()
-        directImportDraftID = draftID
-        directImportTask = Task { @MainActor in
-            do {
-                guard case .photo(let data) = result else {
-                    directImportDraftID = nil
-                    directImportTask = nil
-                    createSourceError = BSLocalization.text("相机入口只拍照片，视频请从相册选择。")
-                    return
-                }
-                let staged = try await MemoryFragmentMediaStore.shared.stageCameraPhoto(data, draftID: draftID)
-                guard !Task.isCancelled else {
-                    try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
-                    directImportDraftID = nil
-                    directImportTask = nil
-                    return
-                }
-                directImportDraftID = nil
-                directImportTask = nil
-                editorLaunch = MemoryEditorLaunch(kind: .createMedia(draftID: draftID, media: [staged]))
-            } catch {
-                try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
-                directImportDraftID = nil
-                directImportTask = nil
-                guard !Task.isCancelled else { return }
-                createSourceError = "照片没有载入，请重试。"
-            }
-        }
-    }
-
-    private func cancelDirectImport() {
-        guard let task = directImportTask else { return }
-        let draftID = directImportDraftID
-        directImportTask = nil
-        directImportDraftID = nil
-        task.cancel()
-        Task { @MainActor in
-            await task.value
-            if let draftID {
-                try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
-            }
-        }
-    }
-
-    private func openExistingEditor(_ fragment: MemoryFragment) {
-        guard directImportTask == nil else { return }
-        editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
-    }
-
-    private func confirmDeleteFragment(_ fragment: MemoryFragment) {
-        guard directImportTask == nil else { return }
-        deleteConfirmationTarget = fragment
-    }
-
-    private func openViewer(_ fragment: MemoryFragment, index: Int) {
-        guard directImportTask == nil else { return }
-        viewerTarget = MemoryViewerTarget(fragment: fragment, initialIndex: index)
-    }
-
-    private func performPendingPresentation() {
-        guard let pendingPresentation else { return }
-        self.pendingPresentation = nil
-        switch pendingPresentation {
-        case .edit(let fragment):
-            editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
-        case .delete(let fragment):
-            deleteConfirmationTarget = fragment
-        }
-    }
-
-    private func resolvedPhase(for show: Show?, at date: Date) -> MemoryFragmentPhase {
-        guard let show else { return .live }
-        return MemoryFragmentPhase.resolved(at: date, timing: show.timingFields)
-    }
-
-    private var timelineSections: [(phase: MemoryFragmentPhase, fragments: [MemoryFragment])] {
-        MemoryFragmentPhase.timelineDisplayOrder.compactMap { phase in
-            let items = visibleFragments.filter {
-                resolvedPhase(for: show, at: $0.createdAt) == phase
-            }
-            guard !items.isEmpty else { return nil }
-            return (phase, items)
-        }
-    }
-
-    private var visibleFragments: [MemoryFragment] {
-        fragments.filter { $0.id != pendingDelete?.id }
-    }
-
-    private var timelineStats: (memories: Int, photos: Int, videos: Int, notes: Int) {
-        let photos = visibleFragments.reduce(0) { count, fragment in
-            count + fragment.mediaItems.filter { $0.kind == .photo }.count
-        }
-        let videos = visibleFragments.reduce(0) { count, fragment in
-            count + fragment.mediaItems.filter { $0.kind == .video }.count
-        }
-        let notes = visibleFragments.filter { $0.mediaItems.isEmpty }.count
-        return (visibleFragments.count, photos, videos, notes)
-    }
-
-    private var headerEyebrow: String {
-        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return [show.endedAt == nil ? "LIVE" : "MEMORY", city?.uppercased()]
-            .compactMap { $0 }
-            .joined(separator: " · ")
-    }
-
-    private var showMetadata: String {
-        let date = ShowDisplayFormatter().dateText(for: show)
-        let place = show.venueName ?? show.city
-        return [date, place].compactMap { $0 }.joined(separator: " · ")
-    }
-
-    @MainActor
-    private func createFragment(
-        draftID: UUID,
-        media: [MemoryDraftMedia],
-        caption: String
-    ) async throws {
-        let fragment = try await MemoryFragmentCreationCoordinator.create(
-            showID: show.id,
-            draftID: draftID,
-            media: media,
-            caption: caption,
-            modelContext: modelContext
-        )
-        ProductAnalytics.capture(.memoryFragmentCreated(showID: show.id, mediaCount: media.count, phase: fragment.phase))
-        presentToast(.success, "已加入这场现场")
-    }
-
-    private func stageDelete(_ fragment: MemoryFragment) {
-        if let pendingDelete {
-            pendingDeleteTask?.cancel()
-            commitDelete(pendingDelete)
-        }
-        pendingDelete = fragment
-        toast = nil
-        pendingDeleteTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled, pendingDelete?.id == fragment.id else { return }
-            commitDelete(fragment)
-        }
-    }
-
-    private func undoDelete() {
-        pendingDeleteTask?.cancel()
-        pendingDeleteTask = nil
-        pendingDelete = nil
-        presentToast(.success, "已撤销删除")
-    }
-
-    private func commitDelete(_ fragment: MemoryFragment) {
-        let fragmentID = fragment.id
-        let showID = show.id
-        pendingDeleteTask?.cancel()
-        pendingDeleteTask = nil
-        if pendingDelete?.id == fragmentID { pendingDelete = nil }
+    private func submitText() {
+        let text = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        draftText = ""
+        let beforeFragmentIDs = Set(fragments.map(\.id))
         Task { @MainActor in
             do {
-                try await MemoryFragmentEditCoordinator.delete(
-                    fragment,
-                    showID: showID,
-                    modelContext: modelContext
+                try await MemoryCaptureCoordinator.saveText(text, to: show, in: modelContext)
+                let newFragIDs = fragments.filter { !beforeFragmentIDs.contains($0.id) }.map(\.id)
+                highlightAndToastNewMoments(fragmentIDs: newFragIDs)
+            } catch {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+            }
+        }
+    }
+
+    private func savePhoto(_ data: Data) async {
+        let beforeFragmentIDs = Set(fragments.map(\.id))
+        do {
+            try await MemoryCaptureCoordinator.saveCameraPhoto(data, to: show, in: modelContext)
+            let newFragIDs = fragments.filter { !beforeFragmentIDs.contains($0.id) }.map(\.id)
+            highlightAndToastNewMoments(fragmentIDs: newFragIDs)
+        } catch {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
+    }
+
+    private func saveLibraryItems(_ items: [PhotosPickerItem]) async {
+        let beforeFragmentIDs = Set(fragments.map(\.id))
+        _ = await MemoryCaptureCoordinator.saveLibraryItems(items, to: show, in: modelContext)
+        let newFragIDs = fragments.filter { !beforeFragmentIDs.contains($0.id) }.map(\.id)
+        if !newFragIDs.isEmpty {
+            highlightAndToastNewMoments(fragmentIDs: newFragIDs)
+        }
+    }
+
+    private func highlightAndToastNewMoments(fragmentIDs: [UUID]) {
+        lastCreatedFragmentIDs = fragmentIDs
+        let newMoments = moments.filter { fragmentIDs.contains($0.fragment.id) }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            newlyAddedIDs = Set(newMoments.map(\.id))
+        }
+
+        let phaseTitle = currentPhase.rollTitle
+        showUndoToast(message: BSLocalization.format("已存进「%@」", phaseTitle)) {
+            undoAdd(fragmentIDs: fragmentIDs)
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation(.easeOut(duration: 0.5)) {
+                newlyAddedIDs.removeAll()
+            }
+        }
+    }
+
+    private func undoAdd(fragmentIDs: [UUID]) {
+        for id in fragmentIDs {
+            if let target = fragments.first(where: { $0.id == id }) {
+                modelContext.delete(target)
+            }
+        }
+        try? modelContext.save()
+        newlyAddedIDs.removeAll()
+        hideUndoToast()
+    }
+
+    // MARK: - Viewer Delete & Undo
+
+    private func handleViewerDelete(_ moment: MemoryMoment) {
+        let fragment = moment.fragment
+        let snapshot = DeletedFragmentSnapshot(
+            showID: fragment.showID,
+            text: fragment.text,
+            createdAt: fragment.createdAt,
+            mediaItems: fragment.mediaItems.map { item in
+                MemoryMediaItemSnapshot(
+                    id: item.id,
+                    kind: item.kind,
+                    relativePath: item.relativePath,
+                    thumbPath: item.thumbnailRelativePath,
+                    contentType: item.contentTypeIdentifier,
+                    duration: item.videoDuration,
+                    sortOrder: item.sortOrder
                 )
-            } catch {
-                presentToast(.failure, "删除失败，请重试")
             }
-        }
-    }
-
-    @MainActor
-    private func saveEditedFragment(
-        _ fragment: MemoryFragment,
-        fullOrder: [UUID],
-        caption: String,
-        removedIDs: Set<UUID>,
-        additions: [MemoryDraftMedia],
-        draftID: UUID
-    ) async throws {
-        try await MemoryFragmentEditCoordinator.save(
-            fragment,
-            showID: show.id,
-            fullOrder: fullOrder,
-            caption: caption,
-            removedIDs: removedIDs,
-            additions: additions,
-            draftID: draftID,
-            modelContext: modelContext
         )
-        presentToast(.success, "已保存修改")
+        lastDeletedSnapshot = snapshot
+
+        Task { @MainActor in
+            try? await MemoryMomentEditing.delete(moment, in: modelContext)
+        }
+
+        showUndoToast(message: BSLocalization.text("已删除")) {
+            restoreDeletedSnapshot(snapshot)
+        }
     }
 
-    private func presentToast(_ tone: BSToastTone, _ message: String) {
-        let payload = BSToastPayload(tone: tone, message: message)
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.2))
-            if toast == payload { toast = nil }
+    private func restoreDeletedSnapshot(_ snapshot: DeletedFragmentSnapshot) {
+        do {
+            let restored = try MemoryFragment(
+                showID: snapshot.showID,
+                text: snapshot.text,
+                createdAt: snapshot.createdAt
+            )
+            for item in snapshot.mediaItems {
+                let media = MemoryMediaItem(
+                    id: item.id,
+                    kind: item.kind,
+                    relativePath: item.relativePath,
+                    thumbnailRelativePath: item.thumbPath,
+                    contentTypeIdentifier: item.contentType,
+                    videoDuration: item.duration,
+                    sortOrder: item.sortOrder
+                )
+                try restored.appendMedia(media)
+            }
+            modelContext.insert(restored)
+            try modelContext.save()
+            hideUndoToast()
+        } catch {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
+    }
+
+    // MARK: - Toast Helpers
+
+    private func showUndoToast(message: String, action: @escaping () -> Void) {
+        undoDismissTask?.cancel()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            undoToastMessage = message
+            onUndoAction = action
+        }
+        undoDismissTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3.5))
+            hideUndoToast()
+        }
+    }
+
+    private func hideUndoToast() {
+        withAnimation(.easeOut(duration: 0.25)) {
+            undoToastMessage = nil
+            onUndoAction = nil
+        }
+    }
+
+    private func reconcileFiles() async {
+        await MemoryFragmentMediaStore.shared.acquireCommitGate()
+        let showID = show.id
+        let descriptor = FetchDescriptor<MemoryFragment>(predicate: #Predicate<MemoryFragment> { $0.showID == showID })
+        if let current = try? modelContext.fetch(descriptor) {
+            var valid: [UUID: Set<String>] = [:]
+            for fragment in current {
+                valid[fragment.id] = Set(fragment.mediaItems.flatMap { [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 } })
+            }
+            try? await MemoryFragmentMediaStore.shared.reconcileFragmentFiles(showID: showID, validFilesByFragmentID: valid)
+        }
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
     }
 }

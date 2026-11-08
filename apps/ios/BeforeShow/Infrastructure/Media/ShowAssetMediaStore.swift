@@ -68,7 +68,7 @@ struct ShowAssetMediaLocation: Sendable {
     }
 }
 
-/// Local image store for ticket stubs and timetables.
+/// Local image store for ticket stubs, timetables and merch photos.
 /// Paths are relative to the store root so SwiftData can stay portable across reinstalls of the container.
 ///
 /// Commit gate serializes media writes with launch/active reconciliation so a file
@@ -150,18 +150,41 @@ actor ShowAssetMediaStore {
         assetID: UUID = UUID()
     ) async throws -> String {
         try ensureStorageAvailable()
+        let jpegData = try encodedJPEG(from: try decodedImage(from: data))
+        return try write(jpegData, showID: showID, directory: kind.directoryName, stem: assetID.uuidString, ext: "jpg")
+    }
+
+    /// Merch photo plus an optional transparent cutout, both under `<showID>/merch/`.
+    func saveMerchPhoto(
+        data: Data,
+        cutoutPNG: Data?,
+        showID: UUID,
+        itemID: UUID
+    ) async throws -> (photo: String, cutout: String?) {
+        try ensureStorageAvailable()
+        let jpegData = try encodedJPEG(from: try decodedImage(from: data))
+        let photo = try write(jpegData, showID: showID, directory: MerchItem.directoryName, stem: itemID.uuidString, ext: "jpg")
+        guard let cutoutPNG else { return (photo, nil) }
+        do {
+            let cutout = try write(cutoutPNG, showID: showID, directory: MerchItem.directoryName, stem: itemID.uuidString + "-cutout", ext: "png")
+            return (photo, cutout)
+        } catch {
+            return (photo, nil)
+        }
+    }
+
+    private func write(_ fileData: Data, showID: UUID, directory: String, stem: String, ext: String) throws -> String {
+        try ensureStorageAvailable()
         guard !ShowAssetCleanupRetry.isFullCleanupPending else {
             throw ShowAssetMediaStoreError.fullCleanupPending
         }
-        let image = try decodedImage(from: data)
-        let jpegData = try encodedJPEG(from: image)
         try prepareRootDirectory()
-        try ensureCapacity(for: Int64(jpegData.count))
+        try ensureCapacity(for: Int64(fileData.count))
 
         let relativePath = [
             showID.uuidString,
-            kind.directoryName,
-            "\(assetID.uuidString)-\(UUID().uuidString).jpg"
+            directory,
+            "\(stem)-\(UUID().uuidString).\(ext)"
         ].joined(separator: "/")
 
         let destination = absoluteURL(for: relativePath)
@@ -170,7 +193,7 @@ actor ShowAssetMediaStore {
                 at: destination.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            try jpegData.write(to: destination, options: .atomic)
+            try fileData.write(to: destination, options: .atomic)
             try excludeFromBackup(at: destination)
         } catch {
             try? fileManager.removeItem(at: destination)
@@ -203,6 +226,13 @@ actor ShowAssetMediaStore {
     /// SwiftData cannot make one show's cleanup remove another show's file.
     func delete(relativePath: String, showID: UUID, kind: ShowAssetKind) throws {
         guard ShowAsset.isValidRelativePath(relativePath, showID: showID, kind: kind) else {
+            throw ShowAssetMediaStoreError.invalidRelativePath
+        }
+        try delete(relativePath: relativePath)
+    }
+
+    func deleteMerch(relativePath: String, showID: UUID) throws {
+        guard MerchItem.isValidRelativePath(relativePath, showID: showID) else {
             throw ShowAssetMediaStoreError.invalidRelativePath
         }
         try delete(relativePath: relativePath)

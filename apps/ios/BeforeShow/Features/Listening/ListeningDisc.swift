@@ -7,6 +7,22 @@ struct ListeningDiscTrack: Identifiable, Equatable, Codable {
     let artworkURL: URL?
     let duration: TimeInterval?
     let previewURL: URL?
+    init(
+        id: String,
+        title: String,
+        artistName: String,
+        artworkURL: URL? = nil,
+        duration: TimeInterval? = nil,
+        previewURL: URL? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.artistName = artistName
+        self.artworkURL = artworkURL
+        self.duration = duration
+        self.previewURL = previewURL
+    }
+
     init(_ song: CatalogSong) {
         id = song.appleMusicSongID; title = song.title; artistName = song.artistName
         artworkURL = song.artworkURL.flatMap(URL.init(string:))

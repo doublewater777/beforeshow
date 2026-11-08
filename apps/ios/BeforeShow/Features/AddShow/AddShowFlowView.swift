@@ -742,7 +742,7 @@ struct AddShowFlowView: View {
 
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             let capacity = FreeShowCapacityCoordinator()
-            guard capacity.canAddShow(from: shows, entitlement: entitlement) else {
+            guard !show.countsTowardFreeShowCapacity || capacity.canAddShow(from: shows, entitlement: entitlement) else {
                 ProductAnalytics.capture(.proLimitReached)
                 paywallSheet = .limit
                 presentToast(.neutral, message: BSLocalization.text("保存上限"))

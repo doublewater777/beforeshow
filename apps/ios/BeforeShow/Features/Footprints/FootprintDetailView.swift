@@ -18,10 +18,7 @@ private enum FootprintCoverViewer: Identifiable {
 }
 
 private struct FootprintMemoryTarget: Identifiable {
-    let fragment: MemoryFragment
-    let initialIndex: Int
-
-    var id: UUID { fragment.id }
+    let id: UUID
 }
 
 struct FootprintDetailView: View {
@@ -35,13 +32,13 @@ struct FootprintDetailView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
-    @State private var mediaMemoryTarget: FootprintMemoryTarget?
-    @State private var textMemoryTarget: FootprintMemoryTarget?
+    @State private var memoryTarget: FootprintMemoryTarget?
     @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingShareComposer = false
     @State private var isShowingDispersalShare = false
     @State private var isShowingCeremonyEditor = false
     @State private var isShowingEditor = false
+    @State private var isShowingCompanionEditor = false
     @State private var isShowingMemoryPage = false
     @State private var memoryCreate: MemoryCreateSourceOption?
     @State private var isShowingDeleteConfirmation = false
@@ -206,8 +203,11 @@ struct FootprintDetailView: View {
                         assetFor: asset(for:),
                         onSelect: { showingAssetKind = $0 }
                     )
-                    if show.companionStatus == .confirmed {
-                        FootprintCompanionSection(show: show, archive: archive)
+                    ShowRecordRows(show: show, kinds: [.setlist, .merch, .spending])
+                        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.07)))
+                    FootprintCompanionSection(show: show, archive: archive) {
+                        isShowingCompanionEditor = true
                     }
                     BSProgrammeInfo(rows: infoRows)
                 }
@@ -256,23 +256,8 @@ struct FootprintDetailView: View {
             }
             .bsNavigationZoom(sourceID: "cover", in: coverTransition)
         }
-        .fullScreenCover(item: $mediaMemoryTarget) { target in
-            MemoryFragmentReviewView(
-                showID: show.id,
-                fragment: target.fragment,
-                initialIndex: target.initialIndex
-            )
-        }
-        .sheet(item: $textMemoryTarget) { target in
-            MemoryFragmentReviewView(
-                showID: show.id,
-                fragment: target.fragment,
-                initialIndex: target.initialIndex
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(BSColor.Stage.background)
-            .preferredColorScheme(.dark)
+        .fullScreenCover(item: $memoryTarget) { target in
+            MemoryMomentViewer(show: show, startID: target.id)
         }
         .sheet(item: $showingAssetKind) { kind in
             ShowAssetSheet(
@@ -283,6 +268,9 @@ struct FootprintDetailView: View {
         }
         .sheet(isPresented: $isShowingMemoryPage) {
             MemoryFragmentsSheet(show: show, pendingCreate: memoryCreate)
+        }
+        .sheet(isPresented: $isShowingCompanionEditor) {
+            CompanionEditorSheet(show: show)
         }
         .sheet(isPresented: $isShowingEditor) {
             ShowDraftEditorView(
@@ -379,11 +367,9 @@ struct FootprintDetailView: View {
         case (_, .archive):
             return
         case (.memory, _):
-            guard let item = FootprintCoverResolver.coverMemoryItem(in: fragments),
-                  let fragment = fragments.first(where: { $0.orderedMediaItems.contains { $0.id == item.id } }),
-                  let index = fragment.orderedMediaItems.firstIndex(where: { $0.id == item.id }) else { return }
+            guard let item = FootprintCoverResolver.coverMemoryItem(in: fragments) else { return }
             if item.kind == .video {
-                mediaMemoryTarget = FootprintMemoryTarget(fragment: fragment, initialIndex: index)
+                memoryTarget = FootprintMemoryTarget(id: item.id)
             } else {
                 let url = MemoryMediaLocation.applicationSupport().url(for: item.relativePath)
                 coverViewer = .image(.file(url))
@@ -483,18 +469,12 @@ struct FootprintDetailView: View {
     }
 
     private func openMemoryFragment(_ fragment: MemoryFragment) {
-        let target = FootprintMemoryTarget(fragment: fragment, initialIndex: 0)
-        if fragment.orderedMediaItems.isEmpty {
-            textMemoryTarget = target
-        } else {
-            mediaMemoryTarget = target
-        }
+        memoryTarget = FootprintMemoryTarget(id: fragment.orderedMediaItems.first?.id ?? fragment.id)
     }
 
     private func beginDelete() {
         guard !isDeleting else { return }
-        mediaMemoryTarget = nil
-        textMemoryTarget = nil
+        memoryTarget = nil
         coverViewer = nil
         showingAssetKind = nil
         isShowingShareComposer = false

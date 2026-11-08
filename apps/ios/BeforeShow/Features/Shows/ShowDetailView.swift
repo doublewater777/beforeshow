@@ -5,7 +5,6 @@ import UIKit
 struct ShowDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query(sort: \Show.date) private var shows: [Show]
@@ -95,12 +94,9 @@ struct ShowDetailView: View {
                             assets: ShowAssetManagementPolicy.entries(for: show, assets: showAssets),
                             assetFileURL: assetFileURL,
                             companionSubtitle: companionPresentationSubtitle,
-                            hasCompanion: show.companionStatus == .confirmed,
-                            coverURL: show.coverImageURL,
-                            hasDynamicCover: show.dynamicCover != nil,
+                            hasCompanion: show.hasCompanions,
                             onAsset: { presentedSheet = .asset($0) },
-                            onCompanion: { presentedSheet = .companion },
-                            onDynamicCover: { presentedSheet = .dynamicCover }
+                            onCompanion: { presentedSheet = .companion }
                         )
                         .padding(.top, BSSpacing.sm)
                         MemoryContactSheet(
@@ -190,17 +186,8 @@ struct ShowDetailView: View {
                 )
             case .memory:
                 MemoryFragmentsSheet(show: show, pendingCreate: memoryCreate)
-            case .dynamicCover:
-                BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
-                    DynamicCoverManagementSection(show: show)
-                }
             case .companion:
-                CurrentShowCompanionSheet(
-                    show: show,
-                    sharedHistory: companionHistory,
-                    isEnded: HomeShowPhase(timeState: timeState) == .ended,
-                    coordinator: companionCoordinator
-                )
+                CompanionEditorSheet(show: show)
             case .postpone:
                 PostponeShowSheet(
                     newDate: $postponeDraft,
@@ -325,26 +312,8 @@ struct ShowDetailView: View {
         return rows
     }
 
-    private var companionPresentation: CompanionQuickActionPresentation {
-        CompanionQuickActionPresentation(
-            status: show.companionStatus,
-            companionNames: show.companionNames,
-            isEnded: HomeShowPhase(timeState: timeState) == .ended,
-            isInvitationShared: show.companionInvitationShared
-        )
-    }
-
     private var companionPresentationSubtitle: String {
-        switch show.companionStatus {
-        case .none: return BSLocalization.text("邀请朋友")
-        case .pending: return BSLocalization.text("等待确认")
-        case .confirmed: return companionPresentation.companionName.map { BSLocalization.format("与%@同行", $0) } ?? BSLocalization.text("已确认同行")
-        case .canceled: return BSLocalization.text("重新邀请")
-        }
-    }
-
-    private var companionHistory: [Show] {
-        CompanionSharedHistory.shows(matching: show, from: shows)
+        CompanionQuickActionPresentation(companionNames: show.companionNames).displayTitle
     }
 
     @ViewBuilder

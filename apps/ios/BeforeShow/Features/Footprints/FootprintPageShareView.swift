@@ -80,7 +80,7 @@ struct FootprintPageExportView<Content: View>: View {
             }
 
             HStack {
-                Text(BSLocalization.text("开场前"))
+                BSShareByline(tone: BSColor.Stage.dim)
                 Spacer()
                 Text(footprintFullDateText(Date(), calendar: Calendar.current))
             }

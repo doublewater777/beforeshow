@@ -4,14 +4,11 @@ extension UUID: @retroactive Identifiable { public var id: UUID { self } }
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var rootShows: [Show]
     @AppStorage(OnboardingCompletionStore.appStorageKey) private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
     @State private var hasResolvedOnboardingRoute = false
     @State private var isShowingOnboarding = false
-    @State private var invitedSnapshot: CompanionInviteSnapshot?
     @State private var selectedTab: BeforeShowTab = .current
     @State private var proOfferRouter = ProOfferDeepLinkRouter.shared
     @State private var notificationRouter = NotificationDeepLinkRouter.shared
@@ -28,10 +25,7 @@ struct RootView: View {
 
             if hasFinishedSplash, hasResolvedOnboardingRoute {
                 if isShowingOnboarding {
-                    OnboardingFlowView(
-                        invitedSnapshot: invitedSnapshot,
-                        onCompleted: completeOnboarding
-                    )
+                    OnboardingFlowView(onCompleted: completeOnboarding)
                     .transition(.opacity)
                 } else {
                     RootTabView(selectedTab: $selectedTab)
@@ -47,7 +41,9 @@ struct RootView: View {
                 }
             }
 
-            CompanionPendingJoinHost()
+            LegacyCompanionInviteHost(
+                isOnboardingActive: !hasFinishedSplash || !hasResolvedOnboardingRoute || isShowingOnboarding
+            )
         }
         .modifier(ListeningNotificationTabRouting(selectedTab: $selectedTab))
         .preferredColorScheme(.dark)
@@ -58,13 +54,6 @@ struct RootView: View {
         .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
             routeNotificationTab(deepLink)
         }
-        .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase == .active, isShowingOnboarding, invitedSnapshot == nil else { return }
-            invitedSnapshot = CompanionInviteClipboardDetector.activeFirstTimeInvite()
-        }
-        .onChange(of: CompanionInviteClipboardDetector.shared.pendingFirstTimeInvite) { _, snapshot in
-            if isShowingOnboarding { invitedSnapshot = snapshot }
-        }
         .onChange(of: rootShows.map(\.id)) { _, _ in
             if isShowingOnboarding, !rootShows.isEmpty {
                 hasCompletedOnboarding = true
@@ -72,10 +61,6 @@ struct RootView: View {
             }
         }
         .task {
-            companionCoordinator.reloadPersistedAcceptedShares()
-            if companionCoordinator.hasPendingAcceptedShares {
-                await companionCoordinator.refreshAllLinkedShows(in: modelContext)
-            }
             resolveOnboardingRouteIfNeeded(hasShowsOverride: persistedShowExists())
             routeNotificationTab(notificationRouter.featureRootDeepLink)
         }
@@ -136,15 +121,10 @@ struct RootView: View {
             hasCompleted: hasCompletedOnboarding,
             hasShows: hasShows
         )
-        if isShowingOnboarding && invitedSnapshot == nil {
-            invitedSnapshot = CompanionInviteClipboardDetector.activeFirstTimeInvite()
-        }
         hasResolvedOnboardingRoute = true
     }
     private func completeOnboarding() {
         hasCompletedOnboarding = true
-        invitedSnapshot = nil
-        CompanionInviteClipboardDetector.setPendingFirstTimeInvite(nil)
         if reduceMotion {
             isShowingOnboarding = false
         } else {

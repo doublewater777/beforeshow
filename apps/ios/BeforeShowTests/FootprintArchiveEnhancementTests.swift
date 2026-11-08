@@ -360,78 +360,6 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         )
     }
 
-    func testCoverResolverPrefersRemoteCoverOverDynamicCoverPoster() throws {
-        let container = try makeCoverContainer()
-        let show = try makeShow("动态封面", year: 2026, month: 4, durationHours: 2)
-        show.coverImageURL = "https://example.com/cover.jpg"
-        let posterPath = "\(show.id.uuidString)/video-poster.jpg"
-        attachDynamicCover(to: show, posterRelativePath: posterPath, in: container)
-
-        let covers = FootprintCoverResolver.resolve(shows: [show], fragments: [], assets: [])
-
-        guard case let .remote(url) = covers[show.id]?.source else {
-            return XCTFail("coverImageURL 应优先于动态封面海报")
-        }
-        XCTAssertEqual(url.absoluteString, "https://example.com/cover.jpg")
-        XCTAssertEqual(covers[show.id]?.badge, .archive)
-    }
-
-    func testCoverResolverUsesRemoteCoverWhenPosterMissing() throws {
-        let container = try makeCoverContainer()
-        let show = try makeShow("无海报", year: 2026, month: 5, durationHours: 2)
-        show.coverImageURL = "https://example.com/cover.jpg"
-        attachDynamicCover(to: show, posterRelativePath: nil, in: container)
-
-        let covers = FootprintCoverResolver.resolve(shows: [show], fragments: [], assets: [])
-
-        guard case let .remote(url) = covers[show.id]?.source else {
-            return XCTFail("海报缺失时应落到 coverImageURL")
-        }
-        XCTAssertEqual(url.absoluteString, "https://example.com/cover.jpg")
-        XCTAssertEqual(covers[show.id]?.badge, .archive)
-    }
-
-    func testCoverResolverKeepsMemoryAndTicketAheadOfDynamicCover() throws {
-        let container = try makeCoverContainer()
-        let memoryShow = try makeShow("有记忆", year: 2026, month: 1, durationHours: 2)
-        let ticketShow = try makeShow("有票根", year: 2026, month: 2, durationHours: 2)
-        attachDynamicCover(
-            to: memoryShow,
-            posterRelativePath: "\(memoryShow.id.uuidString)/video-poster.jpg",
-            in: container
-        )
-        attachDynamicCover(
-            to: ticketShow,
-            posterRelativePath: "\(ticketShow.id.uuidString)/video-poster.jpg",
-            in: container
-        )
-
-        let fragment = try MemoryFragment(showID: memoryShow.id)
-        try fragment.appendMedia(MemoryMediaItem(
-            id: UUID(),
-            kind: .photo,
-            relativePath: "\(memoryShow.id.uuidString)/photo.jpg",
-            thumbnailRelativePath: nil,
-            contentTypeIdentifier: "public.jpeg",
-            videoDuration: nil,
-            sortOrder: 0
-        ))
-        let ticket = ShowAsset(
-            showID: ticketShow.id,
-            kind: .ticket,
-            relativePath: "\(ticketShow.id.uuidString)/ticket/ticket.jpg"
-        )
-
-        let covers = FootprintCoverResolver.resolve(
-            shows: [memoryShow, ticketShow],
-            fragments: [fragment],
-            assets: [ticket]
-        )
-
-        XCTAssertEqual(covers[memoryShow.id]?.badge, .memory)
-        XCTAssertEqual(covers[ticketShow.id]?.badge, .keepsake)
-    }
-
     func testCoverResolverMarksVideoMemoryFlagFromSourceMedia() throws {
         let videoShow = try makeShow("视频记忆", year: 2026, month: 1, durationHours: 2)
         let photoShow = try makeShow("照片记忆", year: 2026, month: 2, durationHours: 2)
@@ -504,31 +432,6 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
 
         XCTAssertEqual(shanghai.rankItem.name, beijing.rankItem.name)
         XCTAssertNotEqual(shanghai.rankItem.id, beijing.rankItem.id)
-    }
-
-    private func makeCoverContainer() throws -> ModelContainer {
-        try ModelContainer(
-            for: Show.self, DynamicCover.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        )
-    }
-
-    private func attachDynamicCover(
-        to show: Show,
-        posterRelativePath: String?,
-        in container: ModelContainer
-    ) {
-        let cover = DynamicCover(
-            showID: show.id,
-            relativePath: "\(show.id.uuidString)/video.mov",
-            posterRelativePath: posterRelativePath,
-            contentTypeIdentifier: "public.movie",
-            videoDuration: 3
-        )
-        cover.show = show
-        show.dynamicCover = cover
-        container.mainContext.insert(show)
-        container.mainContext.insert(cover)
     }
 
     private func makeShow(_ name: String, year: Int, month: Int, durationHours: Int, artist: String = "艺人", venue: String = "MAO") throws -> Show {
