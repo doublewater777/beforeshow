@@ -53,8 +53,9 @@ struct ListeningVideosView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: BSSpacing.lg) {
                 if lineup.artists.count > 1 { chips }
-                ForEach(visibleArtists) { artist in
-                    section(artist)
+                let visible = visibleArtists
+                ForEach(visible) { artist in
+                    section(artist, stacked: visible.count == 1)
                 }
                 Text(ListeningCopy.text("视频来自哔哩哔哩"))
                     .font(BSListeningTokens.caption)
@@ -93,7 +94,8 @@ struct ListeningVideosView: View {
     }
 
     @ViewBuilder
-    private func section(_ artist: ListeningVideoLineup.Artist) -> some View {
+    /// One artist on screen fills the page: their videos stack full width instead of a lone shelf.
+    private func section(_ artist: ListeningVideoLineup.Artist, stacked: Bool) -> some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
             HStack(alignment: .firstTextBaseline) {
                 Text(artist.name)
@@ -109,6 +111,20 @@ struct ListeningVideosView: View {
             .padding(.horizontal, BSSpacing.roomy)
 
             switch library.results[artist.name] {
+            case .success(let videos) where !videos.isEmpty && stacked:
+                LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
+                    ForEach(videos) { video in
+                        Button {
+                            ListeningVideoDock.shared.open(
+                                ListeningVideoSelection(artist: artist.name, video: video, related: videos)
+                            )
+                        } label: {
+                            ListeningVideoCard(video: video, width: nil)
+                        }
+                        .buttonStyle(BSListeningPressStyle(scale: 0.98))
+                    }
+                }
+                .padding(.horizontal, BSSpacing.roomy)
             case .success(let videos) where !videos.isEmpty:
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: BSSpacing.compact) {
@@ -134,6 +150,15 @@ struct ListeningVideosView: View {
                     status(ListeningCopy.text("暂时无法载入视频，点按重试"))
                 }
                 .buttonStyle(.plain)
+            case nil where stacked:
+                VStack(spacing: BSSpacing.lg) {
+                    ForEach(0..<2, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: BSRadius.sm + 2)
+                            .fill(BSColor.Stage.surface)
+                            .aspectRatio(16 / 9, contentMode: .fit)
+                    }
+                }
+                .padding(.horizontal, BSSpacing.roomy)
             case nil:
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: BSSpacing.compact) {
@@ -173,12 +198,14 @@ struct ListeningVideoSelection: Equatable {
 struct ListeningVideoCard: View {
     static let width: CGFloat = 240
     let video: ArtistVideo
-    var width: CGFloat = Self.width
+    /// `nil` fills the available width.
+    var width: CGFloat? = Self.width
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             ListeningVideoThumbnail(video: video)
-                .frame(width: width, height: width * 9 / 16)
+                .frame(width: width)
+                .aspectRatio(16 / 9, contentMode: .fit)
                 .padding(.bottom, BSSpacing.xs + 2)
             Text(video.title)
                 .font(.subheadline.weight(.semibold))
@@ -191,6 +218,7 @@ struct ListeningVideoCard: View {
                 .lineLimit(1)
         }
         .frame(width: width, alignment: .leading)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
     }
 }
 
