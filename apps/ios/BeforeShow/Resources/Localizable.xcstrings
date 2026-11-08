@@ -94,7 +94,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " — over %lld years since"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : " — over %arg year since"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : " — over %arg years since"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1211,7 +1233,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld items · %2$lld shelves"
+            "value" : "Items: %1$lld · Shelves: %2$lld"
           }
         },
         "zh-Hant" : {
@@ -1493,7 +1515,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld items"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg item"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg items"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1542,7 +1586,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld stages"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg stage"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg stages"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans" : {
@@ -1580,7 +1646,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld items"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg item"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg items"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1596,7 +1684,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld artists"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg artist"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg artists"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1628,7 +1738,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld minutes ago"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg minute ago"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg minutes ago"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1644,7 +1776,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "in %lld minutes"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "in %arg minute"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "in %arg minutes"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1693,7 +1847,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg show"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg shows"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1743,7 +1919,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld live shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg live show"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg live shows"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1759,7 +1957,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld shows, kept here"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg show, kept here"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg shows, kept here"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1775,7 +1995,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld signs"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg sign"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg signs"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1807,7 +2049,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld days"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg day"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg days"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1839,7 +2103,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "in %lld days"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "in %arg day"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "in %arg days"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1887,7 +2173,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld hours ago"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg hour ago"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg hours ago"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1903,7 +2211,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "in %lld hours"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "in %arg hour"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "in %arg hours"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -1999,7 +2329,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The show %lld years ago"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "The show %arg year ago"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "The show %arg years ago"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -2032,7 +2384,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld records"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg record"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg records"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -2098,7 +2472,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld items"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg item"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg items"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -2148,7 +2544,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld visits"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg visit"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg visits"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -2164,7 +2582,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld memories"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg memory"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg memories"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans" : {
@@ -2203,7 +2643,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld stops"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg stop"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg stops"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -2235,7 +2697,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld stars"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg star"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg stars"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -2267,7 +2751,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld songs"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg song"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg songs"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -3999,7 +4505,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld shows together"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg show together"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg shows together"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -4063,7 +4591,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Last show %lld days ago"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Last show %arg day ago"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Last show %arg days ago"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -4486,7 +5036,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Meeting %@ for the %lldth time"
+            "value" : "Seeing %@ · No. %lld"
           }
         },
         "zh-Hant" : {
@@ -5385,7 +5935,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Most visited venue · %lld visits"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Most visited venue · %arg visit"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Most visited venue · %arg visits"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -5482,7 +6054,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save %lld timetables"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Save %arg timetable"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Save %arg timetables"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -5498,7 +6092,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save %lld tickets"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Save %arg ticket"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Save %arg tickets"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -6341,7 +6957,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld shows together"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg show together"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg shows together"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -8385,7 +9023,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hear one song live at %lld shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Hear one song live at %arg show"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Hear one song live at %arg shows"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -8837,7 +9497,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your %2$lldth time seeing %1$@ · tap the ticket to tear it"
+            "value" : "Seeing %1$@ · No. %2$lld · tap the ticket to tear it"
           }
         },
         "zh-Hant" : {
@@ -8869,7 +9529,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Go with the same person %lld times"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Go with the same person %arg time"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Go with the same person %arg times"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -8885,7 +9567,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Go with friends to %lld shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Go with friends to %arg show"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Go with friends to %arg shows"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -8981,7 +9685,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return to one venue %lld times"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Return to one venue %arg time"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Return to one venue %arg times"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -9240,7 +9966,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See shows in %lld cities"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "See shows in %arg city"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "See shows in %arg cities"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -13983,7 +14731,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Collect %lld pieces of merch"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Collect %arg piece of merch"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Collect %arg pieces of merch"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -14313,7 +15083,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rate %lld shows after they end"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Rate %arg show after they end"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Rate %arg shows after they end"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -18660,7 +19452,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Heard live %lld times"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Heard live %arg time"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Heard live %arg times"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -19224,7 +20038,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See your %lld shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "See your %arg show"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "See your %arg shows"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -19240,7 +20076,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See one artist %lld times"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "See one artist %arg time"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "See one artist %arg times"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -19311,7 +20169,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seen %lld times"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Seen %arg time"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Seen %arg times"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -20106,7 +20986,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lldth time"
+            "value" : "No. %lld"
           }
         },
         "zh-Hant" : {
@@ -20670,7 +21550,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Log spending for %lld shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Log spending for %arg show"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Log spending for %arg shows"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -21467,7 +22369,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save %lld memories"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Save %arg memory"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Save %arg memories"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -21483,7 +22407,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Log %lld songs heard live"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Log %arg song heard live"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "Log %arg songs heard live"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -21554,7 +22500,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld shows logged"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg show logged"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg shows logged"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -23167,7 +24135,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld more shows to log"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more show to log"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more shows to log"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -23183,7 +24173,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld more shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more show"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg more shows"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
@@ -23253,7 +24265,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld days to go. "
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg day to go. "
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg days to go. "
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {

@@ -221,6 +221,8 @@ private struct FootprintMiniBook: View {
                     Text(BSLocalization.text("足迹"))
                         .font(.system(size: 11, weight: .black, design: .serif))
                         .foregroundStyle(FootprintRoomPalette.foil)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
                 .padding(.leading, 5)
             }
