@@ -87,6 +87,28 @@ extension FootprintEntryTiles {
         }
     }
 
+    func badgesTile(_ badges: [FootprintBadge]) -> some View {
+        let earned = badges.reduce(0) { $0 + $1.tier }
+        let fresh = FootprintBadgeSeenStore().unseen(in: badges).count
+        let subtitle = fresh > 0
+            ? BSLocalization.format("已得 %1$lld 枚 · 新 %2$lld", earned, fresh)
+            : BSLocalization.format("已得 %lld 枚", earned)
+        return tile(title: BSLocalization.text("徽章"), subtitle: subtitle, background: AnyShapeStyle(Color(white: 0.07))) {
+            HStack(spacing: -10) {
+                ForEach(Array(badges.prefix(3).enumerated()), id: \.element.id) { index, badge in
+                    FootprintBadgePin(badge: badge, size: 52)
+                        .rotationEffect(.degrees(Double(index - 1) * 8))
+                        .zIndex(Double(3 - index))
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if fresh > 0 {
+                    Circle().fill(BSColor.Stage.accent).frame(width: 8, height: 8).offset(x: 6, y: -2)
+                }
+            }
+        }
+    }
+
     var ledgerTile: some View {
         let recorded = archive.shows.filter(\.hasAnySpending).count
         return tile(

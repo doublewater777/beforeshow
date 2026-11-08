@@ -84,4 +84,12 @@ enum FootprintRoomPalette {
     static let receiptPaper = Color(red: 0.957, green: 0.949, blue: 0.925)
     static let receiptInk = Color(red: 0.102, green: 0.102, blue: 0.110)
     static let printerSlot = Color(red: 0.133, green: 0.133, blue: 0.149)
+    // Badges: enamel pins in three metals.
+    static let badgeMetals: [Color] = [
+        Color(red: 0.722, green: 0.478, blue: 0.318),
+        Color(red: 0.784, green: 0.800, blue: 0.831),
+        Color(red: 0.941, green: 0.863, blue: 0.714)
+    ]
+    static let badgeEnamel = Color(red: 0.086, green: 0.082, blue: 0.094)
+    static let badgeLocked = Color(red: 0.180, green: 0.176, blue: 0.192)
 }
