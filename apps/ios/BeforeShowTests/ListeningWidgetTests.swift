@@ -242,14 +242,14 @@ final class ListeningWidgetTests: XCTestCase {
         XCTAssertFalse(failed.phase.showsSoundingChrome)
     }
 
-    func testProjectionOffersLiveHeadOnlyWhenItCanLoad() {
+    func testProjectionOffersTodaysDiscOnlyWhenItCanLoad() {
         let head = makeDisc(trackArtwork: "https://example.invalid/track.jpg")
         let playable = WidgetListeningProjection.make(input(
             seated: nil,
             phase: .stopped,
             action: .disabled,
-            idle: head,
-            idleCanLoad: true
+            today: head,
+            todayCanLoad: true
         ))
         XCTAssertEqual(playable.phase, .idle)
         XCTAssertEqual(playable.control, .play)
@@ -262,11 +262,76 @@ final class ListeningWidgetTests: XCTestCase {
             seated: nil,
             phase: .stopped,
             action: .disabled,
-            idle: head,
-            idleCanLoad: false
+            today: head,
+            todayCanLoad: false
         ))
         XCTAssertEqual(blocked.control, .openListen)
         XCTAssertNil(blocked.discTitle)
+    }
+
+    func testSessionDiscOwnsTheWidgetOverTodaysDisc() {
+        let seated = makeDisc(trackArtwork: nil)
+        let today = otherDisc("today")
+        for (phase, action) in [(ListeningPlayerPhase.playing, ListeningPlayPauseAction.pause), (.paused, .play)] {
+            let snapshot = WidgetListeningProjection.make(input(
+                seated: seated, phase: phase, action: action,
+                today: today, todayCanLoad: true, tomorrow: otherDisc("tomorrow"), tomorrowStartsAt: Date()
+            ))
+            XCTAssertEqual(snapshot.discTitle, seated.title)
+            XCTAssertTrue(snapshot.hasSession)
+            XCTAssertNil(snapshot.nextDisc)
+            XCTAssertEqual(snapshot.shown(at: .distantFuture).discTitle, seated.title)
+        }
+    }
+
+    func testNoSessionShowsTodayAndTurnsToTomorrowAtMidnight() throws {
+        let midnight = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = WidgetListeningProjection.make(input(
+            seated: nil, phase: .noDisc, action: .disabled,
+            today: otherDisc("today"), todayCanLoad: true,
+            tomorrow: otherDisc("tomorrow"), tomorrowStartsAt: midnight
+        ))
+        XCTAssertEqual(snapshot.discTitle, "today")
+        XCTAssertEqual(snapshot.control, .play)
+        XCTAssertFalse(snapshot.hasSession)
+        XCTAssertEqual(snapshot.shown(at: midnight.addingTimeInterval(-1)).discTitle, "today")
+        let turned = snapshot.shown(at: midnight)
+        XCTAssertEqual(turned.discTitle, "tomorrow")
+        XCTAssertEqual(turned.coverImageURL, "https://example.invalid/tomorrow.jpg")
+        XCTAssertEqual(turned.control, .play)
+        XCTAssertEqual(turned.phase, .idle)
+    }
+
+    func testEmptyPoolPublishesTheEmptyState() {
+        let snapshot = WidgetListeningProjection.make(input(seated: nil, phase: .noDisc, action: .disabled))
+        XCTAssertNil(snapshot.discTitle)
+        XCTAssertNil(snapshot.coverImageURL)
+        XCTAssertNil(snapshot.nextDisc)
+        XCTAssertEqual(snapshot.phase, .unavailable)
+        XCTAssertEqual(snapshot.control, .openListen)
+    }
+
+    func testPreTodayDiscSnapshotStillDecodes() throws {
+        let showID = UUID()
+        let json = """
+        {"showID":"\(showID.uuidString)","showName":"旧版","artistName":"艺人","discTitle":"唱片",
+         "coverImageURL":"https://example.invalid/old.jpg","trackCount":9,"phase":"idle","control":"play",
+         "hasSession":false,"generatedAt":800000000}
+        """
+        try Data(json.utf8).write(to: XCTUnwrap(WidgetListeningStore.snapshotURL))
+        let decoded = try XCTUnwrap(WidgetListeningStore.read())
+        XCTAssertEqual(decoded.showID, showID)
+        XCTAssertEqual(decoded.discTitle, "唱片")
+        XCTAssertEqual(decoded.control, .play)
+        XCTAssertNil(decoded.nextDisc)
+        XCTAssertEqual(decoded.shown(at: .distantFuture).discTitle, "唱片")
+
+        var withNext = decoded
+        withNext.nextDisc = WidgetListeningNextDisc(startsAt: Date(timeIntervalSince1970: 1_800_000_000),
+                                                    artistName: nil, discTitle: "明天", coverImageURL: nil, trackCount: 3)
+        let roundTrip = try JSONDecoder().decode(WidgetListeningSnapshot.self, from: JSONEncoder().encode(withNext))
+        XCTAssertEqual(roundTrip.nextDisc, withNext.nextDisc)
+        XCTAssertFalse(roundTrip.isContentEqual(to: decoded))
     }
 
     @MainActor
@@ -344,7 +409,7 @@ final class ListeningWidgetTests: XCTestCase {
         async let second = ListeningIntentHandler.shared.perform(.play)
         _ = await (first, second)
         XCTAssertTrue(room.isPlaying)
-        XCTAssertEqual(room.loadedDisc?.id, room.livePreviewDisc?.id)
+        XCTAssertEqual(room.loadedDisc?.id, room.todayDisc()?.id)
         XCTAssertEqual(WidgetListeningStore.read()?.control, .pause)
 
         await ListeningIntentHandler.shared.perform(.play)
@@ -371,14 +436,14 @@ final class ListeningWidgetTests: XCTestCase {
     }
 
     @MainActor
-    func testIdleWidgetPublishesTheLivePreviewDisc() async throws {
+    func testIdleWidgetPublishesTodaysDisc() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         defer {
             room.stop()
         }
         await room.load(show: show)
-        let head = try XCTUnwrap(room.livePreviewDisc)
+        let head = try XCTUnwrap(room.todayDisc())
         room.syncWidgetListeningState()
         let snapshot = try XCTUnwrap(WidgetListeningStore.read())
         XCTAssertEqual(snapshot.discTitle, head.title)
@@ -430,7 +495,7 @@ final class ListeningWidgetTests: XCTestCase {
     }
 
     @MainActor
-    func testColdWidgetPlayStartsTheLivePreviewDisc() async throws {
+    func testColdWidgetPlayStartsTodaysDisc() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
         context.insert(CurrentShowSelection(selectedShowID: show.id, isManual: true))
@@ -439,7 +504,7 @@ final class ListeningWidgetTests: XCTestCase {
         defer { stopWidgetRoom(room) }
         XCTAssertTrue(room.isPlaying)
         XCTAssertEqual(room.show?.id, show.id)
-        XCTAssertEqual(room.loadedDisc?.id, room.livePreviewDisc?.id)
+        XCTAssertEqual(room.loadedDisc?.id, room.todayDisc()?.id)
         XCTAssertEqual(WidgetListeningStore.read()?.showID, show.id)
         XCTAssertEqual(WidgetListeningStore.read()?.control, .pause)
     }
@@ -520,6 +585,16 @@ final class ListeningWidgetTests: XCTestCase {
         ListeningRoomSessionStore.shared.adopt(nil)
     }
 
+    private func otherDisc(_ id: String) -> ListeningDisc {
+        ListeningDisc(
+            id: id,
+            title: id,
+            artworkURL: URL(string: "https://example.invalid/\(id).jpg"),
+            tracks: [ListeningDiscTrack(CatalogSong(appleMusicSongID: "\(id)-song", title: id, artistName: "Artist"))],
+            artistNames: ["Artist"]
+        )
+    }
+
     private func makeDisc(trackArtwork: String?) -> ListeningDisc {
         let song = CatalogSong(
             appleMusicSongID: "projection-song",
@@ -541,8 +616,10 @@ final class ListeningWidgetTests: XCTestCase {
         seated: ListeningDisc?,
         phase: ListeningPlayerPhase,
         action: ListeningPlayPauseAction,
-        idle: ListeningDisc? = nil,
-        idleCanLoad: Bool = false
+        today: ListeningDisc? = nil,
+        todayCanLoad: Bool = false,
+        tomorrow: ListeningDisc? = nil,
+        tomorrowStartsAt: Date? = nil
     ) -> WidgetListeningProjection.Input {
         .init(
             showID: nil,
@@ -551,8 +628,10 @@ final class ListeningWidgetTests: XCTestCase {
             track: seated?.tracks.first,
             playerPhase: phase,
             playPauseAction: action,
-            idleDisc: idle,
-            idleCanLoad: idleCanLoad
+            todayDisc: today,
+            todayCanLoad: todayCanLoad,
+            tomorrowDisc: tomorrow,
+            tomorrowStartsAt: tomorrowStartsAt
         )
     }
 

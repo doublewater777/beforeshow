@@ -59,9 +59,10 @@ enum WidgetDataSync {
         }
 
         if let listening = WidgetListeningStore.read(),
-           let cover = listening.coverImageURL, !cover.isEmpty,
            listening.hasSession || listening.showID == currentShow?.id {
-            retainedCoverSources.insert(cover)
+            for cover in [listening.coverImageURL, listening.nextDisc?.coverImageURL].compactMap({ $0 }) where !cover.isEmpty {
+                retainedCoverSources.insert(cover)
+            }
         }
 
         let reloadGeneration = widgetReloadGeneration

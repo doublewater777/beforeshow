@@ -3,7 +3,7 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Listening Widget Views
-// 只做「开机」入口：封面 + 将要播放的内容 + 一个播放键。
+// 与 App 迷你播放器同一种视觉：海报背景 + 静态方形封面 + 一个播放/暂停键。
 // 切歌交给系统正在播放控件。
 
 struct ListeningWidgetView: View {
@@ -16,18 +16,15 @@ struct ListeningWidgetView: View {
             switch family {
             case .systemSmall:
                 SmallListeningView(entry: entry)
-                    .containerBackground(for: .widget) {
-                        if entry.snapshot != nil {
-                            PosterBackground(coverImagePath: entry.coverImagePath)
-                        } else {
-                            CoverAmbientBloom(ambient: entry.ambientColor)
-                        }
-                    }
             default:
                 MediumListeningView(entry: entry)
-                    .containerBackground(for: .widget) {
-                        CoverAmbientBloom(ambient: entry.ambientColor)
-                    }
+            }
+        }
+        .containerBackground(for: .widget) {
+            if entry.snapshot?.discTitle != nil {
+                PosterBackground(coverImagePath: entry.coverImagePath, blurred: family != .systemSmall)
+            } else {
+                CoverAmbientBloom(ambient: nil)
             }
         }
         .widgetURL(URL(string: "beforeshow://listen"))
@@ -41,14 +38,18 @@ private struct ListeningCopy {
     let title: String
     /// 副标题：有曲目/唱片时给艺人；只剩演出名时不再补字
     let subtitle: String?
-    /// 中号顶部的演出名；主标题已是演出名时省略
+    /// 顶部一行：没有会话时是「今天这张」，有会话时是演出名；主标题已是演出名时省略
     let context: String?
 
     init(_ snapshot: WidgetListeningSnapshot) {
         let nowPlaying = [snapshot.trackTitle, snapshot.discTitle].compactMap { $0 }.first { !$0.isEmpty }
         title = nowPlaying ?? snapshot.showName
         subtitle = nowPlaying == nil ? nil : snapshot.artistName.flatMap { $0.isEmpty ? nil : $0 }
-        context = nowPlaying == nil ? nil : snapshot.showName
+        if nowPlaying == nil {
+            context = nil
+        } else {
+            context = snapshot.hasSession ? snapshot.showName : BSLocalization.text("今天这张")
+        }
     }
 }
 
@@ -61,22 +62,15 @@ private struct SmallListeningView: View {
         if let snapshot = entry.snapshot {
             let copy = ListeningCopy(snapshot)
             VStack(alignment: .leading, spacing: 0) {
+                if snapshot.discTitle == nil {
+                    SquareCover(path: nil, size: 34)
+                } else if let context = copy.context {
+                    ContextLine(text: context)
+                }
                 Spacer(minLength: 0)
                 HStack(alignment: .bottom, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(copy.title)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(WidgetTheme.foreground)
-                            .lineLimit(2)
-                        if let subtitle = copy.subtitle {
-                            Text(subtitle)
-                                .font(.system(size: 11))
-                                .foregroundStyle(WidgetTheme.foreground.opacity(0.7))
-                                .lineLimit(1)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
+                    TitleBlock(copy: copy, snapshot: snapshot, titleSize: 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     PlayPauseButton(snapshot: snapshot, size: 34)
                 }
             }
@@ -86,16 +80,92 @@ private struct SmallListeningView: View {
     }
 }
 
+// MARK: - 中号：文字列在左、方形封面在右
+
+private struct MediumListeningView: View {
+    let entry: ListeningEntry
+
+    private let coverSize: CGFloat = 108
+
+    var body: some View {
+        if let snapshot = entry.snapshot {
+            let copy = ListeningCopy(snapshot)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let context = copy.context {
+                        ContextLine(text: context)
+                    }
+                    Spacer(minLength: 4)
+                    TitleBlock(copy: copy, snapshot: snapshot, titleSize: 17)
+                    Spacer(minLength: 8)
+                    PlayPauseButton(snapshot: snapshot, size: 34)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                SquareCover(path: snapshot.discTitle == nil ? nil : entry.coverImagePath, size: coverSize)
+                    .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
+            }
+        } else {
+            ListeningEmptyView()
+        }
+    }
+}
+
+// MARK: - 共用部件
+
+private struct ContextLine: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(WidgetTheme.muted)
+            .lineLimit(1)
+    }
+}
+
+private struct TitleBlock: View {
+    let copy: ListeningCopy
+    let snapshot: WidgetListeningSnapshot
+    let titleSize: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(copy.title)
+                .font(.system(size: titleSize, weight: .semibold))
+                .foregroundStyle(snapshot.phase.showsSoundingChrome ? WidgetTheme.heroWarmGold : WidgetTheme.foreground)
+                .lineLimit(2)
+            if let subtitle = copy.subtitle {
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(WidgetTheme.muted)
+                    .lineLimit(1)
+            }
+        }
+    }
+}
+
+/// 海报背景：封面铺底，压暗后承载文字。中号再做模糊，让右侧方形封面成为主体。
 private struct PosterBackground: View {
     let coverImagePath: String?
+    let blurred: Bool
 
     var body: some View {
         ZStack {
             WidgetTheme.background
-            CoverImage(path: coverImagePath)
+            if let image = coverImagePath.flatMap(UIImage.init(contentsOfFile:)) {
+                Image(uiImage: image)
+                    .resizable()
+                    .bsFullColorWidgetImage()
+                    .scaledToFill()
+                    .blur(radius: blurred ? 24 : 0)
+                    .opacity(blurred ? 0.7 : 1)
+            } else {
+                WidgetTheme.surfaceRaised
+            }
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0), location: 0.3),
+                    .init(color: .black.opacity(blurred ? 0.35 : 0), location: 0.3),
                     .init(color: .black.opacity(0.82), location: 1)
                 ],
                 startPoint: .top,
@@ -105,91 +175,33 @@ private struct PosterBackground: View {
     }
 }
 
-// MARK: - 中号：与倒计时同构，文字列在左、封面在右
-
-private struct MediumListeningView: View {
-    let entry: ListeningEntry
-
-    var body: some View {
-        if let snapshot = entry.snapshot {
-            let copy = ListeningCopy(snapshot)
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    if let context = copy.context {
-                        Text(context)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(WidgetTheme.muted)
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 4)
-
-                    Text(copy.title)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(snapshot.phase.showsSoundingChrome ? WidgetTheme.heroWarmGold : WidgetTheme.foreground)
-                        .lineLimit(2)
-                    if let subtitle = copy.subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 11))
-                            .foregroundStyle(WidgetTheme.muted)
-                            .lineLimit(1)
-                            .padding(.top, 2)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    PlayPauseButton(snapshot: snapshot, size: 34)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                SleeveWithDisc(coverImagePath: entry.coverImagePath, isSounding: snapshot.phase.showsSoundingChrome)
-                    .padding(.leading, 12)
-            }
-        } else {
-            ListeningEmptyView()
-        }
-    }
-}
-
-/// 封套；播放中从左侧露出一截 CD。
-private struct SleeveWithDisc: View {
-    let coverImagePath: String?
-    let isSounding: Bool
-
-    private let sleeveSize: CGFloat = 108
-    private let discPeek: CGFloat = 22
+/// 与迷你播放器的封面一致：静态方形、细描边；封面未就绪时是音符占位。
+private struct SquareCover: View {
+    let path: String?
+    let size: CGFloat
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            if isSounding {
-                CDDisc(size: sleeveSize - 6)
-                    .padding(.trailing, discPeek + 3)
+        let shape = RoundedRectangle(cornerRadius: size > 60 ? 8 : 6, style: .continuous)
+        Group {
+            if let image = path.flatMap(UIImage.init(contentsOfFile:)) {
+                Image(uiImage: image)
+                    .resizable()
+                    .bsFullColorWidgetImage()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    WidgetTheme.surfaceRaised
+                    Image(systemName: "music.note")
+                        .font(.system(size: size * 0.42, weight: .medium))
+                        .foregroundStyle(WidgetTheme.muted)
+                }
             }
-            CoverImage(path: coverImagePath)
-                .frame(width: sleeveSize, height: sleeveSize)
-                .overlay {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .white.opacity(0.14), location: 0),
-                            .init(color: .white.opacity(0), location: 0.35),
-                            .init(color: .black.opacity(0.25), location: 1)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
-                }
-                .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
         }
-        .frame(width: sleeveSize + (isSounding ? discPeek : 0), alignment: .trailing)
+        .frame(width: size, height: size)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
     }
 }
-
-// MARK: - 共用部件
 
 private struct PlayPauseButton: View {
     let snapshot: WidgetListeningSnapshot
@@ -230,68 +242,14 @@ private struct PlayPauseButton: View {
     }
 
     private var buttonBackground: Color {
-        renderingMode == .fullColor ? WidgetTheme.heroWarmGold : Color.primary.opacity(0.18)
-    }
-}
-
-private struct CoverImage: View {
-    let path: String?
-
-    var body: some View {
-        if let path, let uiImage = UIImage(contentsOfFile: path) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .bsFullColorWidgetImage()
-                .scaledToFill()
-        } else {
-            Image("default_cover")
-                .resizable()
-                .bsFullColorWidgetImage()
-                .scaledToFill()
-        }
-    }
-}
-
-/// 露出部分只有外圈，所以只画镭射面与音轨。
-private struct CDDisc: View {
-    let size: CGFloat
-
-    private static let laser = Gradient(colors: [
-        Color(red: 0.68, green: 0.72, blue: 0.78),
-        Color(red: 0.90, green: 0.93, blue: 0.98),
-        WidgetTheme.heroWarmGold.opacity(0.70),
-        Color(red: 0.38, green: 0.74, blue: 0.82),
-        Color(red: 0.70, green: 0.52, blue: 0.92),
-        Color(red: 0.88, green: 0.91, blue: 0.96),
-        WidgetTheme.accent.opacity(0.70),
-        Color(red: 0.36, green: 0.72, blue: 0.78),
-        Color(red: 0.62, green: 0.44, blue: 0.82),
-        Color(red: 0.68, green: 0.72, blue: 0.78)
-    ])
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color(white: 0.2))
-            Circle()
-                .fill(AngularGradient(gradient: Self.laser, center: .center, angle: .degrees(75)))
-            Circle()
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: size * 0.18)
-                .padding(size * 0.12)
-            Circle()
-                .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
-        }
-        .frame(width: size, height: size)
-        .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 2)
+        renderingMode == .fullColor ? WidgetTheme.foreground : Color.primary.opacity(0.18)
     }
 }
 
 private struct ListeningEmptyView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: "opticaldisc")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(WidgetTheme.accent)
+            SquareCover(path: nil, size: 34)
             Spacer(minLength: 0)
             Text(BSLocalization.text("添加一场演出，开始听歌"))
                 .font(.system(size: 13, weight: .semibold))

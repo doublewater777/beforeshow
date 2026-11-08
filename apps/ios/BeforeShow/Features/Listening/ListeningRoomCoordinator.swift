@@ -71,7 +71,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
     @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
     @ObservationIgnored private var evidenceFailure = ListeningEvidenceFailureOwner()
-    @ObservationIgnored private let widgetSync = ListeningWidgetSync()
+    @ObservationIgnored let widgetSync = ListeningWidgetSync()
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
@@ -114,7 +114,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         deck.evidenceProvider = { [weak self] in try? self?.playbackEvidenceCoordinatorForUse() }
         deck.onCursorChange = { [weak self] _ in self?.deckCursorDidChange() }
         deck.onTransportChange = { [weak self] in self?.deckTransportDidChange() }
-        deck.onFinish = { [weak self] in self?.advanceShuffle() }
+        deck.onFinish = { [weak self] in self?.deckDidFinish() }
         deck.onProgress = { [weak self] time in self?.deckDidProgress(time) }
         deck.onEvidence = { [weak self] result, immediate in
             self?.applyDeckEvidence(result, representDismissedAlert: immediate)
@@ -195,26 +195,6 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     func discardLoadedDiscState(publishWidget: Bool = true) {
         deck.eject(); loadedDisc = nil; shuffleRun = nil; clearPersistedDisc()
         if publishWidget { syncWidgetListeningState() }
-    }
-    /// Disc standing on the live-preview shelf. The widget plays this when nothing is seated.
-    var livePreviewDisc: ListeningDisc? {
-        rackGroups.first { $0.id == ListeningDailyFeaturedDiscPolicy.liveArtistID }?.head
-    }
-
-    func syncWidgetListeningState() {
-        let idle = livePreviewDisc
-        let seated = loadedDisc
-        let snapshot = WidgetListeningProjection.make(.init(
-            showID: show?.id,
-            showName: show?.name ?? (WidgetSnapshotStore.read()?.name ?? ""),
-            seatedDisc: seated,
-            track: seated == nil ? nil : track,
-            playerPhase: deck.phase,
-            playPauseAction: playPauseAction,
-            idleDisc: idle,
-            idleCanLoad: idle.map { discPresentation(for: $0).canLoad } ?? false
-        ))
-        widgetSync.sync(snapshot)
     }
     var track: ListeningDiscTrack? {
         loadedDisc == nil ? nil : deck.currentTrack

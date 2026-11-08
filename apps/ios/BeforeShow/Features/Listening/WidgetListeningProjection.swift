@@ -1,7 +1,8 @@
 import Foundation
 
 /// Projects Listen's session onto the widget. The widget does not choose a disc,
-/// a cover, or a playback phase of its own.
+/// a cover, or a playback phase of its own. With no session it offers 「今天这张」,
+/// and carries the next day's so the widget can turn over at local midnight.
 enum WidgetListeningProjection {
     struct Input {
         var showID: UUID?
@@ -10,16 +11,28 @@ enum WidgetListeningProjection {
         var track: ListeningDiscTrack?
         var playerPhase: ListeningPlayerPhase
         var playPauseAction: ListeningPlayPauseAction
-        var idleDisc: ListeningDisc?
-        var idleCanLoad: Bool
+        var todayDisc: ListeningDisc?
+        var todayCanLoad: Bool
+        var tomorrowDisc: ListeningDisc? = nil
+        var tomorrowStartsAt: Date? = nil
     }
 
     static func make(_ input: Input) -> WidgetListeningSnapshot {
         if let disc = input.seatedDisc {
             return session(input, disc: disc)
         }
-        if let disc = input.idleDisc, input.idleCanLoad {
-            return snapshot(input, disc: disc, track: nil, phase: .idle, control: .play, hasSession: false)
+        if let disc = input.todayDisc, input.todayCanLoad {
+            var today = snapshot(input, disc: disc, track: nil, phase: .idle, control: .play, hasSession: false)
+            if let next = input.tomorrowDisc, let startsAt = input.tomorrowStartsAt {
+                today.nextDisc = WidgetListeningNextDisc(
+                    startsAt: startsAt,
+                    artistName: next.artistNames.first,
+                    discTitle: next.title,
+                    coverImageURL: next.artworkURL?.absoluteString,
+                    trackCount: next.tracks.count
+                )
+            }
+            return today
         }
         return snapshot(
             input,

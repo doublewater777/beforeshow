@@ -53,6 +53,7 @@
 		1280C4D6BCD64385FDBC66B3 /* ShowDraftCoverFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF9E9F9C53477B49EAE9561 /* ShowDraftCoverFields.swift */; };
 		12F9177D8A12B3AB9D7612A4 /* ShowDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 592FC3FE627DEF914C6E09D6 /* ShowDraftTests.swift */; };
 		1334653173495DE07B7DF546 /* BeforeShowWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7B46048CB6FE0401F7494316 /* BeforeShowWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		133F940CCDCA5C74C0E61248 /* ListeningTodayDiscTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F56BBB67EE50A54869C62F3 /* ListeningTodayDiscTests.swift */; };
 		139793E7F8784E714606B08D /* WidgetTimelinePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1A165A2C555CC97C803683 /* WidgetTimelinePlanner.swift */; };
 		13D29C70C1CFEA2731DE9B28 /* BSPlatformCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE6268009CCBE8150076F83 /* BSPlatformCompatibility.swift */; };
 		144AC13E807C61EAA44EA068 /* FootprintVenueArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2912C8E43F44D329789FDB1F /* FootprintVenueArchiveView.swift */; };
@@ -88,6 +89,7 @@
 		1B2CDDD0179E57582879F230 /* CurrentShowRecordList.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD570A7D598A729AEF39D7EF /* CurrentShowRecordList.swift */; };
 		1B51D285D49F698C89B4C3B3 /* FootprintArtistIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEE2AFEEEABC71B2112D9F3 /* FootprintArtistIdentityTests.swift */; };
 		1B7BAAB5C6DC9FCFE8EB69DE /* ShowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E5DDD2EE32C1C5BF52E6F3 /* ShowModelTests.swift */; };
+		1BE2426D33F4C15410F1DA26 /* ListeningReminderDayDiscs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC83537933A1B7183F30B6B2 /* ListeningReminderDayDiscs.swift */; };
 		1C3717197582C07A5EAEF12A /* footprint-clink.caf in Resources */ = {isa = PBXBuildFile; fileRef = F623A362056B7C9D5BAD43CA /* footprint-clink.caf */; };
 		1C563B9AB8C6A5E1065AD9AC /* CurrentShowManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65AFCD4235D12288BD2C0BC /* CurrentShowManagementView.swift */; };
 		1C796F2E05207D770AF7B1F4 /* CoverAmbientColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D87D73BEDFED2B10860DBE /* CoverAmbientColor.swift */; };
@@ -128,6 +130,7 @@
 		2A5B359A84C2B2D1FF723753 /* ListeningPlaybackEvidenceCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35CC2BAD7E3B84E693900852 /* ListeningPlaybackEvidenceCoordinator.swift */; };
 		2ABA824A7B30AB8E0C8F3A83 /* SettingsCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A913BD08998981B3019EF5E5 /* SettingsCatalog.swift */; };
 		2AC8D8C3CFC67227869E894A /* OpeningFamiliarityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D962EC809C9CCC2D7D2DB0D2 /* OpeningFamiliarityCoordinator.swift */; };
+		2B2F1C20C56DCC75C55C5220 /* ListeningTodayDiscPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACBAEF8FE080F1B2600E626 /* ListeningTodayDiscPolicy.swift */; };
 		2C61F0AF75B3DBB44AC45CF9 /* CurrentShowScrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082D12B6C71406371CEEF174 /* CurrentShowScrollTests.swift */; };
 		2CA4E1546111CEAF443408C5 /* TimetableInspectorArtistHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1084432CC8FD00F6D037B4 /* TimetableInspectorArtistHeader.swift */; };
 		2CD29A11D9F3C6D1B032209D /* WidgetDataSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F3081E975867E95F098F8C /* WidgetDataSync.swift */; };
@@ -277,6 +280,7 @@
 		5F78901A888AB2F93AFEAEF8 /* BSDateFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D0828056BA70804926DB3E /* BSDateFormat.swift */; };
 		60039D402ADD9353344CEE4B /* HomeStageScreensTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF771343EA6190084824FAC9 /* HomeStageScreensTests.swift */; };
 		60178CBCA7C8320FC96455F2 /* ShowMutationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93A9E42A34E7825013D1B3B /* ShowMutationCoordinatorTests.swift */; };
+		6044593FB4F19CE8AA99041A /* ListeningRoomCoordinator+Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4722610F77A5DD3E3A90F24 /* ListeningRoomCoordinator+Widget.swift */; };
 		608E14A38ED2DED1CAE15474 /* ShowLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB322889B3E6C99CC494F371 /* ShowLiveActivityAttributes.swift */; };
 		60CA16B11397B83A86F1FEA7 /* CloudSharingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58A2BAC3CA068BF74DC74EA /* CloudSharingView.swift */; };
 		6116F4A843000DBA63061C0C /* ListeningMiniPlayerSwipeIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74FE9807A664AFAF92546A0B /* ListeningMiniPlayerSwipeIntent.swift */; };
@@ -1127,6 +1131,7 @@
 		8E5497F5EE579471EACD2C61 /* BSScrollObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSScrollObservation.swift; sourceTree = "<group>"; };
 		8E66BD12E8F6A0C36E091E67 /* FootprintsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintsView.swift; sourceTree = "<group>"; };
 		8EB088C3C20314302DA73FBA /* ListeningOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningOverviewView.swift; sourceTree = "<group>"; };
+		8F56BBB67EE50A54869C62F3 /* ListeningTodayDiscTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningTodayDiscTests.swift; sourceTree = "<group>"; };
 		8F8A1A1556F9DA8BBC407024 /* ScrollCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollCompatibilityTests.swift; sourceTree = "<group>"; };
 		8FD3CB707C012D15BB348F16 /* ShowAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowAsset.swift; sourceTree = "<group>"; };
 		8FE80D6C4FA230D4E9E7CD9B /* FootprintArtistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintArtistViews.swift; sourceTree = "<group>"; };
@@ -1204,6 +1209,7 @@
 		ABBB47081BDB27EA7C36FA7C /* FootprintConstellationLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintConstellationLayout.swift; sourceTree = "<group>"; };
 		ABE56B82E7969EE74F64ECDF /* FootprintStageHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintStageHero.swift; sourceTree = "<group>"; };
 		AC4653047A9A281EFF73C207 /* AboutBeforeShowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutBeforeShowView.swift; sourceTree = "<group>"; };
+		AC83537933A1B7183F30B6B2 /* ListeningReminderDayDiscs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningReminderDayDiscs.swift; sourceTree = "<group>"; };
 		AC928533830DBA74A15BAE91 /* CompanionAcceptedShareInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionAcceptedShareInbox.swift; sourceTree = "<group>"; };
 		AC960C7FD153F512DF4C7EB0 /* LiveActivityContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityContent.swift; sourceTree = "<group>"; };
 		AD570A7D598A729AEF39D7EF /* CurrentShowRecordList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowRecordList.swift; sourceTree = "<group>"; };
@@ -1299,6 +1305,7 @@
 		CA3B00DAA4DCAC5C577BB3A9 /* ShowTimingFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTimingFields.swift; sourceTree = "<group>"; };
 		CA5D2988ACF887A50524C033 /* ListeningDiscTrackRowState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDiscTrackRowState.swift; sourceTree = "<group>"; };
 		CA648BF4E38DDA01FEC74BD1 /* LiveActivityImageBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityImageBudgetTests.swift; sourceTree = "<group>"; };
+		CACBAEF8FE080F1B2600E626 /* ListeningTodayDiscPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningTodayDiscPolicy.swift; sourceTree = "<group>"; };
 		CC7B98456FA55FEC5823B0DB /* BeforeShow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeforeShow.entitlements; sourceTree = "<group>"; };
 		CCA7D1A98024E60464615CD9 /* ListeningReminderSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningReminderSchedulingTests.swift; sourceTree = "<group>"; };
 		CCCCF5C8FBB30709E08DB8EC /* ListeningNotificationTabRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningNotificationTabRouting.swift; sourceTree = "<group>"; };
@@ -1405,6 +1412,7 @@
 		F2D07E9C9DD0B299D5853905 /* LiveActivityShowResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityShowResolver.swift; sourceTree = "<group>"; };
 		F35BD1012092049EB683666A /* ListeningStateMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningStateMessage.swift; sourceTree = "<group>"; };
 		F38F9CFD36E36782479C00E3 /* footprint-breath.caf */ = {isa = PBXFileReference; path = "footprint-breath.caf"; sourceTree = "<group>"; };
+		F4722610F77A5DD3E3A90F24 /* ListeningRoomCoordinator+Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ListeningRoomCoordinator+Widget.swift"; sourceTree = "<group>"; };
 		F4E273231FF72818913E743B /* FootprintNumberSongs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintNumberSongs.swift; sourceTree = "<group>"; };
 		F623A362056B7C9D5BAD43CA /* footprint-clink.caf */ = {isa = PBXFileReference; path = "footprint-clink.caf"; sourceTree = "<group>"; };
 		F7B1E07D2E85D2C973F76034 /* LiveActivityPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPresentationTests.swift; sourceTree = "<group>"; };
@@ -1488,11 +1496,13 @@
 				FCC4E245A5799CFFA39B9034 /* ListeningPresentation.swift */,
 				667F6E4B29865C2C891F27EC /* ListeningRack.swift */,
 				3452566ABF8463FA25583AAF /* ListeningRoomCoordinator.swift */,
+				F4722610F77A5DD3E3A90F24 /* ListeningRoomCoordinator+Widget.swift */,
 				58B47E3C3FC0A2A03BAD9270 /* ListeningRoomSessionStore.swift */,
 				B577CA002BFD43C95035F706 /* ListeningRuntimeCatalogLoader.swift */,
 				3ECA2EEC22F8173DA2F4D3CF /* ListeningSearch.swift */,
 				BCE0BFBE2C40D8DABD4ED43F /* ListeningShowInputs.swift */,
 				B53F14EA57447194C23352C3 /* ListeningSleeveIdentity.swift */,
+				CACBAEF8FE080F1B2600E626 /* ListeningTodayDiscPolicy.swift */,
 				A043C0D0E2C7E8AAB154F93A /* ListeningWidgetSync.swift */,
 				9C3C5A49B4E97ABC353D70FE /* WidgetListeningProjection.swift */,
 				4C49BD704434AB85C5FC8F3A /* Artist */,
@@ -1906,6 +1916,7 @@
 			isa = PBXGroup;
 			children = (
 				B013808FC715A1F04915175B /* ListeningNotificationEntry.swift */,
+				AC83537933A1B7183F30B6B2 /* ListeningReminderDayDiscs.swift */,
 				4B92ED4657025B78BDE3D829 /* ListeningReminderRosterReader.swift */,
 			);
 			path = Reminders;
@@ -2164,6 +2175,7 @@
 				2872D5B479BDF3AD08679CCF /* ListeningSearchTests.swift */,
 				96BCCE8E6C07F3498C570F28 /* ListeningShowMutationIntegrationTests.swift */,
 				4BD3C1B2FFDD0A7E22DF62AF /* ListeningTestPlayer.swift */,
+				8F56BBB67EE50A54869C62F3 /* ListeningTodayDiscTests.swift */,
 				1A05FF048A656A3A3B2BAC4C /* ListeningWidgetTests.swift */,
 				2C4D6FC5594D83118D2C7B25 /* ListenTestData.swift */,
 				19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */,
@@ -3113,11 +3125,13 @@
 				83131406B01332BF6C90E0EA /* ListeningPreparingView.swift in Sources */,
 				3FD6FBCB26D3D1DB08AA2CB9 /* ListeningPresentation.swift in Sources */,
 				2F5194B13ACA5559EF3F36AF /* ListeningRack.swift in Sources */,
+				1BE2426D33F4C15410F1DA26 /* ListeningReminderDayDiscs.swift in Sources */,
 				48860E8B4907E7ABB578D421 /* ListeningReminderRoster.swift in Sources */,
 				3CF98C86D701847C071F0811 /* ListeningReminderRosterReader.swift in Sources */,
 				DA9143B0C74D0C729082F34A /* ListeningReminderSchedule.swift in Sources */,
 				9E2409905292CAB80EB32409 /* ListeningRepository.swift in Sources */,
 				FE974C313D623E02DE17A9AA /* ListeningRoomCoordinator+Overview.swift in Sources */,
+				6044593FB4F19CE8AA99041A /* ListeningRoomCoordinator+Widget.swift in Sources */,
 				9E4B3D3797060D72DB13BFD5 /* ListeningRoomCoordinator.swift in Sources */,
 				368220E22CB8C0875815CE53 /* ListeningRoomHeader.swift in Sources */,
 				B6B94E119516A25894F15B28 /* ListeningRoomSessionStore.swift in Sources */,
@@ -3132,6 +3146,7 @@
 				98B956A8AAD25D754A9BD348 /* ListeningSleeveIdentity.swift in Sources */,
 				16BB6F960E5EA22234567BCA /* ListeningStateMessage.swift in Sources */,
 				D945978648F1AD489FE531FE /* ListeningStyle.swift in Sources */,
+				2B2F1C20C56DCC75C55C5220 /* ListeningTodayDiscPolicy.swift in Sources */,
 				712CF226F1BC42E2C0F0E5BD /* ListeningVideoDock.swift in Sources */,
 				BD8ED6470178D1986211CBDF /* ListeningVideoLibrary.swift in Sources */,
 				31FCAC7FFA04EBEF1470D3D1 /* ListeningVideoPlayerView.swift in Sources */,
@@ -3421,6 +3436,7 @@
 				ABC85B94BE89414A3C2CD099 /* ListeningSearchTests.swift in Sources */,
 				189F34799D46101F56803D17 /* ListeningShowMutationIntegrationTests.swift in Sources */,
 				1575371AA751F7ACF0553FED /* ListeningTestPlayer.swift in Sources */,
+				133F940CCDCA5C74C0E61248 /* ListeningTodayDiscTests.swift in Sources */,
 				AFBE4EAB2A593D0FA387CE33 /* ListeningWidgetTests.swift in Sources */,
 				0F3BE470CA1FE8CCCA4FF900 /* LiveActivityAndNotificationTests.swift in Sources */,
 				5C6BA85B7E9E80B885A7E4D7 /* LiveActivityImageBudgetTests.swift in Sources */,
