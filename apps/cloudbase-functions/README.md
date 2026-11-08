@@ -45,6 +45,16 @@ Production URL:
 
 `https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/recognizeTimetable`
 
+## Live Activity dispatch
+
+`iOS -> syncLiveActivityPlan -> liveActivityPlans <- dispatchLiveActivityPush (timer, every 5 min) -> APNs`
+
+`liveActivityPlans` needs a TTL index so plans are purged at `expireAt` (deadline + 24h, ADR 0044). Create it once per environment:
+
+```bash
+tcb db nosql execute -e "$TCB_ENV_ID" --command '[{"TableName":"liveActivityPlans","CommandType":"COMMAND","Command":"{\"createIndexes\":\"liveActivityPlans\",\"indexes\":[{\"key\":{\"expireAt\":1},\"name\":\"expireAt_ttl\",\"expireAfterSeconds\":0}]}"}]'
+```
+
 ## Feedback
 
 BeforeShow feedback stays inside the app:

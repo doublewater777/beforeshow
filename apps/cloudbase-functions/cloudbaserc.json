@@ -71,7 +71,7 @@
       "type": "Event",
       "timeout": 30,
       "runtime": "Nodejs18.15",
-      "memorySize": 256,
+      "memorySize": 128,
       "installDependency": true,
       "triggers": [
         {

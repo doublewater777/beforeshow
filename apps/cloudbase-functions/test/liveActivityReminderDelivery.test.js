@@ -102,15 +102,43 @@ for (const [language, title, body] of [
 }
 
 // SDK transaction boundary: document reads/writes are serialized and get returns an object.
+// update() mirrors the SDK: nested plain objects become dot-path $set writes, which the
+// server rejects under a null parent; command.set(value) replaces the whole field.
+const SET = Symbol('set');
+function sdkUpdate(doc, data) {
+  const next = structuredClone(doc);
+  const write = (path, value) => {
+    const keys = path.split('.');
+    let parent = next;
+    for (const key of keys.slice(0, -1)) {
+      if (parent[key] === null) {
+        throw new Error(`Cannot create field '${keys.at(-1)}' in element {${key}: null}`);
+      }
+      parent = parent[key] ??= {};
+    }
+    parent[keys.at(-1)] = structuredClone(value);
+  };
+  const walk = (prefix, value) => {
+    if (value && typeof value === 'object' && SET in value) return write(prefix, value[SET]);
+    if (value && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const [key, child] of Object.entries(value)) walk(`${prefix}.${key}`, child);
+      return;
+    }
+    write(prefix, value);
+  };
+  for (const [key, value] of Object.entries(data)) walk(key, value);
+  return next;
+}
+
 function memoryDatabase() {
   const docs = new Map();
   let queue = Promise.resolve();
   const collection = () => ({ doc: id => ({
     get: async () => ({ data: structuredClone(docs.get(id) ?? null) }),
     set: async data => { docs.set(id, structuredClone({ ...data, _id: id })); },
-    update: async data => { docs.set(id, structuredClone({ ...docs.get(id), ...data })); }
+    update: async data => { docs.set(id, sdkUpdate(docs.get(id), data)); }
   }) });
-  return { collection, async runTransaction(callback) {
+  return { collection, command: { set: value => ({ [SET]: value }) }, async runTransaction(callback) {
     const previous = queue;
     let release;
     queue = new Promise(resolve => { release = resolve; });
@@ -118,6 +146,26 @@ function memoryDatabase() {
     try { return await callback({ collection }); } finally { release(); }
   }, record: () => structuredClone(docs.get('device:show')) };
 }
+
+test('freshly synced plan with a null dispatch claim is claimed and pushed', async () => {
+  const db = memoryDatabase();
+  const store = db.collection('liveActivityPlans').doc('device:show');
+  await sync({ appInstanceId: 'device', appSignature: 'beforeshow-app-signature-v1',
+    planSecret: 'secret-longer-than-16', plan: { showID: 'show', version: 1,
+      activityPushToken: 'token', language: 'en', deadline: '2026-10-21T20:00:00Z',
+      steps: [step(40, [event('a')])] }
+  }, {}, { database: db, now: () => instant(30), findExisting: async () => db.record(),
+    savePlan: record => store.set(record) });
+  assert.equal(db.record().dispatchClaim, null);
+  let sends = 0;
+  const result = await dispatch({}, {}, { database: db, now: () => instant(43),
+    findActivePlans: async () => [db.record()],
+    transport: async () => { sends += 1; return { ok: true, statusCode: 200 }; } });
+  assert.equal(result.dispatchedCount, 1);
+  assert.equal(sends, 1);
+  assert.equal(db.record().steps[0].isConsumed, true);
+  assert.equal(db.record().dispatchClaim, null);
+});
 
 for (const ordering of ['upload during APNs send', 'delivery after sync read']) {
   test(`plan replacement and receipts survive ${ordering}`, async () => {

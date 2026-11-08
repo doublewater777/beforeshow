@@ -47,7 +47,8 @@ export async function claimDispatch(db, candidate, now) {
     if (!current || current.status !== 'active' || current.version !== candidate.version) return null;
     if (current.dispatchClaim && new Date(current.dispatchClaim.expiresAt) > now) return null;
     const claim = { id: randomUUID(), expiresAt: new Date(now.getTime() + 60_000) };
-    check(await ref.update({ dispatchClaim: claim }));
+    // update() writes nested objects as dot paths, which fail while the field is null.
+    check(await ref.update({ dispatchClaim: db.command.set(claim) }));
     return { ...current, _id: candidate._id, dispatchClaim: claim };
   });
 }
