@@ -80,7 +80,7 @@ struct FootprintLedgerView: View {
                 .font(.system(size: 16, weight: .semibold).width(.condensed))
                 .tracking(4)
                 .frame(maxWidth: .infinity)
-            Text("\(yearLabel(receipt)) · \(receipt.lines.count) SHOWS")
+            Text(verbatim: "\(yearLabel(receipt)) · \(receipt.lines.count) \(receipt.lines.count == 1 ? "SHOW" : "SHOWS")")
                 .foregroundStyle(FootprintRoomPalette.receiptInk.opacity(0.55))
                 .frame(maxWidth: .infinity)
                 .padding(.top, 2)

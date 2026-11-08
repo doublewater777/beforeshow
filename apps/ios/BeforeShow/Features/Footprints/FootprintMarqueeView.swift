@@ -26,7 +26,7 @@ struct FootprintMarqueeView: View {
                 .font(.system(size: 13, weight: .medium).width(.condensed))
                 .tracking(5)
                 .foregroundStyle(FootprintRoomPalette.marqueeInk.opacity(0.7))
-            Text(BSLocalization.format("%lld SHOWS", status.totalShows))
+            Text(BSLocalization.format(status.totalShows == 1 ? "%lld SHOW" : "%lld SHOWS", status.totalShows))
                 .font(.system(size: 36, weight: .black).width(.compressed))
                 .tracking(2)
                 .foregroundStyle(FootprintRoomPalette.marqueeInk)
