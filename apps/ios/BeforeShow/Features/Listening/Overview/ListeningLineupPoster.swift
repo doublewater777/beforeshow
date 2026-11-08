@@ -80,21 +80,25 @@ struct ListeningPosterLayout: View {
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.top, BSSpacing.xl)
         // The cover stays pinned behind the title; unfolding only lengthens the bill below it.
+        // It extends upward behind the page header and into the top safe area so the ambient cover glows through.
         .background(alignment: .top) {
+            let headerReach: CGFloat = 120
             // The cover fades out to transparent so it melts into the room's tinted light below.
             Color.clear
-                .frame(height: ListeningOverviewStyle.posterHeight)
+                .frame(height: ListeningOverviewStyle.posterHeight + headerReach)
                 .overlay { ListeningArtwork(url: coverURL, title: show.name) }
                 .clipped()
                 .mask {
                     LinearGradient(
-                        stops: [.init(color: .black.opacity(0.4), location: 0),
-                                .init(color: .black.opacity(0.38), location: 0.35),
-                                .init(color: .black.opacity(0.1), location: 0.7),
+                        stops: [.init(color: .black.opacity(0.35), location: 0),
+                                .init(color: .black.opacity(0.4), location: headerReach / (ListeningOverviewStyle.posterHeight + headerReach)),
+                                .init(color: .black.opacity(0.38), location: (headerReach + 100) / (ListeningOverviewStyle.posterHeight + headerReach)),
+                                .init(color: .black.opacity(0.1), location: 0.75),
                                 .init(color: .clear, location: 1)],
                         startPoint: .top, endPoint: .bottom
                     )
                 }
+                .offset(y: -headerReach)
                 .accessibilityHidden(true)
         }
     }

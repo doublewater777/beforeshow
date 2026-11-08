@@ -22,6 +22,7 @@ struct ListeningOverviewView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: BSSpacing.xl) {
+                Color.clear.frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
                 ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
                 if room.showsRack {
                     pickSection

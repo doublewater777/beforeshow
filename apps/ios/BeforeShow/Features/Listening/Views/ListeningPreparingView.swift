@@ -11,10 +11,10 @@ struct ListeningPreparingView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ListeningRoomHeader(mode: .connecting)
+        ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: BSSpacing.xl) {
+                    Color.clear.frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
                     ListeningPosterLayout(show: show, names: names)
                     VStack(alignment: .leading, spacing: BSSpacing.md) {
                         Text(ListeningCopy.text("帮我挑一张")).font(ListeningOverviewStyle.sectionTitle)
@@ -44,6 +44,8 @@ struct ListeningPreparingView: View {
             }
             .scrollClipDisabled()
             .scrollDisabled(true)
+
+            ListeningRoomHeader(mode: .connecting)
         }
         .bsAdaptiveContentWidth()
         .foregroundStyle(BSColor.Stage.foreground)

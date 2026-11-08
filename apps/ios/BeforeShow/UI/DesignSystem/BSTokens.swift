@@ -202,7 +202,7 @@ enum BSLayout {
     /// Reserved space above the floating glass tab bar.
     static let floatingTabBarClearance: CGFloat = 108
     /// Extra scroll room so the last row clears the floating system tab bar.
-    static let tabBarContentInset: CGFloat = 96
+    static let tabBarContentInset: CGFloat = 48
     /// Minimum tap target edge per HIG.
     static let minTouchTarget: CGFloat = 44
     /// Shared top inset for primary page headers across the two root tabs.

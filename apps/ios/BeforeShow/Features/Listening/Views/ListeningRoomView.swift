@@ -205,16 +205,18 @@ struct ListeningRoomView: View {
     @Bindable private var session = ListeningRoomSessionStore.shared
 
     var body: some View {
-        VStack(spacing: 0) {
-            ListeningRoomHeader(
-                mode: room.display.roomMode,
-                surface: $session.surface,
-                notice: session.surface == .listen ? room.display.headerNotice : nil,
-                onRecovery: { room.performListeningRecovery($0) },
-                onSearch: room.discs.isEmpty || session.surface == .watch ? nil : { isSearching = true }
-            )
+        ZStack(alignment: .top) {
             if session.surface == .watch {
-                ListeningVideosView(lineup: ListeningVideoLineup(ListeningShowInputs(show)))
+                VStack(spacing: 0) {
+                    ListeningRoomHeader(
+                        mode: room.display.roomMode,
+                        surface: $session.surface,
+                        notice: nil,
+                        onRecovery: { room.performListeningRecovery($0) },
+                        onSearch: nil
+                    )
+                    ListeningVideosView(lineup: ListeningVideoLineup(ListeningShowInputs(show)))
+                }
             } else {
                 ListeningOverviewView(
                     room: room,
@@ -225,6 +227,14 @@ struct ListeningRoomView: View {
                     pickPreview: $pickCardDisc
                 )
                 .scrollClipDisabled()
+
+                ListeningRoomHeader(
+                    mode: room.display.roomMode,
+                    surface: $session.surface,
+                    notice: room.display.headerNotice,
+                    onRecovery: { room.performListeningRecovery($0) },
+                    onSearch: room.discs.isEmpty ? nil : { isSearching = true }
+                )
             }
         }
         .bsAdaptiveContentWidth()
