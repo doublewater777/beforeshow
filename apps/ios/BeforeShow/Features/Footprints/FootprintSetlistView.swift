@@ -45,7 +45,6 @@ struct FootprintSetlistView: View {
         }
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
         .sensoryFeedback(.selection, trigger: selectedID)
-        .sensoryFeedback(.impact(weight: .light), trigger: isTaped)
         .task {
             guard !isTaped else { return }
             try? await Task.sleep(for: .milliseconds(150))

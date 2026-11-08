@@ -7,7 +7,6 @@ struct FootprintLedgerView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var year: Int?
-    @State private var printProgress: CGFloat = 0
     @State private var hasPickedYear = false
 
     private var years: [Int] { FootprintLedgerArchive.years(shows: archive.shows) }
@@ -25,11 +24,6 @@ struct FootprintLedgerView: View {
                     .padding(.top, 20)
                 paper(receipt)
                     .frame(width: 280)
-                    .mask(alignment: .top) {
-                        GeometryReader { proxy in
-                            Rectangle().frame(height: proxy.size.height * printProgress)
-                        }
-                    }
                     .padding(.top, -5)
                 if !receipt.unrecordedShowIDs.isEmpty {
                     NavigationLink {
@@ -56,21 +50,6 @@ struct FootprintLedgerView: View {
         .sensoryFeedback(.impact(weight: .light), trigger: year)
         .onAppear {
             if !hasPickedYear { year = years.first; hasPickedYear = true }
-        }
-        .task(id: year) { await print() }
-    }
-
-    /// Paper feeding out of the slot in small steps, like a thermal printer.
-    private func print() async {
-        printProgress = 0
-        if reduceMotion {
-            withAnimation(.easeOut(duration: 0.3)) { printProgress = 1 }
-            return
-        }
-        for step in 1...18 {
-            try? await Task.sleep(for: .milliseconds(60))
-            guard !Task.isCancelled else { return }
-            printProgress = CGFloat(step) / 18
         }
     }
 

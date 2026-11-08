@@ -67,7 +67,6 @@ struct FootprintBadgeWallView: View {
         withAnimation(reduceMotion ? .easeOut(duration: 0.3) : .spring(response: 0.5, dampingFraction: 0.55)) { dropped = true }
         guard !reduceMotion else { return }
         for _ in newFamilies.prefix(4) {
-            FootprintSoundPlayer.shared.play(.clink)
             drops += 1
             try? await Task.sleep(for: .milliseconds(120))
         }

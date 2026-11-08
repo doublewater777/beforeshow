@@ -13,13 +13,13 @@ struct FootprintEntryTiles: View {
     @Query private var assets: [ShowAsset]
     @State private var isReadingBook = false
 
-    private enum Door: Hashable { case years, artists, venues, cities, pass, badges, candle, setlist, companions, merch, ledger, book }
+    private enum Door: Hashable { case years, artists, venues, cities, badges, candle, setlist, companions, merch, ledger, book }
 
     var body: some View {
         let anniversary = FootprintAnniversaryFinder.featured(in: FootprintAnniversaryFinder.upcoming(in: archive.shows))
         let more = FootprintMoreArchiveData(archive: archive, memories: setlistMemories, merch: merchItems)
         let badges = FootprintBadgeCatalog.badges(FootprintBadgeCatalog.facts(archive: archive, memories: setlistMemories, merch: merchItems, fragments: fragments, assets: assets))
-        let doors: [Door] = [.years, .artists, .venues, .cities, .pass, .badges] + (anniversary == nil ? [] : [.candle])
+        let doors: [Door] = [.years, .artists, .venues, .cities, .badges] + (anniversary == nil ? [] : [.candle])
             + (more.songs.isEmpty ? [] : [.setlist])
             + (more.bands.isEmpty ? [] : [.companions])
             + (more.shelves.isEmpty ? [] : [.merch])
@@ -30,6 +30,9 @@ struct FootprintEntryTiles: View {
                 HStack(spacing: 12) {
                     ForEach(doors[start..<min(start + 2, doors.count)], id: \.self) { door in
                         link(door, anniversary: anniversary, more: more, badges: badges)
+                    }
+                    if min(start + 2, doors.count) - start == 1 {
+                        Color.clear.frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -57,9 +60,6 @@ struct FootprintEntryTiles: View {
                 .buttonStyle(BSPressStyle())
         case .cities:
             NavigationLink { FootprintCityMapView(archive: archive, covers: covers, allShows: allShows) } label: { citiesTile }
-                .buttonStyle(BSPressStyle())
-        case .pass:
-            NavigationLink { FootprintBackstagePassView(archive: archive, covers: covers) } label: { passTile }
                 .buttonStyle(BSPressStyle())
         case .candle:
             if let anniversary {
@@ -141,20 +141,6 @@ struct FootprintEntryTiles: View {
         } ?? BSLocalization.format("%lld 站", archive.cities.count)
         return tile(title: BSLocalization.text("城市"), subtitle: subtitle, background: AnyShapeStyle(FootprintRoomPalette.mapNight)) {
             FootprintMiniCityLights(counts: stops.filter { !$0.isNext }.map(\.count))
-        }
-    }
-
-    private var passTile: some View {
-        let pins = FootprintMilestoneBuilder.make(shows: archive.shows)
-        let earned = pins.filter { !$0.isLocked }.count
-        let subtitle: String = {
-            if case let .locked(target, remaining)? = pins.last?.kind {
-                return BSLocalization.format("%lld 枚徽章 · 第 %lld 场还差 %lld", earned, target, remaining)
-            }
-            return BSLocalization.format("%lld 枚徽章", earned)
-        }()
-        return tile(title: BSLocalization.text("现场护照"), subtitle: subtitle, background: AnyShapeStyle(Color(white: 0.07))) {
-            FootprintMiniPass()
         }
     }
 
@@ -301,30 +287,6 @@ private struct FootprintMiniSky: View {
             }
         }
         .accessibilityHidden(true)
-    }
-}
-
-private struct FootprintMiniPass: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(LinearGradient(colors: [Color(white: 0.13), Color(white: 0.06)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            .frame(width: 66, height: 86)
-            .overlay {
-                VStack(spacing: 2) {
-                    Text(BSLocalization.text("AAA"))
-                        .font(.system(size: 22, weight: .black).width(.compressed))
-                        .foregroundStyle(BSColor.Stage.heroWarmGold)
-                    Text(BSLocalization.text("ALL ACCESS"))
-                        .font(.system(size: 7, weight: .medium).width(.condensed))
-                        .tracking(2)
-                        .foregroundStyle(BSColor.Stage.muted)
-                }
-            }
-            .overlay(FootprintHologramSheen(phase: 0.5).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.white.opacity(0.1)))
-            .rotationEffect(.degrees(-4))
-            .shadow(color: .black.opacity(0.6), radius: 10, y: 8)
-            .accessibilityHidden(true)
     }
 }
 

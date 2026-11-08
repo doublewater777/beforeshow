@@ -52,7 +52,6 @@ struct FootprintMerchCabinetView: View {
             withAnimation(.easeOut(duration: 0.3)) { lightLevel = 1 }
             return
         }
-        FootprintSoundPlayer.shared.play(.neon)
         for (level, ms) in [(0.6, 360), (0.2, 120), (1.0, 700)] {
             withAnimation(.easeOut(duration: Double(ms) / 1000)) { lightLevel = level }
             try? await Task.sleep(for: .milliseconds(ms))
