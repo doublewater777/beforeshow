@@ -34,16 +34,12 @@ final class ListeningIntentHandler: ListeningIntentHandling {
         case .play:
             play(in: room)
         case .pause:
-            if room.playPauseAction == .pause, !room.mechanism.isAutomatic {
-                room.playPause()
-            }
+            if room.playPauseAction == .pause { room.playPause() }
         }
-        await room.settlePendingOperation()
         room.syncWidgetListeningState()
     }
 
     private func play(in room: ListeningRoomCoordinator) {
-        if room.mechanism.isAutomatic { return }
         if room.hasLoadedDisc {
             if room.playPauseAction == .play {
                 room.playPause()
@@ -54,12 +50,26 @@ final class ListeningIntentHandler: ListeningIntentHandling {
         room.loadDisc(disc, autoplay: true)
     }
 
+    /// The shared player for playing from outside Listen (an artist page opened anywhere).
+    func roomForPlayback() async -> ListeningRoomCoordinator? {
+        if let cached = ListeningRoomSessionStore.shared.room { return cached }
+        guard let show = await currentShow() else { return nil }
+        let services = playbackDependencies ?? .production
+        return await ListeningChromeBootstrapper.roomForWidgetPlayback(
+            show: show.show,
+            context: show.context,
+            catalogService: services.catalogService,
+            artistSearchService: services.artistSearchService,
+            playbackFactory: services.playbackFactory
+        )
+    }
+
     /// A loaded disc stays with the room that is already playing it. Preparing the
     /// current show here would discard that disc. Play with no room loads the
     /// current show so the live-preview head can start after a cold launch.
     private func resolveRoom(for command: ListeningWidgetCommand) async -> ListeningRoomCoordinator? {
         if let cached = ListeningRoomSessionStore.shared.room {
-            let ready = cached.hasLoadedDisc || cached.busy || cached.mechanism.isAutomatic
+            let ready = cached.hasLoadedDisc
                 || (cached.accessResolved && cached.livePreviewDisc != nil)
             if ready || command == .pause {
                 return cached

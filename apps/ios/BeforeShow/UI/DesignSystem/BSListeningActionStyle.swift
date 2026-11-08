@@ -11,7 +11,7 @@ struct BSListeningActionStyle: ButtonStyle {
             .font(BSListeningTokens.headline)
             .frame(maxWidth: .infinity, minHeight: BSListeningTokens.actionHeight)
             .foregroundStyle(!isEnabled ? BSColor.Stage.muted : prominent ? BSListeningTokens.ink : BSColor.Stage.foreground)
-            .background(prominent && isEnabled ? BSColor.Stage.accent : BSColor.Stage.surfaceRaised,
+            .background(prominent && isEnabled ? BSColor.Stage.foreground : BSColor.Stage.surfaceRaised,
                         in: RoundedRectangle(cornerRadius: BSRadius.md))
             .overlay {
                 RoundedRectangle(cornerRadius: BSRadius.md)

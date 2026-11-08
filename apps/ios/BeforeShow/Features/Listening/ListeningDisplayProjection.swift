@@ -180,33 +180,9 @@ enum ListeningMusicAccessPrompt: Equatable {
 enum ListeningCatalogChrome: Equatable {
     case preparing
     case needsMusicAccess(ListeningMusicAccessPrompt)
-    case connectArtist(slotIndex: Int?, name: String, isBrowsing: Bool)
+    case connectArtist(slotIndex: Int?, name: String)
     case unavailable(isStale: Bool)
     case empty
-}
-
-struct ListeningHardwareSnapshot: Equatable {
-    var discID: String?
-    var discTitle: String?
-    var position: CDMechanism.Position = .stored
-    var isAutomatic = false
-    var isReturning = false
-    var isCabinetDragging = false
-    var isClosed = true
-    var isOpen = false
-    var hasDisc = false
-    var artworkURL: URL?
-    var notice: String?
-    var occupiedAttemptCount = 0
-    var lid = 0.0
-    var discX = 230.0
-    var discY = 489.0
-    var lift = 0.0
-    var discScale = 1.0
-    var reducedMotion = false
-    var partsAreMoving = false
-
-    static let empty = ListeningHardwareSnapshot()
 }
 
 struct ListeningDisplayProjection: Equatable {
@@ -215,7 +191,6 @@ struct ListeningDisplayProjection: Equatable {
     let headerNotice: ListeningHeaderNotice?
     let recoveryAction: ListeningRecoveryAction?
     let catalogChrome: ListeningCatalogChrome
-    let hardware: ListeningHardwareSnapshot
     let shelfDiscs: [ListeningDisc]
     let showsAllDiscs: Bool
     let player: ListeningPlayerPresentation
@@ -242,15 +217,12 @@ enum ListeningDisplayProjector {
         allDiscs: [ListeningDisc],
         libraryDiscs: [ListeningDisc],
         loadedDisc: ListeningDisc?,
-        isDiscSeated: Bool,
-        isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
         transport: ListeningPlayerTransport,
         playbackError: String?,
         browsingArtist: ListeningBrowseArtist? = nil,
         isCatalogEnriching: Bool = false,
-        unmatchedArtist: ListeningBrowseArtist? = nil,
-        hardware: ListeningHardwareSnapshot = .empty
+        unmatchedArtist: ListeningBrowseArtist? = nil
     ) -> ListeningDisplayProjection {
         let hasAnyTracks = allDiscs.contains(where: { !$0.tracks.isEmpty })
         let mode = roomMode(
@@ -267,8 +239,6 @@ enum ListeningDisplayProjector {
             access: access,
             page: page,
             loadedDisc: loadedDisc,
-            isDiscSeated: isDiscSeated,
-            isLidClosed: isLidClosed,
             currentTrack: currentTrack,
             trackPresentation: currentTrackState,
             transport: transport,
@@ -290,7 +260,6 @@ enum ListeningDisplayProjector {
                 isCatalogEnriching: isCatalogEnriching,
                 unmatchedArtist: unmatchedArtist
             ),
-            hardware: hardware,
             shelfDiscs: Array(libraryDiscs.prefix(Shelf.visibleCount)),
             showsAllDiscs: libraryDiscs.count > Shelf.visibleCount,
             player: player,
@@ -315,8 +284,7 @@ enum ListeningDisplayProjector {
         if let browsingArtist, !browsingArtist.isConnected {
             return .connectArtist(
                 slotIndex: browsingArtist.slotIndex,
-                name: browsingArtist.name,
-                isBrowsing: true
+                name: browsingArtist.name
             )
         }
         if isCatalogEnriching, libraryDiscs.isEmpty { return .preparing }
@@ -326,8 +294,7 @@ enum ListeningDisplayProjector {
         case .noConnectedArtists:
             return .connectArtist(
                 slotIndex: unmatchedArtist?.slotIndex,
-                name: unmatchedArtist?.name ?? "",
-                isBrowsing: false
+                name: unmatchedArtist?.name ?? ""
             )
         case .cachedWithError:
             return .unavailable(isStale: true)
@@ -545,14 +512,12 @@ enum ListeningDisplayProjector {
         access: ListeningMusicAccess,
         page: ListeningPresentation,
         loadedDisc: ListeningDisc?,
-        isDiscSeated: Bool,
-        isLidClosed: Bool,
         currentTrack: ListeningDiscTrack?,
         trackPresentation: ListeningTrackPresentation?,
         transport: ListeningPlayerTransport,
         playbackError: String?
     ) -> ListeningPlayerPresentation {
-        guard loadedDisc != nil, isDiscSeated, currentTrack != nil, let trackPresentation else {
+        guard loadedDisc != nil, currentTrack != nil, let trackPresentation else {
             return ListeningPlayerPresentation(
                 phase: .noDisc,
                 source: nil,
@@ -597,16 +562,14 @@ enum ListeningDisplayProjector {
             )
         }
 
-        let lidReason = isLidClosed ? nil : ListeningCopy.text("请先合上播放器上盖")
         return ListeningPlayerPresentation(
             phase: transport.phase,
             source: transport.source,
             previewRemaining: previewRemaining(from: transport),
             // Pending commands give immediate feedback while preparing or buffering.
             // Interrupted playback offers Play; automatic resumption is not guaranteed.
-            // Preserve the interrupted phase for the control and disc animation.
             playPauseAction: transport.phase.isPlaybackActive ? .pause : .play,
-            blockingReason: lidReason,
+            blockingReason: nil,
             recoveryAction: nil,
             errorText: nil,
             noDiscMessage: nil
@@ -651,36 +614,6 @@ enum ListeningCopy {
 }
 
 extension ListeningRoomCoordinator {
-    private var hardwareSnapshot: ListeningHardwareSnapshot {
-        let motion = mechanism.motion
-        let partsAreMoving = motion.lid.target != nil
-            || motion.discX.target != nil
-            || motion.discY.target != nil
-            || motion.discScale.target != nil
-            || motion.lift.target != nil
-        return ListeningHardwareSnapshot(
-            discID: mechanism.disc?.id,
-            discTitle: mechanism.disc?.title,
-            position: mechanism.position,
-            isAutomatic: mechanism.isAutomatic,
-            isReturning: mechanism.isReturning,
-            isCabinetDragging: mechanism.isCabinetDragging,
-            isClosed: mechanism.isClosed,
-            isOpen: mechanism.isOpen,
-            hasDisc: mechanism.hasDisc,
-            artworkURL: mechanism.disc?.artworkURL,
-            notice: mechanism.notice,
-            occupiedAttemptCount: mechanism.occupiedAttemptCount,
-            lid: motion.lid.value,
-            discX: motion.discX.value,
-            discY: motion.discY.value,
-            lift: motion.lift.value,
-            discScale: motion.discScale.value,
-            reducedMotion: motion.reducedMotion,
-            partsAreMoving: partsAreMoving
-        )
-    }
-
     var display: ListeningDisplayProjection {
         ListeningDisplayProjector.make(
             page: presentation,
@@ -688,9 +621,7 @@ extension ListeningRoomCoordinator {
             isAuthorizing: isAuthorizing || !accessResolved,
             allDiscs: discs,
             libraryDiscs: libraryDiscs,
-            loadedDisc: mechanism.disc,
-            isDiscSeated: mechanism.position == .seated,
-            isLidClosed: mechanism.isClosed,
+            loadedDisc: loadedDisc,
             currentTrack: track,
             transport: ListeningPlayerTransport(
                 phase: deck.phase,
@@ -701,161 +632,25 @@ extension ListeningRoomCoordinator {
             playbackError: playbackError,
             browsingArtist: browsingArtist,
             isCatalogEnriching: isCatalogEnriching,
-            unmatchedArtist: browseArtists.first { !$0.isConnected },
-            hardware: hardwareSnapshot
+            unmatchedArtist: browseArtists.first { !$0.isConnected }
         )
     }
 
-    var hasLoadedDisc: Bool { mechanism.hasDisc }
-
-    var hardwareGeometry: CDPlayerConfiguration.Geometry { mechanism.configuration.geometry }
-
-    var playerConfiguration: CDPlayerConfiguration { mechanism.configuration }
+    var hasLoadedDisc: Bool { loadedDisc != nil }
 
     func disc(id: String) -> ListeningDisc? {
-        if mechanism.disc?.id == id { return mechanism.disc }
+        if loadedDisc?.id == id { return loadedDisc }
         return discs.first { $0.id == id }
     }
 
     var atmospherePhase: ListeningAtmospherePhase {
-        ListeningAtmospherePhase(
-            isPlacing: mechanism.isAutomatic || mechanism.position == .removed || mechanism.isOpen,
-            isPlaying: display.player.isPlaybackActive
-        )
-    }
-
-    func setReducedMotion(_ value: Bool) {
-        mechanism.motion.reducedMotion = value
-    }
-
-    func stopHardwareMotion() {
-        mechanism.motion.stop()
-    }
-
-    func beginCabinetDragIfNeeded(_ disc: ListeningDisc) -> Bool {
-        guard !mechanism.isCabinetDragging, pendingCabinetSwap == nil else { return false }
-        return beginPlayableDiscDrag(disc)
-    }
-
-    func updateCabinetDrag(of disc: ListeningDisc, translation: CGSize, scale: CGFloat) {
-        guard scale > 0 else { return }
-        let tilt = mechanism.configuration.geometry.tiltDegrees * .pi / 180
-        let modelTranslation = CGSize(
-            width: translation.width / scale,
-            height: translation.height / scale / cos(tilt)
-        )
-        if pendingCabinetSwap?.id == disc.id {
-            pendingCabinetSwapDrop = modelTranslation
-            return
-        }
-        guard mechanism.isCabinetDragging, mechanism.disc?.id == disc.id else { return }
-        mechanism.dragDisc(modelTranslation)
-    }
-
-    func endCabinetDrag(of disc: ListeningDisc, cancelled: Bool = false) {
-        if pendingCabinetSwap?.id == disc.id {
-            let dropped = !cancelled && mechanism.cabinetSlots[disc.id].map { origin in
-                hardwareGeometry.containsDiscDrop(CGPoint(
-                    x: origin.x + pendingCabinetSwapDrop.width,
-                    y: origin.y + pendingCabinetSwapDrop.height
-                ))
-            } == true
-            pendingCabinetSwap = nil
-            pendingCabinetSwapDrop = .zero
-            if dropped { loadPlayableDisc(disc) }
-            return
-        }
-        guard mechanism.isCabinetDragging, mechanism.disc?.id == disc.id else { return }
-        mechanism.endDiscDrag(cancelled: cancelled)
-    }
-
-    func dragLoadedDisc(translation: CGSize, scale: CGFloat) {
-        guard scale > 0 else { return }
-        let tilt = mechanism.configuration.geometry.tiltDegrees * .pi / 180
-        mechanism.dragDisc(CGSize(
-            width: translation.width / scale,
-            height: translation.height / scale / cos(tilt)
-        ))
-    }
-
-    func endLoadedDiscDrag() {
-        mechanism.endDiscDrag()
-    }
-
-    func removeLoadedDisc() {
-        mechanism.removeDisc()
-    }
-
-    func returnLoadedDisc() {
-        if mechanism.position == .seated {
-            mechanism.returnCurrentDiscToCabinet()
-        } else {
-            mechanism.returnDisc()
-        }
-    }
-
-    func insertLoadedDisc() {
-        mechanism.insertDisc()
-    }
-
-    func dragLid(translation: CGFloat, scale: CGFloat) {
-        guard scale > 0 else { return }
-        mechanism.dragLid(translation / scale)
-    }
-
-    func endLidDrag(translation: CGFloat, predicted: CGFloat, scale: CGFloat) {
-        guard scale > 0 else { return }
-        mechanism.endLidDrag(translation / scale, predicted: predicted / scale)
-    }
-
-    func setLid(open: Bool) {
-        mechanism.setLid(open: open)
+        ListeningAtmospherePhase(isPlaying: display.player.isPlaybackActive)
     }
 
     /// The song Next/Previous would reach, in play order.
     func adjacentLoadedTrack(delta: Int) -> ListeningDiscTrack? {
-        guard mechanism.isClosed, mechanism.hasDisc,
-              let songID = deck.adjacentSongID(delta) else { return nil }
+        guard loadedDisc != nil, let songID = deck.adjacentSongID(delta) else { return nil }
         return deck.tracks.first { $0.id == songID }
-    }
-
-    func applyListeningFrames(_ frames: [String: CGRect]) {
-        guard let stage = frames["stage"], stage.width > 0 else { return }
-        let geometry = mechanism.configuration.geometry
-        let stageScale = stage.width / geometry.canvas.width
-        let cosine = cos(geometry.tiltDegrees * .pi / 180)
-        func convert(_ point: CGPoint) -> CGPoint {
-            CGPoint(
-                x: (point.x - stage.minX) / stageScale,
-                y: geometry.hingeY + ((point.y - stage.minY) / stageScale - geometry.hingeY) / cosine
-            )
-        }
-        var newSlots: [String: CGPoint] = [:]
-        var newCabinetScale = mechanism.cabinetScale
-        for disc in discs {
-            if let frame = frames["slot:\(disc.id)"] {
-                newSlots[disc.id] = convert(CGPoint(x: frame.midX, y: frame.midY))
-                newCabinetScale = frame.width / stageScale / geometry.discDiameter
-            }
-        }
-        if mechanism.cabinetSlots != newSlots {
-            mechanism.cabinetSlots = newSlots
-        }
-        if abs(mechanism.cabinetScale - newCabinetScale) > 0.001 {
-            mechanism.cabinetScale = newCabinetScale
-        }
-        if let frame = frames["cabinet"] {
-            let origin = convert(frame.origin)
-            let newDropZone = CGRect(
-                x: origin.x,
-                y: origin.y,
-                width: frame.width / stageScale,
-                height: frame.height / stageScale / cosine
-            )
-            if mechanism.cabinetDropZone != newDropZone {
-                mechanism.cabinetDropZone = newDropZone
-            }
-        }
     }
 
     func discPresentation(for disc: ListeningDisc) -> ListeningDiscPresentation {
@@ -881,38 +676,9 @@ extension ListeningRoomCoordinator {
         } else {
             targetSongID = nil
         }
-        guard let targetSongID else {
-            mechanism.notice = discState.statusText
-            return
-        }
-        mechanism.notice = nil
+        guard let targetSongID else { return }
         playbackError = nil
         loadDisc(disc, songID: targetSongID)
-    }
-
-    @discardableResult
-    func beginPlayableDiscDrag(_ disc: ListeningDisc) -> Bool {
-        let discState = discPresentation(for: disc)
-        guard discState.canLoad else {
-            mechanism.notice = discState.statusText
-            return false
-        }
-        mechanism.notice = nil
-        if mechanism.position != .stored {
-            pendingCabinetSwap = disc
-            pendingCabinetSwapDrop = .zero
-            return true
-        }
-        return mechanism.beginCabinetDrag(disc)
-    }
-
-    /// Once a manually inserted disc is seated, close the lid and start playback.
-    func finalizeManualDiscInsertionIfNeeded() {
-        guard !mechanism.isAutomatic,
-              mechanism.position == .seated,
-              let disc = mechanism.disc,
-              let songID = discPresentation(for: disc).defaultPlayableTrackID else { return }
-        playFromSleeve(disc, songID: songID)
     }
 
     func performListeningRecovery(_ action: ListeningRecoveryAction) {

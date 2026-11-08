@@ -1,0 +1,210 @@
+import SwiftUI
+
+/// One album per screen. With nothing playing, the album that settles on screen plays its previews;
+/// opened over music, browsing is silent. Only 就听这张 puts an album on the deck and the mini player.
+struct ListeningPickFeedView: View {
+    @Bindable var room: ListeningRoomCoordinator
+    let show: Show
+    let startingDisc: ListeningDisc?
+    /// Hands back the album the user stopped on, so Listen shows it.
+    let onClose: (ListeningDisc?) -> Void
+    @State private var filter: ListeningDiscPickFilter = .all
+    @State private var order: [ListeningDisc] = []
+    @State private var currentID: String?
+    @State private var openingID: String?
+    /// Opened while something plays: browsing stays silent, only 就听这张 changes the music.
+    @State private var isListeningOutside = false
+    @State private var audition = ListeningPickAudition()
+
+    private var scopeKey: String { ListeningDiscPickPolicy.showScopeKey }
+    /// The scroll view reports nil while it first lays out; the opening album still counts as on screen.
+    private var settledID: String? { currentID ?? openingID ?? order.first?.id }
+    private var settledDisc: ListeningDisc? { order.first { $0.id == settledID } }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            BSColor.Stage.background.ignoresSafeArea()
+            if order.isEmpty {
+                Text(ListeningCopy.text(filter == .all ? "这排柜子暂时没有可挑的唱片" : "没有符合筛选条件的唱片"))
+                    .font(.subheadline)
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(order) { disc in
+                            ListeningPickFeedPage(
+                                room: room,
+                                disc: disc,
+                                show: show,
+                                isCurrent: disc.id == settledID,
+                                isAuditioning: audition.isAuditioning(disc),
+                                onListen: { listen(disc) }
+                            )
+                            .containerRelativeFrame([.horizontal, .vertical])
+                            .id(disc.id)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $currentID)
+                .ignoresSafeArea()
+                // Paging layouts ignore an initial scroll position; land on the opening album explicitly.
+                .onAppear { if let openingID, openingID != order.first?.id { proxy.scrollTo(openingID, anchor: .top) } }
+                }
+            }
+            header
+        }
+        .foregroundStyle(BSColor.Stage.foreground)
+        .onAppear {
+            isListeningOutside = room.wantsPlayback
+            rebuild(startingWith: startingDisc, keepingPlaying: true)
+        }
+        .onChange(of: filter) { _, _ in rebuild(startingWith: nil, keepingPlaying: false) }
+        .task(id: settledID) {
+            prefetchNextPage()
+            guard !isListeningOutside else { return }
+            await playSettledPage()
+        }
+        .onDisappear { audition.stop(resumeListening: true) }
+    }
+
+    private var header: some View {
+        HStack {
+            Button {
+                audition.stop(resumeListening: true)
+                onClose(settledDisc)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                    .background(Circle().fill(ListeningOverviewStyle.scrim))
+            }
+            .accessibilityLabel(BSLocalization.text("关闭"))
+            .accessibilityIdentifier("listening.pickFeed.close")
+            Spacer()
+            Text(ListeningCopy.text("帮我挑一张")).font(ListeningOverviewStyle.headerTitle)
+            Spacer()
+            Menu {
+                Picker(ListeningCopy.text("筛选唱片"), selection: $filter) {
+                    ForEach(ListeningDiscPickFilter.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(ListeningOverviewStyle.headerTitle)
+                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                    .background(Circle().fill(ListeningOverviewStyle.scrim))
+            }
+            .accessibilityLabel(ListeningCopy.text("筛选唱片"))
+            .accessibilityIdentifier("listening.pickFeed.filter")
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, BSSpacing.compact)
+    }
+
+    private func rebuild(startingWith start: ListeningDisc?, keepingPlaying: Bool) {
+        let candidates = room.pickCandidates(filter: filter)
+        let drawn = ListeningPickOrder.feed(first: start, candidates: candidates) { remaining in
+            ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: remaining)
+        }
+        let playing = keepingPlaying && room.wantsPlayback ? room.loadedDisc : nil
+        order = ListeningPickOrder.keeping(playing, above: drawn)
+        openingID = drawn.first?.id
+        currentID = openingID
+    }
+
+    /// Paging is forward, so the album below is warmed while this one plays.
+    private func prefetchNextPage() {
+        guard let index = order.firstIndex(where: { $0.id == settledID }), order.indices.contains(index + 1) else { return }
+        room.prefetch(order[index + 1])
+    }
+
+    private func playSettledPage() async {
+        guard let disc = order.first(where: { $0.id == settledID }) else { return }
+        // A page flicked past is not played; only the one the user settles on.
+        try? await Task.sleep(for: .milliseconds(350))
+        guard !Task.isCancelled else { return }
+        ListeningDiscPickPolicy.recordDraw(showID: show.id, scopeKey: scopeKey, discID: disc.id)
+        // Back on the record already in the mini player: drop the audition and let it carry on.
+        if disc.id == room.loadedDisc?.id {
+            audition.stop(resumeListening: true)
+            return
+        }
+        audition.play(disc)
+    }
+
+    private func listen(_ disc: ListeningDisc) {
+        audition.stop(resumeListening: false)
+        room.play(disc)
+        onClose(disc)
+    }
+}
+
+private struct ListeningPickFeedPage: View {
+    @Bindable var room: ListeningRoomCoordinator
+    let disc: ListeningDisc
+    let show: Show
+    let isCurrent: Bool
+    let isAuditioning: Bool
+    let onListen: () -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let cover = min(proxy.size.width - BSSpacing.xl * 2, proxy.size.height * 0.42)
+            ZStack(alignment: .bottomLeading) {
+                ListeningArtwork(url: disc.artworkURL, title: disc.title)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .blur(radius: 60)
+                    .opacity(0.6)
+                LinearGradient(colors: [BSColor.Stage.background.opacity(0.2), .clear, BSColor.Stage.background.opacity(0.85)],
+                               startPoint: .top, endPoint: .bottom)
+                ListeningDiscCover(disc: disc, show: show)
+                    .frame(width: cover, height: cover)
+                    .shadow(color: .black.opacity(0.6), radius: 34, y: 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, proxy.size.height * 0.2)
+                HStack(alignment: .bottom, spacing: BSSpacing.md) {
+                    info
+                    Button(action: onListen) {
+                        VStack(spacing: BSSpacing.xs) {
+                            Image(systemName: "headphones")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(BSColor.Stage.background)
+                                .frame(width: 60, height: 60)
+                                .background(Circle().fill(BSColor.Stage.foreground))
+                            Text(ListeningCopy.text("就听这张")).font(.system(size: 11, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("listening.pickFeed.listen")
+                }
+                .padding(.horizontal, BSSpacing.roomy)
+                .padding(.bottom, proxy.safeAreaInsets.bottom + 72)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+    }
+
+    private var info: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.xs) {
+            HStack(spacing: BSSpacing.sm) {
+                Text(disc.artistNames.first ?? "")
+                    .font(ListeningOverviewStyle.caps(14)).tracking(2.5).textCase(.uppercase)
+                    .foregroundStyle(BSColor.Stage.accent)
+                    .lineLimit(1)
+                if isCurrent, isAuditioning || (room.isOnDeckAndPlaying(disc) && room.isPlaying) {
+                    Image(systemName: "waveform")
+                        .symbolEffect(.variableColor.iterative)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(BSColor.Stage.accent)
+                }
+            }
+            Text(disc.title).font(ListeningOverviewStyle.serif(42)).lineLimit(2).minimumScaleFactor(0.7)
+            Text(ListeningReleaseMeta.yearAndTrackCount(disc)).font(ListeningOverviewStyle.meta).foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}

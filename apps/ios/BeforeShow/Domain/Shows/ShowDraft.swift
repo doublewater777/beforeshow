@@ -112,8 +112,7 @@ struct ShowDraft: Equatable {
         if AppleMusicArtistIdentity.artistID(for: artists[index]) != artist.id {
             artists[index].albumArtworkURL = nil
         }
-        artists[index].appleMusicArtistID = artist.id
-        artists[index].appleMusicURL = artist.appleMusicURL?.absoluteString
+        artists[index].adoptAppleMusicIdentity(artist)
         confirmedArtistNamesByID[artist.id, default: []].insert(ArtistNameMatching.normalized(artists[index].name))
     }
 

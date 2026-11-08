@@ -33,9 +33,10 @@ enum ListeningDiscPickFilter: String, CaseIterable {
     func includes(_ disc: ListeningDisc) -> Bool {
         guard self != .all else { return true }
         guard disc.origin == .album else { return false }
-        // MusicKit exposes isSingle; EP releases also carry a catalog title suffix.
+        // Apple Music's own markers: isSingle, and the " - EP" / " - Single" its catalog puts in titles
+        // (isSingle alone misses multi-track singles such as "Baby Gotta Go - Single").
         let isShortRelease = disc.isSingle == true || disc.title.range(
-            of: #"\s[-–—]\s*EP\s*$"#, options: [.regularExpression, .caseInsensitive]
+            of: #"\s[-–—]\s*(EP|Single)\s*$"#, options: [.regularExpression, .caseInsensitive]
         ) != nil
         return self == .singlesAndEPs ? isShortRelease : !isShortRelease
     }
@@ -51,12 +52,8 @@ enum ListeningDiscPickPolicy {
     private static let keyPrefix = "listening.discPick."
     private static let recentLimit = 3
 
-    static func scopeKey(for scope: ListeningBrowseState.Scope) -> String {
-        switch scope {
-        case .all: "all"
-        case let .artist(id): id
-        }
-    }
+    /// The pick feed draws across the whole show; draws persist under this key.
+    static let showScopeKey = "all"
 
     static func clearDraws(defaults: UserDefaults = .standard) {
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(keyPrefix) {
@@ -80,19 +77,17 @@ enum ListeningDiscPickPolicy {
         showID: UUID,
         scopeKey: String,
         candidates: [ListeningDisc],
-        excluding excludedIDs: Set<String> = [],
         defaults: UserDefaults = .standard
     ) -> ListeningDisc? {
         var generator = SystemRandomNumberGenerator()
         return pick(showID: showID, scopeKey: scopeKey, candidates: candidates,
-                    excluding: excludedIDs, defaults: defaults, using: &generator)
+                    defaults: defaults, using: &generator)
     }
 
     static func pick<R: RandomNumberGenerator>(
         showID: UUID,
         scopeKey: String,
         candidates: [ListeningDisc],
-        excluding excludedIDs: Set<String> = [],
         defaults: UserDefaults = .standard,
         using generator: inout R
     ) -> ListeningDisc? {
@@ -101,11 +96,8 @@ enum ListeningDiscPickPolicy {
 
         let key = storageKey(showID: showID, scopeKey: scopeKey)
         let recentIDs = load(key: key, defaults: defaults).recentIDs
-        let unexcluded = pool.filter { !excludedIDs.contains($0.id) }
-        let available = unexcluded.isEmpty ? pool : unexcluded
-
-        let withoutLastDraw = available.filter { $0.id != recentIDs.last }
-        return (withoutLastDraw.isEmpty ? available : withoutLastDraw).randomElement(using: &generator)
+        let withoutLastDraw = pool.filter { $0.id != recentIDs.last }
+        return (withoutLastDraw.isEmpty ? pool : withoutLastDraw).randomElement(using: &generator)
     }
 
     private static func candidatePool(from candidates: [ListeningDisc]) -> [ListeningDisc] {

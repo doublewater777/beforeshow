@@ -82,7 +82,7 @@ struct LocalNotificationScheduler {
                 milestone: node.milestone,
                 fireDate: node.fireDate,
                 title: copy.displayTitle(for: node.milestone),
-                body: node.milestone == .oneDayBefore ? content.body : copy.displayBody(content.body),
+                body: copy.displayBody(content.body, for: node.milestone),
                 showStartTime: node.milestone == .showDay ? timeState.effectiveStartTime : nil,
                 destination: content.destination,
                 feature: content.feature, discID: content.discID
@@ -106,7 +106,7 @@ struct LocalNotificationScheduler {
                                 title: title,
                                 body: body,
                                 showStartTime: perf.startsAt,
-                                destination: .timetable,
+                                destination: .home,
                                 performanceID: perf.id
                             ))
                         }
@@ -333,6 +333,7 @@ struct LocalNotificationScheduler {
         case .showDay:
             let remaining = timeState.effectiveStartTime.map { Int($0.timeIntervalSince(fireDate)) }
             let isBackfill = remaining.map { $0 < 3 * 3_600 - 60 } ?? false
+            // The record rides along as the long-press 播放 action; tapping opens the route.
             let roster = scope.includesAllMilestones && !isBackfill ? scope.listeningRoster : nil
             let disc = roster?.isMultiArtist == true
                 ? roster?.wanted ?? roster?.singalong : roster?.rehearsal ?? roster?.singalong
@@ -342,7 +343,6 @@ struct LocalNotificationScheduler {
             return NotificationNodeContent(
                 body: copy.showDay(
                     remainingSeconds: isBackfill ? remaining : nil,
-                    hasMusic: disc != nil,
                     weatherTip: weatherTip,
                     sunsetArtist: sunsetArtist
                 ),

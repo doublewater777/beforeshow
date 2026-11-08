@@ -128,7 +128,6 @@ struct ListenRootView: View {
         guard isActive else { return }
         guard let show else {
             room?.stop()
-            room?.stopHardwareMotion()
             room?.releaseShow()
             room = nil
             ListeningRoomSessionStore.shared.adopt(nil)
@@ -183,7 +182,7 @@ struct ListenRootView: View {
         ZStack {
             BSColor.Stage.background
             ListeningStageBackground(
-                artworkURL: room?.display.hardware.artworkURL,
+                artworkURL: room?.loadedDisc?.artworkURL,
                 phase: room?.atmospherePhase ?? .resting
             )
         }
@@ -193,80 +192,39 @@ struct ListenRootView: View {
 struct ListeningRoomView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var matchingSlotIndex: Int?
     @State private var matchingArtistName: String = ""
     @State private var isSearching = false
-    @State private var pickDisc: ListeningDisc?
-    @State private var pickFilter: ListeningDiscPickFilter = .all
-    @State private var nextPickDisc: ListeningDisc?
-    @State private var pickHistory: [ListeningDisc] = []
-    @State private var pickForward: [ListeningDisc] = []
-    @State private var pickExhausted = false
-    @State private var pickSessionExcluded: Set<String> = []
+    @State private var overviewSheet: ListeningOverviewSheet?
+    @State private var pickFeedStart: ListeningPickFeedStart?
+    /// The pick card's album. Owned here so switching to Watch and back keeps it.
+    @State private var pickCardDisc: ListeningDisc?
+    @Bindable private var session = ListeningRoomSessionStore.shared
 
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                ListeningRoomHeader(
-                    mode: room.display.roomMode,
-                    notice: room.display.headerNotice,
-                    onRecovery: { room.performListeningRecovery($0) },
-                    onSearch: room.discs.isEmpty ? nil : { isSearching = true },
-                    onPickDisc: canOfferDiscPick ? { beginDiscPick() } : nil
+        VStack(spacing: 0) {
+            ListeningRoomHeader(
+                mode: room.display.roomMode,
+                surface: $session.surface,
+                notice: session.surface == .listen ? room.display.headerNotice : nil,
+                onRecovery: { room.performListeningRecovery($0) },
+                onSearch: room.discs.isEmpty || session.surface == .watch ? nil : { isSearching = true }
+            )
+            if session.surface == .watch {
+                ListeningVideosView(lineup: ListeningVideoLineup(ListeningShowInputs(show)))
+            } else {
+                ListeningOverviewView(
+                    room: room,
+                    show: show,
+                    onOpenSheet: { overviewSheet = $0 },
+                    onMatchArtist: matchArtist,
+                    onOpenPick: { pickFeedStart = ListeningPickFeedStart(disc: $0) },
+                    pickPreview: $pickCardDisc
                 )
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        let geometry = room.hardwareGeometry
-                        let availableWidth = min(proxy.size.width - BSSpacing.roomy * 2, BSLayout.maxPlayerWidth)
-                        let scale = availableWidth * BSListeningTokens.playerWidthFraction / geometry.body.width
-                        let groups = room.rackGroups
-                        Group {
-                            if room.showsRack {
-                                ListeningRackView(room: room, groups: groups, scale: scale) { index, name in
-                                    matchingSlotIndex = index
-                                    matchingArtistName = name
-                                }
-                                .padding(.horizontal, -BSSpacing.roomy)
-                            } else if room.display.catalogChrome == .preparing {
-                                ListeningRackSkeleton()
-                                    .padding(.horizontal, -BSSpacing.roomy)
-                            } else {
-                                catalogStatus
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                                    .padding(.top, BSSpacing.md)
-                            }
-                        }
-                        .frame(height: ListeningRackLayout.slotHeight, alignment: .top)
-                        .listeningFrame("cabinet")
-                        .padding(.top, BSSpacing.sm)
-
-                        ListeningMachineView(room: room, scale: scale, showDetails: { room.browser.open($0) })
-                            .coordinateSpace(name: "playerStage")
-                            .listeningFrame("stage")
-                            .frame(width: availableWidth)
-                            .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
-
-                        ListeningCurrentSong(room: room)
-                            .padding(.top, -BSSpacing.lg)
-
-                        if let notice = room.display.hardware.notice {
-                            Text(notice)
-                                .font(BSListeningTokens.caption)
-                                .foregroundStyle(BSColor.Stage.muted)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityIdentifier("listening.mechanismNotice")
-                        }
-                    }
-                    .coordinateSpace(name: "listeningContent")
-                    .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.xs)
-                }
                 .scrollClipDisabled()
             }
-            .bsAdaptiveContentWidth()
         }
-        .onPreferenceChange(ListeningFramesKey.self) { room.applyListeningFrames($0) }
+        .bsAdaptiveContentWidth()
         .foregroundStyle(BSColor.Stage.foreground)
         .sheet(item: $room.browser.detail) { disc in
             ListeningDiscDetailView(room: room, disc: disc)
@@ -277,26 +235,30 @@ struct ListeningRoomView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: Binding(
-            get: { pickDisc != nil || pickExhausted },
-            set: { if !$0 { dismissDiscPick() } }
-        )) {
-            ListeningDiscPickSheet(
-                disc: pickDisc,
-                nextDisc: pickForward.last ?? nextPickDisc,
-                previousDisc: pickHistory.last ?? nextPickDisc,
-                show: show,
-                filter: $pickFilter,
-                canConfirm: !(room.busy || room.mechanism.isAutomatic),
-                canRedraw: canRedrawDiscPick,
-                exhausted: pickExhausted,
-                onConfirm: confirmDiscPick,
-                onRedraw: redrawDiscPick,
-                onPrevious: previousDiscPick,
-                onClose: dismissDiscPick
-            )
+        .sheet(item: $overviewSheet) { sheet in
+            Group {
+                switch sheet {
+                case let .artist(id):
+                    NavigationStack {
+                        if let artist = room.browseArtists.first(where: { $0.id == id }) {
+                            ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show)
+                                .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
+                        }
+                    }
+                }
+            }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $session.isNowPlayingPresented) {
+            ListeningNowPlayingView(room: room, show: show)
+                .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $pickFeedStart) { start in
+            ListeningPickFeedView(room: room, show: show, startingDisc: start.disc) { stoppedOn in
+                if let stoppedOn { pickCardDisc = stoppedOn }
+                pickFeedStart = nil
+            }
         }
         .sheet(isPresented: Binding(
             get: { matchingSlotIndex != nil },
@@ -318,193 +280,34 @@ struct ListeningRoomView: View {
             Text(room.errorText ?? "")
         }
         .listeningPlaybackFailureAlert(room)
-        .onChange(of: pickFilter) { _, _ in
-            beginDiscPick()
-        }
-        .onChange(of: reduceMotion, initial: true) { _, value in room.setReducedMotion(value) }
-        .task {
-            while !Task.isCancelled {
-                room.tickMechanism()
-                try? await Task.sleep(for: .milliseconds(1000))
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .listeningOpenPickDisc)) { _ in
-            beginDiscPick()
+            openPickFeed()
         }
         .task {
             if ProcessInfo.processInfo.arguments.contains("--listen-open-pick") {
                 try? await Task.sleep(for: .milliseconds(500))
-                beginDiscPick()
+                openPickFeed()
             }
         }
     }
 
-    @ViewBuilder
-    private var catalogStatus: some View {
-        switch room.display.catalogChrome {
-        case .preparing:
-            ListeningRackSkeleton()
-        case .needsMusicAccess(let prompt):
-            ListeningCatalogStatusView(
-                title: BSLocalization.text("连接 Apple Music"),
-                subtitle: musicAccessSubtitle(prompt),
-                icon: "music.note",
-                actionTitle: room.display.recoveryAction?.title
-            ) {
-                if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
-            }
-        case .connectArtist(let slotIndex, let name, let isBrowsing):
-            ListeningCatalogStatusView(
-                title: BSLocalization.text("尚未匹配 Apple Music 艺人"),
-                subtitle: isBrowsing ? ListeningCopy.text("选择对应的 Apple Music 艺人") : nil,
-                icon: isBrowsing ? "link.badge.plus" : "opticaldisc",
-                actionTitle: BSLocalization.text("连接艺人")
-            ) {
-                if let slotIndex {
-                    matchingSlotIndex = slotIndex
-                    matchingArtistName = name
-                }
-            }
-        case .unavailable(let isStale):
-            ListeningCatalogStatusView(
-                title: BSLocalization.text(isStale ? "暂时无法更新专场唱片" : "暂时无法载入音乐"),
-                icon: "wifi.exclamationmark",
-                actionTitle: room.display.recoveryAction?.title
-            ) {
-                if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
-            }
-        case .empty:
-            ListeningCatalogStatusView(title: BSLocalization.text("暂时没有找到可翻的唱片"))
-        }
+    private func matchArtist(_ artist: ListeningBrowseArtist) {
+        matchingSlotIndex = artist.slotIndex
+        matchingArtistName = artist.name
     }
 
-    private func musicAccessSubtitle(_ prompt: ListeningMusicAccessPrompt) -> String {
-        switch prompt {
-        case .notDetermined:
-            ListeningCopy.text("授权后载入唱片")
-        case .denied:
-            BSLocalization.text("请在系统设置中允许访问 Apple Music")
-        case .restricted:
-            ListeningCopy.text("Apple Music 访问受到系统限制，无法在此更改。")
-        }
+    /// An outside entry opens the feed only when nothing else is on screen, so it never replaces a sheet.
+    private func openPickFeed() {
+        let isPresenting = overviewSheet != nil || isSearching || matchingSlotIndex != nil
+            || room.browser.detail != nil || session.isNowPlayingPresented
+        guard !isPresenting, room.showsRack, !room.pickCandidates(filter: .all).isEmpty else { return }
+        pickFeedStart = ListeningPickFeedStart(disc: nil)
     }
+}
 
-    private var canOfferDiscPick: Bool {
-        room.showsRack && ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
-            .contains { !$0.tracks.isEmpty }
-    }
-
-    private var canRedrawDiscPick: Bool {
-        pickCandidates().count > 1
-    }
-
-    private func beginDiscPick() {
-        pickHistory = []
-        pickForward = []
-        pickSessionExcluded = seatedPickExclusion()
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            revealPickedDisc()
-        }
-    }
-
-    private func previousDiscPick() {
-        guard let current = pickDisc else { return }
-        if let previous = pickHistory.popLast() {
-            pickDisc = previous
-            if pickHistory.isEmpty { preparePickPreview(after: previous) }
-        } else {
-            drawNewDisc(after: current)
-        }
-        pickForward.append(current)
-    }
-
-    private func redrawDiscPick() {
-        guard let current = pickDisc else { return }
-        pickHistory.append(current)
-        if let forward = pickForward.popLast() {
-            pickDisc = forward
-            if pickForward.isEmpty { preparePickPreview(after: forward) }
-            return
-        }
-        drawNewDisc(after: current)
-    }
-
-    private func drawNewDisc(after current: ListeningDisc) {
-        pickSessionExcluded.insert(current.id)
-        let candidates = pickCandidates()
-        let candidateIDs = Set(candidates.map(\.id))
-        if candidateIDs.isSubset(of: pickSessionExcluded) {
-            pickSessionExcluded = []
-        }
-        revealPickedDisc(prepared: nextPickDisc)
-    }
-
-    private func confirmDiscPick() {
-        guard let pickDisc else { return }
-        let disc = pickDisc
-        dismissDiscPick()
-        room.loadPlayableDisc(disc)
-    }
-
-    private func dismissDiscPick() {
-        pickDisc = nil
-        nextPickDisc = nil
-        pickHistory = []
-        pickForward = []
-        pickExhausted = false
-        pickSessionExcluded = []
-    }
-
-    private func revealPickedDisc(prepared: ListeningDisc? = nil) {
-        let candidates = pickCandidates()
-        let prepared = prepared.flatMap { next in candidates.first { $0.id == next.id } }
-        guard let picked = prepared ?? ListeningDiscPickPolicy.pick(
-            showID: show.id,
-            scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
-            candidates: candidates,
-            excluding: pickSessionExcluded
-        ) else {
-            pickDisc = nil
-            nextPickDisc = nil
-            pickExhausted = true
-            return
-        }
-        ListeningDiscPickPolicy.recordDraw(
-            showID: show.id,
-            scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
-            discID: picked.id
-        )
-        pickExhausted = false
-        pickDisc = picked
-        preparePickPreview(after: picked)
-    }
-
-    private func preparePickPreview(after picked: ListeningDisc) {
-        let candidates = pickCandidates()
-        var nextExcluded = pickSessionExcluded.union([picked.id])
-        if Set(candidates.map(\.id)).isSubset(of: nextExcluded) {
-            nextExcluded = [picked.id]
-        }
-        nextPickDisc = candidates.count > 1 ? ListeningDiscPickPolicy.pick(
-            showID: show.id,
-            scopeKey: ListeningDiscPickPolicy.scopeKey(for: room.browser.scope),
-            candidates: candidates,
-            excluding: nextExcluded
-        ) : nil
-    }
-
-    private func pickCandidates() -> [ListeningDisc] {
-        let candidates = ListeningDiscPickCandidates.discs(in: room.rackGroups, scope: room.browser.scope)
-            .filter { !$0.tracks.isEmpty && pickFilter.includes($0) }
-        let loadable = candidates.filter { room.discPresentation(for: $0).canLoad }
-        return loadable.isEmpty ? candidates : loadable
-    }
-
-    private func seatedPickExclusion() -> Set<String> {
-        guard let id = room.mechanism.disc?.id else { return [] }
-        return [id]
-    }
-
+private struct ListeningPickFeedStart: Identifiable {
+    let id = UUID()
+    let disc: ListeningDisc?
 }
 
 extension Notification.Name {

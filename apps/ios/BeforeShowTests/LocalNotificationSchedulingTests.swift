@@ -330,7 +330,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         )
         XCTAssertEqual(
             afterShow.body,
-            "散场后的现场\n" + BSLocalization.text("这场几点散场？记下时间，也可以留一句感受。")
+            BSLocalization.text("这场几点散场？记下时间，也可以留一句感受。")
         )
     }
 
@@ -473,9 +473,9 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(preparation.count, 1)
         let seven = try XCTUnwrap(preparation.first)
         XCTAssertEqual(seven.milestone, .sevenDaysBefore)
-        XCTAssertEqual(seven.title, BSLocalization.text("准备这场"))
+        XCTAssertEqual(seven.title, "夜航")
         XCTAssertTrue(
-            seven.body.hasPrefix("夜航\n" + BSLocalization.format("还有 %lld 天。", Int64(7)))
+            seven.body.hasPrefix(BSLocalization.format("还有 %lld 天。", Int64(7)))
         )
         XCTAssertEqual(seven.feature, .companion)
     }
@@ -602,7 +602,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(afterShow.fireDate, makeDate(year: 2026, month: 6, day: 15, hour: 11))
         XCTAssertEqual(
             afterShow.body,
-            "已落幕的现场\n" + BSLocalization.text("这场结束了，留下一点记忆。")
+            BSLocalization.text("这场结束了，留下一点记忆。")
         )
         let nextMilestones = plan.scheduledRequests.filter { $0.showID == next.id }.map(\.milestone)
         XCTAssertEqual(nextMilestones, [.showDay])
@@ -651,5 +651,32 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             hour: hour,
             minute: minute
         ).date!
+    }
+}
+
+final class NotificationCopyFixTests: XCTestCase {
+    func testShowDayWeatherTipHasNoStrayGap() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+        let start = calendar.date(from: DateComponents(year: 2026, month: 12, day: 1, hour: 20))!
+        let show = try Show(name: "夜场", date: start, startTime: start, createdAt: start.addingTimeInterval(-30 * 86_400))
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
+        let copy = NotificationCopy(context: NotificationCopyContext(show: show, timeState: state, calendar: calendar))
+        XCTAssertFalse(copy.showDay(remainingSeconds: nil, weatherTip: "带伞。").contains("。 "))
+    }
+
+    func testWantedSetReminderLandsOnTheHomeStage() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = calendar.startOfDay(for: Date().addingTimeInterval(3 * 86_400)).addingTimeInterval(12 * 3600)
+        let show = try Show(name: "音乐节", date: start, startTime: start)
+        let perf = try TimetablePerformance(artistName: "A", startsAt: start.addingTimeInterval(3600), endsAt: start.addingTimeInterval(7200))
+        perf.isInterested = true
+        let stage = try TimetableStage(name: "主舞台", performances: [perf])
+        let dayEntry = try TimetableDay(date: calendar.startOfDay(for: start), stages: [stage])
+        show.timetable = try Timetable(timeZoneIdentifier: "UTC", days: [dayEntry])
+        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(for: show, now: Date(), scope: .all)
+        let wanted = try XCTUnwrap(requests.first { $0.milestone == .interestedPerformance })
+        XCTAssertEqual(wanted.destination, .home)
     }
 }

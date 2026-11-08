@@ -40,22 +40,20 @@ struct CurrentShowManagementSection: View {
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var isHeaderOverContent = false
-    @AppStorage(CurrentShowCoverPreference.key) private var expandedCoverShowID = ""
-    @Namespace private var coverNamespace
+    @AppStorage(LiveModeFocusStore.key, store: LiveModeFocusStore.defaults) private var focusedPerformanceID: String?
+    @State private var avatars = TimetableArtistAvatarStore()
     @State private var homeArrivalFlags = CurrentShowHomeArrivalFlags.arrived
     /// SwiftUI may nil an item binding before the dismissal animation has ended.
     /// Keep this raised until the corresponding onDismiss fires so a pending
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
     @State var notificationRouter = NotificationDeepLinkRouter.shared
-    @State var merchSource: MerchCaptureSource?
-    @State var recordToast: BSToastPayload?
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
 
     private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show, now: Date()) }
-    private var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
+    var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
 
     private var hasPresentationRequest: Bool {
         presentedSheet != nil
@@ -170,10 +168,6 @@ struct CurrentShowManagementSection: View {
                         archive: FootprintArchiveSnapshot.identityOnly(shows: attachedCandidateShows)
                     )
                 }
-            case .setlist:
-                ShowSetlistSheet(show: show)
-            case .spending:
-                ShowSpendingSheet(show: show)
             case .weatherDetail:
                 CurrentShowWeatherSheet(
                     show: show,
@@ -211,11 +205,6 @@ struct CurrentShowManagementSection: View {
                 .preferredColorScheme(.dark)
             }
         }
-        .merchCapture($merchSource, show: show) { saved in
-            recordToast = BSToastPayload(tone: saved ? .success : .failure, message: BSLocalization.text(saved ? "周边已收进柜子" : "照片没有保存，请重试"))
-        }
-        .bsToastOverlay(recordToast, bottomPadding: 90)
-        .task(id: recordToast) { try? await Task.sleep(for: .seconds(2)); recordToast = nil }
         .onAppear {
             installedMapApps = ExternalMapApp.installed
         }
@@ -329,7 +318,7 @@ struct CurrentShowManagementSection: View {
             calendar: show.timingCalendar()
         )
         let phase = HomeShowPhase(timeState: timeState, now: now)
-        let isLiveLayout = liveState != nil && !CurrentShowCoverPreference.isExpanded(storedShowID: expandedCoverShowID, showID: show.id)
+        let liveTimetable = liveState == nil ? nil : show.timetable
         // 与倒计时卡共用同一次推荐决策；现场模式只展示时刻表，不消费推荐。
         let recommendation = liveState == nil ? resolvedRecommendation(snapshot: snapshot) : nil
         let displayedPrimaryAction: HomeCountdownLockup.PrimaryAction? = liveState == nil
@@ -338,95 +327,98 @@ struct CurrentShowManagementSection: View {
                 timeState: timeState,
                 hasConfirmedEnd: show.endedAt != nil,
                 hasEndHandler: canRecordEnd,
-                hasRouteHandler: embedsRouteInLocation,
+                // The route has its own map module; it never takes the main button.
+                hasRouteHandler: false,
+                hasCompletedDispersal: show.hasCompletedDispersalCeremony,
                 recommendation: recommendation
             )
             : nil
 
         ZStack(alignment: .top) {
-            if isLiveLayout { HomeLiveBackdrop(show: show) }
             ScrollView(.vertical, showsIndicators: false) {
                 ScrollViewReader { scrollProxy in
                 LazyVStack(spacing: 0) {
                     Color.clear
                         .frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
 
-                    if !isLiveLayout {
-                    NavigationLink {
-                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-                    } label: {
-                        HomeStageHero(
-                            show: show,
-                            snapshot: snapshot,
-                            isPlaybackActive: isHeroPlaybackActive,
-                            reduceMotion: reduceMotion,
-                            isImportingDynamicCover: isImportingDynamicCover, onChooseVideo: onChooseDynamicCover,
-                            topExtension: topInset + BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding + 18
-                        )
-                        .matchedGeometryEffect(id: "home-cover", in: coverNamespace)
+                    let screens = liveState.flatMap(HomeStageScreens.resolve)
+                    let hero = HomeStageHero(
+                        show: show,
+                        snapshot: snapshot,
+                        isPlaybackActive: isHeroPlaybackActive,
+                        reduceMotion: reduceMotion,
+                        isImportingDynamicCover: isImportingDynamicCover, onChooseVideo: onChooseDynamicCover,
+                        topExtension: topInset + BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding + 18,
+                        screens: liveTimetable == nil ? nil : screens,
+                        livePhase: liveState?.phase,
+                        timetable: liveTimetable,
+                        avatars: avatars,
+                        onOpenTimetable: { presentedSheet = .asset(.timetable) },
+                        onFocus: { focusedPerformanceID = $0.uuidString }
+                    )
+                    Group {
+                        if screens != nil, liveTimetable != nil {
+                            hero
+                        } else {
+                            NavigationLink {
+                                ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                            } label: {
+                                hero
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
                     .padding(.top, 18)
                     .opacity(homeArrivalFlags.hasArrivedHero ? 1 : 0)
                     .scaleEffect(homeArrivalFlags.hasArrivedHero ? 1 : 0.94)
                     .offset(y: homeArrivalFlags.hasArrivedHero ? 0 : 24)
-                    }
 
-                    if let liveState, isLiveLayout, let timetable = show.timetable {
-                        HomeLiveModeView(show: show, timetable: timetable, state: liveState, onEndShow: canRecordEnd ? { presentedSheet = .endConfirmation } : nil) { presentedSheet = .asset(.timetable) }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 18)
-                            .transition(.opacity.combined(with: .offset(y: 40)))
-                    } else {
-                    CurrentShowCountdownCard(
-                        show: show,
-                        snapshot: snapshot,
-                        recommendation: recommendation,
-                        isVisible: isHeroPlaybackActive,
-                        onRecommendation: performRecommendation,
-                        onEndShow: canRecordEnd
-                            ? { presentedSheet = .endConfirmation }
-                            : nil,
-                        onCompanion: { presentedSheet = .companion },
-                        onMemoryFragments: {
-                            pendingMemoryCreate = nil
-                            presentedSheet = .memory
-                        },
-                        onMemoryCreate: {
-                            pendingMemoryCreate = nil
-                            presentedSheet = .memoryCreate
-                        },
-                        onOpenRoute: embedsRouteInLocation
-                            ? { openRouteChooser() }
-                            : nil,
-                        liveTimetable: liveState,
-                        onOpenTimetable: { presentedSheet = .asset(.timetable) }
+                    let allActions = CurrentShowQuickAction.deduplicated(
+                        CurrentShowQuickAction.actions(
+                            for: phase,
+                            canRecordEnd: canRecordEnd && liveState?.phase != .fullyEnded,
+                            isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
+                            hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
+                        ),
+                        primaryAction: displayedPrimaryAction
                     )
-                    .id("live-section")
-                    .padding(.horizontal, 21)
-                    .padding(.top, 20)
+
+                    Group {
+                        if let liveState, let timetable = liveTimetable {
+                            HomeLiveModeView(show: show, timetable: timetable, state: liveState, avatars: avatars, onEndShow: canRecordEnd ? { presentedSheet = .endConfirmation } : nil) { presentedSheet = .asset(.timetable) }
+                        } else {
+                            CurrentShowCountdownCard(
+                                show: show,
+                                snapshot: snapshot,
+                                recommendation: recommendation,
+                                isVisible: isHeroPlaybackActive,
+                                onRecommendation: performRecommendation,
+                                onEndShow: canRecordEnd
+                                    ? { presentedSheet = .endConfirmation }
+                                    : nil,
+                                onMemoryFragments: {
+                                    pendingMemoryCreate = nil
+                                    presentedSheet = .memory
+                                },
+                                onMemoryCreate: {
+                                    pendingMemoryCreate = nil
+                                    presentedSheet = .memoryCreate
+                                },
+                                onOpenRoute: embedsRouteInLocation
+                                    ? { openRouteChooser() }
+                                    : nil
+                            )
+                            .id("live-section")
+                        }
+                    }
+                    .padding(.horizontal, contentInset)
+                    // The countdown is printed on the stage lip, over the crowd.
+                    .padding(.top, liveTimetable == nil ? -46 : 4)
                     .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
                     .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
-                    }
 
-                    CurrentShowRecordSection(
-                        show: show,
-                        phase: phase,
-                        leading: CurrentShowQuickAction.deduplicated(
-                            CurrentShowQuickAction.actions(
-                                for: phase,
-                                canRecordEnd: canRecordEnd && !(isLiveLayout && liveState?.phase == .fullyEnded),
-                                embedsRouteInLocation: embedsRouteInLocation,
-                                isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
-                                hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
-                            ),
-                            primaryAction: displayedPrimaryAction,
-                            hasInlineTimetableEntry: liveState != nil
-                        ).compactMap(\.recordKind),
-                        merchSource: $merchSource,
-                        onSelect: { performRecord($0, phase: phase) }
-                    )
-                        .padding(.horizontal, 16)
+                    CurrentShowActionModules(show: show, actions: allActions, companion: companionPresentation, now: now, routeIsProminent: phase == .pre, timetableIsLive: liveTimetable != nil, recordPhase: phase, perform: performQuickAction)
+                        .padding(.horizontal, contentInset)
                         .padding(.top, 28)
                         .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
                         .offset(y: homeArrivalFlags.hasArrivedActions ? 0 : 12)
@@ -452,6 +444,7 @@ struct CurrentShowManagementSection: View {
                         .padding(.top, 25)
                         .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
                     }
+                    Color.clear.frame(height: 1).id("home-bottom")
                 }
                 .padding(.bottom, BSLayout.tabBarContentInset)
                 .frame(maxWidth: .infinity)
@@ -463,6 +456,10 @@ struct CurrentShowManagementSection: View {
                             scrollProxy.scrollTo("live-section", anchor: .top)
                         }
                     }
+                    if ProcessInfo.processInfo.arguments.contains("--scroll-to-bottom") {
+                        try? await Task.sleep(for: .milliseconds(1500))
+                        scrollProxy.scrollTo("home-bottom", anchor: .bottom)
+                    }
                 }
                 #endif
                 }
@@ -470,16 +467,12 @@ struct CurrentShowManagementSection: View {
             .modifier(HomeHeaderScrollObserver(isOverContent: $isHeaderOverContent))
 
             if isHeaderOverContent {
-                LinearGradient(
-                    stops: [
-                        .init(color: Color.black.opacity(0.88), location: 0),
-                        .init(color: Color.black.opacity(0.58), location: 0.52),
-                        .init(color: Color.black.opacity(0), location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 136)
+                // Content scrolling under the header blurs away instead of showing through the title.
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Color.black.opacity(0.55))
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.7), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                    .frame(height: 150)
                 .frame(maxWidth: .infinity)
                 .ignoresSafeArea(edges: .top)
                 .allowsHitTesting(false)
@@ -487,10 +480,7 @@ struct CurrentShowManagementSection: View {
 
             CurrentShowHomeHeader(
                 show: show,
-                live: liveState,
-                isLiveLayout: isLiveLayout,
-                coverNamespace: coverNamespace,
-                onToggleCover: { withAnimation(.spring(response: 0.7, dampingFraction: 0.86)) { expandedCoverShowID = CurrentShowCoverPreference.toggled(storedShowID: expandedCoverShowID, showID: show.id) } },
+                live: liveTimetable == nil ? nil : liveState,
                 onOpenSettings: onOpenSettings,
                 onAddShow: onAddShow,
                 weather: weather,
@@ -500,11 +490,11 @@ struct CurrentShowManagementSection: View {
                 .padding(.top, BSLayout.pageHeaderTopPadding)
                 .zIndex(1)
         }
-        .animation(.smooth(duration: 0.6), value: isLiveLayout)
-        .onChange(of: liveState != nil) { _, isLive in
-            if !isLive, CurrentShowCoverPreference.isExpanded(storedShowID: expandedCoverShowID, showID: show.id) {
-                expandedCoverShowID = ""
-            }
+        .animation(.smooth(duration: 0.6), value: liveState?.phase)
+        .task(id: liveTimetable?.id) {
+            guard let liveTimetable else { return }
+            let names = liveTimetable.orderedDays.flatMap(\.performances).map(\.artistName)
+            await avatars.load(artistNames: names, lineup: show.isAttached ? show.artists : [])
         }
     }
 
@@ -515,33 +505,6 @@ struct CurrentShowManagementSection: View {
     func openRouteChooser() {
         installedMapApps = ExternalMapApp.installed
         presentedSheet = .mapChooser
-    }
-
-    private var locationText: String {
-        ShowIdentityCopy.venueSummary(venue: show.venueName, city: show.city) ?? ""
-    }
-
-    private var routeQuery: String? {
-        MapDestinationQuery.make(
-            venueAddress: show.venueAddress,
-            venueName: show.venueName,
-            city: show.city,
-            showName: show.name
-        )
-    }
-
-    private var hasMapDestination: Bool {
-        guard let routeQuery else { return false }
-        return !routeQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    /// 弹窗副标题：优先场馆名，其次城市 / 演出名。
-    private var mapDestinationLabel: String {
-        let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let venue, !venue.isEmpty { return venue }
-        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let city, !city.isEmpty { return city }
-        return show.name
     }
 
     private func resolvedRecommendation(snapshot: HomeHeroSnapshot) -> RecommendedFeature? {
@@ -586,7 +549,6 @@ struct CurrentShowManagementSection: View {
             pendingConfirmedEndDate = nil
             pendingEndIntent = nil
             isPresentationVisibilityLatched = true
-            let wasLive = !CurrentShowCoverPreference.isExpanded(storedShowID: expandedCoverShowID, showID: show.id)
             Task { @MainActor in
                 let didConfirm = await onConfirmEnd(date)
                 guard didConfirm else {
@@ -595,7 +557,7 @@ struct CurrentShowManagementSection: View {
                 }
                 switch intent {
                 case .justEnded:
-                    if wasLive { try? await Task.sleep(for: .milliseconds(700)) }
+                    try? await Task.sleep(for: .milliseconds(700))
                     ceremonyLightsOutShowID = show.id
                 case .backfill:
                     ceremonySheetShowID = show.id

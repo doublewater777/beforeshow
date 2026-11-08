@@ -106,13 +106,13 @@ final class ListeningDeletionTests: XCTestCase {
         await room.load(show: show)
         room.restoreDisc(try XCTUnwrap(room.discs.first))
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 1)
 
         ListeningRoomSessionStore.shared.discardLocalState()
         XCTAssertNil(ListeningRoomSessionStore.shared.room)
-        XCTAssertFalse(room.mechanism.hasDisc)
-        XCTAssertNil(room.mechanism.disc)
+        XCTAssertFalse(room.hasLoadedDisc)
+        XCTAssertNil(room.loadedDisc)
         XCTAssertNil(room.track)
 
         try ListeningLocalDataCleaner.deleteAll(in: context)
@@ -126,10 +126,9 @@ final class ListeningDeletionTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
 
         let reopened = ListenTestData.room(context)
-        XCTAssertFalse(reopened.mechanism.hasDisc)
-        XCTAssertNil(reopened.mechanism.disc)
+        XCTAssertFalse(reopened.hasLoadedDisc)
+        XCTAssertNil(reopened.loadedDisc)
         XCTAssertNil(reopened.track)
-        reopened.mechanism.motion.stop()
     }
 
     func testLocalDataInventoryIsNotEmptyWhenOnlyListeningDataExists() async throws {
@@ -169,7 +168,6 @@ final class ListeningDeletionTests: XCTestCase {
 
         XCTAssertNil(room.show)
         XCTAssertEqual(room.presentation, .noCurrentShow)
-        room.mechanism.motion.stop()
     }
 
     func testDeletedShowIsNotAttachedSoStaleViewInputsDropIt() async throws {

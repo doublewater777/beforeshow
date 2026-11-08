@@ -15,14 +15,6 @@ struct CurrentShowWeatherCapsule: View {
                 Text(verbatim: "\(weather.temperatureCelsius)°")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.white)
-
-                Text(weather.conditionDescription)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.8))
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.4))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)

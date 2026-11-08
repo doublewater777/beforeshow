@@ -10,9 +10,6 @@ enum WidgetListeningProjection {
         var track: ListeningDiscTrack?
         var playerPhase: ListeningPlayerPhase
         var playPauseAction: ListeningPlayPauseAction
-        /// Automatic disc motion rejects play/pause. The widget must not offer a control that no-ops.
-        var mechanicallyBusy: Bool
-        var pendingDisc: ListeningDisc?
         var idleDisc: ListeningDisc?
         var idleCanLoad: Bool
     }
@@ -20,16 +17,6 @@ enum WidgetListeningProjection {
     static func make(_ input: Input) -> WidgetListeningSnapshot {
         if let disc = input.seatedDisc {
             return session(input, disc: disc)
-        }
-        if input.mechanicallyBusy {
-            return snapshot(
-                input,
-                disc: input.pendingDisc ?? input.idleDisc,
-                track: nil,
-                phase: .preparing,
-                control: .openListen,
-                hasSession: true
-            )
         }
         if let disc = input.idleDisc, input.idleCanLoad {
             return snapshot(input, disc: disc, track: nil, phase: .idle, control: .play, hasSession: false)
@@ -46,11 +33,10 @@ enum WidgetListeningProjection {
 
     private static func session(_ input: Input, disc: ListeningDisc) -> WidgetListeningSnapshot {
         let phase = phase(for: input.playerPhase, action: input.playPauseAction)
-        let control: WidgetListeningControl
-        if input.mechanicallyBusy || input.playPauseAction == .disabled {
-            control = .openListen
-        } else {
-            control = input.playPauseAction == .pause ? .pause : .play
+        let control: WidgetListeningControl = switch input.playPauseAction {
+        case .disabled: .openListen
+        case .pause: .pause
+        case .play: .play
         }
         return snapshot(input, disc: disc, track: input.track, phase: phase, control: control, hasSession: true)
     }

@@ -116,20 +116,19 @@ final class FootprintMoreArchivesTests: XCTestCase {
     // MARK: Current tab record kit
 
     func testRecordKitSectionsFollowPhase() {
-        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .pre), [.ticket, .timetable, .companion])
-        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .live), [.memory, .setlist, .companion, .ticket])
-        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .ended), [.memory, .setlist, .merch, .spending, .companion, .timetable, .ticket])
+        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .pre), [])
+        XCTAssertNil(CurrentShowRecordKit.title(for: .pre))
+        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .live), [.setlist])
+        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .ended), [.setlist, .merch, .spending])
         XCTAssertEqual(CurrentShowRecordKit.title(for: .ended), "留下的")
     }
 
     func testRecordKitRowsReflectRealState() {
         var facts = CurrentShowRecordFacts()
-        facts.hasTicket = true
         facts.ticketPriceText = "¥380"
         facts.setlistCount = 3
         let ended = CurrentShowRecordKit.rows(phase: .ended, facts: facts)
         let byKind = Dictionary(uniqueKeysWithValues: ended.map { ($0.kind, $0) })
-        XCTAssertEqual(byKind[.ticket]?.subtitle, "已保存 1 张 · ¥380")
         XCTAssertEqual(byKind[.setlist]?.action, "›")
         XCTAssertEqual(byKind[.spending]?.subtitle, "票价 ¥380 · 路费还没填")
         XCTAssertEqual(byKind[.spending]?.action, "补上")
@@ -137,8 +136,8 @@ final class FootprintMoreArchivesTests: XCTestCase {
         XCTAssertEqual(byKind[.merch]?.action, "拍一张")
         XCTAssertEqual(byKind[.merch]?.emphasizesAction, true)
 
-        let live = CurrentShowRecordKit.rows(phase: .live, facts: facts, leading: [.endShow])
-        XCTAssertEqual(live.first?.kind, .endShow)
-        XCTAssertEqual(live.first { $0.kind == .setlist }?.action, "记一首")
+        let live = CurrentShowRecordKit.rows(phase: .live, facts: facts)
+        XCTAssertEqual(live.map(\.kind), [.setlist])
+        XCTAssertEqual(live.first?.action, "记一首")
     }
 }

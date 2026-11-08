@@ -9,12 +9,9 @@ struct CurrentShowCountdownCard: View {
     let isVisible: Bool
     let onRecommendation: (RecommendedFeature) -> Void
     var onEndShow: (() -> Void)? = nil
-    var onCompanion: (() -> Void)? = nil
     var onMemoryFragments: (() -> Void)? = nil
     var onMemoryCreate: (() -> Void)? = nil
     var onOpenRoute: (() -> Void)? = nil
-    var liveTimetable: LiveModeState? = nil
-    var onOpenTimetable: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -24,14 +21,11 @@ struct CurrentShowCountdownCard: View {
             show: show,
             snapshot: snapshot,
             onEndShow: onEndShow,
-            onCompanion: onCompanion,
             onMemoryFragments: onMemoryFragments,
             onMemoryCreate: onMemoryCreate,
             onOpenRoute: onOpenRoute,
             recommendation: recommendation,
-            onRecommendation: handle,
-            liveTimetable: liveTimetable,
-            onOpenTimetable: onOpenTimetable
+            onRecommendation: handle
         )
         .task(id: "\(show.id.uuidString)|\(recommendation?.rawValue ?? "-")|\(todayKey)|\(isVisible)") {
             recordExposure(recommendation, todayKey: todayKey)

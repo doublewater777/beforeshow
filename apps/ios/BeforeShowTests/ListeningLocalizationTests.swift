@@ -30,8 +30,8 @@ final class ListeningLocalizationTests: XCTestCase {
             "立即授权", "打开设置", "重试", "试听", "部分曲目可试听", "30 秒试听",
             "载入中…", "试听中 · 剩余 %d 秒", "播放中", "试听暂停 · 剩余 %d 秒",
             "暂停", "停止", "暂时无法播放", "选择一张唱片开始播放",
-            "当前仅提供歌曲信息", "当前暂不可播放", "请先合上播放器上盖", "现场预习", "想看", "想看 · Day %d", "彩排", "Day %d · %@", "大合唱", "新歌", "深挖", "无法播放", "这首歌目前无法播放，请稍后再试。",
-            "仅提供歌曲信息", "授权后载入唱片", "放置唱片中…",
+            "当前仅提供歌曲信息", "当前暂不可播放", "现场预习", "想看", "想看 · Day %d", "彩排", "Day %d · %@", "大合唱", "新歌", "深挖", "无法播放", "这首歌目前无法播放，请稍后再试。",
+            "仅提供歌曲信息", "授权后载入唱片",
             "允许访问 Apple Music 后，可尝试完整播放。",
             "允许访问 Apple Music 后，可尝试完整播放；当前没有可用试听片段。",
             "当前未允许访问 Apple Music。",
@@ -45,9 +45,12 @@ final class ListeningLocalizationTests: XCTestCase {
             "Apple Music 访问受到系统限制，当前使用歌曲试听片段。",
             "Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。",
             "Apple Music 访问受到系统限制，无法在此更改。",
-            "选一场现场，", "听听即将相遇的音乐。", "添加一场想去的现场，", "唱片就从这里开始。", "选择对应的 Apple Music 艺人", "连接 %@", "正在搜索艺人…", "换个名字搜索", "清除搜索", "装入并试听", "%@ 等 %d 位艺人",
-            "帮我挑一张", "换一张", "这排柜子暂时没有可挑的唱片",
-            "没有符合筛选条件的唱片", "专辑", "筛选唱片", "单曲和 EP"
+            "选一场现场，", "听听即将相遇的音乐。", "添加一场想去的现场，", "唱片就从这里开始。", "选择对应的 Apple Music 艺人", "连接 %@", "正在搜索艺人…", "换个名字搜索", "清除搜索", "%@ 等 %d 位艺人",
+            "帮我挑一张", "这排柜子暂时没有可挑的唱片",
+            "没有符合筛选条件的唱片", "专辑", "筛选唱片", "单曲和 EP",
+            "%d 张唱片", "本场歌单", "%d 首", "全部 %d 组艺人", "就听这张",
+            "收起", "未在播放",
+            "看", "全部", "更多 %@", "%@ 次播放", "在哔哩哔哩打开", "没有找到相关视频", "视频来自哔哩哔哩", "暂时无法载入视频，点按重试"
         ]
 
         let catalog = try StringCatalog("Listening")
@@ -129,12 +132,11 @@ final class ListeningReviewerRegressionTests: XCTestCase {
                 XCTAssertNil(ListeningRoomSessionStore.shared.room)
             }
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
-            XCTAssertFalse(firstRoom.mechanism.hasDisc)
+            XCTAssertFalse(firstRoom.hasLoadedDisc)
         }
     }
 
     private func resetChromeGlobals() {
-        ListeningRoomSessionStore.shared.room?.mechanism.motion.stop()
         ListeningRoomSessionStore.shared.adopt(nil)
     }
 

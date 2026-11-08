@@ -46,6 +46,9 @@ struct DispersalShareStep: View {
     @State private var isSaving = false
     @State private var isSharing = false
     @State private var ambientColor: Color?
+    @State private var isAmbientResolved = false
+    /// Rendered once the fonts and colour settle, so 保存 / 分享 don't wait on a 3× render.
+    @State private var renderedImage: UIImage?
     @State private var editorialFontsReady = BSEditorialFontLoader.isSongtiAvailable
 
     private var isBusy: Bool {
@@ -111,9 +114,18 @@ struct DispersalShareStep: View {
             ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
                 for: show.coverImageURL
             )
+            isAmbientResolved = true
         }
         .task {
             editorialFontsReady = await BSEditorialFontLoader.ensureSongtiAvailable()
+        }
+        .task(id: "\(editorialFontsReady)|\(isAmbientResolved)|\(rating ?? -1)|\(note)") {
+            renderedImage = nil
+            guard editorialFontsReady, isAmbientResolved else { return }
+            // Let the preview settle before the off-screen render takes the main thread.
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            renderedImage = renderCard(ambient: ambientColor)
         }
     }
 
@@ -196,15 +208,7 @@ struct DispersalShareStep: View {
             onBusyChange(false)
         }
 
-        let resolvedAmbient = await resolveAmbientColor()
-        _ = await BSEditorialFontLoader.ensureSongtiAvailable()
-        guard let image = DispersalCeremonyShareExport.renderImage(
-            show: show,
-            identity: identity,
-            rating: rating,
-            note: note,
-            ambientColor: resolvedAmbient
-        ) else {
+        guard let image = await exportImage() else {
             presentToast(
                 .failure,
                 message: BSLocalization.text("分享图片生成失败，请重试")
@@ -236,16 +240,8 @@ struct DispersalShareStep: View {
             onBusyChange(false)
         }
 
-        let resolvedAmbient = await resolveAmbientColor()
-        _ = await BSEditorialFontLoader.ensureSongtiAvailable()
-        guard let image = DispersalCeremonyShareExport.renderImage(
-            show: show,
-            identity: identity,
-            rating: rating,
-            note: note,
-            ambientColor: resolvedAmbient
-        ),
-        let data = image.pngData() else {
+        guard let image = await exportImage(),
+              let data = image.pngData() else {
             presentToast(
                 .failure,
                 message: BSLocalization.text("分享图片生成失败，请重试")
@@ -275,15 +271,29 @@ struct DispersalShareStep: View {
     }
 
     @MainActor
-    private func resolveAmbientColor() async -> Color? {
-        if let ambientColor {
-            return ambientColor
+    private func exportImage() async -> UIImage? {
+        if let renderedImage { return renderedImage }
+        if !isAmbientResolved {
+            ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(for: show.coverImageURL)
+            isAmbientResolved = true
         }
-        let resolved = await DispersalCeremonyShareExport.loadAmbientColor(
-            for: show.coverImageURL
+        if !editorialFontsReady {
+            editorialFontsReady = await BSEditorialFontLoader.ensureSongtiAvailable()
+        }
+        let image = renderCard(ambient: ambientColor)
+        renderedImage = image
+        return image
+    }
+
+    @MainActor
+    private func renderCard(ambient: Color?) -> UIImage? {
+        DispersalCeremonyShareExport.renderImage(
+            show: show,
+            identity: identity,
+            rating: rating,
+            note: note,
+            ambientColor: ambient
         )
-        ambientColor = resolved
-        return resolved
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {

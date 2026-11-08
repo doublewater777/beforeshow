@@ -1,16 +1,15 @@
 import SwiftUI
 
-/// Bold live mode for the current tab: once a festival timetable is live, the
-/// cover collapses into the header and this view takes over the page.
+/// Under the stage once a festival timetable is live: who is on, how long is left, who is next.
 struct HomeLiveModeView: View {
     let show: Show
     let timetable: Timetable
     let state: LiveModeState
+    let avatars: TimetableArtistAvatarStore
     var onEndShow: (() -> Void)?
     let onOpenTimetable: () -> Void
 
     @AppStorage(LiveModeFocusStore.key, store: LiveModeFocusStore.defaults) private var focusedPerformanceID: String?
-    @State private var avatars = TimetableArtistAvatarStore()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var upcoming: [LivePerformanceSnapshot] {
@@ -32,9 +31,10 @@ struct HomeLiveModeView: View {
                 onStage
             case .active:
                 between
-            case .upcoming(let first):
-                startsAt(first, label: BSLocalization.text("今日首场"), tint: BSColor.Stage.accent, opener: upcoming.first)
-                setlist(Array(upcoming.dropFirst().prefix(3)))
+            case .upcoming:
+                if let opener = upcoming.first {
+                    nextUp(opener, label: BSLocalization.text("今日首场"), slotCount: 1)
+                }
             case .dayEnded(let next):
                 dayEnded(next)
             case .fullyEnded:
@@ -44,56 +44,17 @@ struct HomeLiveModeView: View {
             if state.phase == .fullyEnded, let onEndShow {
                 Button(action: onEndShow) {
                     Text(BSLocalization.text("结束现场"))
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(BSColor.Stage.accent)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.background)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 15)
-                        .background(
-                            LinearGradient(colors: [BSColor.Stage.accent.opacity(0.16), BSColor.Stage.accent.opacity(0.07)], startPoint: .top, endPoint: .bottom),
-                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        )
-                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(BSColor.Stage.accent.opacity(0.35), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 22)
-                Button(action: onOpenTimetable) {
-                    HStack(spacing: 5) {
-                        Text(BSLocalization.text("完整时刻表"))
-                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold))
-                    }
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
-            } else {
-                Button(action: onOpenTimetable) {
-                    HStack(spacing: 6) {
-                        Text(BSLocalization.text("完整时刻表"))
-                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
-                    }
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(BSColor.Stage.accent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(
-                        LinearGradient(colors: [BSColor.Stage.accent.opacity(0.16), BSColor.Stage.accent.opacity(0.07)], startPoint: .top, endPoint: .bottom),
-                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    )
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(BSColor.Stage.accent.opacity(0.35), lineWidth: 1))
+                        .frame(height: 48)
+                        .background(BSColor.Stage.foreground, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 22)
             }
         }
-        // Breathing room under the header's identity thumbnail.
-        .padding(.top, 14)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.26), value: state.currentPerformances.first?.id)
-        .task(id: timetable.id) {
-            let names = timetable.orderedDays.flatMap(\.performances).map(\.artistName)
-            await avatars.load(artistNames: names, lineup: show.isAttached ? show.artists : [])
-        }
     }
 
     // MARK: - On stage
@@ -101,93 +62,86 @@ struct HomeLiveModeView: View {
     @ViewBuilder
     private var onStage: some View {
         let lead = state.currentPerformances[0]
-        HomeLiveOnStageView(
-            lead: lead,
-            others: state.currentPerformances.filter { $0.id != lead.id },
-            timetable: timetable,
-            avatars: avatars,
-            stageOrder: stageOrder
-        ) { focusedPerformanceID = $0.uuidString }
-        setlist(Array(upcoming.prefix(3)))
+        let total = lead.endsAt.timeIntervalSince(lead.startsAt)
+        let progress = total > 0 ? max(0, min(1, 1 - lead.secondsUntilEnd / total)) : 0
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                TimetableEqualizer()
+                stageChip(lead, small: true)
+                Text("\(clock(lead.startsAt))–\(clock(lead.endsAt))")
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(BSColor.Stage.muted)
+            }
+            artistTitle(lead.artistName)
+            minutesLine(Int((lead.secondsUntilEnd / 60).rounded(.up)), unit: BSLocalization.text("分钟后结束"))
+            GeometryReader { geo in
+                Capsule().fill(Color.white.opacity(0.08))
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(BSColor.Stage.live)
+                            .frame(width: geo.size.width * progress)
+                            .shadow(color: BSColor.Stage.live.opacity(0.8), radius: 4)
+                    }
+            }
+            .frame(height: 3)
+            .padding(.top, 12)
+        }
+        .id(lead.id)
+        setlist(Array(upcoming.prefix(3)), alsoLive: Array(state.currentPerformances.dropFirst()))
     }
 
-    // MARK: - Between sets
+    // MARK: - Between sets / before the first set
 
     @ViewBuilder
     private var between: some View {
         if let first = upcoming.first {
-            let slot = upcoming.filter { $0.startsAt == first.startsAt }
-            HomeLiveHeroCard(tint: BSColor.Stage.heroWarmGold) {
-                Text(BSLocalization.text("下一场"))
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(2)
-                    .foregroundStyle(BSColor.Stage.heroWarmGold)
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(Int((first.secondsUntilStart / 60).rounded(.up)))")
-                        .font(.system(size: 96, weight: .ultraLight, design: .monospaced))
-                        .tracking(-5)
-                        .foregroundStyle(BSColor.Stage.heroWarmGold)
-                        .shadow(color: BSColor.Stage.heroWarmGold.opacity(0.35), radius: 20)
-                    Text(BSLocalization.text("分钟"))
-                        .font(.system(size: 18))
-                        .foregroundStyle(BSColor.Stage.muted)
-                    Spacer()
-                    Text(clock(first.startsAt))
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(BSColor.Stage.muted)
-                }
-                .padding(.top, 4)
-                HStack(alignment: .top, spacing: 14) {
-                    ForEach(Array(slot.prefix(2).enumerated()), id: \.element.id) { index, perf in
-                        if index > 0 {
-                            Rectangle().fill(BSColor.Stage.accent.opacity(0.25)).frame(width: 1)
-                        }
-                        VStack(alignment: .leading, spacing: 8) {
-                            TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 48)
-                            Text(perf.artistName)
-                                .font(.system(size: 19, weight: .heavy))
-                                .foregroundStyle(BSColor.Stage.foreground)
-                                .fixedSize(horizontal: false, vertical: true)
-                            stageChip(perf, small: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .padding(.top, 18)
-            }
-            setlist(Array(upcoming.dropFirst(slot.count).prefix(3)))
+            nextUp(first, label: BSLocalization.text("下一场"), slotCount: upcoming.filter { $0.startsAt == first.startsAt }.count)
         }
     }
 
-    // MARK: - Before the first set / day ended
-
-    private func startsAt(_ date: Date?, label: String, tint: Color, opener: LivePerformanceSnapshot?) -> some View {
-        HomeLiveHeroCard(tint: tint) {
-            Text(label)
-                .font(.system(size: 11, weight: .bold))
-                .tracking(2)
-                .foregroundStyle(tint)
-            if let date {
-                Text(clock(date))
-                    .font(.system(size: 84, weight: .ultraLight, design: .monospaced))
-                    .tracking(-5)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .shadow(color: tint.opacity(0.35), radius: 20)
-                    .padding(.top, 6)
+    @ViewBuilder
+    private func nextUp(_ next: LivePerformanceSnapshot, label: String, slotCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(label)
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(2)
+                    .foregroundStyle(BSColor.Stage.heroWarmGold)
+                stageChip(next, small: true)
             }
-            if let opener {
-                HStack(spacing: 10) {
-                    TimetableArtistAvatar(name: opener.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: opener.id, in: timetable, unlinked: avatars.url(for: opener.artistName)), size: 34)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(opener.artistName)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(BSColor.Stage.foreground)
-                        stageChip(opener, small: true)
-                    }
-                }
-                .padding(.top, 10)
+            artistTitle(next.artistName)
+            let minutes = Int((next.secondsUntilStart / 60).rounded(.up))
+            if minutes < 180 {
+                minutesLine(minutes, unit: BSLocalization.format("分钟后开演 · %@", clock(next.startsAt)))
+            } else {
+                minutesLine(nil, unit: BSLocalization.format("%@ 开演", clock(next.startsAt)))
             }
         }
+        setlist(Array(upcoming.dropFirst().prefix(3)))
+    }
+
+    private func artistTitle(_ name: String) -> some View {
+        Text(name)
+            .font(BSFont.Editorial.serif(28))
+            .foregroundStyle(BSColor.Stage.foreground)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 10)
+    }
+
+    private func minutesLine(_ value: Int?, unit: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            if let value {
+                Text("\(value)")
+                    .font(BSFont.Editorial.serif(56))
+                    .monospacedDigit()
+                    .foregroundStyle(BSColor.Stage.heroIvory)
+                    .contentTransition(.numericText(countsDown: true))
+            }
+            Text(unit)
+                .font(.system(size: 14))
+                .foregroundStyle(BSColor.Stage.muted)
+        }
+        .padding(.top, 8)
     }
 
     // MARK: - Day ended
@@ -423,62 +377,56 @@ struct HomeLiveModeView: View {
     // MARK: - Setlist
 
     @ViewBuilder
-    private func setlist(_ rows: [LivePerformanceSnapshot]) -> some View {
-        if !rows.isEmpty {
-            sectionLabel(BSLocalization.text("接下来"))
+    private func setlist(_ rows: [LivePerformanceSnapshot], alsoLive: [LivePerformanceSnapshot] = []) -> some View {
+        if !rows.isEmpty || !alsoLive.isEmpty {
             VStack(spacing: 0) {
-                ForEach(rows) { perf in
-                    HStack(spacing: 10) {
-                        Circle()
-                            .fill(perf.isInterested && !perf.isStartingSoon ? BSColor.Stage.accent : BSColor.Stage.background)
-                            .overlay(Circle().strokeBorder(perf.isStartingSoon ? BSColor.Stage.live : (perf.isInterested ? .clear : Color.white.opacity(0.25)), lineWidth: perf.isStartingSoon ? 2 : 1.5))
-                            .frame(width: 11, height: 11)
-                            .shadow(color: perf.isStartingSoon ? BSColor.Stage.live.opacity(0.7) : (perf.isInterested ? BSColor.Stage.accent.opacity(0.7) : .clear), radius: 4)
-                        Text(clock(perf.startsAt))
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.8))
-                            .frame(width: 46, alignment: .leading)
-                        TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 32)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(perf.artistName)
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(BSColor.Stage.foreground)
-                                .fixedSize(horizontal: false, vertical: true)
-                            if perf.isStartingSoon {
-                                Text(BSLocalization.format("%d 分钟后", Int((perf.secondsUntilStart / 60).rounded(.up))))
-                                    .font(.system(size: 11.5, weight: .semibold))
-                                    .foregroundStyle(BSColor.Stage.liveTitle)
-                            }
-                        }
-                        Spacer(minLength: 6)
-                        stageChip(perf, small: true)
+                ForEach(alsoLive) { perf in
+                    Button { focusedPerformanceID = perf.id.uuidString } label: {
+                        setlistRow(perf, isLive: true)
                     }
-                    .padding(.vertical, 11)
+                    .buttonStyle(.plain)
+                    .accessibilityHint(BSLocalization.text("设为主现场"))
+                }
+                ForEach(rows) { perf in
+                    setlistRow(perf, isLive: false)
                 }
             }
-            .background(alignment: .leading) {
-                LinearGradient(colors: [Color.white.opacity(0.18), Color.white.opacity(0.04)], startPoint: .top, endPoint: .bottom)
-                    .frame(width: 1.5)
-                    .padding(.leading, 4.75)
-                    .padding(.vertical, 16)
+            .padding(.top, 18)
+        }
+    }
+
+    private func setlistRow(_ perf: LivePerformanceSnapshot, isLive: Bool) -> some View {
+        HStack(spacing: 10) {
+            Group {
+                if isLive {
+                    Text(verbatim: "LIVE").foregroundStyle(BSColor.Stage.live)
+                } else {
+                    Text(clock(perf.startsAt))
+                        .foregroundStyle(perf.isStartingSoon ? BSColor.Stage.liveTitle : BSColor.Stage.foreground.opacity(0.75))
+                }
             }
-            .padding(.top, 6)
+            .font(.system(size: 12.5, design: .monospaced))
+            .frame(width: 44, alignment: .leading)
+            TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 28)
+            Text(perf.artistName)
+                .font(.system(size: 14.5, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.foreground)
+                .lineLimit(1)
+            if perf.isInterested {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(BSColor.Stage.accent)
+            }
+            Spacer(minLength: 6)
+            stageChip(perf, small: true)
+        }
+        .padding(.vertical, 9)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
         }
     }
 
     // MARK: - Pieces
-
-    private func sectionLabel(_ text: String) -> some View {
-        HStack(spacing: 10) {
-            Text(text)
-                .font(.system(size: 11, weight: .bold))
-                .tracking(2)
-                .foregroundStyle(BSColor.Stage.dim)
-            LinearGradient(colors: [Color.white.opacity(0.1), .clear], startPoint: .leading, endPoint: .trailing)
-                .frame(height: 1)
-        }
-        .padding(.top, 26)
-    }
 
     private func stageChip(_ perf: LivePerformanceSnapshot, small: Bool = false) -> some View {
         HomeLiveStageChip(name: perf.stageName, index: stageOrder[perf.stageID] ?? 0, small: small)
@@ -547,38 +495,5 @@ struct HomeLiveHeroCard<Content: View>: View {
             .onAppear {
                 withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) { breathe = true }
             }
-    }
-}
-
-/// The cover, blurred into a stage-light backdrop behind the live page.
-struct HomeLiveBackdrop: View {
-    let show: Show
-
-    var body: some View {
-        // Colour.clear owns the size; the cover only paints inside it, so a large
-        // image can never widen the page.
-        Color.clear
-            .frame(maxWidth: .infinity)
-            .frame(height: 560)
-            .overlay {
-                ShowCoverImageView(
-                    urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.0,
-                    contentMode: .fill,
-                    alignment: .center,
-                    enforcesAspectRatio: false,
-                    cornerRadius: 0,
-                    restoresPersistedImageOnFirstFrame: true
-                )
-                .blur(radius: 48)
-                .saturation(1.3)
-                .opacity(0.8)
-            }
-            .clipped()
-            .overlay(LinearGradient(colors: [BSColor.Stage.background.opacity(0.35), BSColor.Stage.background.opacity(0.75), BSColor.Stage.background], startPoint: .top, endPoint: .bottom))
-            .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.6), location: 0.45), .init(color: .clear, location: 0.9)], startPoint: .top, endPoint: .bottom))
-            .ignoresSafeArea(edges: .top)
-            .allowsHitTesting(false)
-            .transition(.opacity)
     }
 }

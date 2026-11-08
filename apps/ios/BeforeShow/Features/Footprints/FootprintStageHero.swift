@@ -9,11 +9,13 @@ struct FootprintStageHero: View {
     let canOpenCover: Bool
     let coverTransition: Namespace.ID
     let onOpenCover: () -> Void
+    /// How far the stage reaches up behind the floating navigation buttons.
+    var topExtension: CGFloat = 0
 
+    @State private var artistSheet: ArtistReference?
     @State private var lights = BSStageLights.fallback
     @State private var powered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.openURL) private var openURL
 
     /// The longest-standing reunion on the bill, said under the ticket.
     private var reunionLine: String? {
@@ -25,8 +27,9 @@ struct FootprintStageHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BSStageScene(colors: colors, lighting: .show(energy: 1), powered: powered) { ledWall }
+            BSStageScene(colors: colors, lighting: .show(energy: 1), powered: powered, height: 380 + topExtension) { ledWall }
                 .padding(.horizontal, -BSSpacing.roomy)
+                .padding(.top, -topExtension)
             info.padding(.top, 18)
             BSStageLineupChips(
                 entries: FootprintStagePolicy.reunions(for: show, in: archive.shows).map { .init(name: $0.name, nth: $0.nth) },
@@ -41,6 +44,7 @@ struct FootprintStageHero: View {
                     .padding(.top, 16)
             }
         }
+        .sheet(item: $artistSheet) { ArtistProfileSheet(reference: $0, show: show) }
         .task(id: show.id) {
             await sampleLights()
             withAnimation(reduceMotion ? nil : .easeIn(duration: 0.08).delay(0.25)) { powered = true }
@@ -50,9 +54,8 @@ struct FootprintStageHero: View {
     private var colors: [Color] { lights.map(\.color) }
 
     private func openArtist(_ name: String) {
-        if let link = show.artists.first(where: { $0.name == name })?.appleMusicURL, let url = URL(string: link) {
-            openURL(url)
-        }
+        let slot = show.artists.first(where: { $0.name == name })
+        artistSheet = slot.map(ArtistReference.init(slot:)) ?? ArtistReference(name: name, appleMusicArtistID: nil)
     }
 
     @ViewBuilder

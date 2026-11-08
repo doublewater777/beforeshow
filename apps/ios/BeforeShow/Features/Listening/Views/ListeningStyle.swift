@@ -41,128 +41,6 @@ struct ListeningDiscHub: View {
 }
 
 /// Hinge strip and a single plastic glare over a cover, read as a jewel case.
-struct ListeningJewelCaseFinish: View {
-    var body: some View {
-        ZStack(alignment: .leading) {
-            LinearGradient(
-                stops: [
-                    .init(color: .white.opacity(0.2), location: 0),
-                    .init(color: .white.opacity(0.05), location: 0.32),
-                    .init(color: .clear, location: 0.33)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            LinearGradient(
-                colors: [.white.opacity(0.18), .white.opacity(0.05), .black.opacity(0.28)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: 10)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous))
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
-struct ListeningDiscArtwork: View {
-    var disc: ListeningDisc?
-    var image = "listen_04_disc"
-    @State private var artwork: UIImage?
-
-    private var artworkTaskID: String {
-        guard let disc else { return "empty" }
-        if let artworkURL = disc.artworkURL {
-            return "\(disc.id):\(artworkURL.absoluteString)"
-        }
-        return "\(disc.id):empty"
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size.width
-            ZStack {
-                // Base CD texture asset
-                Image(image)
-                    .resizable()
-
-                // Radial metallic holographic sheen / rainbow diffraction
-                AngularGradient(
-                    gradient: Gradient(colors: [
-                        Color.clear,
-                        Color.cyan.opacity(0.18),
-                        Color.pink.opacity(0.16),
-                        Color.yellow.opacity(0.15),
-                        Color.clear,
-                        Color.purple.opacity(0.18),
-                        Color.cyan.opacity(0.16),
-                        Color.clear
-                    ]),
-                    center: .center,
-                    angle: .degrees(45)
-                )
-                .clipShape(Circle())
-                .blendMode(.screen)
-
-                // Album artwork printed on the label area, between hub and rim.
-                if let artwork {
-                    Image(uiImage: artwork)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size * 0.94, height: size * 0.94)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
-                }
-
-                // The disc texture runs to the centre; only a small clear hub sits on top.
-                ListeningDiscHub(size: size)
-                // High-contrast specular wedge highlights
-                AngularGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: Color.white.opacity(0.35), location: 0.12),
-                        .init(color: .clear, location: 0.25),
-                        .init(color: .clear, location: 0.50),
-                        .init(color: Color.white.opacity(0.30), location: 0.62),
-                        .init(color: .clear, location: 0.75),
-                        .init(color: .clear, location: 1.0)
-                    ]),
-                    center: .center,
-                    angle: .degrees(30)
-                )
-                .clipShape(Circle())
-                .blendMode(.screen)
-
-                // CD label title, only when no artwork covers the label
-                if artwork == nil {
-                    Text(disc?.title ?? "CD")
-                        .font(.system(size: max(8, size * 0.045), weight: .semibold, design: .monospaced))
-                        .foregroundStyle(ListeningStyle.lcdInk.opacity(0.9))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .frame(width: size * 0.62)
-                        .offset(y: -size * 0.24)
-                }
-            }
-        }
-        .task(id: artworkTaskID) {
-            if let url = disc?.artworkURL {
-                if let cached = ShowCoverImageCache.shared.memoryImage(for: url) {
-                    artwork = cached
-                    return
-                }
-                artwork = nil
-                let loaded = await ShowCoverImageCache.shared.image(from: url)
-                guard !Task.isCancelled else { return }
-                artwork = loaded
-            } else {
-                artwork = nil
-            }
-        }
-    }
-}
-
 /// Missing covers get a deterministic typographic sleeve, never pretend artwork.
 struct ListeningArtwork: View {
     let url: URL?
@@ -196,12 +74,13 @@ struct ListeningArtwork: View {
         .clipped()
         .task(id: url) {
             guard let url else { image = nil; return }
-            if image == nil {
-                image = ShowCoverImageCache.shared.memoryImage(for: url)
+            // A new URL replaces the old picture only once its own image is ready.
+            if let cached = ShowCoverImageCache.shared.memoryImage(for: url) {
+                image = cached
+                return
             }
-            if image == nil {
-                image = await ShowCoverImageCache.shared.image(from: url)
-            }
+            let loaded = await ShowCoverImageCache.shared.image(from: url)
+            if !Task.isCancelled { image = loaded }
         }
     }
 
@@ -223,40 +102,6 @@ struct ListeningArtwork: View {
                 .fill(BSColor.Stage.surfaceRaised.opacity(0.85))
                 .frame(width: size * 0.22, height: size * 0.22)
         }
-    }
-}
-
-struct ListeningFramesKey: PreferenceKey {
-    static let defaultValue: [String: CGRect] = [:]
-    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
-
-extension View {
-    func listeningFrame(_ name: String?) -> some View {
-        background(GeometryReader { proxy in
-            Color.clear.preference(
-                key: ListeningFramesKey.self,
-                value: name.map { [$0: proxy.frame(in: .named("listeningContent"))] } ?? [:]
-            )
-        })
-    }
-}
-
-extension ListeningRoomCoordinator {
-    func perform(_ control: CDControl) {
-        switch control {
-        case .previous: skip(-1)
-        case .next: skip(1)
-        case .playPause: playPause()
-        case .stop: stop()
-        case .open: mechanism.setLid(open: (mechanism.motion.lid.target ?? mechanism.motion.lid.value) < 0.5)
-        }
-
-        #if os(iOS)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        #endif
     }
 }
 
@@ -291,12 +136,13 @@ struct ListeningArtistArtwork: View {
         .accessibilityHidden(true)
         .task(id: url) {
             guard let url else { image = nil; return }
-            if image == nil {
-                image = ShowCoverImageCache.shared.memoryImage(for: url)
+            // A new URL replaces the old picture only once its own image is ready.
+            if let cached = ShowCoverImageCache.shared.memoryImage(for: url) {
+                image = cached
+                return
             }
-            if image == nil {
-                image = await ShowCoverImageCache.shared.image(from: url)
-            }
+            let loaded = await ShowCoverImageCache.shared.image(from: url)
+            if !Task.isCancelled { image = loaded }
         }
     }
 }

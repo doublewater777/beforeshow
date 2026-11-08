@@ -11,8 +11,6 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
     case widgetGuide
     case footprint
     case weatherDetail
-    case setlist
-    case spending
 
     var id: String {
         switch self {
@@ -25,8 +23,6 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
         case .widgetGuide: return "widgetGuide"
         case .footprint: return "footprint"
         case .weatherDetail: return "weatherDetail"
-        case .setlist: return "setlist"
-        case .spending: return "spending"
         }
     }
 }

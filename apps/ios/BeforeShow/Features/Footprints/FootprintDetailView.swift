@@ -146,6 +146,13 @@ struct FootprintDetailView: View {
     }
 
     var body: some View {
+        GeometryReader { proxy in
+            content(topInset: proxy.safeAreaInsets.top)
+        }
+    }
+
+    @ViewBuilder
+    private func content(topInset: CGFloat) -> some View {
         ZStack {
             footprintBackground
                 .task(id: show.id) { markFootprintRecommendationHandled() }
@@ -162,7 +169,8 @@ struct FootprintDetailView: View {
                         identity: identity,
                         canOpenCover: hasViewableCover,
                         coverTransition: coverTransition,
-                        onOpenCover: openCover
+                        onOpenCover: openCover,
+                            topExtension: topInset
                     )
                     FootprintDispersalRitualSection(
                         rating: show.rating,
@@ -198,9 +206,9 @@ struct FootprintDetailView: View {
                         assetFor: asset(for:),
                         onSelect: { showingAssetKind = $0 }
                     )
-                    FootprintKeepsakeRecords(show: show) { saved in
-                        presentToast(saved ? .success : .failure, message: BSLocalization.text(saved ? "周边已收进柜子" : "照片没有保存，请重试"))
-                    }
+                    ShowRecordRows(show: show, kinds: [.setlist, .merch, .spending])
+                        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.07)))
                     if show.companionStatus == .confirmed {
                         FootprintCompanionSection(show: show, archive: archive)
                     }
@@ -210,10 +218,12 @@ struct FootprintDetailView: View {
                 .padding(.top, BSSpacing.sm)
                 .padding(.bottom, BSSpacing.xl)
             }
-                .bsNavigationScrollEdge()
+                .bsStageNavigationChrome()
             }
         }
+        // The stage carries the page; the bar keeps only its buttons. The title still names the page for Back.
         .navigationTitle(BSLocalization.text("足迹详情"))
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {

@@ -25,13 +25,23 @@ struct FootprintCityMapView: View {
         FootprintStagePolicy.tourStops(cities: archive.cityArchiveItems, archive: archive, allShows: allShows)
     }
 
-    /// The next new city's show, pinned as a poster still to come.
-    private var nextShow: Show? {
-        guard let next = stops.first(where: \.isNext) else { return nil }
+    /// Shows still to come, one dashed poster per city (its earliest), soonest first.
+    private var upcoming: [(city: String, show: Show)] {
         let archived = Set(archive.shows.map(\.id))
+        var seen = Set<String>()
         return allShows
-            .filter { !archived.contains($0.id) && $0.changeStatus != .canceled && $0.effectiveDate >= Date() && FootprintTextNormalizer.nonEmptyTrimmed($0.city) == next.city }
-            .min { $0.effectiveDate < $1.effectiveDate }
+            .filter { !archived.contains($0.id) && $0.changeStatus != .canceled && $0.effectiveDate >= Calendar.current.startOfDay(for: Date()) }
+            .sorted { $0.effectiveDate < $1.effectiveDate }
+            .compactMap { show in
+                guard let city = FootprintTextNormalizer.nonEmptyTrimmed(show.city), seen.insert(city).inserted else { return nil }
+                return (city, show)
+            }
+    }
+
+    /// Upcoming cities not yet on the tour get their own chips after it.
+    private var upcomingOnlyCities: [(city: String, show: Show)] {
+        let toured = Set(stops.filter { !$0.isNext }.map(\.city))
+        return upcoming.filter { !toured.contains($0.city) }
     }
 
     var body: some View {
@@ -56,11 +66,13 @@ struct FootprintCityMapView: View {
                 }
                 .annotationTitles(.hidden)
             }
-            if let nextShow, let city = FootprintTextNormalizer.nonEmptyTrimmed(nextShow.city), let coordinate = cityCoordinates[city] {
-                Annotation(city, coordinate: coordinate.location, anchor: .bottom) {
-                    FootprintNextPosterPin(show: nextShow)
+            ForEach(Array(upcoming.enumerated()), id: \.element.show.id) { index, item in
+                if let coordinate = cityCoordinates[item.city] {
+                    Annotation(item.city, coordinate: coordinate.location, anchor: .bottom) {
+                        FootprintNextPosterPin(show: item.show, isNext: index == 0)
+                    }
+                    .annotationTitles(.hidden)
                 }
-                .annotationTitles(.hidden)
             }
         }
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
@@ -99,7 +111,7 @@ struct FootprintCityMapView: View {
         .task {
             // Coming back from a show keeps the map where it was, card and all.
             guard !isPlaced else { return }
-            let cityNames = stops.map(\.city)
+            let cityNames = Array(Set(stops.map(\.city) + upcoming.map(\.city)))
             cityCoordinates = await FootprintCityCoordinateResolver.shared.coordinates(for: cityNames)
             venueCoordinates = await FootprintVenueLocator.shared.coordinates(for: spots, cities: cityCoordinates)
             isPlaced = true
@@ -143,31 +155,40 @@ struct FootprintCityMapView: View {
     private var cityChips: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                ForEach(stops) { stop in
-                    Button { fly(toCity: stop.city) } label: {
-                        HStack(spacing: 6) {
-                            Text(stop.city).font(.system(size: 14, weight: .semibold))
-                            Text(stop.isNext ? BSLocalization.text("下一站") : String(stop.count))
-                                .font(.system(size: 12, weight: .medium).monospacedDigit())
-                                .foregroundStyle(stop.isNext ? BSColor.Stage.accent : BSColor.Stage.muted)
-                        }
-                        .foregroundStyle(stop.isNext ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                        .padding(.horizontal, 14)
-                        .frame(height: 36)
-                        .background(Color.white.opacity(0.07), in: Capsule())
-                        .overlay {
-                            if stop.isNext {
-                                Capsule().strokeBorder(BSColor.Stage.accent.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
+                ForEach(stops.filter { !$0.isNext }) { stop in
+                    cityChip(stop.city, detail: String(stop.count), isUpcoming: false)
+                }
+                ForEach(Array(upcomingOnlyCities.enumerated()), id: \.element.city) { index, item in
+                    cityChip(item.city, detail: index == 0 && upcoming.first?.city == item.city
+                        ? BSLocalization.text("下一站") : FootprintUpcomingDate.text(item.show), isUpcoming: true)
                 }
             }
             .padding(.horizontal, 20)
         }
         .scrollIndicators(.hidden)
         .padding(.top, 14)
+    }
+
+    /// Cities already played sit solid with their count; cities still to come are dashed, with their date.
+    private func cityChip(_ city: String, detail: String, isUpcoming: Bool) -> some View {
+        Button { fly(toCity: city) } label: {
+            HStack(spacing: 6) {
+                Text(city).font(.system(size: 14, weight: .semibold))
+                Text(detail)
+                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    .foregroundStyle(isUpcoming ? BSColor.Stage.accent : BSColor.Stage.muted)
+            }
+            .foregroundStyle(isUpcoming ? BSColor.Stage.accent : BSColor.Stage.foreground)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            .background(Color.white.opacity(isUpcoming ? 0.02 : 0.07), in: Capsule())
+            .overlay {
+                if isUpcoming {
+                    Capsule().strokeBorder(BSColor.Stage.accent.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func venueCard(_ spots: [FootprintVenueSpot]) -> some View {
@@ -263,7 +284,7 @@ struct FootprintCityMapView: View {
     private func showAll(animated: Bool = true) {
         selectedSpotIDs = []
         let all = placed(spots).map { FootprintCityCoordinate(name: $0.spot.id, latitude: $0.latitude, longitude: $0.longitude) }
-            + (nextShow.flatMap { $0.city }.flatMap { cityCoordinates[$0] }.map { [$0] } ?? [])
+            + upcoming.compactMap { cityCoordinates[$0.city] }
         guard let region = FootprintCityMapFraming.region(for: all) else { return }
         if animated { move(to: region) } else { camera = .region(region); visibleSpan = region.span.latitudeDelta }
     }
@@ -370,12 +391,20 @@ private struct FootprintPosterPin: View {
 }
 
 /// The next new city: its poster, dimmed, with a dashed frame until you have been.
+enum FootprintUpcomingDate {
+    static func text(_ show: Show) -> String {
+        let parts = show.timingCalendar().dateComponents([.month, .day], from: show.effectiveDate)
+        return "\(parts.month ?? 1).\(parts.day ?? 1)"
+    }
+}
+
 private struct FootprintNextPosterPin: View {
     let show: Show
+    let isNext: Bool
 
     var body: some View {
         VStack(spacing: 3) {
-            Text(BSLocalization.text("NEXT"))
+            Text(isNext ? BSLocalization.text("NEXT") : FootprintUpcomingDate.text(show))
                 .font(.system(size: 9, weight: .bold).width(.condensed))
                 .tracking(2)
                 .foregroundStyle(BSColor.Stage.accent)

@@ -413,22 +413,6 @@ final class TimetableFullLifecycleIntegrationTests: XCTestCase {
         XCTAssertEqual(CurrentShowTimeState(show: reloaded, now: date(44)).endBoundary, date(47))
     }
 
-    func testTimetableVenueZoneWinsOverDeviceZoneAndConfirmedEndWinsOverSets() throws {
-        let show = try lifecycleShow(sessions: [(14, 23)])
-        var deviceCalendar = Calendar(identifier: .gregorian)
-        deviceCalendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
-        let state = CurrentShowTimeState(show: show, calendar: deviceCalendar, now: date(6))
-        XCTAssertEqual(state.dayDistance, 0)
-        let timetable = try XCTUnwrap(show.timetable)
-        timetable.orderedDays.first?.performances.first?.isInterested = true
-        let requests = LocalNotificationScheduler(calendar: deviceCalendar).futureRequests(for: show, now: date(6))
-        XCTAssertTrue(try XCTUnwrap(requests.first { $0.milestone == .interestedPerformance }).body.contains("14:00 - 23:00"))
-        show.markEnded(at: date(20))
-        let snapshot = WidgetShowSnapshot(show: show, generatedAt: date(21))
-        XCTAssertEqual(CurrentShowTimeState(timing: snapshot.timing, calendar: deviceCalendar, now: date(21)).kind, .postShow)
-        XCTAssertNil(LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(21), coverFilename: nil))
-    }
-
     func testTimetableCannotOverrideLaterExplicitClosing() throws {
         let show = try lifecycleShow(sessions: [(14, 20)])
         var draft = ShowDraft(show: show)

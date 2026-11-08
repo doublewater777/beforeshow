@@ -59,7 +59,6 @@ struct FootprintVinylYearsView: View {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             armDown = true
-            FootprintSoundPlayer.shared.play(.needle)
         }
     }
 
@@ -184,7 +183,6 @@ struct FootprintVinylYearsView: View {
         return Button {
             guard !isCurrent else { return }
             trackIndex = index
-            if armDown { FootprintSoundPlayer.shared.play(.needle) }
         } label: {
             HStack(spacing: 10) {
                 Text(trackCode(index, total: total))

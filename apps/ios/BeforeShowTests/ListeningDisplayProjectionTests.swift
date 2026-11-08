@@ -179,8 +179,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [disc],
             libraryDiscs: [disc],
             loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
             currentTrack: disc.tracks[0],
             transport: ListeningPlayerTransport(phase: .playing, source: .preview, time: 18, duration: 30),
             playbackError: nil
@@ -192,8 +190,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [disc],
             libraryDiscs: [disc],
             loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
             currentTrack: disc.tracks[0],
             transport: ListeningPlayerTransport(phase: .failed),
             playbackError: nil
@@ -221,8 +217,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [disc],
             libraryDiscs: [disc],
             loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
             currentTrack: disc.tracks[0],
             transport: ListeningPlayerTransport(phase: .waiting, source: .fullCatalog, time: 0, duration: 180),
             playbackError: nil
@@ -247,8 +241,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [disc],
             libraryDiscs: [disc],
             loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
             currentTrack: disc.tracks[0],
             transport: ListeningPlayerTransport(phase: .preparing, source: .fullCatalog),
             playbackError: nil
@@ -274,8 +266,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [disc],
             libraryDiscs: [disc],
             loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
             currentTrack: disc.tracks[0],
             transport: ListeningPlayerTransport(phase: .interrupted, source: .fullCatalog, time: 21, duration: 180),
             playbackError: nil
@@ -302,8 +292,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [disc],
             libraryDiscs: [disc],
             loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
             currentTrack: disc.tracks[0],
             transport: ListeningPlayerTransport(phase: .paused, source: .fullCatalog, time: 42, duration: 180),
             playbackError: nil
@@ -467,8 +455,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [disc],
             libraryDiscs: [disc],
             loadedDisc: disc,
-            isDiscSeated: true,
-            isLidClosed: true,
             currentTrack: disc.tracks[0],
             transport: ListeningPlayerTransport(phase: .playing, source: .fullCatalog, time: 42, duration: 180),
             playbackError: nil
@@ -581,8 +567,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [],
             libraryDiscs: [],
             loadedDisc: nil,
-            isDiscSeated: false,
-            isLidClosed: true,
             currentTrack: nil,
             transport: ListeningPlayerTransport(),
             playbackError: nil
@@ -594,8 +578,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [],
             libraryDiscs: [],
             loadedDisc: nil,
-            isDiscSeated: false,
-            isLidClosed: true,
             currentTrack: nil,
             transport: ListeningPlayerTransport(),
             playbackError: nil
@@ -615,8 +597,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: [],
             libraryDiscs: [],
             loadedDisc: nil,
-            isDiscSeated: false,
-            isLidClosed: true,
             currentTrack: nil,
             transport: ListeningPlayerTransport(),
             playbackError: nil,
@@ -627,7 +607,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(preparing.catalogChrome, .preparing)
         XCTAssertEqual(
             matching.catalogChrome,
-            .connectArtist(slotIndex: 1, name: "未连接", isBrowsing: true)
+            .connectArtist(slotIndex: 1, name: "未连接")
         )
     }
 
@@ -645,8 +625,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             allDiscs: discs,
             libraryDiscs: libraryDiscs ?? discs,
             loadedDisc: nil,
-            isDiscSeated: false,
-            isLidClosed: true,
             currentTrack: nil,
             transport: transport,
             playbackError: nil

@@ -17,8 +17,11 @@ enum AppAudioSession {
     enum Owner: Hashable {
         case listening
         case timetablePreview
+        /// Auditioning records in 帮我挑一张 before choosing one.
+        case pickAudition
         case memoryVideo
         case footprintSong
+        case artistVideo
     }
 
     /// Posted synchronously on the main thread; `object` is the claiming `Owner`.
@@ -90,7 +93,7 @@ enum AppAudioSession {
             category = .playback
             mode = .default
             options = []
-        } else if leases.contains(.memoryVideo) {
+        } else if !leases.isDisjoint(with: [.memoryVideo, .artistVideo]) {
             category = .playback
             mode = .moviePlayback
             options = []

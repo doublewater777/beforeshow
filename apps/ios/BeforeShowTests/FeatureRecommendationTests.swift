@@ -295,7 +295,7 @@ final class FeatureRecommendationTests: XCTestCase {
                 hasEndHandler: true,
                 recommendation: .dispersal
             ),
-            .recommendation(.dispersal)
+            .dispersal(completed: false)
         )
     }
 

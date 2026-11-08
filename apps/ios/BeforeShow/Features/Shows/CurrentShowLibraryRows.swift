@@ -1,186 +1,162 @@
 import SwiftUI
 
-struct CurrentShowLibraryCoverCard: View {
+/// 「即将开始」行：日期与倒计时是主信息。
+struct CurrentShowLibraryUpcomingRow: View {
     let show: Show
     let isCurrent: Bool
+    let phase: CurrentShowTimeState
     let actions: [CurrentShowLibraryMenuAction]
     let onOpen: () -> Void
     let onAction: (CurrentShowLibraryMenuAction) -> Void
 
     var body: some View {
         Button(action: onOpen) {
-            // Each overlay uses the grid's fixed canvas, independent of image dimensions.
-            Color.clear
-                .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .overlay {
-                    ShowCoverImageView(
-                        urlString: show.coverImageURL,
-                        aspectRatio: 3.0 / 4.0,
-                        contentMode: .fill,
-                        enforcesAspectRatio: false,
-                        cornerRadius: BSRadius.v3Medium
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                }
-                .overlay(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if isCurrent {
-                            tag(BSLocalization.text("当前展示"), color: BSColor.Stage.accent)
-                        }
-                        if show.changeStatus != .scheduled {
-                            tag(statusTag, color: statusColor)
-                        }
-                    }
-                    .padding(BSSpacing.sm)
-                }
-                .overlay(alignment: .bottom) {
-                    LinearGradient(
-                        colors: [Color.clear, Color.black.opacity(0.85)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 38)
-                }
-                .overlay(alignment: .bottomLeading) {
+            HStack(spacing: BSSpacing.compact) {
+                ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
+                    .frame(width: 54, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 5) {
                     Text(show.name)
-                        .font(BSFont.V3.caption)
-                        .foregroundStyle(.white.opacity(0.92))
+                        .font(.system(size: 14.5, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(statusLine)
+                        .font(BSFont.V3.small.weight(.medium))
+                        .foregroundStyle(isChanged ? BSColor.Accent.warm : BSColor.Stage.foreground.opacity(0.82))
                         .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, BSSpacing.sm)
-                        .padding(.bottom, BSSpacing.sm)
+                    Text([shortDateText, show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
+                        .font(BSFont.V3.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .lineLimit(1)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.v3Medium)
-                        .stroke(
-                            isCurrent ? BSColor.Stage.accent.opacity(0.72) : BSColor.Stage.border,
-                            lineWidth: isCurrent ? 1.5 : 1
-                        )
-                )
-                .contentShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(show.name)
-        .accessibilityElement(children: .contain)
-        .contextMenu {
-            ForEach(actions, id: \.self) { action in
-                Button(role: action.isDestructive ? .destructive : nil) {
-                    onAction(action)
-                } label: {
-                    Label(BSLocalization.text(key: action.rawValue), systemImage: action.icon)
+                Spacer(minLength: 0)
+                if isCurrent {
+                    Text(BSLocalization.text("当前"))
+                        .font(BSFont.V3.caption)
+                        .foregroundStyle(BSColor.Stage.accent)
+                        .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
+            .padding(BSSpacing.compact)
+            .background(BSColor.Stage.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 17))
+            .overlay(
+                RoundedRectangle(cornerRadius: 17)
+                    .stroke(isCurrent ? BSColor.Stage.accent.opacity(0.45) : BSColor.Stage.border, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 17))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
         }
     }
 
-    private var statusTag: String {
-        show.changeStatus == .canceled ? BSLocalization.text("已取消") : BSLocalization.text("已延期")
+    private var isChanged: Bool { show.changeStatus != .scheduled }
+
+    private var shortDateText: String {
+        let calendar = show.timingCalendar()
+        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+        let parts = calendar.dateComponents([.month, .day, .hour, .minute], from: start)
+        let day = BSLocalization.format("%lld月%lld日", parts.month ?? 1, parts.day ?? 1)
+        return day + String(format: " %02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 
-    private var statusColor: Color {
-        show.changeStatus == .canceled ? BSColor.Accent.danger : BSColor.Accent.warm
-    }
-
-    private func tag(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(BSFont.V3.caption)
-            .foregroundStyle(color)
-            .padding(.horizontal, BSSpacing.sm)
-            .padding(.vertical, BSSpacing.xs)
-            .background(BSColor.Stage.background.opacity(0.82), in: Capsule())
-            .overlay(Capsule().stroke(color.opacity(0.45), lineWidth: 1))
+    private var statusLine: String {
+        isChanged ? phase.statusText : phase.countdownText
     }
 }
 
-struct CurrentShowLibraryRow: View {
+/// 往期海报墙：海报上不叠控件，标题与日期放在海报下方。
+struct CurrentShowLibraryArchiveTile: View {
     let show: Show
-    let isCurrent: Bool
-    let formatter: ShowDisplayFormatter
     let actions: [CurrentShowLibraryMenuAction]
     let onOpen: () -> Void
     let onAction: (CurrentShowLibraryMenuAction) -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onOpen) {
-                HStack(spacing: 11) {
-                    ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
-                        .frame(width: 47, height: 63)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 5) {
-                            if isCurrent { tag(BSLocalization.text("当前展示"), color: BSColor.Stage.accent) }
-                            if show.changeStatus != .scheduled { tag(statusTag, color: BSColor.Accent.warm) }
-                        }
-                        Text(show.name)
-                            .font(.system(size: 13.5, weight: .semibold))
-                            .foregroundStyle(BSColor.Stage.foreground)
-                            .lineLimit(1)
-                        Text([formatter.dateText(for: show), show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
-                            .font(.system(size: 11.4))
-                            .foregroundStyle(BSColor.Stage.muted)
-                            .lineLimit(1)
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 6) {
+                Color.clear
+                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                    .overlay {
+                        ShowCoverImageView(
+                            urlString: show.coverImageURL,
+                            aspectRatio: 3.0 / 4.0,
+                            contentMode: .fill,
+                            enforcesAspectRatio: false,
+                            cornerRadius: BSRadius.md
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                     }
-                    Spacer(minLength: 0)
+                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                    .overlay(RoundedRectangle(cornerRadius: BSRadius.md).stroke(BSColor.Stage.border, lineWidth: 1))
+                    .opacity(isCanceled ? 0.4 : 1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(show.name)
+                        .font(BSFont.V3.caption)
+                        .foregroundStyle(BSColor.Stage.foreground.opacity(isCanceled ? 0.5 : 0.9))
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(BSColor.Stage.dim)
+                        .lineLimit(1)
                 }
-                .padding(11)
-                .contentShape(Rectangle())
+                .padding(.horizontal, 2)
             }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Menu {
-                ForEach(actions, id: \.self) { action in
-                    Button(role: action.isDestructive ? .destructive : nil) {
-                        onAction(action)
-                    } label: {
-                        Label(BSLocalization.text(key: action.rawValue), systemImage: action.icon)
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.055), in: Circle())
-            }
-            .accessibilityLabel(BSLocalization.format("管理 %@", show.name))
-            .padding(.trailing, 11)
+            .contentShape(Rectangle())
         }
-        .background(BSColor.Stage.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 17))
-        .overlay(RoundedRectangle(cornerRadius: 17).stroke(Color.white.opacity(0.09), lineWidth: 1))
+        .buttonStyle(.plain)
+        .contextMenu {
+            CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
+        }
     }
 
-    private var statusTag: String { show.changeStatus == .canceled ? BSLocalization.text("已取消") : BSLocalization.text("已延期") }
+    private var isCanceled: Bool { show.changeStatus == .canceled }
 
-    private func tag(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.system(size: 9.5, weight: .medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .overlay(Capsule().stroke(color.opacity(0.35), lineWidth: 1))
+    private var subtitle: String {
+        if isCanceled { return BSLocalization.text("已取消") }
+        let components = show.timingCalendar().dateComponents([.month, .day], from: show.effectiveDate)
+        return BSLocalization.format("%lld月%lld日", components.month ?? 1, components.day ?? 1)
     }
 }
 
-struct LibraryRowEntrance: ViewModifier {
-    let index: Int
-    let appeared: Bool
-    let reduceMotion: Bool
+private struct CurrentShowLibraryMenuItems: View {
+    let actions: [CurrentShowLibraryMenuAction]
+    let onAction: (CurrentShowLibraryMenuAction) -> Void
 
-    func body(content: Content) -> some View {
-        content
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 14)
-            .animation(
-                reduceMotion
-                    ? nil
-                    : .easeOut(duration: 0.34).delay(Double(min(index, 8)) * 0.04),
-                value: appeared
-            )
+    var body: some View {
+        ForEach(actions.filter { !$0.isStatusAction && $0 != .delete }, id: \.self) { action in
+            Button {
+                onAction(action)
+            } label: {
+                Label(action.title, systemImage: action.icon)
+            }
+        }
+
+        if actions.contains(where: \.isStatusAction) {
+            Menu {
+                ForEach(actions.filter(\.isStatusAction), id: \.self) { action in
+                    Button(role: action.isDestructive ? .destructive : nil) {
+                        onAction(action)
+                    } label: {
+                        Label(action.title, systemImage: action.icon)
+                    }
+                }
+            } label: {
+                Label(BSLocalization.text("现场状态"), systemImage: "calendar.badge.clock")
+            }
+        }
+
+        if actions.contains(.delete) {
+            Divider()
+            Button(role: .destructive) {
+                onAction(.delete)
+            } label: {
+                Label(CurrentShowLibraryMenuAction.delete.title, systemImage: CurrentShowLibraryMenuAction.delete.icon)
+            }
+        }
     }
 }

@@ -61,9 +61,6 @@ enum ListeningChromeBootstrapper {
         // access, or catalog IO before the user actually enters Listen.
         guard room.hasLoadedDisc, room.track != nil else {
             session.unpublishChrome()
-            if createdCandidate {
-                room.stopHardwareMotion()
-            }
             return nil
         }
 
@@ -154,6 +151,7 @@ struct ListeningRootChromeModifier: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+    @Bindable private var videoDock = ListeningVideoDock.shared
 
     private var currentShow: Show? {
         CurrentShowSession().selectCurrentShow(
@@ -166,14 +164,16 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .task {
-                ListeningPlayerWarmup.prepareIfNeeded()
-            }
+            // Matched artists from before this rule take their cached Apple Music names.
+            .task { try? ArtistAppleMusicName.sync(in: modelContext) }
             .task(id: currentShowID) {
                 _ = await ListeningChromeBootstrapper.prepare(
                     show: currentShow,
                     context: modelContext
                 )
+            }
+            .sheet(isPresented: $videoDock.isExpanded) {
+                ListeningVideoPlayerView(dock: videoDock)
             }
             .onChange(of: scenePhase) { _, phase in
                 guard let room = ListeningRoomSessionStore.shared.room else { return }

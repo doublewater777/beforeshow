@@ -4,7 +4,6 @@ import XCTest
 @MainActor
 final class ListeningRoomSessionStoreTests: XCTestCase {
     override func tearDown() {
-        ListeningRoomSessionStore.shared.room?.mechanism.motion.stop()
         ListeningRoomSessionStore.shared.adopt(nil)
         super.tearDown()
     }
@@ -21,7 +20,6 @@ final class ListeningRoomSessionStoreTests: XCTestCase {
 
         XCTAssertTrue(ListeningRoomSessionStore.shared.room === room)
         XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
-        room.mechanism.motion.stop()
     }
 
     func testPublishChromeAdoptsAndExposesChromeRoom() throws {
@@ -40,7 +38,6 @@ final class ListeningRoomSessionStoreTests: XCTestCase {
         ListeningRoomSessionStore.shared.unpublishChrome()
         XCTAssertTrue(ListeningRoomSessionStore.shared.room === room)
         XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
-        room.mechanism.motion.stop()
     }
 
     func testReplacingRoomUnpublishesChrome() throws {
@@ -61,7 +58,5 @@ final class ListeningRoomSessionStoreTests: XCTestCase {
 
         XCTAssertTrue(ListeningRoomSessionStore.shared.room === second)
         XCTAssertNil(ListeningRoomSessionStore.shared.chromeRoom)
-        first.mechanism.motion.stop()
-        second.mechanism.motion.stop()
     }
 }

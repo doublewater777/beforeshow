@@ -31,7 +31,6 @@ private enum FootprintShareCardTokens {
     ]
     static let accentGlow = BSColor.Stage.accent.opacity(0.12)
     static let blueGlow = BSColor.Stage.glowBlue.opacity(0.13)
-    static let brand = Color.white.opacity(0.62)
     static let venue = Color.white.opacity(0.58)
     static let collageBorder = Color.white.opacity(0.14)
     static let identityText = Color.white.opacity(0.84)
@@ -41,10 +40,6 @@ private enum FootprintShareCardTokens {
 
     static func eyebrowFont(scale: CGFloat) -> Font {
         .system(size: 8.5 * scale, weight: .semibold)
-    }
-
-    static func brandFont(scale: CGFloat) -> Font {
-        .system(size: 8 * scale, weight: .bold)
     }
 
     static func titleFont(scale: CGFloat) -> Font {
@@ -109,10 +104,6 @@ struct FootprintMemoryShareCard: View {
                             .tracking(BSFont.titleTracking * scale)
                             .foregroundStyle(BSColor.Stage.accent)
                         Spacer()
-                        Text("BEFORESHOW")
-                            .font(FootprintShareCardTokens.brandFont(scale: scale))
-                            .tracking(BSFont.titleTracking * scale)
-                            .foregroundStyle(FootprintShareCardTokens.brand)
                     }
 
                     Text(show.name)
@@ -150,9 +141,9 @@ struct FootprintMemoryShareCard: View {
                     .padding(.top, FootprintShareCardTokens.identityTopPadding * scale)
 
                     HStack {
-                        Text(BSLocalization.text("一场现场，一份私人的回看"))
+                        BSShareByline(tone: FootprintShareCardTokens.footer, scale: scale)
                         Spacer()
-                        Text(BSLocalization.text("开场前"))
+                        Text(BSLocalization.text("一场现场，一份私人的回看"))
                     }
                     .font(FootprintShareCardTokens.footerFont(scale: scale))
                     .foregroundStyle(FootprintShareCardTokens.footer)

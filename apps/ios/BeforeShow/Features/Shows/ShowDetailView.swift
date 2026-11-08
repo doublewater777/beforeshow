@@ -62,6 +62,13 @@ struct ShowDetailView: View {
     }
 
     var body: some View {
+        GeometryReader { proxy in
+            content(topInset: proxy.safeAreaInsets.top)
+        }
+    }
+
+    @ViewBuilder
+    private func content(topInset: CGFloat) -> some View {
         ZStack {
             BSColor.Stage.background
                 .ignoresSafeArea()
@@ -80,7 +87,8 @@ struct ShowDetailView: View {
                             reunions: ShowDetailStagePolicy.reunions(for: show, among: shows, now: Date())
                                 .map { .init(name: $0.name, nth: $0.nth) },
                             coverTransition: coverTransition,
-                            onOpenCover: { isShowingCoverPreview = true }
+                            onOpenCover: { isShowingCoverPreview = true },
+                            topExtension: topInset
                         )
                         ShowDetailKit(
                             isAfterShow: stageMood == .ended,
@@ -108,11 +116,13 @@ struct ShowDetailView: View {
                     .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSSpacing.xl)
                 }
-                .bsNavigationScrollEdge()
+                .bsStageNavigationChrome()
             }
         }
         .bsToastOverlay(toast, bottomPadding: 90)
+        // The stage carries the page; the bar keeps only its buttons. The title still names the page for Back.
         .navigationTitle(BSLocalization.text("现场详情"))
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
@@ -128,7 +138,7 @@ struct ShowDetailView: View {
                         }
                         .disabled(true)
                     } else if session.isManuallySelectable(show) {
-                        Button(BSLocalization.text("设为展示"), systemImage: "music.note.house", action: selectCurrent)
+                        Button(BSLocalization.text("设为当前现场"), systemImage: "music.note.house", action: selectCurrent)
                     }
                     Menu {
                         eventStatusMenuActions
@@ -344,14 +354,14 @@ struct ShowDetailView: View {
             Button(BSLocalization.text("延期"), systemImage: "calendar.badge.clock") {
                 beginPostpone()
             }
-            Button(BSLocalization.text("取消演出"), systemImage: "xmark.circle", role: .destructive) {
+            Button(BSLocalization.text("记录取消"), systemImage: "xmark.circle", role: .destructive) {
                 isShowingCancelConfirmation = true
             }
         case .postponed:
             Button(BSLocalization.text("修改延期"), systemImage: "calendar.badge.clock") {
                 beginPostpone()
             }
-            Button(BSLocalization.text("取消演出"), systemImage: "xmark.circle", role: .destructive) {
+            Button(BSLocalization.text("记录取消"), systemImage: "xmark.circle", role: .destructive) {
                 isShowingCancelConfirmation = true
             }
             Button(restoreActionTitle, systemImage: "arrow.clockwise") {

@@ -14,7 +14,7 @@ struct ListeningDiscTrackRow: View {
 
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 Text(track.title)
-                    .font(BSListeningTokens.body)
+                    .font(.system(size: 16, weight: state.isActive ? .semibold : .regular))
                     .foregroundStyle(titleColor)
                     .lineLimit(2)
                 if isMultiArtist {
@@ -29,7 +29,7 @@ struct ListeningDiscTrackRow: View {
 
             if let duration = track.duration, duration.isFinite, duration > 0 {
                 Text(Duration.seconds(duration).formatted(.time(pattern: .minuteSecond)))
-                    .font(BSListeningTokens.rowNumber)
+                    .font(BSListeningTokens.caption.monospacedDigit())
                     .foregroundStyle(BSColor.Stage.muted)
             }
 
@@ -38,10 +38,7 @@ struct ListeningDiscTrackRow: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
-        .padding(.horizontal, BSSpacing.md)
         .padding(.vertical, BSSpacing.sm)
-        .background(state.isActive ? BSColor.Stage.accent.opacity(BSListeningTokens.selectionFillOpacity) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: BSRadius.sm))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -85,7 +82,7 @@ struct ListeningDiscTrackRow: View {
             .font(.system(size: 10, weight: .bold))
             .foregroundStyle(Color.black)
             .frame(width: 28, height: 28)
-            .background(BSColor.Stage.accent, in: Circle())
+            .background(BSColor.Stage.foreground, in: Circle())
             .accessibilityHidden(true)
     }
 
@@ -101,8 +98,8 @@ struct ListeningDiscTrackRow: View {
     }
 
     private func trackNumber(color: Color) -> some View {
-        Text(String(format: "%02d", index + 1))
-            .font(BSListeningTokens.rowNumber)
+        Text(verbatim: "\(index + 1)")
+            .font(.system(size: 13, weight: .medium).monospacedDigit())
             .foregroundStyle(color)
     }
 }

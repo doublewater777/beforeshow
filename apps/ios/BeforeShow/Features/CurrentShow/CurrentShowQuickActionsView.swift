@@ -49,11 +49,11 @@ enum CurrentShowQuickAction: Hashable {
         let actions: [Self]
         switch phase {
         case .pre:
-            actions = [.route, .ticket, .timetable, .companion, .memoryFragments]
+            actions = [.timetable, .companion, .memoryFragments, .route, .ticket]
         case .live:
-            var live: [Self] = [.companion, .memoryFragments, .route, .ticket, .timetable]
+            var live: [Self] = [.memoryFragments, .companion, .route, .timetable, .ticket]
             if canRecordEnd {
-                live.insert(.endShow, at: 0)
+                live.append(.endShow)
             }
             actions = live
         case .ended:
@@ -62,35 +62,23 @@ enum CurrentShowQuickAction: Hashable {
                     .dispersal(completed: hasCompletedDispersalCeremony),
                     .memoryFragments,
                     .companion,
-                    .ticket,
-                    .timetable
+                    .timetable,
+                    .ticket
                 ]
             } else {
-                actions = [.memoryFragments, .companion, .route, .ticket, .timetable]
+                actions = [.memoryFragments, .companion, .route, .timetable, .ticket]
             }
         case .inactive:
-            actions = [.route, .companion, .ticket, .timetable, .memoryFragments]
+            actions = [.route, .companion, .timetable, .memoryFragments, .ticket]
         }
         return embedsRouteInLocation ? actions.filter { $0 != .route } : actions
     }
-    /// 记录清单只接管主按钮没有承载的结束 / 散场入口，其余入口由清单按阶段给出。
-    var recordKind: CurrentShowRecordKind? {
-        switch self {
-        case .endShow: return .endShow
-        case .dispersal(let completed): return .dispersal(completed: completed)
-        case .route, .companion, .ticket, .timetable, .memoryFragments: return nil
-        }
-    }
-
     /// 只移除与页面实际可见操作相同的快捷入口，不依赖文案或推荐候选。
     static func deduplicated(
         _ actions: [Self],
-        primaryAction: HomeCountdownLockup.PrimaryAction?,
-        hasInlineTimetableEntry: Bool = false
+        primaryAction: HomeCountdownLockup.PrimaryAction?
     ) -> [Self] {
         actions.filter { action in
-            // 现场模式显示「完整时刻表」，即使它不是推荐主操作也不重复展示。
-            if hasInlineTimetableEntry && action == .timetable { return false }
             switch primaryAction {
             case .some(.end(live: _)):
                 return action != .endShow
@@ -101,6 +89,9 @@ enum CurrentShowQuickAction: Hashable {
                 return true
             case .some(.route):
                 return action != .route
+            case .some(.dispersal):
+                if case .dispersal = action { return false }
+                return true
             case .some(.recommendation(let feature)):
                 switch feature {
                 case .companion: return action != .companion
@@ -114,5 +105,47 @@ enum CurrentShowQuickAction: Hashable {
                 }
             }
         }
+    }
+}
+
+struct CompanionAvatarStack: View {
+    let names: [String]
+
+    private static let maxVisibleOthers = 3
+    private static let palettes: [[Color]] = [
+        [BSColor.Stage.accent, BSColor.Stage.glowBlue],
+        [BSColor.Accent.violet, BSColor.Stage.accent],
+        [BSColor.Accent.warm, BSColor.Accent.violet],
+        [BSColor.Stage.glowBlue, BSColor.Accent.warm]
+    ]
+
+    var body: some View {
+        let visible = Array(CompanionNameList.normalized(names).prefix(Self.maxVisibleOthers))
+        let overflow = max(0, CompanionNameList.normalized(names).count - visible.count)
+        return HStack(spacing: -8) {
+            avatar(BSLocalization.text("我"), colors: Self.palettes[0])
+            ForEach(Array(visible.enumerated()), id: \.offset) { index, name in
+                avatar(initial(name), colors: Self.palettes[(index + 1) % Self.palettes.count])
+            }
+            if overflow > 0 {
+                avatar("+\(overflow)", colors: [BSColor.Stage.muted, BSColor.Stage.dim])
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func initial(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? BSLocalization.text("友") : String(trimmed.prefix(1))
+    }
+
+    private func avatar(_ text: String, colors: [Color]) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(BSColor.Stage.background)
+            .frame(width: 25, height: 25)
+            .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .clipShape(Circle())
+            .overlay(Circle().stroke(BSColor.Stage.surface, lineWidth: 2))
     }
 }

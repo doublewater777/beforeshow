@@ -187,19 +187,19 @@ final class ListeningWidgetTests: XCTestCase {
     func testSkippingInsideAppUpdatesWidgetTrack() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
         await room.load(show: show)
 
         for disc in [room.compilationDiscs.first, room.browseArtists.first?.albums.first].compactMap({ $0 }) {
             guard disc.tracks.count >= 2 else { continue }
             room.restoreDisc(disc, songID: disc.tracks[0].id)
             room.playPause()
-            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            try await ListenTestData.settle(room) { room.isPlaying }
             XCTAssertEqual(WidgetListeningStore.read()?.trackTitle, disc.tracks[0].title)
 
             room.skip(1)
             let next = disc.tracks[1]
-            try await ListenTestData.settle(room) { room.track?.id == next.id && room.isPlaying && !room.busy }
+            try await ListenTestData.settle(room) { room.track?.id == next.id && room.isPlaying }
             XCTAssertEqual(WidgetListeningStore.read()?.trackTitle, next.title, "disc \(disc.title)")
             XCTAssertEqual(WidgetListeningStore.read()?.coverImageURL, disc.artworkURL?.absoluteString)
             room.stop()
@@ -267,18 +267,6 @@ final class ListeningWidgetTests: XCTestCase {
         ))
         XCTAssertEqual(blocked.control, .openListen)
         XCTAssertNil(blocked.discTitle)
-
-        let loading = WidgetListeningProjection.make(input(
-            seated: nil,
-            phase: .stopped,
-            action: .disabled,
-            mechanicallyBusy: true,
-            pending: head
-        ))
-        XCTAssertEqual(loading.phase, .preparing)
-        XCTAssertEqual(loading.control, .openListen)
-        XCTAssertTrue(loading.hasSession)
-        XCTAssertEqual(loading.discTitle, "唱片")
     }
 
     @MainActor
@@ -348,7 +336,6 @@ final class ListeningWidgetTests: XCTestCase {
         defer {
             ListeningRoomSessionStore.shared.adopt(nil)
             room.stop()
-            room.mechanism.motion.stop()
         }
         await room.load(show: show)
         ListeningRoomSessionStore.shared.adopt(room)
@@ -357,7 +344,7 @@ final class ListeningWidgetTests: XCTestCase {
         async let second = ListeningIntentHandler.shared.perform(.play)
         _ = await (first, second)
         XCTAssertTrue(room.isPlaying)
-        XCTAssertEqual(room.mechanism.disc?.id, room.livePreviewDisc?.id)
+        XCTAssertEqual(room.loadedDisc?.id, room.livePreviewDisc?.id)
         XCTAssertEqual(WidgetListeningStore.read()?.control, .pause)
 
         await ListeningIntentHandler.shared.perform(.play)
@@ -365,22 +352,22 @@ final class ListeningWidgetTests: XCTestCase {
     }
 
     @MainActor
-    func testPauseDuringDiscLoadDoesNotCancelPlayback() async throws {
+    func testPauseRightAfterChoosingADiscStopsIt() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         defer {
             ListeningRoomSessionStore.shared.adopt(nil)
             room.stop()
-            room.mechanism.motion.stop()
         }
         await room.load(show: show)
         ListeningRoomSessionStore.shared.adopt(room)
         let disc = try XCTUnwrap(room.compilationDiscs.first)
         room.loadDisc(disc, autoplay: true)
         await ListeningIntentHandler.shared.perform(.pause)
-        XCTAssertTrue(room.isPlaying)
-        XCTAssertEqual(room.mechanism.disc?.id, disc.id)
-        XCTAssertEqual(WidgetListeningStore.read()?.control, .pause)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertFalse(room.wantsPlayback, "with no disc animation, a pause right after choosing wins")
+        XCTAssertEqual(room.loadedDisc?.id, disc.id)
+        XCTAssertEqual(WidgetListeningStore.read()?.control, .play)
     }
 
     @MainActor
@@ -389,7 +376,6 @@ final class ListeningWidgetTests: XCTestCase {
         let room = ListenTestData.room(container.mainContext)
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
         await room.load(show: show)
         let head = try XCTUnwrap(room.livePreviewDisc)
@@ -409,7 +395,6 @@ final class ListeningWidgetTests: XCTestCase {
         let room = ListenTestData.room(container.mainContext)
         defer {
             room.stop()
-            room.mechanism.motion.stop()
         }
         await room.load(show: show)
         let song = CatalogSong(
@@ -430,7 +415,7 @@ final class ListeningWidgetTests: XCTestCase {
         room.restoreDisc(record, songID: song.appleMusicSongID)
         XCTAssertEqual(WidgetListeningStore.read()?.coverImageURL, "https://example.invalid/disc.jpg")
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         let snapshot = try XCTUnwrap(WidgetListeningStore.read())
         XCTAssertEqual(snapshot.coverImageURL, "https://example.invalid/disc.jpg")
         XCTAssertEqual(snapshot.trackTitle, "袖套曲")
@@ -454,7 +439,7 @@ final class ListeningWidgetTests: XCTestCase {
         defer { stopWidgetRoom(room) }
         XCTAssertTrue(room.isPlaying)
         XCTAssertEqual(room.show?.id, show.id)
-        XCTAssertEqual(room.mechanism.disc?.id, room.livePreviewDisc?.id)
+        XCTAssertEqual(room.loadedDisc?.id, room.livePreviewDisc?.id)
         XCTAssertEqual(WidgetListeningStore.read()?.showID, show.id)
         XCTAssertEqual(WidgetListeningStore.read()?.control, .pause)
     }
@@ -471,7 +456,7 @@ final class ListeningWidgetTests: XCTestCase {
         let room = try await performColdWidgetPlay(container: container)
         defer { stopWidgetRoom(room) }
         XCTAssertFalse(room.isPlaying)
-        XCTAssertNil(room.mechanism.disc)
+        XCTAssertNil(room.loadedDisc)
         let snapshot = try XCTUnwrap(WidgetListeningStore.read())
         XCTAssertEqual(snapshot.showID, show.id)
         XCTAssertEqual(snapshot.control, .openListen)
@@ -488,7 +473,7 @@ final class ListeningWidgetTests: XCTestCase {
         let disc = try XCTUnwrap(room.compilationDiscs.first)
         if playing {
             room.loadDisc(disc, autoplay: true)
-            try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+            try await ListenTestData.settle(room) { room.isPlaying }
         } else {
             room.restoreDisc(disc)
         }
@@ -532,7 +517,6 @@ final class ListeningWidgetTests: XCTestCase {
     @MainActor
     private func stopWidgetRoom(_ room: ListeningRoomCoordinator?) {
         room?.stop()
-        room?.mechanism.motion.stop()
         ListeningRoomSessionStore.shared.adopt(nil)
     }
 
@@ -557,8 +541,6 @@ final class ListeningWidgetTests: XCTestCase {
         seated: ListeningDisc?,
         phase: ListeningPlayerPhase,
         action: ListeningPlayPauseAction,
-        mechanicallyBusy: Bool = false,
-        pending: ListeningDisc? = nil,
         idle: ListeningDisc? = nil,
         idleCanLoad: Bool = false
     ) -> WidgetListeningProjection.Input {
@@ -569,8 +551,6 @@ final class ListeningWidgetTests: XCTestCase {
             track: seated?.tracks.first,
             playerPhase: phase,
             playPauseAction: action,
-            mechanicallyBusy: mechanicallyBusy,
-            pendingDisc: pending,
             idleDisc: idle,
             idleCanLoad: idleCanLoad
         )

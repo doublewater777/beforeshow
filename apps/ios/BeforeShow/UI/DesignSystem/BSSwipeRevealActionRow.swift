@@ -92,12 +92,8 @@ struct BSSwipeRevealActionRow<Content: View>: View {
             .offset(x: rowOffset)
             .modifier(dragGesture)
         }
-        .background(BSColor.Stage.surface.opacity(0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .bsGlassCard(cornerRadius: 20, interactive: false)
         .onDisappear {
             tapReleaseTask?.cancel()
         }

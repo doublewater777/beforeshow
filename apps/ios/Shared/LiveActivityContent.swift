@@ -137,9 +137,11 @@ struct LiveActivityContent {
             progress = start < end ? start...end : nil
             next = upcoming
             if state.isFestivalDayActive {
-                let also = state.alsoArtistName.map {
+                // Drop the parallel set once it has ended, even if no update arrived to say so.
+                let alsoIsOn = state.alsoEndsAt.map { now < $0 } ?? true
+                let also = alsoIsOn ? state.alsoArtistName.map {
                     Also(artist: $0, stage: state.alsoStageName, image: state.alsoArtistImageFilename)
-                }
+                } : nil
                 lineup = (state.currentArtistImageFilename, state.currentStageName, also)
             }
             timerInterval = state.timerInterval

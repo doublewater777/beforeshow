@@ -16,23 +16,21 @@ struct NotificationCopy {
     func displayTitle(for milestone: ShowNotificationMilestone) -> String {
         switch milestone {
         case .listeningReminder, .oneDayBefore, .interestedPerformance,
-             .addedFollowUp, .fourteenDaysBefore, .openingMemory:
+             .addedFollowUp, .fourteenDaysBefore, .openingMemory,
+             .sevenDaysBefore, .threeDaysBefore, .afterShow, .footprintArrival:
             return context.showName
-        case .sevenDaysBefore, .threeDaysBefore:
-            return BSLocalization.text("准备这场")
         case .showDayMorning:
             return BSLocalization.text("今天开场")
         case .showDay:
             return BSLocalization.text("快开场了")
         case .postShowRitual:
             return BSLocalization.text("散场后")
-        case .afterShow, .footprintArrival:
-            return BSLocalization.text("回看这场")
         }
     }
 
-    func displayBody(_ message: String) -> String {
-        context.showName + "\n" + message
+    /// Status titles ("快开场了") name the show on the first body line; show-name titles don't repeat it.
+    func displayBody(_ message: String, for milestone: ShowNotificationMilestone) -> String {
+        displayTitle(for: milestone) == context.showName ? message : context.showName + "\n" + message
     }
 
     func recommendation(_ feature: RecommendedFeature, daysLeft: Int) -> String? {
@@ -81,31 +79,28 @@ struct NotificationCopy {
     }
 
     /// `remainingSeconds` 只在临时补发时给出，按真实剩余时间写。
-    func showDay(remainingSeconds: Int?, hasMusic: Bool, weatherTip: String? = nil, sunsetArtist: String? = nil) -> String {
+    func showDay(remainingSeconds: Int?, weatherTip: String? = nil, sunsetArtist: String? = nil) -> String {
         let placeSuffix = context.place.map { " · \($0)" } ?? ""
-        let extraSuffix: String
+        let extra: String
         if let weatherTip, !weatherTip.isEmpty {
-            extraSuffix = " \(weatherTip)"
+            extra = weatherTip
         } else if let sunsetArtist, !sunsetArtist.isEmpty {
-            extraSuffix = BSLocalization.format(" 今天的日落现场是%@。", sunsetArtist)
+            extra = BSLocalization.format("今天的日落现场是%@。", sunsetArtist)
         } else {
-            extraSuffix = ""
+            extra = ""
         }
         guard let remainingSeconds else {
-            let lead = context.startClock.map { BSLocalization.format("%@ 开场", $0) }
-                ?? BSLocalization.text("今天开场")
-            if let weatherTip, !weatherTip.isEmpty {
-                return lead + placeSuffix + BSLocalization.text("。还有 3 小时，准备出门。 ") + weatherTip
+            // Without a start time this fires at noon; it can't promise "3 hours".
+            guard let clock = context.startClock else {
+                return BSLocalization.text("今天开场") + placeSuffix + BSLocalization.text("。记得留好出门时间。") + extra
             }
-            return lead + placeSuffix + (hasMusic
-                ? BSLocalization.text("。还有 3 小时，准备出门，路上让这些歌陪你出发。")
-                : BSLocalization.text("。还有 3 小时，准备出门。")) + extraSuffix
+            return BSLocalization.format("%@ 开场", clock) + placeSuffix + BSLocalization.text("。还有 3 小时，准备出门。") + extra
         }
         let remaining = max(60, remainingSeconds)
         let lead = remaining >= 3_600
             ? BSLocalization.format("%lld 小时后开场", Int64(remaining / 3_600))
             : BSLocalization.format("%lld 分钟后开场", Int64(remaining / 60))
-        return lead + placeSuffix + BSLocalization.text("。别错过开场。") + extraSuffix
+        return lead + placeSuffix + BSLocalization.text("。别错过开场。") + extra
     }
 
     func postShowRitual(isConfirmed: Bool) -> String {

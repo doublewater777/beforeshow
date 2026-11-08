@@ -190,30 +190,11 @@ struct TimetablePerformanceInspectorSheet: View {
         VStack(spacing: 16) {
             // 1. Artist & Audio Preview Card
             HStack(spacing: 14) {
-                TimetableArtistAvatar(name: performance.artistName, url: currentAvatarURL, size: 56)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(performance.artistName)
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundStyle(TimetableStyle.foreground)
-                        .lineLimit(2)
-
-                    if let trackTitle = activeTrackTitle {
-                        Label(BSLocalization.format("正在试听 · %@", trackTitle), systemImage: "music.note")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(TimetableStyle.mine)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    } else if let id = performance.appleMusicArtistID, !id.isEmpty {
-                        Label(BSLocalization.text("已关联 Apple Music"), systemImage: "checkmark.seal.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(TimetableStyle.mine)
-                    } else {
-                        Text(BSLocalization.text("未关联音乐库"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(TimetableStyle.dim)
-                    }
-                }
+                TimetableInspectorArtistHeader(
+                    performance: performance,
+                    avatarURL: currentAvatarURL,
+                    activeTrackTitle: activeTrackTitle
+                )
 
                 Spacer()
 

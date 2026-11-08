@@ -77,6 +77,17 @@ enum ShowWeatherDays {
         return first...last
     }
 
+    /// The hour the strip opens on: an hour before now while the strip covers now, otherwise just before doors.
+    static func leadIndex(hours: [Date], band: ClosedRange<Int>, now: Date) -> Int {
+        if let current = currentIndex(hours: hours, now: now) { return max(0, current - 1) }
+        return max(0, band.lowerBound - 2)
+    }
+
+    /// The column holding `now`, or nil when the strip is another day.
+    static func currentIndex(hours: [Date], now: Date) -> Int? {
+        hours.firstIndex { $0 <= now && now < $0.addingTimeInterval(3600) }
+    }
+
     /// The day to open on, read on the venue's calendar.
     static func relevantIndex(of days: [ShowWeatherDay], now: Date) -> Int {
         var calendar = Calendar(identifier: .gregorian)

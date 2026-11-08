@@ -17,7 +17,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
             let player = ListeningTestPlayer(source: .preview)
             let room = ListeningRoomCoordinator(context: container.mainContext, catalogService: catalog,
                 artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { _ in player })
-            defer { room.stop(); room.stopHardwareMotion() }
+            defer { room.stop() }
             let payload: [AnyHashable: Any] = ["showID": show.id.uuidString, "destination": "listen", "discID": "album", "artistID": "a"]
             let body = try XCTUnwrap(NotificationDeepLink(userInfo: payload))
             await ListeningNotificationEntry.open(body, show: show, room: room)
@@ -33,7 +33,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
             XCTAssertTrue(play.requestsPlayback)
             await ListeningNotificationEntry.open(play, show: show, room: room)
             try await ListenTestData.settle(room) { room.isPlaying }
-            XCTAssertEqual(room.mechanism.disc?.id, "album")
+            XCTAssertEqual(room.loadedDisc?.id, "album")
             XCTAssertEqual(player.loadedSongIDs, previewIDs)
             XCTAssertNil(room.browser.detail)
             XCTAssertEqual(catalog.authorizationRequests, 0)
@@ -42,7 +42,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
     func testResumingTheSameSongOnANewDayRefreshesTheShowsLastListeningTime() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
-        defer { room.stop(); room.stopHardwareMotion() }
+        defer { room.stop() }
         await room.load(show: show)
         room.restoreDisc(try XCTUnwrap(room.discs.first { $0.id == "album" }))
         room.playPause()
@@ -60,7 +60,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
     func testMissingDiscsFallBackToTheArtistAndLegacyPayloadsStillOpenTheRoom() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
-        defer { room.stop(); room.stopHardwareMotion() }
+        defer { room.stop() }
         let missing = try XCTUnwrap(NotificationDeepLink(userInfo: [
             "showID": show.id.uuidString, "destination": "listen", "discID": "removed", "artistID": "a"
         ]))
@@ -79,19 +79,18 @@ final class ListeningNotificationEntryTests: XCTestCase {
     func testPlayWaitsForAnExistingDiscInsertionInsteadOfDroppingTheRequest() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
-        defer { room.stop(); room.stopHardwareMotion() }
+        defer { room.stop() }
         await room.load(show: show)
         room.loadDisc(try XCTUnwrap(room.compilationDiscs.first), autoplay: false)
         await Task.yield()
-        XCTAssertTrue(room.busy)
         let play = try XCTUnwrap(NotificationDeepLink(userInfo: [
             "showID": show.id.uuidString, "destination": "listen", "discID": "album"
         ], actionIdentifier: "playListeningDisc"))
         let entry = Task { await ListeningNotificationEntry.open(play, show: show, room: room) }
         defer { entry.cancel() }
-        try await ListenTestData.settle(room) { room.isPlaying && room.mechanism.disc?.id == "album" }
+        try await ListenTestData.settle(room) { room.isPlaying && room.loadedDisc?.id == "album" }
         await entry.value
-        XCTAssertEqual(room.mechanism.disc?.id, "album")
+        XCTAssertEqual(room.loadedDisc?.id, "album")
         XCTAssertTrue(room.isPlaying)
     }
 
@@ -106,7 +105,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
             let catalog = NotificationEntryCatalog()
             let room = ListeningRoomCoordinator(context: container.mainContext, catalogService: catalog,
                 artistSearchService: NotificationEntryArtistSearch(), playbackFactory: { ListeningTestPlayer(source: $0) })
-            defer { room.stop(); room.stopHardwareMotion() }
+            defer { room.stop() }
             let link = try XCTUnwrap(NotificationDeepLink(userInfo: [
                 "showID": show.id.uuidString, "destination": "listen", "artistID": connected ? "b" : "unconnected-0", "artistName": "B"
             ]))
@@ -125,7 +124,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
         let search = GatedNotificationEntryArtistSearch()
         let room = ListeningRoomCoordinator(context: container.mainContext, catalogService: NotificationEntryCatalog(),
             artistSearchService: search, playbackFactory: { ListeningTestPlayer(source: $0) })
-        defer { room.stop(); room.stopHardwareMotion() }
+        defer { room.stop() }
         let link = try XCTUnwrap(NotificationDeepLink(userInfo: [
             "showID": show.id.uuidString, "destination": "listen", "artistID": "unconnected-0", "artistName": "B"
         ]))

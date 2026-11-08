@@ -1,14 +1,9 @@
 import SwiftUI
 
-/// Listening component dimensions; player model coordinates remain in CDPlayerConfiguration.
+/// Listening component dimensions and colors.
 enum BSListeningTokens {
-    // Lighting is expressed in player model coordinates, then scaled with the machine.
     static let restingLight = Color(red: 0.63, green: 0.72, blue: 0.82)
-    static let placingLight = Color(red: 0.84, green: 0.89, blue: 0.94)
     static let roomLightOpacity = 0.4
-    static let loadedLidOpacity = 0.025
-    static let detailDiscFraction: CGFloat = 0.92
-    static let detailDiscReveal: CGFloat = 0.26
     static let actionHeight: CGFloat = 52
     static let stateIconSize: CGFloat = 56
     static let stateIconFont = Font.system(size: 24, weight: .light)
@@ -25,15 +20,9 @@ enum BSListeningTokens {
     static let selectionFillOpacity = 0.13
     static let selectionBorderOpacity = 0.35
     static let avatar: CGFloat = 24
-    static let artwork: CGFloat = 82
-    static let detailArtwork: CGFloat = 212
-    static let playerWidthFraction: CGFloat = 1.08
+    static let detailArtwork: CGFloat = 264
     /// One turn every nine seconds, as in the design.
-    static let discRotationRPM = 60.0 / 9
     static let songTitle = Font.title3.weight(.medium)
-    static let discTitle = Font.system(size: 24, weight: .bold)
-    static let songSpacing: CGFloat = 6
-    static let stageTopOffset: CGFloat = 56
     static let statusIcon: CGFloat = 16
     static let hairline: CGFloat = 0.75
     static let caption = Font.caption
@@ -48,7 +37,6 @@ enum BSListeningTokens {
     static let sleeveInsetFraction = 0.09
     static let sleeveNumberFraction = 0.24
     static let sleeveTitleFraction = 0.11
-    static let sleeveAngles: [Double] = [-2, 1.5, -1, 2]
     static let pressDuration = 0.12
     static let releaseDuration = 0.18
     static let selectionAnimation = Animation.easeOut(duration: 0.22)

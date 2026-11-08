@@ -68,6 +68,14 @@ final class TimetableArtistLinker {
 
     /// Automatically match unlinked performances in a persisted Timetable.
     func autoMatchPersistedPerformances(in timetable: Timetable, context: ModelContext) async {
+        // The show's lineup is matched first (add show, 听); unlinked sets reuse it before any search.
+        let lineup = timetable.show?.artists ?? []
+        var adopted = false
+        for performance in timetable.days.flatMap(\.performances) where performance.appleMusicArtistID == nil {
+            adopted = performance.adoptLineupIdentity(from: lineup) || adopted
+        }
+        if adopted { try? context.save() }
+
         var slots: [ArtistSlot] = []
         var perfs: [TimetablePerformance] = []
 

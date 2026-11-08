@@ -39,7 +39,7 @@ enum FeatureRecommendationSlot: Equatable, Sendable {
         case .cardFarBefore:
             return [.companion, .widget, .listen]
         case .cardPostShow:
-            return [.dispersal, .memoryFragments]
+            return [.dispersal]
         case .cardAfterRetention, .footprintArrival:
             return [.footprint, next]
         }

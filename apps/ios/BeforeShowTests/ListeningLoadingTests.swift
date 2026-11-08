@@ -14,7 +14,7 @@ final class ListeningLoadingTests: XCTestCase {
             playbackFactory: { ListeningFixturePlayer(source: $0) }
         )
         let task = Task { await room.load(show: show) }
-        defer { task.cancel(); room.stop(); room.mechanism.motion.stop() }
+        defer { task.cancel(); room.stop() }
         try await wait { room.initialLoaded && room.accessResolved }
         XCTAssertEqual(room.access.authorizationStatus, .authorized)
         XCTAssertTrue(room.accessResolved)
@@ -32,7 +32,7 @@ final class ListeningLoadingTests: XCTestCase {
         await room.load(show: show)
         let ids = room.discs.map(\.id)
         let refresh = Task { await room.load(show: show, force: true) }
-        defer { refresh.cancel(); room.mechanism.motion.stop() }
+        defer { refresh.cancel() }
         await Task.yield()
         XCTAssertTrue(room.accessResolved)
         XCTAssertEqual(room.display.roomMode, .fullPlayback)
@@ -62,7 +62,6 @@ final class ListeningLoadingTests: XCTestCase {
         defer {
             load.cancel()
             catalog.releaseFullCatalog()
-            room.mechanism.motion.stop()
         }
 
         try await wait {
@@ -134,7 +133,6 @@ final class ListeningLoadingTests: XCTestCase {
         defer {
             catalog.releaseFullCatalog()
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show, force: true)
@@ -191,7 +189,6 @@ final class ListeningLoadingTests: XCTestCase {
         defer {
             catalog.releaseFullCatalog()
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show)
@@ -263,7 +260,6 @@ final class ListeningLoadingTests: XCTestCase {
             catalog.releaseRuntimeCatalog()
             catalog.releaseFullCatalog()
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         await room.load(show: show)
@@ -296,19 +292,19 @@ final class ListeningLoadingTests: XCTestCase {
         let lastSongID = try XCTUnwrap(selected.tracks.last?.id)
         room.restoreDisc(selected, songID: firstSongID)
         let window = try mountRoomView(room, show: show)
-        defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
+        defer { window.isHidden = true; room.stop() }
         let view = try XCTUnwrap(window.rootViewController?.view)
         try await settleLayout(view)
 
         room.skip(-1)
         try await settleLayout(view)
 
-        XCTAssertEqual(room.mechanism.disc?.id, selected.id)
+        XCTAssertEqual(room.loadedDisc?.id, selected.id)
         XCTAssertEqual(room.track?.id, firstSongID, "Previous must not enter another theme")
         XCTAssertFalse(room.wantsPlayback)
 
         room.playFromSleeve(selected, songID: lastSongID)
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(player.loadedSongIDs, selected.tracks.map(\.id), "only the seated theme belongs in the playback queue")
         XCTAssertEqual(player.loadedStartSongID, lastSongID)
 
@@ -319,7 +315,7 @@ final class ListeningLoadingTests: XCTestCase {
         player.finishQueue()
         try await wait { !room.isPlaying }
         try await settleLayout(view)
-        XCTAssertEqual(room.mechanism.disc?.id, selected.id)
+        XCTAssertEqual(room.loadedDisc?.id, selected.id)
         XCTAssertEqual(room.track?.id, firstSongID, "playing through the theme stops at its first track")
         XCTAssertEqual(player.loadCount, 1)
     }
@@ -327,13 +323,13 @@ final class ListeningLoadingTests: XCTestCase {
     func testAlbumNextMovesInsideThePreparedQueue() async throws {
         let (container, room, player, _) = try await makeFestivalRoom()
         _ = container
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
         let source = room.compilationDiscs[0]
         let album = ListeningDisc(id: "queue-album", title: "Album", artworkURL: nil, tracks: Array(source.tracks.prefix(4)))
         room.restoreDisc(album, songID: album.tracks[0].id)
 
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         room.skip(1)
         try await wait { player.currentSongID == album.tracks[1].id && room.isPlaying }
         XCTAssertEqual(room.track?.id, album.tracks[1].id)
@@ -350,19 +346,18 @@ final class ListeningLoadingTests: XCTestCase {
     func testMiniPlayerControlFlipsOnTapWhileTheQueueLoads() async throws {
         let (container, room, player, _) = try await makeFestivalRoom()
         _ = container
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
         let disc = room.compilationDiscs[0]
         room.restoreDisc(disc)
         player.loadDelay = .milliseconds(300)
 
-        room.perform(.playPause)
+        room.playPause()
 
         XCTAssertTrue(room.display.player.showsPauseControl)
         XCTAssertTrue(room.display.player.canPlayPause)
         XCTAssertTrue(room.display.player.shouldRotateDisc)
-        XCTAssertFalse(room.busy)
 
-        room.perform(.playPause)
+        room.playPause()
         XCTAssertFalse(room.display.player.showsPauseControl)
         try await Task.sleep(for: .milliseconds(500))
         XCTAssertFalse(room.isPlaying, "a pause during loading must cancel the start")
@@ -408,7 +403,7 @@ final class ListeningLoadingTests: XCTestCase {
             artistSearchService: EmptyArtistSearch(),
             playbackFactory: { _ in player }
         )
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
         await room.load(show: show)
         let current = try XCTUnwrap(room.compilationDiscs.first)
         let sharedTrack = try XCTUnwrap(current.tracks.first)
@@ -421,116 +416,19 @@ final class ListeningLoadingTests: XCTestCase {
         )
         room.restoreDisc(restored, songID: retiredTrack.id)
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(player.loadedSongIDs, restored.tracks.map(\.id))
         XCTAssertEqual(room.track?.id, retiredTrack.id)
 
         room.stop()
         room.skip(1)
-        XCTAssertEqual(room.mechanism.disc?.tracks.map(\.id), restored.tracks.map(\.id))
+        XCTAssertEqual(room.loadedDisc?.tracks.map(\.id), restored.tracks.map(\.id))
         XCTAssertEqual(room.track?.id, retiredTrack.id, "stopped Next must retain the loaded version")
         room.skip(-1)
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        try await ListenTestData.settle(room) { room.isPlaying }
         XCTAssertEqual(player.loadedSongIDs, restored.tracks.map(\.id), "a shared selected song must not replace the loaded record with refreshed contents")
         XCTAssertEqual(room.track?.id, sharedTrack.id)
-    }
-
-    func testPlayerPositionAcrossColdLaunchAuthorizationAndCatalogArrival() async throws {
-        let fixture = try ListeningDebugFixtures(scenario: .authorizationFlow)
-        let context = fixture.container.mainContext
-        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
-        let room = ListeningRoomCoordinator(
-            context: context,
-            catalogService: ListeningFixtureCatalog(scenario: .authorizationFlow, pace: 0.2),
-            artistSearchService: ListeningFixtureArtistSearch(),
-            playbackFactory: { ListeningFixturePlayer(source: $0) }
-        )
-        let probe = ListeningLayoutProbe()
-        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-        let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
-        func content(_ view: some View) -> AnyView {
-            AnyView(view
-                .transaction { $0.disablesAnimations = true }
-                .onPreferenceChange(ListeningFramesKey.self) { probe.frames = $0 })
-        }
-        let host = UIHostingController(rootView: content(ListeningPreparingView(show: show)))
-        window.rootViewController = host
-        window.makeKeyAndVisible()
-        host.view.frame = window.bounds
-        defer { window.isHidden = true; room.mechanism.motion.stop() }
-        try await wait { host.view.layoutIfNeeded(); return probe.frames["stage"] != nil }
-        let coldStage = try XCTUnwrap(probe.frames["stage"])
-        let coldCabinet = try XCTUnwrap(probe.frames["cabinet"])
-
-        await room.load(show: show)
-        XCTAssertEqual(room.presentation, .needsAuthorization)
-        host.rootView = content(ListeningRoomView(room: room, show: show))
-        try await settleLayout(host.view)
-        assertFrames(probe.frames, stage: coldStage, cabinet: coldCabinet)
-
-        let authorization = Task { await room.authorize() }
-        defer { authorization.cancel() }
-        try await wait { room.isAuthorizing }
-        try await settleLayout(host.view)
-        XCTAssertEqual(room.display.roomMode, .connecting)
-        XCTAssertNil(room.display.recoveryAction)
-        assertFrames(probe.frames, stage: coldStage, cabinet: coldCabinet)
-
-        await authorization.value
-        XCTAssertFalse(room.libraryDiscs.isEmpty)
-        XCTAssertEqual(room.display.roomMode, .fullPlayback)
-        try await settleLayout(host.view)
-        assertFrames(probe.frames, stage: coldStage, cabinet: coldCabinet)
-    }
-
-    func testSelectingAndPlayingDiscsKeepsThePlayerAndShelfInPlace() async throws {
-        for scenario in [ListeningFixtureScenario.singleFull, .manyDiscs] {
-            let fixture = try ListeningDebugFixtures(scenario: scenario)
-            let context = fixture.container.mainContext
-            let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
-            let room = ListeningRoomCoordinator(
-                context: context,
-                catalogService: ListeningFixtureCatalog(scenario: scenario),
-                artistSearchService: ListeningFixtureArtistSearch(),
-                playbackFactory: { ListeningFixturePlayer(source: $0) }
-            )
-            await room.load(show: show)
-            let probe = ListeningLayoutProbe()
-            let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-            let window = UIWindow(windowScene: scene)
-            window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
-            let host = UIHostingController(rootView: ListeningRoomView(room: room, show: show)
-                .onPreferenceChange(ListeningFramesKey.self) { probe.frames = $0 })
-            window.rootViewController = host
-            window.makeKeyAndVisible()
-            defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
-            try await settleLayout(host.view)
-            let stage = try XCTUnwrap(probe.frames["stage"])
-            let cabinet = try XCTUnwrap(probe.frames["cabinet"])
-            let disc = try XCTUnwrap(room.shelfDiscs.last)
-
-            room.loadPlayableDisc(disc)
-            for _ in 0..<300 {
-                if room.isPlaying { break }
-                try await Task.sleep(for: .milliseconds(20))
-            }
-            XCTAssertTrue(room.isPlaying)
-            try await settleLayout(host.view)
-            assertFrames(probe.frames, stage: stage, cabinet: cabinet)
-
-            room.perform(.playPause)
-            try await wait { !room.isPlaying }
-            try await settleLayout(host.view)
-            XCTAssertEqual(room.display.player.phase, .paused)
-            assertFrames(probe.frames, stage: stage, cabinet: cabinet)
-        }
-    }
-
-    private func assertFrames(_ frames: [String: CGRect], stage: CGRect, cabinet: CGRect, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertEqual(frames["stage"]?.minY ?? -1, stage.minY, accuracy: 1, file: file, line: line)
-        XCTAssertEqual(frames["cabinet"]?.height ?? -1, cabinet.height, accuracy: 1, file: file, line: line)
     }
 
     private func settleLayout(_ view: UIView) async throws {
@@ -548,11 +446,6 @@ final class ListeningLoadingTests: XCTestCase {
         }
         XCTFail("Loading state did not arrive")
     }
-}
-
-@MainActor
-private final class ListeningLayoutProbe {
-    var frames: [String: CGRect] = [:]
 }
 
 private struct LoadingArtistSearch: ArtistSearchServicing {

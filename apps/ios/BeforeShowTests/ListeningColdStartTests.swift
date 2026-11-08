@@ -13,7 +13,6 @@ final class ListeningColdStartTests: XCTestCase {
             load.cancel()
             catalog.gate.release()
             room.stop()
-            room.mechanism.motion.stop()
         }
 
         try await wait { catalog.started.count == 7 && !room.compilationDiscs.isEmpty }
@@ -30,7 +29,7 @@ final class ListeningColdStartTests: XCTestCase {
         catalog.gate.release()
         await load.value
         XCTAssertEqual(Set(room.compilationDiscs.flatMap(\.tracks).map(\.id)), Set((0..<7).map { "song-\($0)" }))
-        XCTAssertEqual(room.mechanism.disc?.id, disc.id, "Enrichment must not replace the playing CD")
+        XCTAssertEqual(room.loadedDisc?.id, disc.id, "Enrichment must not replace the playing CD")
         XCTAssertTrue(room.isPlaying)
     }
 
@@ -44,7 +43,6 @@ final class ListeningColdStartTests: XCTestCase {
                 load.cancel()
                 catalog.gate.release()
                 room.stop()
-                room.mechanism.motion.stop()
             }
             try await wait { catalog.started.count == 7 && !room.compilationDiscs.isEmpty }
             let next = try Show(name: "Next", date: .now, startTime: .now)
@@ -76,7 +74,7 @@ final class ListeningColdStartTests: XCTestCase {
         let catalog = ColdStartCatalog()
         let room = makeRoom(container, catalog: catalog)
         let load = Task { await room.load(show: show) }
-        defer { room.stop(); room.mechanism.motion.stop() }
+        defer { room.stop() }
         do {
             try await wait { catalog.started.count == 7 && !room.compilationDiscs.isEmpty }
         } catch {

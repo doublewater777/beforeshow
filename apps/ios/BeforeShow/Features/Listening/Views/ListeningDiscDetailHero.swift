@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The case lifted off the shelf: centred jewel case with its disc slid out, then the credits.
+/// The cover on its own, then the credits set like Now Playing: caps artist over a serif title.
 struct ListeningDiscDetailHero: View {
     let disc: ListeningDisc
     let show: Show?
@@ -9,52 +9,47 @@ struct ListeningDiscDetailHero: View {
     let isLoaded: Bool
     let isPlaying: Bool
     let containsHeardSongs: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var size: CGFloat { BSListeningTokens.detailArtwork }
 
     var body: some View {
-        VStack(spacing: BSSpacing.lg) {
-            ZStack {
-                ListeningPeekingDisc(disc: disc, size: size * BSListeningTokens.detailDiscFraction)
-                    .offset(x: isLoaded ? 0 : size * BSListeningTokens.detailDiscReveal)
-                    .opacity(isLoaded ? 0 : 1)
-                    .animation(reduceMotion ? nil : BSListeningTokens.selectionAnimation, value: isLoaded)
-                ListeningDiscCover(disc: disc, show: show)
-                    .frame(width: size, height: size)
-                    .overlay { ListeningJewelCaseFinish() }
-                    .shadow(color: .black.opacity(0.55), radius: 22, y: 16)
-            }
-            .offset(x: isLoaded ? 0 : -size * BSListeningTokens.detailDiscReveal / 2)
-            .frame(maxWidth: .infinity)
-            .padding(.top, BSSpacing.lg)
+        VStack(alignment: .leading, spacing: BSSpacing.lg) {
+            ListeningDiscCover(disc: disc, show: show)
+                .frame(width: size, height: size)
+                .shadow(color: .black.opacity(0.55), radius: 26, y: 18)
+                .frame(maxWidth: .infinity)
+                .padding(.top, BSSpacing.md)
 
-            VStack(spacing: BSSpacing.sm) {
-                if isLoaded {
-                    ListeningDiscStatusBadge(isPlaying: isPlaying)
-                        .accessibilityIdentifier("listening.loadedDiscStatus")
+            VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                HStack(spacing: BSSpacing.sm) {
+                    ListeningDiscArtistCredits(links: artistLinks)
+                    if isLoaded {
+                        Image(systemName: "waveform")
+                            .symbolEffect(.variableColor.iterative, isActive: isPlaying)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(BSColor.Stage.accent.opacity(isPlaying ? 1 : 0.6))
+                            .accessibilityLabel(ListeningCopy.text(isPlaying ? "播放中" : "暂停"))
+                            .accessibilityIdentifier("listening.loadedDiscStatus")
+                    }
                 }
                 Text(disc.title)
-                    .font(BSListeningTokens.detailTitle)
+                    .font(ListeningOverviewStyle.serif(32))
                     .foregroundStyle(BSColor.Stage.foreground)
-                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("listening.discDetail.title")
-                ListeningDiscArtistCredits(links: artistLinks)
                 HStack(spacing: BSSpacing.xs) {
                     Text(metadata)
                         .font(BSListeningTokens.caption)
                         .foregroundStyle(BSColor.Stage.muted)
-                        .multilineTextAlignment(.center)
                     if containsHeardSongs {
                         Image(systemName: "checkmark.seal.fill")
                             .font(BSListeningTokens.badge)
-                            .foregroundStyle(BSColor.Stage.accent)
+                            .foregroundStyle(BSColor.Stage.muted)
                             .accessibilityLabel(BSLocalization.text("包含听过的歌曲"))
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
