@@ -17,7 +17,6 @@ enum AnalyticsEvent {
     case onboardingStarted
     case onboardingPageViewed(page: String)
     case onboardingAddShowTapped
-    case onboardingInviteAccepted
     case onboardingSkipped(fromPage: String)
     case onboardingCompleted(method: String)
     case screenshotRecognized
@@ -51,7 +50,6 @@ enum AnalyticsEvent {
         case .onboardingStarted: "onboarding_started"
         case .onboardingPageViewed: "onboarding_page_viewed"
         case .onboardingAddShowTapped: "onboarding_add_show_tapped"
-        case .onboardingInviteAccepted: "onboarding_invite_accepted"
         case .onboardingSkipped: "onboarding_skipped"
         case .onboardingCompleted: "onboarding_completed"
         case .screenshotRecognized: "screenshot_recognized"
@@ -103,7 +101,7 @@ enum AnalyticsEvent {
 
     private var payload: [String: Any] {
         switch self {
-        case .onboardingStarted, .onboardingAddShowTapped, .onboardingInviteAccepted,
+        case .onboardingStarted, .onboardingAddShowTapped,
              .screenshotRecognized, .showLinkParsed, .proLimitReached,
              .proPaywallViewed, .proRestored:
             return [:]

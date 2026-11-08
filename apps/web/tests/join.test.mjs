@@ -121,12 +121,13 @@ test("rejects invalid cover schemes or malformed cover URLs", () => {
   assert.equal(invite({ c: "https://" + "a".repeat(1025) }).status, 404);
 });
 
-test("includes Apple Smart App Banner, download guidance and deferred link copy support", async () => {
+test("includes Apple Smart App Banner and download guidance without promising to join", async () => {
   const response = invite();
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /<meta name="apple-itunes-app" content="app-id=6780078298, app-argument=beforeshow:\/\/join\/[A-Za-z0-9_-]+">/);
-  assert.match(html, /一起去现场/);
+  assert.match(html, /在 App 中打开/);
+  assert.doesNotMatch(html, /加入同行|同行邀请|直接加入/);
   assert.match(html, /尚未安装？前往 App Store/);
   assert.match(html, /复制邀请链接/);
   assert.match(html, /id="toast"/);
@@ -145,7 +146,7 @@ test("returns styled 404 for empty or missing join token", async () => {
   assert.equal(response.status, 404);
   const html = await response.text();
   assert.match(html, /无法打开邀请/);
-  assert.match(html, /邀请链接不完整或格式有误/);
+  assert.match(html, /链接不完整/);
   assert.match(html, /返回首页/);
 });
 

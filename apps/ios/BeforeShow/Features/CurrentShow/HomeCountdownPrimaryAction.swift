@@ -83,7 +83,7 @@ extension RecommendedFeature {
     var cardTitle: String {
         switch self {
         case .widget: return BSLocalization.text("把小组件放到主屏幕")
-        case .companion: return BSLocalization.text("邀请同行")
+        case .companion: return BSLocalization.text("记下和谁一起去")
         case .listen: return BSLocalization.text("去听几首")
         case .timetable: return BSLocalization.text("存一张时刻表")
         case .dispersal: return BSLocalization.text("记下感受")

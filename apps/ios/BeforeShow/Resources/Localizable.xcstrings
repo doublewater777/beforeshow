@@ -451,76 +451,6 @@
         }
       }
     },
-    "%@ 邀请你一起去": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ invited you to go together"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 邀請你一起去"
-          }
-        }
-      }
-    },
-    "%@ 邀请你一起去 %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ invited you to %2$@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ 邀请你一起去 %2$@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ 邀請你一起去 %2$@"
-          }
-        }
-      }
-    },
-    "%@ 邀请你同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ invited you along"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 邀請你同行"
-          }
-        }
-      }
-    },
-    "%@ 邀请你确认这段共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ invited you to confirm this shared footprint"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 邀請你確認這段共同足跡"
-          }
-        }
-      }
-    },
     "%@%@": {
       "localizations": {
         "zh-Hans": {
@@ -1932,22 +1862,6 @@
         }
       }
     },
-    "BEFORESHOW · 共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BEFORESHOW · SHARED FOOTPRINTS"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BEFORESHOW · 共同足跡"
-          }
-        }
-      }
-    },
     "BEFORESHOW · 散场记录": {
       "localizations": {
         "en": {
@@ -2040,22 +1954,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "BeforeShow Pro 終身"
-          }
-        }
-      }
-    },
-    "BeforeShow · 现场共同记忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BeforeShow · Shared Live Memories"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BeforeShow · 現場共同記憶"
           }
         }
       }
@@ -2413,22 +2311,6 @@
       "shouldTranslate": false,
       "localizations": {}
     },
-    "TOGETHER · %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TOGETHER · %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TOGETHER · %@"
-          }
-        }
-      }
-    },
     "TR --": {
       "shouldTranslate": false,
       "localizations": {}
@@ -2478,22 +2360,6 @@
         }
       }
     },
-    "iCloud 空间不足，无法创建同行邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not enough iCloud space to create a companion invitation"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud 空間不足，無法建立同行邀請"
-          }
-        }
-      }
-    },
     "·": {
       "shouldTranslate": false,
       "localizations": {}
@@ -2501,22 +2367,6 @@
     "· %@": {
       "shouldTranslate": false,
       "localizations": {}
-    },
-    "· 同行成员可见，可选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· Visible to companions, optional"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 同行成員可見，可選"
-          }
-        }
-      }
     },
     "“": {
       "shouldTranslate": false,
@@ -2726,54 +2576,6 @@
         }
       }
     },
-    "一起去 %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Going to %@ together"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一起去 %@"
-          }
-        }
-      }
-    },
-    "一起去现场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Go Together"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一起去現場"
-          }
-        }
-      }
-    },
-    "一起去过这场吗？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Were you at this show together?"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一起去過這場嗎？"
-          }
-        }
-      }
-    },
     "上一曲": {
       "extractionState": "manual",
       "localizations": {
@@ -2921,22 +2723,6 @@
         }
       }
     },
-    "与%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "with %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "與%@"
-          }
-        }
-      }
-    },
     "与%@同行": {
       "localizations": {
         "en": {
@@ -3066,22 +2852,6 @@
         }
       }
     },
-    "云端服务暂时未就绪，请稍后重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud service temporarily unavailable. Please try again later."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "雲端服務暫時未就緒，請稍後再試"
-          }
-        }
-      }
-    },
     "产品改进": {
       "localizations": {
         "en": {
@@ -3126,22 +2896,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "僅儲存原圖"
-          }
-        }
-      }
-    },
-    "仅在本地修改该同行者的展示名称。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Only changes the display name for this companion locally."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "僅在本地修改該同行者的展示名稱。"
           }
         }
       }
@@ -3635,54 +3389,6 @@
         }
       }
     },
-    "你已经是这场的同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You're already a companion for this show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你已經是這場的同行"
-          }
-        }
-      }
-    },
-    "你已经有这场现场了。加入后会直接添加%@为同行，不会重复添加。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You already have this show. Joining will add %@ as a companion without creating a duplicate."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你已經有這場現場了。加入後會直接加入%@為同行，不會重複加入。"
-          }
-        }
-      }
-    },
-    "你已经记录过这场了。确认后会添加%@为共同足迹，不会重复添加。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You already have this show in your history. Confirm to add %@ to the shared footprint without creating a duplicate."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你已經記錄過這場了。確認後會加入%@為共同足跡，不會重複加入。"
-          }
-        }
-      }
-    },
     "你最常回去的场馆 · %lld 次": {
       "localizations": {
         "en": {
@@ -3712,22 +3418,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的下一場"
-          }
-        }
-      }
-    },
-    "你的称呼": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your Name"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你的稱呼"
           }
         }
       }
@@ -3985,38 +3675,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "資訊待更新"
-          }
-        }
-      }
-    },
-    "修改同行人备注": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Companion Note"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "修改同行人備註"
-          }
-        }
-      }
-    },
-    "修改备注": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Note"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "修改備註"
           }
         }
       }
@@ -4526,54 +4184,6 @@
         }
       }
     },
-    "共同记忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shared Memories"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "共同記憶"
-          }
-        }
-      }
-    },
-    "共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shared Footprints"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "共同足跡"
-          }
-        }
-      }
-    },
-    "共同足迹会从这里开始。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your shared footprints start here."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "共同足跡會從這裡開始。"
-          }
-        }
-      }
-    },
     "关于开场前": {
       "localizations": {
         "en": {
@@ -4718,38 +4328,6 @@
         }
       }
     },
-    "再次分享": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share Again"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再次分享"
-          }
-        }
-      }
-    },
-    "再次邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invite Again"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再次邀請"
-          }
-        }
-      }
-    },
     "写下你的问题或建议": {
       "localizations": {
         "en": {
@@ -4859,54 +4437,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "分享%@"
-          }
-        }
-      }
-    },
-    "分享与%@的共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share Footprints with %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分享與%@的共同足跡"
-          }
-        }
-      }
-    },
-    "分享共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share Shared Footprints"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分享共同足跡"
-          }
-        }
-      }
-    },
-    "分享共同足迹卡": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share Footprint Card"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分享共同足跡卡"
           }
         }
       }
@@ -5632,38 +5162,6 @@
         }
       }
     },
-    "加入同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Join Companion"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入同行"
-          }
-        }
-      }
-    },
-    "加入后可在现场页看到彼此状态，并共同记录足迹。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Once you join, you'll see each other's status on the show page and record footprints together."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入後可在現場頁看到彼此狀態，並共同記錄足跡。"
-          }
-        }
-      }
-    },
     "加入这场现场": {
       "localizations": {
         "en": {
@@ -5676,38 +5174,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "加入這場現場"
-          }
-        }
-      }
-    },
-    "加入这场现场，和 %@ 一起倒数、听歌、记录现场，散场后留住共同的记忆。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Join this show to count down, listen, and capture the night with %@, then keep the memories you share."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入這場現場，和 %@ 一起倒數、聽歌、記錄現場，散場後留住共同的記憶。"
-          }
-        }
-      }
-    },
-    "加入这场现场，和 %@ 一起收录当晚的照片、视频和小记，留住共同的现场记忆。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Join this show to collect the night's photos, videos, and notes with %@, and keep your shared memories of it."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入這場現場，和 %@ 一起收錄當晚的照片、影片和小記，留住共同的現場記憶。"
           }
         }
       }
@@ -6254,22 +5720,6 @@
         }
       }
     },
-    "可选": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optional"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選填"
-          }
-        }
-      }
-    },
     "合上": {
       "localizations": {
         "en": {
@@ -6347,295 +5797,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "同行"
-          }
-        }
-      }
-    },
-    "同行关系已结束": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion link ended"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行關係已結束"
-          }
-        }
-      }
-    },
-    "同行成员和邀请卡片将展示该昵称。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This nickname will be displayed to companions and on invite cards."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行成員和邀請卡片將展示該暱稱。"
-          }
-        }
-      }
-    },
-    "同行成员状态暂时无法同步，请稍后重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion member status can't sync right now; please retry later"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行成員狀態暫時無法同步，請稍後重試"
-          }
-        }
-      }
-    },
-    "同行成员状态暂时无法确认，请稍后重试": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion member status can't be confirmed right now; please retry later"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行成員狀態暫時無法確認，請稍後重試"
-          }
-        }
-      }
-    },
-    "同行操作失败：%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion operation failed: %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行操作失敗：%@"
-          }
-        }
-      }
-    },
-    "同行状态已变更，请刷新后重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion status changed. Refresh and try again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行狀態已變更，請重新整理後重試"
-          }
-        }
-      }
-    },
-    "同行状态无法更新": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not update companion status"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法更新同行狀態"
-          }
-        }
-      }
-    },
-    "同行约定": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion Plan"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行約定"
-          }
-        }
-      }
-    },
-    "同行者": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行者"
-          }
-        }
-      }
-    },
-    "同行邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion Invitation"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行邀請"
-          }
-        }
-      }
-    },
-    "同行，与%@已确认": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion · confirmed with %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，與%@已確認"
-          }
-        }
-      }
-    },
-    "同行，与%@的共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion · shared journey with %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，與%@的共同足跡"
-          }
-        }
-      }
-    },
-    "同行，共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion · shared journey"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，共同足跡"
-          }
-        }
-      }
-    },
-    "同行，等待朋友加入": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion · waiting for friends to join"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，等待朋友加入"
-          }
-        }
-      }
-    },
-    "同行，邀请朋友": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion · invite friends"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，邀請朋友"
-          }
-        }
-      }
-    },
-    "同行，邀请链接已就绪": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion, invite link ready"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，邀請連結已就緒"
-          }
-        }
-      }
-    },
-    "同行，重新邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion · re-invite"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，重新邀請"
-          }
-        }
-      }
-    },
-    "同行，重新邀请%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion · re-invite %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同行，重新邀請%@"
           }
         }
       }
@@ -6740,22 +5901,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "聽聽參演藝人最近發行的新歌。"
-          }
-        }
-      }
-    },
-    "和朋友一起去？邀请他们加入这场。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Going with friends? Invite them to this show."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "和朋友一起去？邀請他們加入這場。"
           }
         }
       }
@@ -7418,22 +6563,6 @@
         }
       }
     },
-    "备注名称": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Note name"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "備註名稱"
-          }
-        }
-      }
-    },
     "复制识别指令": {
       "localizations": {
         "en": {
@@ -7732,22 +6861,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "實際幾點結束？"
-          }
-        }
-      }
-    },
-    "对方看到的名字": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Name shown to others"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "對方看到的名字"
           }
         }
       }
@@ -8074,22 +7187,6 @@
         }
       }
     },
-    "已与%@确认同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Going together with %@ confirmed"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已與%@確認同行"
-          }
-        }
-      }
-    },
     "已为你保留 %d 场想看演出，请核对后保存": {
       "localizations": {
         "en": {
@@ -8247,70 +7344,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已刪除這條記憶"
-          }
-        }
-      }
-    },
-    "已加入同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion joined"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已加入同行"
-          }
-        }
-      }
-    },
-    "已加入我的现场，你和%@已成为同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Added to My Shows. You and %@ are now companions."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已加入我的現場，你和%@已成為同行"
-          }
-        }
-      }
-    },
-    "已加入现场并设为当前，你和%@已成为同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Added and set as current. You and %@ are now companions."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已加入現場並設為目前，你和%@已成為同行"
-          }
-        }
-      }
-    },
-    "已加入足迹，你和%@已记录为同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Added to Footprints. You and %@ are recorded as companions."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已加入足跡，你和%@已記錄為同行"
           }
         }
       }
@@ -8524,22 +7557,6 @@
         }
       }
     },
-    "已接受邀请，但现场同步到本机还没完成，请重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invitation accepted, but the show hasn't finished syncing to this device. Please try again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已接受邀請，但現場同步到本機還沒完成，請重試"
-          }
-        }
-      }
-    },
     "已提交": {
       "localizations": {
         "en": {
@@ -8633,22 +7650,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已收到，謝謝你的回饋"
-          }
-        }
-      }
-    },
-    "已收进共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Added to Shared Footprints"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已收進共同足跡"
           }
         }
       }
@@ -8755,22 +7756,6 @@
         }
       }
     },
-    "已添加这场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Already added"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已加入這場"
-          }
-        }
-      }
-    },
     "已清除本地数据。": {
       "localizations": {
         "en": {
@@ -8799,38 +7784,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已清除本地資料，釋放 %@。"
-          }
-        }
-      }
-    },
-    "已确认共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shared footprint confirmed"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已確認共同足跡"
-          }
-        }
-      }
-    },
-    "已确认同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companion confirmed"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已確認同行"
           }
         }
       }
@@ -9848,28 +8801,6 @@
         }
       }
     },
-    "我们 %lld 人一起看过 %lld 场现场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The %1$lld of us have seen %2$lld shows together"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我们 %1$lld 人一起看过 %2$lld 场现场"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我們 %1$lld 人一起看過 %2$lld 場現場"
-          }
-        }
-      }
-    },
     "我们一起看过\n%lld 场现场": {
       "localizations": {
         "en": {
@@ -10042,22 +8973,6 @@
         }
       }
     },
-    "我的称呼": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "My Name"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我的稱呼"
-          }
-        }
-      }
-    },
     "我的第 %lld 场现场": {
       "localizations": {
         "en": {
@@ -10070,22 +8985,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "我的第 %lld 場現場"
-          }
-        }
-      }
-    },
-    "或者，添加我自己的现场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Or add my own show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "或者，新增我自己的現場"
           }
         }
       }
@@ -10747,22 +9646,6 @@
         }
       }
     },
-    "接受邀请，进入现场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accept and Join the Show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受邀請，進入現場"
-          }
-        }
-      }
-    },
     "推荐": {
       "localizations": {
         "en": {
@@ -10973,38 +9856,6 @@
         }
       }
     },
-    "撤销同行邀请？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoke Companion Invitation?"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "撤銷同行邀請？"
-          }
-        }
-      }
-    },
-    "撤销后，之前分享的邀请链接将失效。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Once revoked, previously shared invite links will become invalid."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "撤銷後，之前分享的邀請連結將失效。"
-          }
-        }
-      }
-    },
     "撤销结束": {
       "localizations": {
         "en": {
@@ -11017,22 +9868,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "復原結束"
-          }
-        }
-      }
-    },
-    "撤销邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoke Invitation"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "撤銷邀請"
           }
         }
       }
@@ -11980,22 +10815,6 @@
         }
       }
     },
-    "无法打开系统分享": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not open the system share sheet."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法開啟系統分享"
-          }
-        }
-      }
-    },
     "无法继续": {
       "localizations": {
         "en": {
@@ -12609,22 +11428,6 @@
         }
       }
     },
-    "暂不加入": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not Now"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫不加入"
-          }
-        }
-      }
-    },
     "暂不可播放": {
       "localizations": {
         "en": {
@@ -12818,22 +11621,6 @@
         }
       }
     },
-    "暂时无法关闭这份邀请，请重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't close this invitation. Please try again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫時無法關閉這份邀請，請重試"
-          }
-        }
-      }
-    },
     "暂时无法加载 App Store 价格。": {
       "localizations": {
         "en": {
@@ -12846,22 +11633,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "暫時無法載入 App Store 價格。"
-          }
-        }
-      }
-    },
-    "暂时无法接受邀请，请稍后重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unable to accept the invitation right now. Please try again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫時無法接受邀請，請稍後再試"
           }
         }
       }
@@ -13348,38 +12119,6 @@
         }
       }
     },
-    "朋友": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "friend"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "朋友"
-          }
-        }
-      }
-    },
-    "朋友接受邀请后，会出现在这里。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Friends will appear here after they accept the invitation."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "朋友接受邀請後，會出現在這裡。"
-          }
-        }
-      }
-    },
     "期待、时刻表和散场后的记忆，都收在同一场现场里。": {
       "extractionState": "manual",
       "localizations": {
@@ -13719,22 +12458,6 @@
         }
       }
     },
-    "本地有 %d 场相似记录": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d similar shows found locally"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本地有 %d 場相似記錄"
-          }
-        }
-      }
-    },
     "本地清除正在重试，请稍后再试": {
       "localizations": {
         "en": {
@@ -13853,22 +12576,6 @@
         }
       }
     },
-    "查看你们的共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View Your Shared Footprints"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "查看你們的共同足跡"
-          }
-        }
-      }
-    },
     "查看全部 →": {
       "localizations": {
         "en": {
@@ -13897,22 +12604,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "查看全部現場 · %lld 場"
-          }
-        }
-      }
-    },
-    "查看共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View Shared Footprints"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "查看共同足跡"
           }
         }
       }
@@ -14207,22 +12898,6 @@
         }
       }
     },
-    "正在准备邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preparing invitation"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在準備邀請"
-          }
-        }
-      }
-    },
     "正在分析时刻表版面…": {
       "localizations": {
         "en": {
@@ -14235,22 +12910,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在分析時刻表版面…"
-          }
-        }
-      }
-    },
-    "正在加载同行邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading companion invitation"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在載入同行邀請"
           }
         }
       }
@@ -14299,22 +12958,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在擷取舞台與時段…"
-          }
-        }
-      }
-    },
-    "正在撤销": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoking"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在撤銷"
           }
         }
       }
@@ -14395,22 +13038,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在用地圖尋找地址…"
-          }
-        }
-      }
-    },
-    "正在结束": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ending"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在結束"
           }
         }
       }
@@ -14529,38 +13156,6 @@
         }
       }
     },
-    "正在退出": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Leaving"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在退出"
-          }
-        }
-      }
-    },
-    "正在重置上一份邀请，请稍候再试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resetting previous invitation. Please try again shortly."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在重設上一份邀請，請稍後再試"
-          }
-        }
-      }
-    },
     "正常进行中": {
       "localizations": {
         "en": {
@@ -14653,38 +13248,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有復原成功，請重試"
-          }
-        }
-      }
-    },
-    "没有权限创建同行邀请，请确认 iCloud 云盘已打开": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No permission to create a companion invitation. Make sure iCloud Drive is on."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "沒有權限建立同行邀請，請確認 iCloud 雲碟已開啟"
-          }
-        }
-      }
-    },
-    "没有权限更新同行状态": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No permission to update companion status"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "沒有權限更新同行狀態"
           }
         }
       }
@@ -14959,22 +13522,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "新增單場演出"
-          }
-        }
-      }
-    },
-    "添加同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Companion"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增同行"
           }
         }
       }
@@ -16081,22 +14628,6 @@
         }
       }
     },
-    "现场还没添加成功，请重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The show wasn't added. Please try again."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現場還沒新增成功，請重試"
-          }
-        }
-      }
-    },
     "生成 PNG 并打开系统分享": {
       "localizations": {
         "en": {
@@ -16360,22 +14891,6 @@
         }
       }
     },
-    "看起来你已经添加过类似的现场。先选择要使用的记录，或把它作为另一场保留。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "It looks like you already have a similar show. Choose the existing record to use, or keep this as a separate show."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "看起來你已經加入過類似的現場。先選擇要使用的記錄，或把它作為另一場保留。"
-          }
-        }
-      }
-    },
     "看路线": {
       "localizations": {
         "en": {
@@ -16488,22 +15003,6 @@
         }
       }
     },
-    "确认共同足迹": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Confirm Shared Footprint"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "確認共同足跡"
-          }
-        }
-      }
-    },
     "确认删除": {
       "localizations": {
         "en": {
@@ -16612,22 +15111,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "確認後才可以儲存現場"
-          }
-        }
-      }
-    },
-    "确认后，这场会进入你的足迹，并记录你们一起去过。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Once confirmed, this show goes into your Footprints and records that you went together."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "確認後，這場會進入你的足跡，並記錄你們一起去過。"
           }
         }
       }
@@ -17025,54 +15508,6 @@
         }
       }
     },
-    "等待同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting for Friends"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等待同行"
-          }
-        }
-      }
-    },
-    "等待朋友加入": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting for friends to join"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等待朋友加入"
-          }
-        }
-      }
-    },
-    "等待确认": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting for confirmation"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等待確認"
-          }
-        }
-      }
-    },
     "管理 %@": {
       "localizations": {
         "en": {
@@ -17345,54 +15780,6 @@
         }
       }
     },
-    "结束同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "End Companion"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "結束同行"
-          }
-        }
-      }
-    },
-    "结束同行后，将解散本次同行记录，所有成员的同行状态都将被取消。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ending companion will disband this companion record and cancel it for all members."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "結束同行後，將解散本次同行記錄，所有成員的同行狀態都將被取消。"
-          }
-        }
-      }
-    },
-    "结束同行？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "End Companion?"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "結束同行？"
-          }
-        }
-      }
-    },
     "结束日期": {
       "localizations": {
         "en": {
@@ -17550,22 +15937,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "繼續"
-          }
-        }
-      }
-    },
-    "继续分享": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Continue Sharing"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "繼續分享"
           }
         }
       }
@@ -17791,22 +16162,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "縮小地圖"
-          }
-        }
-      }
-    },
-    "网络不可用，请稍后重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Network unavailable. Try again later."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "網路不可用，請稍後重試"
           }
         }
       }
@@ -18323,22 +16678,6 @@
         }
       }
     },
-    "记录一起走过的现场，可保存图片或直接分享。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A record of the shows you've shared. Save it as an image or share it directly."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記錄一起走過的現場，可儲存圖片或直接分享。"
-          }
-        }
-      }
-    },
     "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。": {
       "localizations": {
         "en": {
@@ -18416,22 +16755,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "記錄這一場的評分與散場感受"
-          }
-        }
-      }
-    },
-    "记录这场共同回忆": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Record This Shared Memory"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記錄這場共同回憶"
           }
         }
       }
@@ -18626,22 +16949,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定"
-          }
-        }
-      }
-    },
-    "设置我的昵称": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set My Nickname"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定我的暱稱"
           }
         }
       }
@@ -19577,22 +17884,6 @@
         }
       }
     },
-    "输入你的昵称": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter your nickname"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輸入你的暱稱"
-          }
-        }
-      }
-    },
     "输入艺人名称进行搜索": {
       "localizations": {
         "en": {
@@ -20275,22 +18566,6 @@
         }
       }
     },
-    "这份邀请已失效": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This invitation is no longer valid."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這份邀請已失效"
-          }
-        }
-      }
-    },
     "这会删除 BeforeShow 管理的本地记录和副本，且无法恢复；系统相册原图不会删除。": {
       "localizations": {
         "en": {
@@ -20560,38 +18835,6 @@
         }
       }
     },
-    "这场现场已有正在进行的同行邀请，请稍候再试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This show already has an active companion invitation. Please try again shortly."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這場現場已有進行中的同行邀請，請稍候再試"
-          }
-        }
-      }
-    },
-    "这场现场已记录同行。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Companions are recorded for this show."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這場現場已記錄同行。"
-          }
-        }
-      }
-    },
     "这场现场的记忆": {
       "localizations": {
         "en": {
@@ -20752,22 +18995,6 @@
         }
       }
     },
-    "这是另一场，单独保留": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This is a different show; keep it separate"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這是另一場，單獨保留"
-          }
-        }
-      }
-    },
     "这里会长出你的足迹": {
       "localizations": {
         "en": {
@@ -20845,54 +19072,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "連接藝人"
-          }
-        }
-      }
-    },
-    "退出同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Leave Companion"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出同行"
-          }
-        }
-      }
-    },
-    "退出同行？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Leave Companion?"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出同行？"
-          }
-        }
-      }
-    },
-    "退出后，你将不再参与这场现场的同行记录。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "After leaving, you will no longer be part of this show's companion record."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出後，你將不再參與這場現場的同行記錄。"
           }
         }
       }
@@ -21009,22 +19188,6 @@
         }
       }
     },
-    "选择已有现场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose an existing show"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選擇已有現場"
-          }
-        }
-      }
-    },
     "选择当前现场": {
       "localizations": {
         "en": {
@@ -21137,134 +19300,6 @@
         }
       }
     },
-    "邀请创建失败，请稍后重试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invitation creation failed. Try again later."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請建立失敗，請稍後重試"
-          }
-        }
-      }
-    },
-    "邀请创建失败：%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invitation creation failed: %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請建立失敗：%@"
-          }
-        }
-      }
-    },
-    "邀请同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invite Companion"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請同行"
-          }
-        }
-      }
-    },
-    "邀请已就绪": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invitation Ready"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請已就緒"
-          }
-        }
-      }
-    },
-    "邀请更多": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invite More"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請更多"
-          }
-        }
-      }
-    },
-    "邀请朋友": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invite Friends"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請朋友"
-          }
-        }
-      }
-    },
-    "邀请朋友一起去这场现场。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invite friends to go to this show with you."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請朋友一起去這場現場。"
-          }
-        }
-      }
-    },
-    "邀请链接已生成，分享给朋友即可加入。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invite link generated. Share it with friends to join."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邀請連結已生成，分享給朋友即可加入。"
-          }
-        }
-      }
-    },
     "部分内容未清除（%@），将于下次启动时重试。": {
       "localizations": {
         "en": {
@@ -21358,22 +19393,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "重新選擇"
-          }
-        }
-      }
-    },
-    "重新邀请": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Re-invite"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新邀請"
           }
         }
       }
@@ -21614,22 +19633,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "隱藏原圖對照"
-          }
-        }
-      }
-    },
-    "需要登录 iCloud 才能邀请同行": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in to iCloud to invite a companion"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "需要登入 iCloud 才能邀請同行"
           }
         }
       }
@@ -25309,6 +23312,691 @@
         }
       }
     },
+    "天后": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "days to go"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天后"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天後"
+          }
+        }
+      }
+    },
+    "后开场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "until doors"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后开场"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "後開場"
+          }
+        }
+      }
+    },
+    "分钟后开场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "min until doors"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分钟后开场"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分鐘後開場"
+          }
+        }
+      }
+    },
+    "记一段": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a memory"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记一段"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記一段"
+          }
+        }
+      }
+    },
+    "%lld 段": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld memories"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 段"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 段"
+          }
+        }
+      }
+    },
+    "记下散场时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log when it ended"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记下散场时间"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記下散場時間"
+          }
+        }
+      }
+    },
+    "已记下": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Logged"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已记下"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已記下"
+          }
+        }
+      }
+    },
+    "这一场怎么样": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How was it?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这一场怎么样"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一場怎麼樣"
+          }
+        }
+      }
+    },
+    "今天结束": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day done"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天结束"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天結束"
+          }
+        }
+      }
+    },
+    "存一张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add one"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存一张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存一張"
+          }
+        }
+      }
+    },
+    "%lld 个舞台": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld stages"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个舞台"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個舞台"
+          }
+        }
+      }
+    },
+    "随机播放": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shuffle"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随机播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨機播放"
+          }
+        }
+      }
+    },
+    "换一张": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "换一张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "換一張"
+          }
+        }
+      }
+    },
+    "到这去": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get there"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到这去"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到這去"
+          }
+        }
+      }
+    },
+    "小时 %lld 分后开场": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "h %lld min to doors"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小时 %lld 分后开场"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小時 %lld 分後開場"
+          }
+        }
+      }
+    },
+    "已开场 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Started %@ ago"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已开场 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已開場 %@"
+          }
+        }
+      }
+    },
+    "。记得留好出门时间。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ". Leave yourself time to get there."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "。记得留好出门时间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "。記得留好出門時間。"
+          }
+        }
+      }
+    },
+    "还没关联 Apple Music，暂时没有可听的唱片": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not linked to Apple Music yet, so there's nothing to play."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没关联 Apple Music，暂时没有可听的唱片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒關聯 Apple Music，暫時沒有可聽的唱片"
+          }
+        }
+      }
+    },
+    "允许访问 Apple Music 后可以在这里听这位艺人": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Apple Music access to listen to this artist here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许访问 Apple Music 后可以在这里听这位艺人"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許訪問 Apple Music 後可以在這裡聽這位藝人"
+          }
+        }
+      }
+    },
+    "允许访问": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Access"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许访问"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許訪問"
+          }
+        }
+      }
+    },
+    "在 Apple Music 打开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Apple Music"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Apple Music 打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Apple Music 打開"
+          }
+        }
+      }
+    },
+    "正在播放": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在播放"
+          }
+        }
+      }
+    },
+    "已暂停": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paused"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暫停"
+          }
+        }
+      }
+    },
+    "点唱片播放": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the record to play"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点唱片播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點唱片播放"
+          }
+        }
+      }
+    },
+    "播放 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放 %@"
+          }
+        }
+      }
+    },
+    "看散场评价": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See your review"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看散場評價"
+          }
+        }
+      }
+    },
+    "现在": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在"
+          }
+        }
+      }
+    },
+    "开场前 · 分享图署名": {
+      "comment": "分享图署名：App Store 上的 App 名称，用于让看到图的人搜索。",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开场前"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開場前"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BeforeShow"
+          }
+        }
+      }
+    },
+    "和谁去": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who's going"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "和誰去"
+          }
+        }
+      }
+    },
+    "同行，和谁去": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Companions, who's going"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同行，和誰去"
+          }
+        }
+      }
+    },
+    "同行，%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Companions, %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同行，%@"
+          }
+        }
+      }
+    },
+    "名字": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名字"
+          }
+        }
+      }
+    },
+    "移除%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除%@"
+          }
+        }
+      }
+    },
     "一起 %lld 场": {
       "localizations": {
         "en": {
@@ -26781,607 +25469,50 @@
         }
       }
     },
-    "天后": {
+    "已记下与%@同行": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "days to go"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "天后"
+            "value": "Noted: going with %@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "天後"
+            "value": "已記下與%@同行"
           }
         }
       }
     },
-    "后开场": {
+    "记下和谁一起去": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "until doors"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "后开场"
+            "value": "Note who's going"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "後開場"
+            "value": "記下和誰一起去"
           }
         }
       }
     },
-    "分钟后开场": {
+    "和谁一起去？记下来，散场后会留在足迹里。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "min until doors"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分钟后开场"
+            "value": "Going with someone? Note it, and it stays in your footprints after the show."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "分鐘後開場"
-          }
-        }
-      }
-    },
-    "记一段": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a memory"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "记一段"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記一段"
-          }
-        }
-      }
-    },
-    "%lld 段": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld memories"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 段"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 段"
-          }
-        }
-      }
-    },
-    "记下散场时间": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Log when it ended"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "记下散场时间"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記下散場時間"
-          }
-        }
-      }
-    },
-    "已记下": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Logged"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已记下"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已記下"
-          }
-        }
-      }
-    },
-    "这一场怎么样": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "How was it?"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这一场怎么样"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這一場怎麼樣"
-          }
-        }
-      }
-    },
-    "今天结束": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Day done"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今天结束"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今天結束"
-          }
-        }
-      }
-    },
-    "存一张": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add one"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "存一张"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "存一張"
-          }
-        }
-      }
-    },
-    "%lld 个舞台": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld stages"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 个舞台"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 個舞台"
-          }
-        }
-      }
-    },
-    "随机播放": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shuffle"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "随机播放"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "隨機播放"
-          }
-        }
-      }
-    },
-    "换一张": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Another"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "换一张"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "換一張"
-          }
-        }
-      }
-    },
-    "到这去": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Get there"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "到这去"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "到這去"
-          }
-        }
-      }
-    },
-    "小时 %lld 分后开场": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "h %lld min to doors"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "小时 %lld 分后开场"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "小時 %lld 分後開場"
-          }
-        }
-      }
-    },
-    "已开场 %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Started %@ ago"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已开场 %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已開場 %@"
-          }
-        }
-      }
-    },
-    "。记得留好出门时间。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": ". Leave yourself time to get there."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "。记得留好出门时间。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "。記得留好出門時間。"
-          }
-        }
-      }
-    },
-    "还没关联 Apple Music，暂时没有可听的唱片": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not linked to Apple Music yet, so there's nothing to play."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "还没关联 Apple Music，暂时没有可听的唱片"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "還沒關聯 Apple Music，暫時沒有可聽的唱片"
-          }
-        }
-      }
-    },
-    "允许访问 Apple Music 后可以在这里听这位艺人": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Allow Apple Music access to listen to this artist here."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允许访问 Apple Music 后可以在这里听这位艺人"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允許訪問 Apple Music 後可以在這裡聽這位藝人"
-          }
-        }
-      }
-    },
-    "允许访问": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Allow Access"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允许访问"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允許訪問"
-          }
-        }
-      }
-    },
-    "在 Apple Music 打开": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open in Apple Music"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在 Apple Music 打开"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在 Apple Music 打開"
-          }
-        }
-      }
-    },
-    "正在播放": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Playing"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在播放"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在播放"
-          }
-        }
-      }
-    },
-    "已暂停": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paused"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已暂停"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已暫停"
-          }
-        }
-      }
-    },
-    "点唱片播放": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap the record to play"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "点唱片播放"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "點唱片播放"
-          }
-        }
-      }
-    },
-    "播放 %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Play %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "播放 %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "播放 %@"
-          }
-        }
-      }
-    },
-    "看散场评价": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "See your review"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "看散場評價"
-          }
-        }
-      }
-    },
-    "现在": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Now"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現在"
-          }
-        }
-      }
-    },
-    "开场前 · 分享图署名": {
-      "comment": "分享图署名：App Store 上的 App 名称，用于让看到图的人搜索。",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开场前"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開場前"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BeforeShow"
+            "value": "和誰一起去？記下來，散場後會留在足跡裡。"
           }
         }
       }

@@ -72,18 +72,41 @@ struct FootprintKeepsakeShelf: View {
 struct FootprintCompanionSection: View {
     let show: Show
     let archive: FootprintArchiveSnapshot
+    let onEdit: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
             Text(BSLocalization.text("同行"))
                 .font(FootprintDetailTokens.sectionFont)
                 .foregroundStyle(BSColor.Stage.foreground)
-            VStack(spacing: 8) {
-                ForEach(Array(companionRows.enumerated()), id: \.offset) { _, row in
-                    companionRow(name: row.name, count: row.count)
+            Button(action: onEdit) {
+                VStack(spacing: 8) {
+                    if companionRows.isEmpty {
+                        emptyRow
+                    }
+                    ForEach(Array(companionRows.enumerated()), id: \.offset) { _, row in
+                        companionRow(name: row.name, count: row.count)
+                    }
                 }
             }
+            .buttonStyle(.plain)
         }
+    }
+
+    private var emptyRow: some View {
+        HStack(spacing: BSSpacing.compact) {
+            Image(systemName: "person.badge.plus")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(BSColor.Stage.muted)
+                .frame(width: FootprintDetailTokens.avatarSize, height: FootprintDetailTokens.avatarSize)
+            Text(BSLocalization.text("和谁去"))
+                .font(BSFont.headline)
+                .foregroundStyle(BSColor.Stage.muted)
+            Spacer()
+        }
+        .padding(BSSpacing.compact)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+        .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
     }
 
     private func companionRow(name: String, count: Int) -> some View {
@@ -118,20 +141,8 @@ struct FootprintCompanionSection: View {
     }
 
     private var companionRows: [(name: String, count: Int)] {
-        let names = CompanionNameList.normalized(show.companionNames)
-        if names.isEmpty {
-            return [(BSLocalization.text("同行者"), 1)]
+        show.companionNames.map { name in
+            (name, max(1, archive.shows.filter { $0.companionNames.contains(name) }.count))
         }
-        return names.map { name in
-            (name, pairwiseCount(for: name))
-        }
-    }
-
-    private func pairwiseCount(for name: String) -> Int {
-        max(1, archive.shows.filter {
-            $0.companionStatus == .confirmed
-                && $0.endedAt != nil
-                && CompanionNameList.normalized($0.companionNames).contains(name)
-        }.count)
     }
 }

@@ -91,8 +91,7 @@ enum FootprintDebugSeeder {
             "杭州", "MAO Livehouse", [ArtistSlot(name: "落日飞车")]
         ).makeShow()
         earlier.markEnded(at: date(2025, 9, 6, 22, 10))
-        try earlier.markCompanionInvitationSent(name: "林嘉")
-        try earlier.markCompanionConfirmed(name: earlier.companionName)
+        earlier.setCompanionNames(["林嘉"])
 
         let full = try sample(
             detailSampleName,
@@ -100,8 +99,7 @@ enum FootprintDebugSeeder {
             "杭州", "杭州奥体中心体育馆", [ArtistSlot(name: "落日飞车")]
         ).makeShow()
         full.markEnded(at: date(2026, 7, 12, 22, 20))
-        full.applyCompanionState(status: .pending, names: ["林嘉", "王宁"])
-        full.applyCompanionState(status: .confirmed, names: ["林嘉", "王宁"])
+        full.setCompanionNames(["林嘉", "王宁"])
         try full.setClosingRitual(
             rating: 5,
             note: "最后一首歌结束的时候，灯亮得特别慢。"
@@ -135,9 +133,7 @@ enum FootprintDebugSeeder {
             "杭州", "杭州奥体中心体育馆",
             [ArtistSlot(name: "陈绮贞")]
         ).makeShow()
-        show.applyCompanionState(status: .pending, names: ["林嘉", "王宁"])
-        show.applyCompanionState(status: .confirmed, names: ["林嘉", "王宁"])
-        show.companionIsOwner = true
+        show.setCompanionNames(["林嘉", "王宁"])
         modelContext.insert(show)
     }
 

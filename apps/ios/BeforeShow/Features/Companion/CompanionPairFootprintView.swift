@@ -1,44 +1,10 @@
 import SwiftUI
 
-/// Known limitation (ADR-0027): cross-show companion identity is currently the normalized
-/// display name. Two distinct people with the same name can collide and a renamed person
-/// can split history. This PR does not introduce a new persisted identity/schema solely for
-/// the pairwise view; display names remain the compatibility key until stable identity lands.
-@MainActor
-enum CompanionPairHistory {
-    static func shows(
-        with companionName: String,
-        from candidates: [Show],
-        now: Date = Date()
-    ) -> [Show] {
-        let normalizedName = companionName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedName.isEmpty else { return [] }
-
-        return candidates
-            .filter { show in
-                guard show.changeStatus != .canceled,
-                      show.companionStatus == .confirmed,
-                      CompanionNameList.normalized(show.companionNames).contains(normalizedName) else {
-                    return false
-                }
-                let kind = CurrentShowTimeState(show: show, now: now).kind
-                return kind == .postShow || kind == .ended
-            }
-            .sorted { lhs, rhs in
-                if lhs.effectiveDate == rhs.effectiveDate {
-                    return lhs.id.uuidString < rhs.id.uuidString
-                }
-                return lhs.effectiveDate > rhs.effectiveDate
-            }
-    }
-}
-
+/// Every footprint shared with one person, whoever else came (ADR 0027 name matching).
 @MainActor
 struct CompanionPairFootprintView: View {
     let companionName: String
     let shows: [Show]
-
-    @State private var isShowingShareSheet = false
 
     private var archive: FootprintArchiveSnapshot {
         FootprintArchiveBuilder.make(shows: shows)
@@ -67,13 +33,6 @@ struct CompanionPairFootprintView: View {
                             .buttonStyle(.plain)
                         }
                     }
-
-                    Button {
-                        isShowingShareSheet = true
-                    } label: {
-                        Label(BSLocalization.text("分享共同足迹卡"), systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(BSPrimaryButtonStyle())
                 }
             }
             .padding(.horizontal, BSSpacing.roomy)
@@ -84,15 +43,6 @@ struct CompanionPairFootprintView: View {
         .navigationTitle(BSLocalization.format("与%@的共同足迹", companionName))
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $isShowingShareSheet) {
-            if let representative = shows.first {
-                CompanionFootprintShareSheet(
-                    show: representative,
-                    sharedHistory: shows,
-                    companionName: companionName
-                )
-            }
-        }
     }
 
     private var relationshipHeader: some View {

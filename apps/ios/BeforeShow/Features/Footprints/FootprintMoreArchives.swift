@@ -97,7 +97,7 @@ struct FootprintCompanionBand: Identifiable, Equatable {
 enum FootprintCompanionArchive {
     static func bands(shows: [Show]) -> [FootprintCompanionBand] {
         var byName: [String: [Show]] = [:]
-        for show in shows where show.companionStatus == .confirmed {
+        for show in shows {
             for name in names(of: show) {
                 byName[name, default: []].append(show)
             }
@@ -111,10 +111,7 @@ enum FootprintCompanionArchive {
     }
 
     static func names(of show: Show) -> [String] {
-        let members = show.companionMembers.map(\.displayName)
-        let raw = members.isEmpty ? show.companionNames : members
-        var seen = Set<String>()
-        return CompanionNameList.normalized(raw).filter { seen.insert($0).inserted }
+        CompanionNameList.normalized(show.companionNames)
     }
 
     /// 并列时取最近一起看过的那位。

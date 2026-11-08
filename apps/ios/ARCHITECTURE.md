@@ -86,7 +86,7 @@ App -> Shared
 
 `Footprints` 的 archive 计算、城市映射、封面解析、可见性策略和艺人媒体回写分别保持独立 owner；不要重新聚合成单个 archive helper 大文件。
 
-`CompanionSharingCoordinator` 只拥有邀请、接受、取消和刷新流程时序；接受邀请的 durable inbox、云同步 opt-in 标记、本地 Show 导入匹配和用户错误文案保持独立 owner。
+`Companion` 只做本地同行名字的编辑与按人历史（ADR 0048）；名字的领域操作与统计口径在 `Domain/Shows/ShowCompanions.swift`。旧邀请链接只由 `LegacyCompanionInvite` 解码和路由，不再新增邀请能力。
 
 `Subscription` 的 offer 路由、产品目录、entitlement 编解码、store contract、Mock、RevenueCat 适配、免费容量纯 policy、月度基准持久化/协调和限额文案分别保持独立 owner；不要重新聚合成 `ProSubscription.swift`。
 

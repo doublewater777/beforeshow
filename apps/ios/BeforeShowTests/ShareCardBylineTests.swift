@@ -36,12 +36,6 @@ final class ShareCardBylineTests: XCTestCase {
         try assertByline(in: render(page, size: CGSize(width: FootprintPageExportLayout.width, height: 360)))
     }
 
-    func testCompanionCardCarriesByline() throws {
-        let show = try makeShow()
-        let card = CompanionFootprintShareCard(show: show, sharedHistory: [show], companionName: "小鹿")
-        try assertByline(in: render(card, size: CGSize(width: 360, height: 640)))
-    }
-
     func testTimetablePosterCarriesByline() throws {
         let poster = TimetableFullPoster(
             identity: TimetableShareIdentity(name: "草莓音乐节", coverURL: nil),

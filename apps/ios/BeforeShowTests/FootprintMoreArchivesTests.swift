@@ -16,7 +16,6 @@ final class FootprintMoreArchivesTests: XCTestCase {
             startTime: date,
             timeZoneIdentifier: "Asia/Shanghai",
             artists: artists.map { ArtistSlot(name: $0) },
-            companionStatus: companions.isEmpty ? .none : .confirmed,
             companionNames: companions
         )
     }

@@ -3,9 +3,8 @@ import Foundation
 /// 推荐判断需要、但只能由系统服务给出的全局事实。
 struct FeatureUsageFacts: Equatable, Sendable {
     var hasInstalledWidget: Bool
-    var isICloudAvailable: Bool
 
-    static let unknown = FeatureUsageFacts(hasInstalledWidget: false, isICloudAvailable: false)
+    static let unknown = FeatureUsageFacts(hasInstalledWidget: false)
 }
 
 struct FeatureRecommendationRecordSnapshot: Equatable, Sendable {
@@ -24,7 +23,6 @@ struct FeatureRecommendationShowFacts: Equatable, Sendable {
 struct FeatureRecommendationContext: Equatable, Sendable {
     var used: Set<RecommendedFeature> = []
     var usedInOtherShows: Set<RecommendedFeature> = []
-    var unavailable: Set<RecommendedFeature> = []
     var muted: Set<RecommendedFeature> = []
     var records: [RecommendedFeature: FeatureRecommendationRecordSnapshot] = [:]
 }
@@ -39,7 +37,6 @@ struct FeatureRecommendationSnapshot: Equatable, Sendable {
         return FeatureRecommendationContext(
             used: target?.used ?? [],
             usedInOtherShows: others.reduce(into: Set<RecommendedFeature>()) { $0.formUnion($1.used) },
-            unavailable: facts.isICloudAvailable ? [] : [.companion],
             muted: FeatureRecommendationPolicy.mutedFeatures(in: others),
             records: target?.records ?? [:]
         )
@@ -74,7 +71,6 @@ enum FeatureRecommendationPolicy {
         plannedExposures: Int = 0
     ) -> Bool {
         guard !context.used.contains(feature),
-              !context.unavailable.contains(feature),
               !context.muted.contains(feature) else {
             return false
         }

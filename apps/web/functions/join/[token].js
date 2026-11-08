@@ -55,9 +55,9 @@ function localeFor(request) {
 function invalidInvitationResponse(request) {
   const locale = localeFor(request);
   const [title, message, home] = {
-    en: ["Invite unavailable", "This invite link is incomplete or invalid. Ask your friend to share it again.", "Back to home"],
-    "zh-Hant": ["無法開啟邀請", "邀請連結不完整或格式有誤，請讓朋友重新分享。", "返回首頁"],
-    "zh-Hans": ["无法打开邀请", "邀请链接不完整或格式有误，请让朋友重新分享。", "返回首页"],
+    en: ["Invite unavailable", "This link is incomplete. Download BeforeShow to add the show yourself.", "Back to home"],
+    "zh-Hant": ["無法開啟邀請", "連結不完整。下載 BeforeShow，自己加入這場現場。", "返回首頁"],
+    "zh-Hans": ["无法打开邀请", "链接不完整。下载 BeforeShow，自己添加这场现场。", "返回首页"],
   }[locale];
   return new Response(`<!doctype html>
 <html lang="${locale}"><head>
@@ -122,56 +122,50 @@ function copyFor(request, invite) {
     en: {
       title: `Let's go to ${invite.n}`,
       byline: `${owner} invited you to go together`,
-      companionTag: "Companion Invite",
-      joinShow: "Join the Show",
+      companionTag: "BeforeShow",
+      joinShow: "Open in BeforeShow",
       openInBrowser: "Open in Browser",
       notInstalledLink: "Not installed? Get BeforeShow",
       download: "Download BeforeShow",
-      downloadHint: "Open BeforeShow after installing to join, or return here to open",
       copiedToast: "Invite copied",
-      downloadCopiedToast: "Invite copied! Open BeforeShow after installing to join",
       openFailureHint: "Couldn’t open? Try again, or get BeforeShow below.",
       wechatTip: "Tap ··· at top right and choose \"Open in Browser\"",
       copyLink: "Copy invite link",
       copyFailed: "Couldn’t copy. Select and copy the link below.",
       closeGuide: "Tap anywhere to close",
-      note: "Invite availability is confirmed in BeforeShow",
+      note: "After installing, open this link again to add the show to BeforeShow",
     },
     "zh-Hant": {
       title: `一起去 ${invite.n}`,
       byline: `${owner} 邀請你一起去`,
-      companionTag: "同行邀請",
-      joinShow: "一起去現場",
+      companionTag: "BeforeShow",
+      joinShow: "在 App 中開啟",
       openInBrowser: "在瀏覽器中開啟",
       notInstalledLink: "尚未安裝？前往 App Store",
       download: "下載 BeforeShow",
-      downloadHint: "安裝打開 App 將自動識別同行邀請，也可返回此頁開啟",
       copiedToast: "已複製邀請連結",
-      downloadCopiedToast: "已複製同行邀請，安裝打開 App 即可直接加入",
       openFailureHint: "未能開啟？請重試，或前往下方下載 App。",
       wechatTip: "點擊右上角「···」，選擇在瀏覽器中開啟",
       copyLink: "複製邀請連結",
       copyFailed: "未能複製，請選取下方連結手動複製。",
       closeGuide: "輕觸任意處關閉",
-      note: "邀請是否有效，以 App 內確認為準",
+      note: "安裝後再次開啟此連結，即可把這場加進 BeforeShow",
     },
     "zh-Hans": {
       title: `一起去 ${invite.n}`,
       byline: `${owner} 邀请你一起去`,
-      companionTag: "同行邀请",
-      joinShow: "一起去现场",
+      companionTag: "BeforeShow",
+      joinShow: "在 App 中打开",
       openInBrowser: "在浏览器中打开",
       notInstalledLink: "尚未安装？前往 App Store",
       download: "下载 BeforeShow",
-      downloadHint: "安装打开 App 将自动识别同行邀请，也可返回此页开启",
       copiedToast: "已复制邀请链接",
-      downloadCopiedToast: "已复制同行邀请，安装打开 App 即可直接加入",
       openFailureHint: "未能打开？请重试，或前往下方下载 App。",
       wechatTip: "点击右上角「···」，选择在浏览器中打开",
       copyLink: "复制邀请链接",
       copyFailed: "未能复制，请选取下方链接手动复制。",
       closeGuide: "轻触任意处关闭",
-      note: "邀请是否有效，以 App 内确认为准",
+      note: "安装后再次打开此链接，即可把这场加进 BeforeShow",
     },
   }[locale];
   return { locale, when, ...words };
@@ -813,7 +807,6 @@ export function onRequestGet({ request, params }) {
     (function() {
       var inviteUrl = ${JSON.stringify(canonical)};
       var copiedToast = ${JSON.stringify(copy.copiedToast)};
-      var downloadCopiedToast = ${JSON.stringify(copy.downloadCopiedToast)};
       var openFailureHint = ${JSON.stringify(copy.openFailureHint)};
       var toastEl = document.getElementById("toast");
       var toastTimer = null;
@@ -878,16 +871,9 @@ export function onRequestGet({ request, params }) {
       function handleVisibility() {
         if (document.hidden) clearOpenAttempt();
       }
-      if (btnDownload) {
-        btnDownload.addEventListener("click", function() {
-          if (document.body.classList.contains("is-wechat")) return;
-          copyInviteText(downloadCopiedToast);
-        });
-      }
       if (btnOpen) {
         btnOpen.addEventListener("click", function() {
           if (document.body.classList.contains("is-wechat")) return;
-          copyInviteText(null, false);
           clearOpenAttempt();
           statusEl.hidden = true;
           if (btnDownload) btnDownload.classList.remove("link-highlight");

@@ -9,6 +9,8 @@ enum ShowValidationError: Error, Equatable {
     case closingNoteTooLong
 }
 
+/// Deprecated: the retired invite flow's state. Only `LocalCompanionMigration` reads it;
+/// companion presence is `Show.companionNames` being non-empty.
 enum ShowCompanionStatus: String, CaseIterable, Codable {
     case none
     case pending
@@ -19,13 +21,12 @@ enum ShowCompanionStatus: String, CaseIterable, Codable {
 /// 这场现场为什么会存在于本机：免费额度只算用户自己添加的场次。
 ///
 /// 必须是不可变的来源标记，不能从 `companionIsOwner` 之类的关系状态推导：
-/// 接受同行邀请时会把邀请合并进用户已有的现场（按 cloud record / showID /
-/// 名称+日期+场馆 匹配），那条路径同样会把 `companionIsOwner` 置为 false，
-/// 于是用户自己添加、已经占用额度的现场会被「退还」额度。
+/// 旧版接受同行邀请时会把邀请合并进用户已有的现场，同样会把 `companionIsOwner`
+/// 置为 false，于是用户自己添加、已经占用额度的现场会被「退还」额度。
 enum ShowCreationOrigin: String, Codable {
     /// 用户在本机添加（手动 / 链接 / 截图）。
     case user
-    /// 仅因为接受同行邀请而新建的 participant 侧现场。
+    /// 旧版接受同行邀请新建的现场，或从旧邀请链接预填添加的现场。
     case companionImport
 }
 
@@ -75,28 +76,26 @@ final class Show {
     var travelCost: Decimal? = nil
     var currencyCode: String? = nil
 
-    private var companionStatusRawValue: String?
+    /// 同行的唯一真源：非空即有同行。增删改走 `ShowCompanions.swift` 里的领域操作。
     private(set) var companionNames: [String] = []
+
+    // Deprecated fields of the retired CloudKit invite flow (#388). Kept only so the
+    // shipped store stays readable; nothing reads or writes them after
+    // `LocalCompanionMigration`. Removing any of them needs its own migration plan.
+    private var companionStatusRawValue: String?
     var companionMembers: [CompanionMember] = []
     var companionInvitationShared: Bool = false
+    var companionCloudRecordName: String?
+    var companionCloudZoneName: String?
+    var companionCloudOwnerName: String?
+    var companionShareRecordName: String?
+    var companionShareZoneName: String?
+    var companionShareOwnerName: String?
+    var companionIsOwner: Bool?
 
     var companionName: String? {
         CompanionNameList.joined(companionNames)
     }
-    /// CloudKit `CompanionSession` record name; local cache of the shared session.
-    var companionCloudRecordName: String?
-    /// CloudKit zone for the companion session (custom private zone required for sharing).
-    var companionCloudZoneName: String?
-    /// CloudKit zone owner for the companion session (current user token or share owner).
-    var companionCloudOwnerName: String?
-    /// CloudKit `CKShare` record name for re-presenting the system share UI.
-    var companionShareRecordName: String?
-    /// CloudKit zone for the share record.
-    var companionShareZoneName: String?
-    /// CloudKit zone owner for the share record.
-    var companionShareOwnerName: String?
-    /// `true` when this device created the share (owner); `false` when accepted as participant.
-    var companionIsOwner: Bool?
 
     /// 现场的创建来源。`nil` = 本次升级前写入的旧数据，尚未标记来源。
     ///
@@ -149,7 +148,8 @@ final class Show {
 
     private var changeStatusRawValue: String
 
-    var companionStatus: ShowCompanionStatus {
+    /// Deprecated invite state; read only by `LocalCompanionMigration`.
+    var legacyCompanionStatus: ShowCompanionStatus {
         companionStatusRawValue.flatMap(ShowCompanionStatus.init(rawValue:)) ?? .none
     }
 
@@ -209,16 +209,8 @@ final class Show {
         changeStatus: ShowChangeStatus = .scheduled,
         endedAt: Date? = nil,
         wasAddedAsHistorical: Bool = false,
-        companionStatus: ShowCompanionStatus = .none,
-        companionName: String? = nil,
+        legacyCompanionStatus: ShowCompanionStatus = .none,
         companionNames: [String] = [],
-        companionCloudRecordName: String? = nil,
-        companionCloudZoneName: String? = nil,
-        companionCloudOwnerName: String? = nil,
-        companionShareRecordName: String? = nil,
-        companionShareZoneName: String? = nil,
-        companionShareOwnerName: String? = nil,
-        companionIsOwner: Bool? = nil,
         /// `nil` 只用来重建「升级前写入、尚未标记来源」的旧数据（迁移测试）；
         /// 正常创建路径都会显式带上来源。
         creationOrigin: ShowCreationOrigin? = .user,
@@ -264,17 +256,8 @@ final class Show {
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
         self.wasAddedAsHistorical = wasAddedAsHistorical
-        self.companionStatusRawValue = companionStatus.rawValue
-        self.companionNames = CompanionNameList.normalized(
-            companionNames.isEmpty ? [companionName].compactMap { $0 } : companionNames
-        )
-        self.companionCloudRecordName = companionCloudRecordName
-        self.companionCloudZoneName = companionCloudZoneName
-        self.companionCloudOwnerName = companionCloudOwnerName
-        self.companionShareRecordName = companionShareRecordName
-        self.companionShareZoneName = companionShareZoneName
-        self.companionShareOwnerName = companionShareOwnerName
-        self.companionIsOwner = companionIsOwner
+        self.companionStatusRawValue = legacyCompanionStatus.rawValue
+        self.companionNames = CompanionNameList.normalized(companionNames)
         self.creationOriginRawValue = creationOrigin?.rawValue
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -319,62 +302,17 @@ final class Show {
         touch()
     }
 
-    /// Valid transitions: `.none` / `.canceled` → `.pending`.
-    func markCompanionInvitationSent(name: String?) throws {
-        let from = companionStatus
-        guard from == .none || from == .canceled else {
-            throw ShowCompanionMutationError.invalidTransition(from: from, to: .pending)
-        }
-        applyCompanionState(status: .pending, name: name)
+    func setCompanionNames(_ names: [String]) {
+        let normalized = CompanionNameList.normalized(names)
+        guard normalized != companionNames else { return }
+        companionNames = normalized
+        touch()
     }
 
-    /// Valid transition: `.pending` → `.confirmed`.
-    func markCompanionConfirmed(name: String?) throws {
-        let from = companionStatus
-        guard from == .pending else {
-            throw ShowCompanionMutationError.invalidTransition(from: from, to: .confirmed)
-        }
-        applyCompanionState(status: .confirmed, name: name)
-    }
-
-    /// Valid transitions: `.pending` / `.confirmed` → `.canceled`.
-    func cancelCompanion() throws {
-        let from = companionStatus
-        guard from == .pending || from == .confirmed else {
-            throw ShowCompanionMutationError.invalidTransition(from: from, to: .canceled)
-        }
+    /// Migration only: drops names an unconfirmed invite left behind without
+    /// pretending the user edited the show.
+    func clearLegacyUnconfirmedCompanionNames() {
         companionNames = []
-        companionMembers = []
-        companionInvitationShared = false
-        companionStatusRawValue = ShowCompanionStatus.canceled.rawValue
-        touch()
-    }
-
-    /// Snapshot used to restore state when the user cancels the system share sheet.
-    func companionStateSnapshot() -> (status: ShowCompanionStatus, names: [String]) {
-        (companionStatus, companionNames)
-    }
-
-    /// Force-restore a previous companion snapshot after a failed CloudKit invite.
-    func restoreCompanionState(status: ShowCompanionStatus, names: [String]) {
-        applyCompanionState(status: status, names: names)
-    }
-
-    func restoreCompanionState(status: ShowCompanionStatus, name: String?) {
-        applyCompanionState(status: status, name: name)
-    }
-
-    func applyCompanionState(status: ShowCompanionStatus, name: String?) {
-        applyCompanionState(
-            status: status,
-            names: CompanionNameList.normalized([name].compactMap { $0 })
-        )
-    }
-
-    func applyCompanionState(status: ShowCompanionStatus, names: [String], preserveDuplicates: Bool = false) {
-        companionNames = preserveDuplicates ? names : CompanionNameList.normalized(names)
-        companionStatusRawValue = status.rawValue
-        touch()
     }
 
     /// Single draft → 现场 mutation seam (create uses `ShowDraft.makeShow`, edit uses this).

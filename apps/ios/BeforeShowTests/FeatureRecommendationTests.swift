@@ -16,15 +16,12 @@ final class FeatureRecommendationTests: XCTestCase {
 
     // MARK: - Policy
 
-    func testCandidateSkipsUsedHandledUnavailableAndExhaustedFeatures() {
+    func testCandidateSkipsUsedHandledAndExhaustedFeatures() {
         let chain: [RecommendedFeature] = [.companion, .widget, .listen]
         var context = FeatureRecommendationContext()
         XCTAssertEqual(FeatureRecommendationPolicy.candidate(from: chain, context: context), .companion)
 
-        context.unavailable = [.companion]
-        XCTAssertEqual(FeatureRecommendationPolicy.candidate(from: chain, context: context), .widget)
-
-        context.used = [.widget]
+        context.used = [.companion, .widget]
         XCTAssertEqual(FeatureRecommendationPolicy.candidate(from: chain, context: context), .listen)
 
         context.records[.listen] = FeatureRecommendationRecordSnapshot(exposureDayKeys: [], isHandled: true)
@@ -70,15 +67,6 @@ final class FeatureRecommendationTests: XCTestCase {
             showID: UUID(), sortDate: makeDate(month: 6, day: 1), used: [.companion], records: [:]
         )
         XCTAssertFalse(FeatureRecommendationPolicy.mutedFeatures(in: [first, second, usedLater]).contains(.companion))
-    }
-
-    func testSnapshotMarksCompanionUnavailableWithoutICloud() throws {
-        let show = try makeShow(day: 30)
-        let snapshot = FeatureRecommendationSnapshot(
-            shows: [FeatureRecommendationShowFacts(showID: show.id, sortDate: show.startTime, used: [], records: [:])],
-            facts: FeatureUsageFacts(hasInstalledWidget: false, isICloudAvailable: false)
-        )
-        XCTAssertEqual(snapshot.context(for: show.id).unavailable, [.companion])
     }
 
     // MARK: - Ledger

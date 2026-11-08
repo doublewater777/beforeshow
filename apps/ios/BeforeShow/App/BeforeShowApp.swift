@@ -11,7 +11,6 @@ struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    @State private var companionCoordinator = CompanionSharingCoordinator()
     @State private var lastLocalMediaMaintenanceAt: Date?
     @State private var isLocalMediaMaintenanceRunning = false
 
@@ -112,10 +111,9 @@ struct BeforeShowApp: App {
                 Color.clear
             } else {
                 RootView()
-                    .environment(companionCoordinator)
                     .onOpenURL { url in
-                        if CompanionInviteWebLink.token(from: url) != nil || CompanionInviteWebLink.validShareURL(url) {
-                            appDelegate.deliverCompanionInviteURL(url)
+                        if LegacyCompanionInviteInbox.shared.receive(url) {
+                            return
                         } else if url.scheme == "beforeshow", url.host == "listen" || url.host == "listening" {
                             ProductAnalytics.capture(.appOpenedFrom(source: .widget, destination: "listen", feature: nil))
                             NotificationDeepLinkRouter.shared.route(to: NotificationDeepLink(showID: UUID(), destination: .listen))
@@ -126,26 +124,14 @@ struct BeforeShowApp: App {
                             NotificationDeepLinkRouter.shared.route(to: deepLink)
                         }
                     }
-                    .onAppear {
-                        appDelegate.companionCoordinator = companionCoordinator
-                        appDelegate.modelContainer = modelContainer
-                        appDelegate.noteDependenciesReady()
-                    }
                     .task {
-                        // Ensure delegate wiring even if onAppear ordering is delayed.
-                        appDelegate.companionCoordinator = companionCoordinator
-                        appDelegate.modelContainer = modelContainer
-                        appDelegate.noteDependenciesReady()
-
                         await Task.yield()
-                        _ = await companionCoordinator.fetchCurrentUserDisplayName()
                         synchronizeFreeShowCapacity(
                             in: modelContainer.mainContext,
                             entitlement: ProEntitlementStorage.decode(entitlementRawValue)
                         )
 
                         isLocalMediaMaintenanceRunning = true
-                        await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                         await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                         await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                         await reconcileAllShowAssets(in: modelContainer.mainContext)
@@ -179,7 +165,6 @@ struct BeforeShowApp: App {
                                 in: modelContainer.mainContext,
                                 entitlement: ProEntitlementStorage.decode(entitlementRawValue)
                             )
-                            await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                             if shouldRunMediaMaintenance {
                                 await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
                                 await reconcileAllShowAssets(in: modelContainer.mainContext)
