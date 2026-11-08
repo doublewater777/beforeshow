@@ -115,10 +115,10 @@ final class FootprintMoreArchivesTests: XCTestCase {
     // MARK: Current tab record kit
 
     func testRecordKitSectionsFollowPhase() {
-        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .pre), [.setlist])
-        // 开场前只有歌单一行，行名已经是「歌单」，不再加同名标题。
+        // 周边和花销从开场前就能记，不用等散场。
+        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .pre), [.setlist, .merch, .spending])
         XCTAssertNil(CurrentShowRecordKit.title(for: .pre))
-        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .live), [.setlist])
+        XCTAssertEqual(CurrentShowRecordKit.kinds(for: .live), [.setlist, .merch, .spending])
         XCTAssertEqual(CurrentShowRecordKit.kinds(for: .ended), [.setlist, .merch, .spending])
         // 与现场详情、足迹详情同一个名字。
         XCTAssertEqual(CurrentShowRecordKit.title(for: .ended), "留下的东西")
@@ -138,7 +138,11 @@ final class FootprintMoreArchivesTests: XCTestCase {
         XCTAssertEqual(byKind[.merch]?.emphasizesAction, true)
 
         let live = CurrentShowRecordKit.rows(phase: .live, facts: facts)
-        XCTAssertEqual(live.map(\.kind), [.setlist])
+        XCTAssertEqual(live.map(\.kind), [.setlist, .merch, .spending])
         XCTAssertEqual(live.first?.action, "打勾")
+
+        // 还没散场时花销是「填上」，散场后才是「补上」。
+        let pre = CurrentShowRecordKit.rows(phase: .pre, facts: facts)
+        XCTAssertEqual(pre.first { $0.kind == .spending }?.action, "填上")
     }
 }

@@ -24372,6 +24372,38 @@
           }
         }
       }
+    },
+    "填上": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填上"
+          }
+        }
+      }
+    },
+    "还有 %lld 首": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld more"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還有 %lld 首"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -36,6 +36,8 @@ struct ShowRecordRows: View {
     @State private var isShowingSpending = false
     @State private var merchSource: MerchCaptureSource?
     @State private var merchFailed = false
+    @State private var editingMerch: MerchItem?
+    @Environment(\.modelContext) private var modelContext
 
     init(show: Show, kinds: [CurrentShowRecordKind], phase: HomeShowPhase = .ended) {
         self.show = show
@@ -61,7 +63,17 @@ struct ShowRecordRows: View {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 { Divider().overlay(Color.white.opacity(0.1)).padding(.leading, 52) }
                 if row.kind == .merch {
-                    MerchCaptureMenu(source: $merchSource) { label(row) }.buttonStyle(.plain)
+                    VStack(spacing: 0) {
+                        MerchCaptureMenu(source: $merchSource) { label(row) }.buttonStyle(.plain)
+                        // What was bought shows here, not only the way to add more.
+                        if !show.merchItems.isEmpty {
+                            MerchStrip(
+                                items: show.merchItems.sorted { $0.createdAt < $1.createdAt },
+                                onEdit: { editingMerch = $0 },
+                                onDelete: { item in Task { try? await MerchCaptureCoordinator.delete(item, in: modelContext) } }
+                            )
+                        }
+                    }
                 } else {
                     Button {
                         if row.kind == .setlist { isShowingSetlist = true } else { isShowingSpending = true }
@@ -80,6 +92,7 @@ struct ShowRecordRows: View {
         }
         .sheet(isPresented: $isShowingSetlist) { ShowSetlistSheet(show: show, forcedPhase: phase) }
         .sheet(isPresented: $isShowingSpending) { ShowSpendingSheet(show: show) }
+        .sheet(item: $editingMerch) { MerchEditSheet(item: $0) }
         .merchCapture($merchSource, show: show) { saved in merchFailed = !saved }
         .onChange(of: merchSource) { _, source in if source != nil { merchFailed = false } }
     }
@@ -186,5 +199,37 @@ private struct PlayedSongsPreview: View {
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+}
+
+/// The merch kept from this show, under the 周边 row: tap to rename, hold to delete.
+private struct MerchStrip: View {
+    let items: [MerchItem]
+    let onEdit: (MerchItem) -> Void
+    let onDelete: (MerchItem) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(items) { item in
+                    let hasCutout = item.cutoutRelativePath != nil
+                    Button { onEdit(item) } label: {
+                        FootprintLocalPhoto(url: item.photoURL(cutout: true), contentMode: hasCutout ? .fit : .fill)
+                            .frame(width: 56, height: 64)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button { onEdit(item) } label: { Label(BSLocalization.text("编辑"), systemImage: "pencil") }
+                        Button(role: .destructive) { onDelete(item) } label: { Label(BSLocalization.text("删除"), systemImage: "trash") }
+                    }
+                    .accessibilityLabel(item.displayName)
+                }
+            }
+            .padding(.leading, 52)
+            .padding(.trailing, 16)
+        }
+        .padding(.bottom, 14)
     }
 }

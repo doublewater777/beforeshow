@@ -48,9 +48,7 @@ enum CurrentShowRecordKit {
     static func kinds(for phase: HomeShowPhase) -> [CurrentShowRecordKind] {
         switch phase {
         case .inactive: return []
-        case .pre: return [.setlist]
-        case .live: return [.setlist]
-        case .ended: return [.setlist, .merch, .spending]
+        case .pre, .live, .ended: return [.setlist, .merch, .spending]
         }
     }
 
@@ -114,7 +112,7 @@ enum CurrentShowRecordKit {
                 facts.travelCostText.map { BSLocalization.format("路费 %@", $0) } ?? BSLocalization.text("路费还没填")
             ].joined(separator: " · ") : none
             return .init(kind: kind, title: BSLocalization.text("花销"), subtitle: subtitle,
-                         action: complete ? open : BSLocalization.text("补上"), isFilled: has, emphasizesAction: !complete)
+                         action: complete ? open : BSLocalization.text(phase == .ended ? "补上" : "填上"), isFilled: has, emphasizesAction: !complete)
         }
     }
 }
