@@ -38,12 +38,9 @@ enum FootprintDetailIdentityBuilder {
         } ?? []
         let cityOrdinal = cityShows.firstIndex { $0.id == show.id }.map { $0 + 1 }
 
-        let companions = CompanionNameList.normalized(show.companionNames).compactMap { name -> FootprintCompanionIdentity? in
-            let companionShows = orderedShows.filter {
-                $0.companionStatus == .confirmed
-                    && $0.endedAt != nil
-                    && CompanionNameList.normalized($0.companionNames).contains(name)
-            }
+        // Archive shows are already footprints, so this is `CompanionHistory`'s rule.
+        let companions = show.companionNames.compactMap { name -> FootprintCompanionIdentity? in
+            let companionShows = orderedShows.filter { $0.companionNames.contains(name) }
             guard let index = companionShows.firstIndex(where: { $0.id == show.id }) else {
                 return nil
             }

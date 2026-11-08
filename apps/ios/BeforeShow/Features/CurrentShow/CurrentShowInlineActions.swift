@@ -285,11 +285,6 @@ struct CurrentShowActionModules: View {
         }
         .padding(16)
         .frame(minHeight: 140)
-        .overlay(alignment: .topTrailing) {
-            if companion.displayShowsPendingIndicator {
-                Circle().fill(BSColor.Stage.live).frame(width: 7, height: 7).padding(10)
-            }
-        }
     }
 
     private var memoryModule: some View {

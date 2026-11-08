@@ -42,6 +42,7 @@ struct FootprintDetailView: View {
     @State private var isShowingDispersalShare = false
     @State private var isShowingCeremonyEditor = false
     @State private var isShowingEditor = false
+    @State private var isShowingCompanionEditor = false
     @State private var isShowingMemoryPage = false
     @State private var memoryCreate: MemoryCreateSourceOption?
     @State private var isShowingDeleteConfirmation = false
@@ -206,8 +207,8 @@ struct FootprintDetailView: View {
                         assetFor: asset(for:),
                         onSelect: { showingAssetKind = $0 }
                     )
-                    if show.companionStatus == .confirmed {
-                        FootprintCompanionSection(show: show, archive: archive)
+                    FootprintCompanionSection(show: show, archive: archive) {
+                        isShowingCompanionEditor = true
                     }
                     BSProgrammeInfo(rows: infoRows)
                 }
@@ -283,6 +284,9 @@ struct FootprintDetailView: View {
         }
         .sheet(isPresented: $isShowingMemoryPage) {
             MemoryFragmentsSheet(show: show, pendingCreate: memoryCreate)
+        }
+        .sheet(isPresented: $isShowingCompanionEditor) {
+            CompanionEditorSheet(show: show)
         }
         .sheet(isPresented: $isShowingEditor) {
             ShowDraftEditorView(

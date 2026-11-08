@@ -11,6 +11,7 @@ enum AppPersistenceMigrationRunner {
         CurrentShowOwnershipMigration.migrateIfNeeded(in: modelContext, now: now)
         _ = try? NotificationSchedulingStateStore.canonicalize(in: modelContext)
         AppleMusicArtistIdentityMigration.migrateIfNeeded(in: modelContext)
+        LocalCompanionMigration.migrateIfNeeded(in: modelContext)
     }
 }
 
@@ -24,8 +25,6 @@ enum ShowCreationOriginMigration {
         try? modelContext.save()
     }
 
-    /// Kept public to the module because Companion import calls this immediately
-    /// before merge/create, closing the race between share acceptance and startup.
     @discardableResult
     static func resolveUnresolvedOrigins(in shows: [Show]) -> Bool {
         var didChange = false

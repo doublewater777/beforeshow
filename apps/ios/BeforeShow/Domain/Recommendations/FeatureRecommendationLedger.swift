@@ -42,7 +42,7 @@ enum FeatureRecommendationLedger {
     ) -> Set<RecommendedFeature> {
         var used = Set<RecommendedFeature>()
         if facts.hasInstalledWidget { used.insert(.widget) }
-        if !show.companionMembers.isEmpty || show.companionInvitationShared { used.insert(.companion) }
+        if show.hasCompanions { used.insert(.companion) }
         if ShowAssetManagementPolicy.hasSavedAsset(for: show, kind: .timetable, assets: show.assets) {
             used.insert(.timetable)
         }

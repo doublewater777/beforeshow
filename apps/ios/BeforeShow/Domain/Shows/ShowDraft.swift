@@ -35,6 +35,9 @@ struct ShowDraft: Equatable {
     var source: ShowDraftSource
     /// 识别导入成功写入的字段（仅 screenshotOCR / link 来源有意义，手动与编辑流为空）。
     var recognizedFields: Set<ShowDraftField>
+    /// 新建时一并写入的同行；编辑流不经过这里。
+    var companionNames: [String] = []
+    var creationOrigin: ShowCreationOrigin = .user
 
     init(
         name: String = "",
@@ -137,7 +140,9 @@ struct ShowDraft: Equatable {
             venueName: prepared.venueName,
             venueAddress: prepared.venueAddress,
             artists: prepared.artists,
-            coverImageURL: prepared.coverImageURL
+            coverImageURL: prepared.coverImageURL,
+            companionNames: companionNames,
+            creationOrigin: creationOrigin
         )
     }
 

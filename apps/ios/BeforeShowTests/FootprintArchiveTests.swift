@@ -522,16 +522,14 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selection.selectedShowID, existing.id)
     }
 
-    func testDetailIdentityDynamicallyRanksShowCityAndConfirmedCompanion() throws {
+    func testDetailIdentityDynamicallyRanksShowCityAndCompanion() throws {
         let backfilled = try makeShow("更早补录", year: 2023, artist: "A", city: "杭州", venue: "A")
         let firstTogether = try makeShow("第一次同行", year: 2024, artist: "B", city: "上海", venue: "B")
         let target = try makeShow("目标现场", year: 2025, artist: "C", city: "上海", venue: "C")
 
-        try firstTogether.markCompanionInvitationSent(name: " 林嘉 ")
-        try firstTogether.markCompanionConfirmed(name: firstTogether.companionName)
+        firstTogether.setCompanionNames([" 林嘉 "])
         firstTogether.markEnded(at: date(2024, 6, 1, 22))
-        try target.markCompanionInvitationSent(name: "林嘉")
-        try target.markCompanionConfirmed(name: target.companionName)
+        target.setCompanionNames(["林嘉"])
         target.markEnded(at: date(2025, 6, 1, 22))
 
         let archive = FootprintArchiveBuilder.make(
@@ -554,14 +552,11 @@ final class FootprintArchiveTests: XCTestCase {
 
     func testDetailIdentityListsEachCompanionWithoutASingleGroupOrdinal() throws {
         let withJia = try makeShow("只和林嘉", year: 2024, artist: "A", city: "上海", venue: "A")
-        try withJia.markCompanionInvitationSent(name: "林嘉")
-        try withJia.markCompanionConfirmed(name: withJia.companionName)
+        withJia.setCompanionNames(["林嘉"])
         withJia.markEnded(at: date(2024, 6, 1, 22))
 
         let group = try makeShow("林嘉和王宁", year: 2025, artist: "B", city: "上海", venue: "B")
-        try group.markCompanionInvitationSent(name: nil)
-        group.applyCompanionState(status: .pending, names: ["林嘉", "王宁"])
-        group.applyCompanionState(status: .confirmed, names: ["林嘉", "王宁"])
+        group.setCompanionNames(["林嘉", "王宁"])
         group.markEnded(at: date(2025, 6, 1, 22))
 
         let archive = FootprintArchiveBuilder.make(
@@ -588,8 +583,7 @@ final class FootprintArchiveTests: XCTestCase {
 
     func testDetailIdentityHidesMissingCityAndUnnamedCompanion() throws {
         let target = try makeShow("缺失身份资料", year: 2025, artist: "A", city: " ", venue: "A")
-        try target.markCompanionInvitationSent(name: " ")
-        try target.markCompanionConfirmed(name: target.companionName)
+        target.setCompanionNames([" "])
         target.markEnded(at: date(2025, 6, 1, 22))
         let archive = FootprintArchiveBuilder.make(
             shows: [target],

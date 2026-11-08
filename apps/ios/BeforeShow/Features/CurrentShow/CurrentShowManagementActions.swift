@@ -181,11 +181,6 @@ extension CurrentShowManagementSection {
         return show.name
     }
     var companionPresentation: CompanionQuickActionPresentation {
-        CompanionQuickActionPresentation(
-            status: show.companionStatus,
-            companionNames: show.companionNames,
-            isEnded: currentPhase == .ended,
-            isInvitationShared: show.companionInvitationShared
-        )
+        CompanionQuickActionPresentation(companionNames: show.companionNames)
     }
 }

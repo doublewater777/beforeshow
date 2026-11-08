@@ -14,6 +14,7 @@ enum AddShowSheet: String, Identifiable, Hashable, CaseIterable {
 struct AddShowCoordinatorSheet: View {
     /// Open a specific import method for deep links; normal entry starts with the unified importer.
     var initialSheet: AddShowSheet? = nil
+    var prefilledDraft: ShowDraft? = nil
     var onShowAdded: (UUID) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
@@ -22,6 +23,7 @@ struct AddShowCoordinatorSheet: View {
         NavigationStack {
             AddShowFlowView(
                 sheet: initialSheet ?? .link,
+                prefilledDraft: prefilledDraft,
                 onSaved: { showID in
                     onShowAdded(showID)
                     dismiss()
