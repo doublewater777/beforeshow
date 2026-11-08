@@ -49,7 +49,6 @@ struct FootprintSetlistView: View {
         .task {
             guard !isTaped else { return }
             try? await Task.sleep(for: .milliseconds(150))
-            if !reduceMotion { FootprintSoundPlayer.shared.play(.tear) }
             withAnimation(reduceMotion ? .easeOut(duration: 0.25) : .spring(response: 0.45, dampingFraction: 0.7)) { isTaped = true }
         }
     }

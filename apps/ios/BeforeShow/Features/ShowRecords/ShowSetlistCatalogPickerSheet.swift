@@ -65,6 +65,7 @@ struct ShowSetlistCatalogPickerSheet: View {
                             .background(isOn ? AnyShapeStyle(BSColor.Stage.foreground) : AnyShapeStyle(Color.white.opacity(0.08)), in: Capsule())
                     }
                     .buttonStyle(.plain)
+                    .foregroundStyle(isOn ? BSColor.Stage.background : BSColor.Stage.foreground.opacity(0.7))
                 }
             }
             .padding(.horizontal, 16)

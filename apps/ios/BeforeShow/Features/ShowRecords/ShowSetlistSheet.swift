@@ -159,18 +159,22 @@ struct ShowSetlistSheet: View {
         Button(action: playInListen) {
             HStack(spacing: 8) {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
                 Text(BSLocalization.text("在「听」里播放"))
                     .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
+                    .lineLimit(1)
             }
-            .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
             .frame(maxWidth: .infinity)
             .frame(height: 52)
-            .background(Color.white.opacity(0.92), in: Capsule())
+            .background(Color.white.opacity(items.isEmpty ? 0.35 : 0.92), in: Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .foregroundStyle(Color(red: 11/255, green: 13/255, blue: 18/255))
+        .tint(Color(red: 11/255, green: 13/255, blue: 18/255))
         .disabled(items.isEmpty)
-        .opacity(items.isEmpty ? 0.4 : 1)
     }
 
     // MARK: - Song List
