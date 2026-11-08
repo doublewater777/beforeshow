@@ -223,14 +223,6 @@ final class ListeningDeck {
         onTransportChange()
     }
 
-    func togglePlayPause(source: ListeningPlaybackSource?) {
-        if wantsPlayback {
-            pause()
-        } else if let source {
-            play(source: source)
-        }
-    }
-
     /// Moves the cursor. Playback continues on the new song when it was
     /// running or `autoplay` asks for it, and a `nil` source ends it.
     func select(_ songID: String, autoplay: Bool, source: ListeningPlaybackSource?) {

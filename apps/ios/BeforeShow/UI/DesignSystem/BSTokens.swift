@@ -70,8 +70,6 @@ enum BSColor {
         static let glowBlue = Color(red: 0.322, green: 0.498, blue: 0.788)
         /// 出门清单 card tone (#7B678F).
         static let prepare = Color(red: 0.482, green: 0.404, blue: 0.561)
-        /// Badge text: card tone pre-mixed toward white (design color-mix).
-        static let prepareBadge = Color(red: 0.627, green: 0.573, blue: 0.682)
 
         /// Live pulse red (#FF6B75), live status title (#FFD0D3).
         static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
@@ -124,8 +122,6 @@ enum BSFont {
     /// Small pills and tags.
     static let tag = Font.system(size: 12, weight: .semibold, design: .default)
 
-    /// Letter spacing used for splash-style large text.
-    static let splashTracking: CGFloat = 6
     static let titleTracking: CGFloat = 2
 
     enum V3 {
@@ -214,8 +210,6 @@ enum BSLayout {
     static let chromeIconSize: CGFloat = 13
     /// Maximum content width for comfortable reading on large displays (e.g. iPad).
     static let maxContentWidth: CGFloat = 600
-    /// Maximum player stage width for the vinyl player on large displays.
-    static let maxPlayerWidth: CGFloat = 480
 }
 
 // MARK: - Reusable View Modifiers

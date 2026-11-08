@@ -47,78 +47,6 @@ enum OpeningFamiliarityCoordinator {
     }
 
     @discardableResult
-    static func reconcilePersistedActualFamiliarity(
-        songID: String,
-        familiarityReachedAt: Date,
-        in modelContext: ModelContext,
-        reconciledAt: Date = Date(),
-        saveChanges: Bool = true
-    ) throws -> Bool {
-        let baselines = try modelContext.fetch(FetchDescriptor<ShowOpeningFamiliarityBaseline>())
-            .filter {
-                familiarityReachedAt <= $0.effectiveStartAtCapture
-                    && !$0.familiarSongIDsAtCapture.contains(songID)
-            }
-        guard !baselines.isEmpty else { return false }
-
-        let showsByID = Dictionary(
-            uniqueKeysWithValues: try modelContext.fetch(FetchDescriptor<Show>())
-                .map { ($0.id, $0) }
-        )
-        let tiersByKey = Dictionary(
-            uniqueKeysWithValues: try modelContext.fetch(FetchDescriptor<ShowOpeningArtistTier>())
-                .map { ($0.uniqueKey, $0) }
-        )
-        var didChange = false
-
-        for baseline in baselines {
-            baseline.familiarSongIDsAtCapture = Array(
-                Set(baseline.familiarSongIDsAtCapture).union([songID])
-            ).sorted()
-            didChange = true
-
-            guard let show = showsByID[baseline.showID] else { continue }
-            let familiarAtOpening = Set(baseline.familiarSongIDsAtCapture)
-
-            for artist in show.artists {
-                guard let artistID = artist.appleMusicArtistID,
-                      !artistID.isEmpty,
-                      let tier = tiersByKey[
-                        ShowOpeningArtistTier.makeUniqueKey(
-                            showID: show.id,
-                            artistID: artistID
-                        )
-                      ] else {
-                    continue
-                }
-
-                let catalogSongIDsAtResolution = tier.catalogSongIDsAtResolution
-                guard !catalogSongIDsAtResolution.isEmpty,
-                      catalogSongIDsAtResolution.contains(songID) else {
-                    continue
-                }
-                let catalogSongIDs = Set(catalogSongIDsAtResolution)
-                let familiarCount = familiarAtOpening.intersection(catalogSongIDs).count
-                guard let correctedTier = ListeningFamiliarityTier.resolve(
-                    familiarCount: familiarCount,
-                    totalCount: catalogSongIDsAtResolution.count
-                ),
-                tier.tierRawValue != correctedTier.rawValue else {
-                    continue
-                }
-
-                tier.tierRawValue = correctedTier.rawValue
-                tier.resolvedAt = reconciledAt
-            }
-        }
-
-        if saveChanges, didChange {
-            try modelContext.save()
-        }
-        return didChange
-    }
-
-    @discardableResult
     static func resolveAvailableTiers(
         in modelContext: ModelContext,
         now: Date = Date(),
@@ -176,28 +104,5 @@ enum OpeningFamiliarityCoordinator {
             try modelContext.save()
         }
         return didChange
-    }
-
-    static func runLifecyclePass(
-        in modelContext: ModelContext,
-        now: Date = Date()
-    ) throws {
-        var didChange = try ListeningShowLifecycleCoordinator.reconcileStoredState(
-            in: modelContext,
-            now: now
-        )
-        didChange = try captureDueBaselines(
-            in: modelContext,
-            now: now,
-            saveChanges: false
-        ) || didChange
-        didChange = try resolveAvailableTiers(
-            in: modelContext,
-            now: now,
-            saveChanges: false
-        ) || didChange
-        if didChange {
-            try modelContext.save()
-        }
     }
 }

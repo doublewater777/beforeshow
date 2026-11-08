@@ -76,25 +76,6 @@ struct BSSecondaryButtonStyle: ButtonStyle {
     }
 }
 
-struct BSDangerButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(BSFont.caption)
-            .foregroundStyle(BSColor.Stage.danger)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
-            .background(BSColor.Stage.danger.opacity(configuration.isPressed ? 0.18 : 0.12))
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.md)
-                    .stroke(BSColor.Stage.danger.opacity(0.30), lineWidth: 1)
-            )
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
-            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.4), trigger: configuration.isPressed)
-    }
-}
-
 // MARK: - State Surfaces
 
 enum BSToastTone: Equatable {

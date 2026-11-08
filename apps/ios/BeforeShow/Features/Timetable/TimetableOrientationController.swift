@@ -20,13 +20,6 @@ final class TimetableOrientationController {
         }
     }
 
-    func toggleOrientation() {
-        guard isViewingEnabled, let scene else { return }
-        let orientations: UIInterfaceOrientationMask = scene.effectiveGeometry.interfaceOrientation.isLandscape
-            ? .portrait : .landscape
-        scene.requestGeometryUpdate(.iOS(interfaceOrientations: orientations))
-    }
-
     private func updateSupportedOrientations() {
         AppInterfaceOrientation.supported = isViewingEnabled ? .allButUpsideDown : .portrait
         var controller = scene?.keyWindow?.rootViewController

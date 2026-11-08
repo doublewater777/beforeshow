@@ -37,28 +37,6 @@ enum ShowSetlistRecording {
         return true
     }
 
-    /// 标记是否已唱（演出中打勾，不从单子中删除）。
-    @discardableResult
-    static func togglePlayed(_ song: Song, showID: UUID, in context: ModelContext, now: Date = Date()) throws -> Bool {
-        if let existing = try memories(showID: showID, in: context).first(where: { matches($0, song) }) {
-            let next = !(existing.wasPlayed ?? false)
-            existing.wasPlayed = next
-            existing.updatedAt = now
-            return next
-        }
-        let memory = ShowSetlistMemory(
-            showID: showID,
-            catalogSongID: song.catalogSongID,
-            manualTitle: song.title,
-            manualArtistName: song.artistName,
-            wasPlayed: true,
-            createdAt: now,
-            updatedAt: now
-        )
-        context.insert(memory)
-        return true
-    }
-
     /// 手动输入不在列表里的歌；空白或已记过的同名歌不重复写。
     static func addManual(
         title: String,

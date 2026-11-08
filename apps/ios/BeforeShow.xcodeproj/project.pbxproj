@@ -615,7 +615,6 @@
 		E77493FB1EA986582E9FA706 /* FootprintSearchFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDF8AFDAC95CE22FF4F4B64 /* FootprintSearchFlowTests.swift */; };
 		E7AF650A9548A7B6FEB084B7 /* BSStageRig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27079634F2BD88A29B62E9F3 /* BSStageRig.swift */; };
 		E7E7A2A11C54E51053AD4FE1 /* ProOfferDeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C04A4A55B88B4AB086D4A96A /* ProOfferDeepLinkRouter.swift */; };
-		E821420C8540E3ACCA14A987 /* FootprintDetailMediaComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CC0D6D5C034B7F3AAA47499 /* FootprintDetailMediaComponents.swift */; };
 		E8830947498B038E723300A6 /* ListeningReminderSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA7D1A98024E60464615CD9 /* ListeningReminderSchedulingTests.swift */; };
 		E8A8C5A0BC025556629A6334 /* ListeningCompilationAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9409023A9D31EC41B67224CC /* ListeningCompilationAssembler.swift */; };
 		E8C2F6DDF48C36CB6F871EF9 /* ArtistSearchFailureMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D38BEE549C78AAB33FEBD025 /* ArtistSearchFailureMessage.swift */; };
@@ -643,7 +642,6 @@
 		F2E183D3D8BD01CAC928CDDB /* ListeningLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C4C517DF05E034B074E86C /* ListeningLocalizationTests.swift */; };
 		F2F472AA343D70F40AAE122A /* ListeningCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5160DCEA85D12B4C0E01EA2A /* ListeningCompatibilityTests.swift */; };
 		F35C6CFB32A5E04864CF7D99 /* CurrentShowFollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD217DE3AC69E31853F5E766 /* CurrentShowFollowUpView.swift */; };
-		F403A8E948E3A38515689119 /* FootprintHeroViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33ADA3F53E262A5225D431E5 /* FootprintHeroViews.swift */; };
 		F4F0BF9D592F27EE3C4BFCBE /* FeatureUsageEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4830A4A5484A6B12447FD45 /* FeatureUsageEnvironment.swift */; };
 		F53A740AF86C074C385DAEC0 /* FootprintDetailStageSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED881B123DB066270602F8FE /* FootprintDetailStageSections.swift */; };
 		F5508164A3524535B29B893D /* ProPaywallPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCE0721CA51C4FDB4173FF63 /* ProPaywallPresentation.swift */; };
@@ -782,7 +780,6 @@
 		1A5AF77F308C6755615D4A79 /* FootprintBookPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookPages.swift; sourceTree = "<group>"; };
 		1A63E4DCC9DD1D52BAEA1548 /* ListeningDiscCover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDiscCover.swift; sourceTree = "<group>"; };
 		1B40307197FB63E23967B651 /* ListeningShowLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningShowLifecycleCoordinator.swift; sourceTree = "<group>"; };
-		1CC0D6D5C034B7F3AAA47499 /* FootprintDetailMediaComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDetailMediaComponents.swift; sourceTree = "<group>"; };
 		1CDAFFFF478D277E6B2F922D /* FootprintCityArchiveViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintCityArchiveViews.swift; sourceTree = "<group>"; };
 		1CE3907BDB4E36A956335898 /* ShowCreationOriginMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowCreationOriginMigration.swift; sourceTree = "<group>"; };
 		1E269B5A7D28AA967405C9DC /* FootprintVinylYearsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintVinylYearsView.swift; sourceTree = "<group>"; };
@@ -835,7 +832,6 @@
 		329A5C1526A399106BE79FC0 /* FootprintBookShowPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookShowPage.swift; sourceTree = "<group>"; };
 		3318771F1067657E44FFA460 /* AddShowCoordinatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddShowCoordinatorView.swift; sourceTree = "<group>"; };
 		33A6E9171363656CB8A88892 /* TimetableImportReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableImportReviewView.swift; sourceTree = "<group>"; };
-		33ADA3F53E262A5225D431E5 /* FootprintHeroViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintHeroViews.swift; sourceTree = "<group>"; };
 		3452566ABF8463FA25583AAF /* ListeningRoomCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningRoomCoordinator.swift; sourceTree = "<group>"; };
 		34699F311920DC7843E40363 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		349D842909AEE8C597F932C2 /* CurrentShowPolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowPolishTests.swift; sourceTree = "<group>"; };
@@ -2299,13 +2295,11 @@
 				413830B83BEA5AFCAA368F70 /* FootprintDateFormatting.swift */,
 				F230E93BAB2AA006202C2C0C /* FootprintDebugSeeder.swift */,
 				60C48B90971F3F97D8DC3E11 /* FootprintDetailDomain.swift */,
-				1CC0D6D5C034B7F3AAA47499 /* FootprintDetailMediaComponents.swift */,
 				4B5A18B96BD4AB2F73F4AEE5 /* FootprintDetailPresentationSupport.swift */,
 				ED881B123DB066270602F8FE /* FootprintDetailStageSections.swift */,
 				3BCCB27E81B3A5E694AEAEC9 /* FootprintDetailView.swift */,
 				8C0690694AF4D74DC1463961 /* FootprintDispersalRitualSection.swift */,
 				5C9894BB0641D635CC265854 /* FootprintEntryTiles.swift */,
-				33ADA3F53E262A5225D431E5 /* FootprintHeroViews.swift */,
 				24B44876194A3936F7DB7ADA /* FootprintLedgerArchive.swift */,
 				EC57261ADB488991B2F21290 /* FootprintLedgerView.swift */,
 				6C8C06124D91132FD82DDA72 /* FootprintListeningCoordinator.swift */,
@@ -2859,13 +2853,11 @@
 				B217212979FF3A3D2A5C8374 /* FootprintDateFormatting.swift in Sources */,
 				63BF9F4A8D558EFD0FD8953E /* FootprintDebugSeeder.swift in Sources */,
 				65CDB5F238AEED753D18BA2B /* FootprintDetailDomain.swift in Sources */,
-				E821420C8540E3ACCA14A987 /* FootprintDetailMediaComponents.swift in Sources */,
 				14D8B69F69BB334108B8B8B6 /* FootprintDetailPresentationSupport.swift in Sources */,
 				F53A740AF86C074C385DAEC0 /* FootprintDetailStageSections.swift in Sources */,
 				1A8D401C461EFE73B20025F8 /* FootprintDetailView.swift in Sources */,
 				6698AB2DB5847D70C46B91B2 /* FootprintDispersalRitualSection.swift in Sources */,
 				C29483404878B22931AF5384 /* FootprintEntryTiles.swift in Sources */,
-				F403A8E948E3A38515689119 /* FootprintHeroViews.swift in Sources */,
 				CB97490A5D7AD9A3248CCB6C /* FootprintLedgerArchive.swift in Sources */,
 				8A77A58CFA13762779268511 /* FootprintLedgerView.swift in Sources */,
 				590AD362655C01C1A9056B06 /* FootprintListeningCoordinator.swift in Sources */,

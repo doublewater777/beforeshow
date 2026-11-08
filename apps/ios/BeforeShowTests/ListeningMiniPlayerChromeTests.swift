@@ -657,6 +657,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
             playbackFactory: { _ in playback }
         )
         room.prepareForDisplay(show: show)
+        room.stageDefaultTrackIfNeeded()
 
         // Room has discs from local cached snapshot and should stage a track
         XCTAssertTrue(room.hasLoadedDisc)

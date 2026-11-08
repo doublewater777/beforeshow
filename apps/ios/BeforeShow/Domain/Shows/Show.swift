@@ -30,10 +30,6 @@ enum ShowCreationOrigin: String, Codable {
     case companionImport
 }
 
-enum ShowCompanionMutationError: Error, Equatable {
-    case invalidTransition(from: ShowCompanionStatus, to: ShowCompanionStatus)
-}
-
 @Model
 final class Show {
     var id: UUID

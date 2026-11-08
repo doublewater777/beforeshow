@@ -128,10 +128,6 @@ actor ShowAssetMediaStore {
         location.rootDirectory
     }
 
-    func ensureAvailable() throws {
-        try ensureStorageAvailable()
-    }
-
     func acquireCommitGate() async {
         await LocalMediaCommitGate.shared.acquire()
     }

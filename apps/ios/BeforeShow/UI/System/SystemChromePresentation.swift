@@ -44,11 +44,6 @@ enum MemoryCreateSourceOption: String, CaseIterable {
 
 }
 
-enum MemoryCreateSourcePresentation {
-    static let title = BSLocalization.text("新增记忆")
-    static let message = BSLocalization.text("拍一张、选一段、写一句。")
-}
-
 /// Show-detail overlays that occupy the single sheet slot.
 enum ShowDetailPresentedSheet: Identifiable, Equatable, Hashable {
     case editor

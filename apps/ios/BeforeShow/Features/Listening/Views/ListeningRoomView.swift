@@ -143,6 +143,7 @@ struct ListenRootView: View {
         }
         if room?.shouldReloadCatalog(for: show) == true {
             await room?.load(show: show)
+            room?.stageDefaultTrackIfNeeded()
         }
         if let room, room.hasLoadedDisc {
             ListeningRoomSessionStore.shared.publishChrome(room)

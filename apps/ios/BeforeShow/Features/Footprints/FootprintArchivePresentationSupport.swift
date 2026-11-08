@@ -87,21 +87,6 @@ func footprintExportAwareNavigationLink<Destination: View, Label: View>(
     }
 }
 
-@ViewBuilder
-@MainActor
-func footprintExportAwareButton<Label: View>(
-    isForExport: Bool,
-    action: @escaping () -> Void,
-    @ViewBuilder label: () -> Label
-) -> some View {
-    if isForExport {
-        label()
-    } else {
-        Button(action: action, label: label)
-            .buttonStyle(.plain)
-    }
-}
-
 struct FootprintNavigationTitle: View {
     let title: String
 
@@ -190,26 +175,6 @@ func archiveSectionTitle(_ title: String, _ subtitle: String = "") -> some View 
         }
     }
     .padding(.top, 4)
-}
-
-func archiveRow(rank: Int, title: String, subtitle: String, count: Int, color: Color) -> some View {
-    HStack(spacing: 11) {
-        Text("\(rank)").font(rank == 1 ? .system(size: 12, weight: .bold) : BSFont.tag).foregroundStyle(rank == 1 ? color : BSColor.Stage.dim).frame(width: 28)
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(rank == 1 ? BSFont.headline : BSFont.caption).foregroundStyle(BSColor.Stage.foreground).lineLimit(2)
-            Text(subtitle).font(BSFont.V3.caption).foregroundStyle(BSColor.Stage.muted)
-        }
-        Spacer()
-        Text(BSLocalization.format("%lld 场", count)).font(BSFont.tag).foregroundStyle(rank == 1 ? color : BSColor.Stage.foreground)
-    }
-    .padding(13)
-    .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16))
-    .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
-}
-
-func footprintEnhancementMonthText(_ date: Date, calendar: Calendar) -> String {
-    let components = calendar.dateComponents([.year, .month], from: date)
-    return String(format: "%04d.%02d", components.year ?? 0, components.month ?? 0)
 }
 
 func footprintEnhancementDayText(_ date: Date, calendar: Calendar) -> String {
