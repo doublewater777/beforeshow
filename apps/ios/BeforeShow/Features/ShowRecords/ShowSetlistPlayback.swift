@@ -9,6 +9,8 @@ enum ShowSetlistPlayback {
         case replay
     }
 
+    static func discID(for show: Show, kind: Kind) -> String { "setlist-\(kind.rawValue)-\(show.id.uuidString)" }
+
     /// 散场后的「今晚唱过」，能在「听」目录里对上的才进唱片。
     static func replayDisc(for show: Show, in context: ModelContext) -> ListeningDisc? {
         let memories = (try? ShowSetlistRecording.memories(showID: show.id, in: context)) ?? []
@@ -75,7 +77,7 @@ enum ShowSetlistPlayback {
         }
         guard !tracks.isEmpty else { return nil }
         return ListeningDisc(
-            id: "setlist-\(kind.rawValue)-\(show.id.uuidString)",
+            id: discID(for: show, kind: kind),
             title: title,
             artworkURL: show.coverImageURL.flatMap(URL.init(string:)),
             tracks: tracks,

@@ -7134,18 +7134,18 @@
         }
       }
     },
-    "再听一遍这场" : {
+    "再听一次" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Replay this show"
+            "value" : "Play again"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "再聽一遍這場"
+            "value" : "再聽一次"
           }
         }
       }
@@ -7913,22 +7913,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "剛剛散場"
-          }
-        }
-      }
-    },
-    "刚解锁" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Just unlocked"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "剛解鎖"
           }
         }
       }
@@ -26374,6 +26358,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 %lld 場，結束了"
+          }
+        }
+      }
+    },
+    "播放唱片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play record"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放唱片"
+          }
+        }
+      }
+    },
+    "送你一首和 %lld 有关的歌" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A song about %lld, for you"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送你一首和 %lld 有關的歌"
           }
         }
       }

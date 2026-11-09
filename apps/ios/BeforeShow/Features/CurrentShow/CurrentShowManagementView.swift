@@ -317,8 +317,7 @@ struct CurrentShowManagementSection: View {
             ? HomeCountdownLockup.primaryAction(
                 timeState: timeState,
                 now: now,
-                hasPlayedSongs: timeState.kind == .postShow
-                    && ShowSetlistPlayback.hasPlayableSongs(for: show, in: modelContext),
+                hasRecord: timeState.kind == .postShow && unlockedRecord != nil,
                 hasFutureShow: FeatureRecommendationLedger.nextFutureShow(
                     excluding: show.id,
                     in: attachedCandidateShows,
@@ -581,13 +580,6 @@ struct CurrentShowManagementSection: View {
         action: HomeCountdownLockup.PrimaryAction?
     ) -> Bool {
         guard let room, room.wantsPlayback, let action else { return false }
-        switch action {
-        case .replayShow:
-            return room.loadedDisc?.id == "setlist-replay-\(show.id.uuidString)"
-        case .listen:
-            return room.show?.id == show.id
-        default:
-            return false
-        }
+        return isPlayingCurrentShowContent(action: action, in: room)
     }
 }

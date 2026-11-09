@@ -19,9 +19,6 @@ struct ShowUnlockRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(BSLocalization.text("刚解锁"))
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.accent)
             if let record = unlocks.record {
                 Button(action: onOpenRecords) { recordLabel(record) }
                     .buttonStyle(BSPressStyle())
@@ -41,13 +38,13 @@ struct ShowUnlockRow: View {
 
     private func recordLabel(_ record: FootprintNumberSong) -> some View {
         HStack(spacing: 12) {
-            FootprintNumberDisc(number: record.number, diameter: 44, isPlaying: false)
+            FootprintNumberDisc(number: record.number, diameter: 44, isPlaying: FootprintNumberSongPlayer.shared.isPlaying(record.number))
                 .rotationEffect(.degrees(arrived || reduceMotion ? 0 : 200))
                 .offset(x: arrived || reduceMotion ? 0 : 60)
                 .opacity(arrived ? 1 : 0)
                 .animation(.spring(response: 0.7, dampingFraction: 0.8), value: arrived)
             VStack(alignment: .leading, spacing: 2) {
-                Text(BSLocalization.format("第 %lld 张数字唱片", record.number))
+                Text(BSLocalization.format("送你一首和 %lld 有关的歌", record.number))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(BSColor.Stage.foreground)
                 Text("\(record.title) · \(record.artist)")

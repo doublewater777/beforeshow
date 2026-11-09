@@ -59,6 +59,20 @@ struct ShowRecordCard: View {
                 } else {
                     MerchCaptureMenu(source: $merchSource) { half(row) }.buttonStyle(.plain)
                 }
+            } else if kind == .setlist, isFull {
+                VStack(alignment: .leading, spacing: 12) {
+                    Button { isShowingSetlist = true } label: {
+                        VStack(alignment: .leading, spacing: 12) {
+                            header(row)
+                            PlayedSongsPreview(memories: setlist)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    SetlistReplayButton(show: show)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .showModuleCard(surface)
             } else {
                 Button {
                     if kind == .setlist { isShowingSetlist = true } else { isShowingSpending = true }
@@ -102,13 +116,9 @@ struct ShowRecordCard: View {
     private func full(_ row: CurrentShowRecordRow, facts: CurrentShowRecordFacts) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             header(row)
-            if kind == .setlist {
-                PlayedSongsPreview(memories: setlist)
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    if let price = facts.ticketPriceText { amount(BSLocalization.text("票价"), price) }
-                    if let travel = facts.travelCostText { amount(BSLocalization.text("路费"), travel) }
-                }
+            HStack(alignment: .top, spacing: 12) {
+                if let price = facts.ticketPriceText { amount(BSLocalization.text("票价"), price) }
+                if let travel = facts.travelCostText { amount(BSLocalization.text("路费"), travel) }
             }
         }
         .padding(16)
@@ -149,6 +159,46 @@ enum PlayedSongs {
                     isMostSurprising: memory.isMostSurprising
                 )
             }
+    }
+}
+
+/// 把这场听到的歌放进「听」再听一次；正在放这张时变成暂停。对不上可播放曲目时不出现。
+private struct SetlistReplayButton: View {
+    let show: Show
+    @Environment(\.modelContext) private var modelContext
+
+    private var isPlaying: Bool {
+        guard let room = ListeningRoomSessionStore.shared.room else { return false }
+        return room.wantsPlayback && room.loadedDisc?.id == ShowSetlistPlayback.discID(for: show, kind: .replay)
+    }
+
+    var body: some View {
+        if ShowSetlistPlayback.hasPlayableSongs(for: show, in: modelContext) {
+            let showsPause = isPlaying
+            Button {
+                if showsPause, let room = ListeningRoomSessionStore.shared.room {
+                    room.playPause()
+                } else {
+                    let disc = ShowSetlistPlayback.replayDisc(for: show, in: modelContext)
+                    Task { await ShowSetlistPlayback.play(disc) }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: showsPause ? "pause.fill" : "play.fill")
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 14)
+                    Text(showsPause ? BSLocalization.text("暂停") : BSLocalization.text("再听一次"))
+                        .contentTransition(.interpolate)
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.foreground)
+                .padding(.horizontal, 14)
+                .frame(height: 32)
+                .background(Color.white.opacity(0.08), in: Capsule())
+                .animation(.snappy(duration: BSMotion.interface), value: showsPause)
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

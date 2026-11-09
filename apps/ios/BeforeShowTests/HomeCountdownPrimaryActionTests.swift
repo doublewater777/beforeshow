@@ -28,13 +28,13 @@ final class HomeCountdownPrimaryActionTests: XCTestCase {
     private func primary(
         _ show: Show,
         at now: Date,
-        hasPlayedSongs: Bool = false,
+        hasRecord: Bool = false,
         hasFutureShow: Bool = false
     ) -> HomeCountdownLockup.PrimaryAction? {
         HomeCountdownLockup.primaryAction(
             timeState: CurrentShowTimeState(show: show, calendar: calendar, now: now),
             now: now,
-            hasPlayedSongs: hasPlayedSongs,
+            hasRecord: hasRecord,
             hasFutureShow: hasFutureShow
         )
     }
@@ -59,12 +59,12 @@ final class HomeCountdownPrimaryActionTests: XCTestCase {
         XCTAssertNil(primary(festival, at: date(day: 16, hour: 21)))
     }
 
-    func testAfterTheShowReplaysShowSongsOrFallsBackToListen() throws {
+    func testAfterTheShowPlaysTheUnlockedRecordOrFallsBackToListen() throws {
         let show = try show()
         show.markEnded(at: date(day: 15, hour: 22))
         let next = date(day: 16, hour: 10)
-        XCTAssertEqual(primary(show, at: next, hasPlayedSongs: true), .replayShow)
-        XCTAssertEqual(primary(show, at: next, hasPlayedSongs: false), .listen)
+        XCTAssertEqual(primary(show, at: next, hasRecord: true), .playRecord)
+        XCTAssertEqual(primary(show, at: next, hasRecord: false), .listen)
     }
 
     func testAfterRetentionOffersAddShowOnlyWithoutAFutureShow() throws {
@@ -91,7 +91,7 @@ final class HomeCountdownPrimaryActionTests: XCTestCase {
 
     func testOnlyListeningActionsTurnIntoPause() {
         XCTAssertTrue(HomeCountdownLockup.PrimaryAction.listen.playsMusic)
-        XCTAssertTrue(HomeCountdownLockup.PrimaryAction.replayShow.playsMusic)
+        XCTAssertTrue(HomeCountdownLockup.PrimaryAction.playRecord.playsMusic)
         XCTAssertFalse(HomeCountdownLockup.PrimaryAction.route.playsMusic)
         XCTAssertFalse(HomeCountdownLockup.PrimaryAction.addShow.playsMusic)
         XCTAssertFalse(HomeCountdownLockup.PrimaryAction.fillNewDate.playsMusic)

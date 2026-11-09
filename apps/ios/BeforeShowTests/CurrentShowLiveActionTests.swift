@@ -127,28 +127,48 @@ final class CurrentShowLiveActionTests: XCTestCase {
 
     // MARK: Module order
 
-    func testPreShowPutsTheRouteOnTheSecondScreen() {
+    func testPreShowLeadsWithCompanionAndSetlistAndLeavesTheTicketStubLast() {
         let modules = CurrentShowModuleOrder.modules(actions: CurrentShowQuickAction.actions(for: .pre), phase: .pre, timetableIsLive: false)
         XCTAssertEqual(modules, [
-            .action(.ticket), .action(.timetable), .action(.companion), .record(.setlist),
-            .action(.memoryFragments), .action(.route), .record(.merch), .record(.spending)
+            .action(.companion), .record(.setlist), .action(.timetable), .record(.merch), .record(.spending),
+            .action(.route), .action(.memoryFragments), .action(.ticket)
         ])
+    }
+
+    func testTheRouteMapIsNeverTheFirstModule() {
+        for phase in [HomeShowPhase.pre, .live] {
+            let all = CurrentShowQuickAction.actions(for: phase)
+            // 其他模块都被拿掉也不能让路线顶到第一。
+            for actions in [all, [.route, .ticket], [.route, .memoryFragments]] {
+                let modules = CurrentShowModuleOrder.modules(actions: actions, phase: phase, timetableIsLive: false)
+                XCTAssertNotEqual(modules.first, .action(.route), "\(phase) \(actions)")
+            }
+        }
     }
 
     func testLiveTimetableComesFirstDuringTheShow() {
         let modules = CurrentShowModuleOrder.modules(actions: CurrentShowQuickAction.actions(for: .live), phase: .live, timetableIsLive: true)
         XCTAssertEqual(modules, [
             .action(.timetable), .action(.memoryFragments), .record(.setlist), .action(.companion),
-            .record(.merch), .record(.spending), .action(.ticket), .action(.route), .action(.endShow)
+            .record(.merch), .record(.spending), .action(.route), .action(.ticket), .action(.endShow)
         ])
     }
 
-    func testAfterTheShowWhatWasKeptComesBeforeThePrepTools() {
+    func testAfterTheShowAnUnfinishedDispersalLeadsBesideTheCompanion() {
         let actions = CurrentShowQuickAction.actions(for: .ended, isPostShowRetention: true)
         let modules = CurrentShowModuleOrder.modules(actions: actions, phase: .ended, timetableIsLive: false)
         XCTAssertEqual(modules, [
-            .action(.memoryFragments), .record(.setlist), .action(.dispersal(completed: false)), .action(.companion),
+            .action(.dispersal(completed: false)), .action(.companion), .action(.memoryFragments), .record(.setlist),
             .record(.merch), .record(.spending), .action(.ticket), .action(.timetable)
+        ])
+    }
+
+    func testAfterTheShowAFinishedDispersalSinksToTheBottom() {
+        let actions = CurrentShowQuickAction.actions(for: .ended, isPostShowRetention: true, hasCompletedDispersalCeremony: true)
+        let modules = CurrentShowModuleOrder.modules(actions: actions, phase: .ended, timetableIsLive: false)
+        XCTAssertEqual(modules, [
+            .action(.memoryFragments), .record(.setlist), .action(.companion),
+            .record(.merch), .record(.spending), .action(.ticket), .action(.timetable), .action(.dispersal(completed: true))
         ])
     }
 

@@ -51,9 +51,9 @@ extension CurrentShowManagementSection {
         switch action {
         case .listen:
             Task { await ListeningIntentHandler.shared.perform(.play) }
-        case .replayShow:
-            let disc = ShowSetlistPlayback.replayDisc(for: show, in: modelContext)
-            Task { await ShowSetlistPlayback.play(disc) }
+        case .playRecord:
+            guard let record = unlockedRecord else { return }
+            Task { await FootprintNumberSongPlayer.shared.start(record) }
         case .route:
             openRouteChooser()
         case .addShow:
@@ -63,13 +63,19 @@ extension CurrentShowManagementSection {
         }
     }
 
-    private func isPlayingCurrentShowContent(
+    /// 这场散场后解锁的数字唱片；揭晓过才有。
+    var unlockedRecord: FootprintNumberSong? {
+        revealedUnlocks?.showID == show.id ? revealedUnlocks?.record : nil
+    }
+
+    /// 播放机里放的是不是主按钮这件事的内容；是才把按钮当暂停。
+    func isPlayingCurrentShowContent(
         action: HomeCountdownLockup.PrimaryAction,
         in room: ListeningRoomCoordinator
     ) -> Bool {
         switch action {
-        case .replayShow:
-            return room.loadedDisc?.id == "setlist-replay-\(show.id.uuidString)"
+        case .playRecord:
+            return unlockedRecord.map { room.loadedDisc?.id == FootprintNumberSongPlayer.discID($0.number) } ?? false
         case .listen:
             return room.show?.id == show.id
         default:
