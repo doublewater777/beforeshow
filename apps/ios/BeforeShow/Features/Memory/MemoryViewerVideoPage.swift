@@ -84,6 +84,7 @@ enum MemoryVideoListeningHandoff {
 
     static func begin() {
         activePages += 1
+        AppAudioSession.lease(.memoryVideo)
         if interrupted == nil { interrupted = InterruptedListening.capture() }
     }
 
@@ -92,6 +93,7 @@ enum MemoryVideoListeningHandoff {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(400))
             guard activePages == 0 else { return }
+            AppAudioSession.release(.memoryVideo)
             interrupted?.resume()
             interrupted = nil
         }

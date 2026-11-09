@@ -28,6 +28,8 @@ final class FootprintStarSynth: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let voices = OSAllocatedUnfairLock(initialState: [Voice]())
     private let sampleRate: Double
+    private var isStarted = false
+    private var configObserver: (any NSObjectProtocol)?
 
     private init() {
         let output = engine.outputNode.outputFormat(forBus: 0).sampleRate
@@ -84,10 +86,20 @@ final class FootprintStarSynth: @unchecked Sendable {
         engine.attach(source)
         engine.connect(source, to: engine.mainMixerNode, format: format)
         engine.mainMixerNode.outputVolume = 0.7
+
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: nil
+        ) { [weak self] _ in
+            self?.handleConfigurationChange()
+        }
     }
 
     func start() {
-        AppAudioSession.workQueue.async { [engine] in
+        AppAudioSession.workQueue.async { [weak self, engine] in
+            guard let self else { return }
+            self.isStarted = true
             guard !engine.isRunning else { return }
             try? engine.start()
         }
@@ -95,7 +107,21 @@ final class FootprintStarSynth: @unchecked Sendable {
 
     func stop() {
         voices.withLock { $0.removeAll() }
-        AppAudioSession.workQueue.async { [engine] in engine.stop() }
+        AppAudioSession.workQueue.async { [weak self, engine] in
+            guard let self else { return }
+            self.isStarted = false
+            engine.stop()
+        }
+    }
+
+    private func handleConfigurationChange() {
+        voices.withLock { $0.removeAll() }
+        AppAudioSession.workQueue.async { [weak self] in
+            guard let self, self.isStarted else { return }
+            if !self.engine.isRunning {
+                try? self.engine.start()
+            }
+        }
     }
 
     func press(_ id: Int, note: Int, brightness: Double) {

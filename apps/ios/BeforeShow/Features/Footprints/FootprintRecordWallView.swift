@@ -174,7 +174,7 @@ struct FootprintRecordWallView: View {
             Task { await controller.toggle(song) }
             return
         }
-        controller.stopAll()
+        controller.stopAll(resumeListening: false)
         selected = number
         Task { await controller.start(song) }
     }

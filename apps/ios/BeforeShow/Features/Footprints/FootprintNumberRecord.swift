@@ -22,6 +22,7 @@ final class FootprintNumberSongPlayer {
     private var deckRoom: ListeningRoomCoordinator? { room ?? ListeningRoomSessionStore.shared.room }
     /// Bumped by every tap and stop; a request that is no longer the latest never plays.
     private var request = 0
+    @ObservationIgnored private var interruptedListening: InterruptedListening?
 
     init(
         player: any ListeningPlaybackServicing = PreviewListeningPlaybackService(owner: .footprintSong),
@@ -61,12 +62,14 @@ final class FootprintNumberSongPlayer {
     }
 
     func isPlaying(_ number: Int) -> Bool {
+        if let loadingNumber, loadingNumber != number { return false }
         if isOnDeck(number) { return deckRoom?.isPlaying == true }
         return currentNumber == number && player.phase.isActive
     }
 
     /// Paused partway through: tapping again picks up from here.
     func isPaused(_ number: Int) -> Bool {
+        if let loadingNumber, loadingNumber != number { return false }
         if isOnDeck(number) { return deckRoom?.wantsPlayback == false }
         return currentNumber == number && !player.phase.isActive && !player.hasEnded
     }
@@ -74,6 +77,7 @@ final class FootprintNumberSongPlayer {
     /// Fetching the song, or the deck has it but sound hasn't started yet.
     func isPreparing(_ number: Int) -> Bool {
         if loadingNumber == number { return true }
+        if let loadingNumber, loadingNumber != number { return false }
         return isOnDeck(number) && deckRoom?.wantsPlayback == true && deckRoom?.isPlaying == false
     }
 
@@ -83,7 +87,10 @@ final class FootprintNumberSongPlayer {
     var elapsed: TimeInterval { player.currentTime }
 
     /// Whether the song is on the full player (no 30-second cap to show).
-    func isOnSharedDeck(_ number: Int) -> Bool { isOnDeck(number) }
+    func isOnSharedDeck(_ number: Int) -> Bool {
+        if let loadingNumber, loadingNumber != number { return false }
+        return isOnDeck(number)
+    }
 
     /// Fetches covers and details for many records in one request.
     func load(_ songs: [FootprintNumberSong]) async {
@@ -122,6 +129,7 @@ final class FootprintNumberSongPlayer {
         let mine = request
         failedNumber = nil
         if isPaused(song.number) {
+            rememberInterruptedListening()
             do { try await player.play() } catch { if mine == request { failedNumber = song.number } }
             return
         }
@@ -138,6 +146,7 @@ final class FootprintNumberSongPlayer {
             self.room = room
             player.stop()
             currentNumber = nil
+            interruptedListening = nil
             if room.loadedDisc?.id == Self.discID(song.number) {
                 if !room.wantsPlayback { room.playPause() }
             } else {
@@ -145,6 +154,7 @@ final class FootprintNumberSongPlayer {
             }
             return
         }
+        rememberInterruptedListening()
         do {
             try await player.load([ListeningPlaybackItem(
                 songID: String(preview.trackID),
@@ -159,23 +169,36 @@ final class FootprintNumberSongPlayer {
             currentNumber = song.number
             try await player.play()
         } catch {
-            if mine == request { failedNumber = song.number }
+            if mine == request {
+                failedNumber = song.number
+                restoreInterruptedListening()
+            }
         }
     }
 
     /// Stops this record's preview or pending fetch. A song on the shared deck keeps playing:
     /// leaving footprints doesn't end it, the mini player does.
-    func stop(_ number: Int) {
+    func stop(_ number: Int, resumeListening: Bool = true) {
         guard currentNumber == number || loadingNumber == number else { return }
         request += 1
         loadingNumber = nil
         player.stop()
         currentNumber = nil
+        if resumeListening { restoreInterruptedListening() }
     }
 
     /// Stops whatever preview is playing or being fetched.
-    func stopAll() {
-        if let number = currentNumber ?? loadingNumber { stop(number) }
+    func stopAll(resumeListening: Bool = true) {
+        if let number = currentNumber ?? loadingNumber { stop(number, resumeListening: resumeListening) }
+    }
+
+    private func rememberInterruptedListening() {
+        if interruptedListening == nil { interruptedListening = InterruptedListening.capture() }
+    }
+
+    private func restoreInterruptedListening() {
+        defer { interruptedListening = nil }
+        interruptedListening?.resume()
     }
 }
 
