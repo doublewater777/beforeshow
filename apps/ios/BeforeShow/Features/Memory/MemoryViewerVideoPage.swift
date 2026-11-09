@@ -10,6 +10,7 @@ struct MemoryViewerVideoPage: View {
     let isActive: Bool
 
     @State private var player: AVPlayer?
+    @State private var holdsListening = false
 
     var body: some View {
         Group {
@@ -33,7 +34,10 @@ struct MemoryViewerVideoPage: View {
         }
         // When the whole viewer disappears, let SwiftUI/AVKit dismantle its
         // controller before ARC releases the player state. Pausing is enough.
-        .onDisappear { player?.pause() }
+        .onDisappear {
+            player?.pause()
+            letGoOfListening()
+        }
         .onReceive(NotificationCenter.default.publisher(for: AppAudioSession.focusDidChange)) { notification in
             if AppAudioSession.takesFocus(notification, from: .memoryVideo) { player?.pause() }
         }
@@ -44,11 +48,22 @@ struct MemoryViewerVideoPage: View {
             if player == nil {
                 player = AVPlayer(url: url)
             }
+            if !holdsListening {
+                holdsListening = true
+                MemoryVideoListeningHandoff.begin()
+            }
             AppAudioSession.claimFocus(.memoryVideo)
             player?.play()
         } else {
+            letGoOfListening()
             releasePlayer()
         }
+    }
+
+    private func letGoOfListening() {
+        guard holdsListening else { return }
+        holdsListening = false
+        MemoryVideoListeningHandoff.end()
     }
 
     private func releasePlayer() {
@@ -57,5 +72,28 @@ struct MemoryViewerVideoPage: View {
         // dismantling. Dropping our reference is sufficient once the page is no
         // longer rendering VideoPlayer.
         player = nil
+    }
+}
+
+/// Music paused by a memory video comes back once no video page is showing. Paging from one
+/// video straight to the next keeps it paused instead of letting it blip in between.
+@MainActor
+enum MemoryVideoListeningHandoff {
+    private static var interrupted: InterruptedListening?
+    private static var activePages = 0
+
+    static func begin() {
+        activePages += 1
+        if interrupted == nil { interrupted = InterruptedListening.capture() }
+    }
+
+    static func end() {
+        activePages = max(0, activePages - 1)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard activePages == 0 else { return }
+            interrupted?.resume()
+            interrupted = nil
+        }
     }
 }

@@ -8,6 +8,10 @@ import Foundation
     }
 
     func deckDidFinish() {
+        if ListeningCutIn.returnSeatedDisc(afterFinishing: loadedDisc?.id, in: self) {
+            syncWidgetListeningState()
+            return
+        }
         widgetSync.finishedDiscID = loadedDisc?.id
         advanceShuffle()
         syncWidgetListeningState()

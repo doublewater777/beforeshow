@@ -12,7 +12,7 @@ final class ListeningPickAudition {
 
     @ObservationIgnored private let playback = PreviewListeningPlaybackService(owner: .pickAudition)
     @ObservationIgnored private var task: Task<Void, Never>?
-    @ObservationIgnored private var interrupted: (room: ListeningRoomCoordinator, songID: String, discID: String)?
+    @ObservationIgnored private var interrupted: InterruptedListening?
     @ObservationIgnored private var focusObserver: NSObjectProtocol?
 
     init() {
@@ -63,25 +63,10 @@ final class ListeningPickAudition {
         discID = nil
         isPlaying = false
         defer { interrupted = nil }
-        guard resumeListening, let interrupted,
-              ListeningRoomSessionStore.shared.room === interrupted.room,
-              TimetablePreviewResumePolicy.shouldResume(
-                originalSongID: interrupted.songID,
-                originalDiscID: interrupted.discID,
-                currentSongID: interrupted.room.deck.cursorSongID,
-                currentDiscID: interrupted.room.deck.currentDisc?.id,
-                phase: interrupted.room.deck.phase
-              ),
-              interrupted.room.playPauseAction == .play else { return }
-        interrupted.room.playPause()
+        if resumeListening { interrupted?.resume() }
     }
 
     private func rememberInterruptedListening() {
-        guard interrupted == nil,
-              let room = ListeningRoomSessionStore.shared.room,
-              room.deck.wantsPlayback,
-              let songID = room.deck.cursorSongID,
-              let discID = room.deck.currentDisc?.id else { return }
-        interrupted = (room, songID, discID)
+        if interrupted == nil { interrupted = InterruptedListening.capture() }
     }
 }

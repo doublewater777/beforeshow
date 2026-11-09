@@ -25,12 +25,6 @@ final class TimetablePreviewPlayer {
     @ObservationIgnored private var interruptedListening: InterruptedListening?
     @ObservationIgnored private var focusObserver: NSObjectProtocol?
 
-    private struct InterruptedListening {
-        weak var room: ListeningRoomCoordinator?
-        let songID: String
-        let discID: String
-    }
-
     private init() {
         focusObserver = AppAudioSession.observeFocusLoss(of: .timetablePreview) { [weak self] in
             // Another in-app source won focus: do not resurrect the old session.
@@ -112,28 +106,12 @@ final class TimetablePreviewPlayer {
     }
 
     private func rememberInterruptedListening() {
-        guard interruptedListening == nil,
-              let room = ListeningRoomSessionStore.shared.room,
-              room.deck.wantsPlayback,
-              let songID = room.deck.cursorSongID,
-              let discID = room.deck.currentDisc?.id else { return }
-        interruptedListening = InterruptedListening(room: room, songID: songID, discID: discID)
+        if interruptedListening == nil { interruptedListening = InterruptedListening.capture() }
     }
 
     private func restoreInterruptedListening() {
         defer { interruptedListening = nil }
-        guard let interruptedListening,
-              let room = interruptedListening.room,
-              ListeningRoomSessionStore.shared.room === room,
-              TimetablePreviewResumePolicy.shouldResume(
-                originalSongID: interruptedListening.songID,
-                originalDiscID: interruptedListening.discID,
-                currentSongID: room.deck.cursorSongID,
-                currentDiscID: room.deck.currentDisc?.id,
-                phase: room.deck.phase
-              ),
-              room.playPauseAction == .play else { return }
-        room.playPause()
+        interruptedListening?.resume()
     }
 
     private func showToast(for performanceID: UUID, title: String, isError: Bool = false) {
@@ -220,16 +198,3 @@ final class TimetablePreviewPlayer {
     }
 }
 
-enum TimetablePreviewResumePolicy {
-    static func shouldResume(
-        originalSongID: String,
-        originalDiscID: String,
-        currentSongID: String?,
-        currentDiscID: String?,
-        phase: ListeningPlayerPhase
-    ) -> Bool {
-        originalSongID == currentSongID
-            && originalDiscID == currentDiscID
-            && phase == .paused
-    }
-}

@@ -1041,7 +1041,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         persistLoadedDisc(force: true)
         prewarmLoadedDisc()
     }
-    func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true) {
+    func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true, resumeAt time: TimeInterval = 0) {
         if loadedDisc == disc {
             guard let songID else { return }
             selectTrack(songID, autoplay: autoplay)
@@ -1050,7 +1050,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         if autoplay { AppAudioSession.claimFocus(.listening) }
         deck.endSession(); shuffleRun = nil
         loadedDisc = disc
-        deck.load([disc], cursor: songID)
+        deck.load([disc], cursor: songID, resumeAt: time)
         persistLoadedDisc(force: true)
         if autoplay {
             startPlaybackIfPossible()

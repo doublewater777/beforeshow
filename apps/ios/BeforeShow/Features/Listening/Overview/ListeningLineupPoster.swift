@@ -82,7 +82,7 @@ struct ListeningPosterLayout: View {
         // The cover stays pinned behind the title; unfolding only lengthens the bill below it.
         // It extends upward behind the page header and into the top safe area so the ambient cover glows through.
         .background(alignment: .top) {
-            let headerReach: CGFloat = 120
+            let headerReach: CGFloat = 200
             // The cover fades out to transparent so it melts into the room's tinted light below.
             Color.clear
                 .frame(height: ListeningOverviewStyle.posterHeight + headerReach)

@@ -190,7 +190,7 @@ final class TimetableExperienceTests: XCTestCase {
 
     func testTimetablePreviewOnlyResumesTheOriginalPausedTrack() {
         func canResume(song: String? = "song-a", disc: String? = "disc-a", phase: ListeningPlayerPhase = .paused) -> Bool {
-            TimetablePreviewResumePolicy.shouldResume(
+            ListeningResumePolicy.shouldResume(
                 originalSongID: "song-a",
                 originalDiscID: "disc-a",
                 currentSongID: song,

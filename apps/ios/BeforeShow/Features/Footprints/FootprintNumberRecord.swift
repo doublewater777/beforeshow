@@ -141,7 +141,7 @@ final class FootprintNumberSongPlayer {
             if room.loadedDisc?.id == Self.discID(song.number) {
                 if !room.wantsPlayback { room.playPause() }
             } else {
-                room.loadDisc(Self.disc(for: song, preview: preview))
+                ListeningCutIn.play(Self.disc(for: song, preview: preview), over: room)
             }
             return
         }
