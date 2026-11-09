@@ -66,7 +66,7 @@ final class CurrentShowLiveActionTests: XCTestCase {
         )
         XCTAssertEqual(unfinished.first, .dispersal(completed: false))
         XCTAssertEqual(unfinished, [
-            .dispersal(completed: false), .memoryFragments, .companion, .timetable, .ticket
+            .dispersal(completed: false), .memoryFragments, .ticket, .companion, .timetable
         ])
 
         let completed = CurrentShowQuickAction.actions(
@@ -76,7 +76,7 @@ final class CurrentShowLiveActionTests: XCTestCase {
             hasCompletedDispersalCeremony: true
         )
         XCTAssertEqual(completed, [
-            .dispersal(completed: true), .memoryFragments, .companion, .timetable, .ticket
+            .dispersal(completed: true), .memoryFragments, .ticket, .companion, .timetable
         ])
 
         let archived = CurrentShowQuickAction.actions(
@@ -125,16 +125,48 @@ final class CurrentShowLiveActionTests: XCTestCase {
         )
     }
 
-    // MARK: Inline module layout
+    // MARK: Module order
 
-    func testLoneSquareModuleKeepsItsLifecyclePosition() {
-        let rows = CurrentShowInlineLayout.rows(for: [.timetable, .companion, .memoryFragments, .route, .ticket])
-        XCTAssertEqual(rows, [.wide(.timetable), .strip(.companion), .wide(.memoryFragments), .wide(.route), .wide(.ticket)])
+    func testPreShowPutsTheRouteOnTheSecondScreen() {
+        let modules = CurrentShowModuleOrder.modules(actions: CurrentShowQuickAction.actions(for: .pre), phase: .pre, timetableIsLive: false)
+        XCTAssertEqual(modules, [
+            .action(.ticket), .action(.timetable), .action(.companion), .record(.setlist),
+            .action(.memoryFragments), .action(.route), .record(.merch), .record(.spending)
+        ])
     }
 
-    func testSquareModulesPairAtTheFirstOnesPosition() {
-        let rows = CurrentShowInlineLayout.rows(for: [.dispersal(completed: false), .memoryFragments, .companion, .ticket])
-        XCTAssertEqual(rows, [.pair(.dispersal(completed: false), .companion), .wide(.memoryFragments), .wide(.ticket)])
+    func testLiveTimetableComesFirstDuringTheShow() {
+        let modules = CurrentShowModuleOrder.modules(actions: CurrentShowQuickAction.actions(for: .live), phase: .live, timetableIsLive: true)
+        XCTAssertEqual(modules, [
+            .action(.timetable), .action(.memoryFragments), .record(.setlist), .action(.companion),
+            .record(.merch), .record(.spending), .action(.ticket), .action(.route), .action(.endShow)
+        ])
+    }
+
+    func testAfterTheShowWhatWasKeptComesBeforeThePrepTools() {
+        let actions = CurrentShowQuickAction.actions(for: .ended, isPostShowRetention: true)
+        let modules = CurrentShowModuleOrder.modules(actions: actions, phase: .ended, timetableIsLive: false)
+        XCTAssertEqual(modules, [
+            .action(.memoryFragments), .record(.setlist), .action(.dispersal(completed: false)), .action(.companion),
+            .record(.merch), .record(.spending), .action(.ticket), .action(.timetable)
+        ])
+    }
+
+    func testModulesFollowTheGivenActionsWhenNoShowIsOn() {
+        let actions = CurrentShowQuickAction.actions(for: .inactive)
+        XCTAssertEqual(CurrentShowModuleOrder.modules(actions: actions, phase: .inactive, timetableIsLive: false), actions.map(CurrentShowModule.action))
+    }
+
+    // MARK: Grid
+
+    func testHalfCardsPairInOrderAndPullTheNextHalfPastAFullCard() {
+        let rows = ShowModuleGridLayout.rows([("a", .half), ("b", .half), ("c", .full), ("d", .half), ("e", .full), ("f", .half)])
+        XCTAssertEqual(rows, [.pair("a", "b"), .full("c"), .pair("d", "f"), .full("e")])
+    }
+
+    func testALoneHalfCardStretchesInItsOwnPlace() {
+        let rows = ShowModuleGridLayout.rows([("a", .full), ("b", .half), ("c", .full)])
+        XCTAssertEqual(rows, [.full("a"), .single("b"), .full("c")])
     }
 
     func testEndedShowDropsRouteFromModules() {

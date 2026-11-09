@@ -49,7 +49,7 @@ enum CurrentShowQuickAction: Hashable {
         let actions: [Self]
         switch phase {
         case .pre:
-            actions = [.timetable, .companion, .memoryFragments, .route, .ticket]
+            actions = [.route, .ticket, .timetable, .companion, .memoryFragments]
         case .live:
             var live: [Self] = [.memoryFragments, .companion, .route, .timetable, .ticket]
             if canRecordEnd {
@@ -61,13 +61,13 @@ enum CurrentShowQuickAction: Hashable {
                 actions = [
                     .dispersal(completed: hasCompletedDispersalCeremony),
                     .memoryFragments,
+                    .ticket,
                     .companion,
-                    .timetable,
-                    .ticket
+                    .timetable
                 ]
             } else {
                 // 散场后路线已经用不上。
-                actions = [.memoryFragments, .companion, .timetable, .ticket]
+                actions = [.memoryFragments, .ticket, .companion, .timetable]
             }
         case .inactive:
             actions = [.route, .companion, .timetable, .memoryFragments, .ticket]
@@ -80,47 +80,5 @@ enum CurrentShowQuickAction: Hashable {
         primaryAction: HomeCountdownLockup.PrimaryAction?
     ) -> [Self] {
         primaryAction == .route ? actions.filter { $0 != .route } : actions
-    }
-}
-
-struct CompanionAvatarStack: View {
-    let names: [String]
-
-    private static let maxVisibleOthers = 3
-    private static let palettes: [[Color]] = [
-        [BSColor.Stage.accent, BSColor.Stage.glowBlue],
-        [BSColor.Accent.violet, BSColor.Stage.accent],
-        [BSColor.Accent.warm, BSColor.Accent.violet],
-        [BSColor.Stage.glowBlue, BSColor.Accent.warm]
-    ]
-
-    var body: some View {
-        let visible = Array(CompanionNameList.normalized(names).prefix(Self.maxVisibleOthers))
-        let overflow = max(0, CompanionNameList.normalized(names).count - visible.count)
-        return HStack(spacing: -8) {
-            avatar(BSLocalization.text("我"), colors: Self.palettes[0])
-            ForEach(Array(visible.enumerated()), id: \.offset) { index, name in
-                avatar(initial(name), colors: Self.palettes[(index + 1) % Self.palettes.count])
-            }
-            if overflow > 0 {
-                avatar("+\(overflow)", colors: [BSColor.Stage.muted, BSColor.Stage.dim])
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func initial(_ name: String) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? BSLocalization.text("友") : String(trimmed.prefix(1))
-    }
-
-    private func avatar(_ text: String, colors: [Color]) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(BSColor.Stage.background)
-            .frame(width: 25, height: 25)
-            .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(BSColor.Stage.surface, lineWidth: 2))
     }
 }

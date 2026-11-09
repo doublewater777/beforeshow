@@ -36,19 +36,19 @@ struct CurrentShowRecordRow: Identifiable, Equatable {
 }
 
 enum CurrentShowRecordKit {
-    static func title(for phase: HomeShowPhase) -> String? {
-        switch phase {
-        case .inactive: return nil
-        case .pre: return nil
-        case .live: return BSLocalization.text("此刻")
-        case .ended: return BSLocalization.text("留下的东西")
-        }
-    }
-
     static func kinds(for phase: HomeShowPhase) -> [CurrentShowRecordKind] {
         switch phase {
         case .inactive: return []
         case .pre, .live, .ended: return [.setlist, .merch, .spending]
+        }
+    }
+
+    /// 有东西可看才占整行：散场后听到的歌、拍下的周边、填过的花销。
+    static func width(_ kind: CurrentShowRecordKind, phase: HomeShowPhase, facts: CurrentShowRecordFacts) -> ShowModuleWidth {
+        switch kind {
+        case .setlist: (phase == .ended || phase == .inactive) && facts.playedSetlistCount > 0 ? .full : .half
+        case .merch: facts.merchCount > 0 ? .full : .half
+        case .spending: facts.ticketPriceText != nil || facts.travelCostText != nil ? .full : .half
         }
     }
 
@@ -58,7 +58,6 @@ enum CurrentShowRecordKit {
 
     static func row(_ kind: CurrentShowRecordKind, phase: HomeShowPhase, facts: CurrentShowRecordFacts) -> CurrentShowRecordRow {
         let open = "›"
-        let none = BSLocalization.text("还没有")
         switch kind {
         case .setlist:
             switch phase {
@@ -68,7 +67,7 @@ enum CurrentShowRecordKit {
                 return .init(
                     kind: kind,
                     title: BSLocalization.text("歌单"),
-                    subtitle: has ? BSLocalization.format("%lld 首", facts.setlistCount) : none,
+                    subtitle: has ? BSLocalization.format("%lld 首", facts.setlistCount) : nil,
                     action: action,
                     isFilled: has,
                     emphasizesAction: !has
@@ -77,7 +76,7 @@ enum CurrentShowRecordKit {
                 let played = facts.playedSetlistCount
                 let total = facts.setlistCount
                 let action = BSLocalization.text("打勾")
-                let sub = total > 0 ? BSLocalization.format("已唱 %lld / %lld", played, total) : none
+                let sub = total > 0 ? BSLocalization.format("已唱 %lld / %lld", played, total) : nil
                 return .init(
                     kind: kind,
                     title: BSLocalization.text("歌单"),
@@ -93,7 +92,7 @@ enum CurrentShowRecordKit {
                 return .init(
                     kind: kind,
                     title: BSLocalization.text("现场听到了"),
-                    subtitle: hasPlayed ? BSLocalization.format("%lld 首", count) : none,
+                    subtitle: hasPlayed ? BSLocalization.format("%lld 首", count) : nil,
                     action: action,
                     isFilled: hasPlayed,
                     emphasizesAction: !hasPlayed
@@ -102,16 +101,13 @@ enum CurrentShowRecordKit {
         case .merch:
             let has = facts.merchCount > 0
             return .init(kind: kind, title: BSLocalization.text("周边"),
-                         subtitle: has ? BSLocalization.format("%lld 件", facts.merchCount) : none,
+                         subtitle: has ? BSLocalization.format("%lld 件", facts.merchCount) : nil,
                          action: BSLocalization.text("拍一张"), isFilled: has, emphasizesAction: !has)
         case .spending:
             let has = facts.ticketPriceText != nil || facts.travelCostText != nil
             let complete = facts.ticketPriceText != nil && facts.travelCostText != nil
-            let subtitle = has ? [
-                facts.ticketPriceText.map { BSLocalization.format("票价 %@", $0) } ?? BSLocalization.text("票价还没填"),
-                facts.travelCostText.map { BSLocalization.format("路费 %@", $0) } ?? BSLocalization.text("路费还没填")
-            ].joined(separator: " · ") : none
-            return .init(kind: kind, title: BSLocalization.text("花销"), subtitle: subtitle,
+            // 金额在卡片里分栏展示，没填的那栏不出现。
+            return .init(kind: kind, title: BSLocalization.text("花销"), subtitle: nil,
                          action: complete ? open : BSLocalization.text(phase == .ended ? "补上" : "填上"), isFilled: has, emphasizesAction: !complete)
         }
     }

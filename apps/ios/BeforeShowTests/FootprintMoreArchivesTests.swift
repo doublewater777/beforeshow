@@ -117,11 +117,8 @@ final class FootprintMoreArchivesTests: XCTestCase {
     func testRecordKitSectionsFollowPhase() {
         // 周边和花销从开场前就能记，不用等散场。
         XCTAssertEqual(CurrentShowRecordKit.kinds(for: .pre), [.setlist, .merch, .spending])
-        XCTAssertNil(CurrentShowRecordKit.title(for: .pre))
         XCTAssertEqual(CurrentShowRecordKit.kinds(for: .live), [.setlist, .merch, .spending])
         XCTAssertEqual(CurrentShowRecordKit.kinds(for: .ended), [.setlist, .merch, .spending])
-        // 与现场详情、足迹详情同一个名字。
-        XCTAssertEqual(CurrentShowRecordKit.title(for: .ended), "留下的东西")
     }
 
     func testRecordKitRowsReflectRealState() {
@@ -131,7 +128,9 @@ final class FootprintMoreArchivesTests: XCTestCase {
         let ended = CurrentShowRecordKit.rows(phase: .ended, facts: facts)
         let byKind = Dictionary(uniqueKeysWithValues: ended.map { ($0.kind, $0) })
         XCTAssertEqual(byKind[.setlist]?.action, "›")
-        XCTAssertEqual(byKind[.spending]?.subtitle, "票价 ¥380 · 路费还没填")
+        // 花销的数值在卡片里分栏，没填的不展示。
+        XCTAssertNil(byKind[.spending]?.subtitle)
+        XCTAssertNil(byKind[.merch]?.subtitle)
         XCTAssertEqual(byKind[.spending]?.action, "补上")
         XCTAssertEqual(byKind[.spending]?.emphasizesAction, true)
         XCTAssertEqual(byKind[.merch]?.action, "拍一张")
@@ -144,5 +143,21 @@ final class FootprintMoreArchivesTests: XCTestCase {
         // 还没散场时花销是「填上」，散场后才是「补上」。
         let pre = CurrentShowRecordKit.rows(phase: .pre, facts: facts)
         XCTAssertEqual(pre.first { $0.kind == .spending }?.action, "填上")
+    }
+
+    func testRecordCardsGoFullWidthOnlyWhenThereIsSomethingToLookAt() {
+        var facts = CurrentShowRecordFacts()
+        XCTAssertEqual(CurrentShowRecordKit.width(.setlist, phase: .ended, facts: facts), .half)
+        XCTAssertEqual(CurrentShowRecordKit.width(.merch, phase: .pre, facts: facts), .half)
+        XCTAssertEqual(CurrentShowRecordKit.width(.spending, phase: .pre, facts: facts), .half)
+        facts.setlistCount = 3
+        // 开场前的歌单只是个数，散场后听到的歌才列出来。
+        XCTAssertEqual(CurrentShowRecordKit.width(.setlist, phase: .pre, facts: facts), .half)
+        facts.playedSetlistCount = 2
+        XCTAssertEqual(CurrentShowRecordKit.width(.setlist, phase: .ended, facts: facts), .full)
+        facts.merchCount = 1
+        XCTAssertEqual(CurrentShowRecordKit.width(.merch, phase: .pre, facts: facts), .full)
+        facts.travelCostText = "¥120"
+        XCTAssertEqual(CurrentShowRecordKit.width(.spending, phase: .pre, facts: facts), .full)
     }
 }

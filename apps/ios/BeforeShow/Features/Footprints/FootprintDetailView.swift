@@ -203,12 +203,8 @@ struct FootprintDetailView: View {
                         entries: ShowAssetManagementPolicy.entries(for: show, assets: assets),
                         assetFor: asset(for:),
                         recordKinds: CurrentShowRecordKit.kinds(for: .ended),
-                        onSelect: { showingAssetKind = $0 }
-                    )
-                    ShowCompanionSection(
-                        names: show.companionNames,
-                        sharedCount: { name in max(1, archive.shows.filter { $0.companionNames.contains(name) }.count) },
-                        onEdit: { isShowingCompanionEditor = true }
+                        onSelect: { showingAssetKind = $0 },
+                        onEditCompanion: { isShowingCompanionEditor = true }
                     )
                     BSProgrammeInfo(rows: infoRows)
                 }

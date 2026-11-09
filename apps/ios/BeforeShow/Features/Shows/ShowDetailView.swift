@@ -105,9 +105,9 @@ struct ShowDetailView: View {
                             assetFor: { kind in showAssets.first { $0.kind == kind } },
                             recordKinds: CurrentShowRecordKit.kinds(for: HomeShowPhase(timeState: timeState)),
                             recordPhase: HomeShowPhase(timeState: timeState),
-                            onSelect: { presentedSheet = .asset($0) }
+                            onSelect: { presentedSheet = .asset($0) },
+                            onEditCompanion: { presentedSheet = .companion }
                         )
-                        ShowCompanionSection(names: show.companionNames) { presentedSheet = .companion }
                         BSProgrammeInfo(rows: programmeRows)
                     }
                     .padding(.horizontal, BSSpacing.roomy)

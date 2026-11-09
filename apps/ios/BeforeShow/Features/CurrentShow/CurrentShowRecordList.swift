@@ -1,35 +1,13 @@
 import SwiftData
 import SwiftUI
 
-/// 当前 tab 模块下方的记录行：开场前只有歌单一行（不加标题），之后是「此刻 / 留下的东西」：与足迹详情同一组记录行，换成首页的磨砂模块。
-struct CurrentShowRecordSection: View {
+/// 歌单 / 周边 / 花销各一张卡：内容简单时是半卡，有东西可看时占整行。每张卡只开一层：
+/// 歌单、花销各一张 sheet，周边直接相机或相册；保存结果留在卡里。
+struct ShowRecordCard: View {
     let show: Show
-    let phase: HomeShowPhase
-
-    var body: some View {
-        let kinds = CurrentShowRecordKit.kinds(for: phase)
-        if !kinds.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                if let title = CurrentShowRecordKit.title(for: phase) {
-                    Text(title)
-                        .font(BSFont.Editorial.caps(13))
-                        .tracking(1.5)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .padding(.leading, 4)
-                        .accessibilityAddTraits(.isHeader)
-                }
-                ShowRecordRows(show: show, kinds: kinds, phase: phase)
-                    .bsGlassCard(cornerRadius: 24)
-            }
-        }
-    }
-}
-
-/// 每行只开一层：现场听到了 / 花销各一张 sheet，周边直接相机或相册；保存结果留在行内。
-struct ShowRecordRows: View {
-    let show: Show
-    let kinds: [CurrentShowRecordKind]
+    let kind: CurrentShowRecordKind
     var phase: HomeShowPhase = .ended
+    let surface: ShowModuleSurface
 
     @Query private var setlist: [ShowSetlistMemory]
     @State private var isShowingSetlist = false
@@ -40,58 +18,57 @@ struct ShowRecordRows: View {
     @State private var viewingMerch: MerchItem?
     @Environment(\.modelContext) private var modelContext
 
-    init(show: Show, kinds: [CurrentShowRecordKind], phase: HomeShowPhase = .ended) {
+    init(show: Show, kind: CurrentShowRecordKind, phase: HomeShowPhase = .ended, surface: ShowModuleSurface) {
         self.show = show
-        self.kinds = kinds
+        self.kind = kind
         self.phase = phase
+        self.surface = surface
         let showID = show.id
         _setlist = Query(filter: #Predicate<ShowSetlistMemory> { $0.showID == showID })
     }
 
-    private var rows: [CurrentShowRecordRow] {
-        let facts = CurrentShowRecordFacts(
+    static func facts(show: Show, setlist: [ShowSetlistMemory]) -> CurrentShowRecordFacts {
+        CurrentShowRecordFacts(
             setlistCount: setlist.count,
             playedSetlistCount: setlist.filter(\.isPlayed).count,
             merchCount: show.merchItems.count,
             ticketPriceText: show.formattedSpending(show.ticketPrice),
             travelCostText: show.formattedSpending(show.travelCost)
         )
-        return kinds.map { CurrentShowRecordKit.row($0, phase: phase, facts: facts) }
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                if index > 0 { Divider().overlay(Color.white.opacity(0.1)).padding(.leading, 52) }
-                if row.kind == .merch {
-                    VStack(spacing: 0) {
-                        MerchCaptureMenu(source: $merchSource) { label(row) }.buttonStyle(.plain)
-                        // What was bought shows here, not only the way to add more.
-                        if !show.merchItems.isEmpty {
-                            MerchStrip(
-                                items: show.merchItems.sorted { $0.createdAt < $1.createdAt },
-                                onView: { viewingMerch = $0 },
-                                onEdit: { editingMerch = $0 },
-                                onDelete: { item in Task { try? await MerchCaptureCoordinator.delete(item, in: modelContext) } }
-                            )
-                        }
+        let facts = Self.facts(show: show, setlist: setlist)
+        let row = CurrentShowRecordKit.row(kind, phase: phase, facts: facts)
+        let isFull = CurrentShowRecordKit.width(kind, phase: phase, facts: facts) == .full
+        Group {
+            if kind == .merch {
+                if isFull {
+                    VStack(alignment: .leading, spacing: 12) {
+                        MerchCaptureMenu(source: $merchSource) { header(row) }.buttonStyle(.plain)
+                        MerchStrip(
+                            items: show.merchItems.sorted { $0.createdAt < $1.createdAt },
+                            onView: { viewingMerch = $0 },
+                            onEdit: { editingMerch = $0 },
+                            onDelete: { item in Task { try? await MerchCaptureCoordinator.delete(item, in: modelContext) } }
+                        )
                     }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .showModuleCard(surface)
                 } else {
-                    Button {
-                        if row.kind == .setlist { isShowingSetlist = true } else { isShowingSpending = true }
-                    } label: {
-                        VStack(spacing: 0) {
-                            label(row)
-                            // After the show the songs heard are listed right under their row.
-                            if row.kind == .setlist, phase == .ended || phase == .inactive, setlist.contains(where: \.isPlayed) {
-                                PlayedSongsPreview(memories: setlist)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
+                    MerchCaptureMenu(source: $merchSource) { half(row) }.buttonStyle(.plain)
                 }
+            } else {
+                Button {
+                    if kind == .setlist { isShowingSetlist = true } else { isShowingSpending = true }
+                } label: {
+                    if isFull { full(row, facts: facts) } else { half(row) }
+                }
+                .buttonStyle(.plain)
             }
         }
+        .animation(.easeOut(duration: 0.2), value: row)
         .sheet(isPresented: $isShowingSetlist) { ShowSetlistSheet(show: show, forcedPhase: phase) }
         .sheet(isPresented: $isShowingSpending) { ShowSpendingSheet(show: show) }
         .sheet(item: $editingMerch) { MerchEditSheet(item: $0) }
@@ -102,34 +79,53 @@ struct ShowRecordRows: View {
         .onChange(of: merchSource) { _, source in if source != nil { merchFailed = false } }
     }
 
-    private func label(_ row: CurrentShowRecordRow) -> some View {
-        let failed = row.kind == .merch && merchFailed
-        return HStack(spacing: 12) {
-            Image(systemName: row.iconName)
-                .font(.system(size: 17))
-                .foregroundStyle(BSColor.Stage.foreground.opacity(row.isFilled ? 0.9 : 0.4))
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                if let subtitle = failed ? BSLocalization.text("照片没有保存，请重试") : row.subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(failed ? BSColor.Stage.live : BSColor.Stage.muted)
-                        .lineLimit(1)
+    private var failureText: String? {
+        kind == .merch && merchFailed ? BSLocalization.text("照片没有保存，请重试") : nil
+    }
+
+    private func header(_ row: CurrentShowRecordRow) -> some View {
+        ShowModuleHeader(title: row.title, status: failureText ?? row.subtitle, action: row.action, emphasizesAction: row.emphasizesAction)
+            .contentShape(Rectangle())
+    }
+
+    private func half(_ row: CurrentShowRecordRow) -> some View {
+        ShowModuleIconCard(
+            title: row.title,
+            status: failureText ?? row.subtitle,
+            action: row.action,
+            emphasizesAction: row.emphasizesAction,
+            iconName: row.iconName,
+            surface: surface
+        )
+    }
+
+    private func full(_ row: CurrentShowRecordRow, facts: CurrentShowRecordFacts) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header(row)
+            if kind == .setlist {
+                PlayedSongsPreview(memories: setlist)
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    if let price = facts.ticketPriceText { amount(BSLocalization.text("票价"), price) }
+                    if let travel = facts.travelCostText { amount(BSLocalization.text("路费"), travel) }
                 }
             }
-            Spacer(minLength: 10)
-            Text(row.action)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(row.emphasizesAction ? BSColor.Stage.accent : BSColor.Stage.foreground.opacity(0.4))
         }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 60)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .animation(.easeOut(duration: 0.2), value: row)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .showModuleCard(surface)
+    }
+
+    private func amount(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(BSColor.Stage.muted)
+            Text(value)
+                .font(BSFont.Editorial.serif(20))
+                .foregroundStyle(BSColor.Stage.foreground)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -199,9 +195,6 @@ private struct PlayedSongsPreview: View {
                     .foregroundStyle(BSColor.Stage.muted)
             }
         }
-        .padding(.leading, 52)
-        .padding(.trailing, 16)
-        .padding(.bottom, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
@@ -240,9 +233,6 @@ private struct MerchStrip: View {
                     .accessibilityLabel(item.displayName)
                 }
             }
-            .padding(.leading, 52)
-            .padding(.trailing, 16)
         }
-        .padding(.bottom, 14)
     }
 }
