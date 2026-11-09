@@ -24,6 +24,8 @@ final class ListeningTestPlayer: ListeningPlaybackServicing {
     @ObservationIgnored var skipsItemsWithoutPreview: Bool
     /// When false, Play/Pause wait for the test to report the new phase.
     @ObservationIgnored var acknowledgesCommands = true
+    /// Like MusicKit, a skip can return before the player reports its new song.
+    @ObservationIgnored var skipLandingDelay: Duration?
 
     // Recording
     @ObservationIgnored private(set) var loadCount = 0
@@ -96,8 +98,7 @@ final class ListeningTestPlayer: ListeningPlaybackServicing {
     func skip(to songID: String) async throws {
         guard queuedSongIDs.contains(songID) else { throw ListeningPlaybackError.songUnavailable(songID) }
         jumps.append(songID)
-        currentSongID = songID
-        currentTime = 0
+        land(on: songID)
     }
 
     func stop() {
@@ -132,8 +133,20 @@ final class ListeningTestPlayer: ListeningPlaybackServicing {
               queuedSongIDs.indices.contains(index + delta) else {
             throw ListeningPlaybackError.queueBoundary
         }
-        self.currentSongID = queuedSongIDs[index + delta]
-        currentTime = 0
+        land(on: queuedSongIDs[index + delta])
+    }
+
+    private func land(on songID: String) {
+        guard let skipLandingDelay else {
+            currentSongID = songID
+            currentTime = 0
+            return
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: skipLandingDelay)
+            self?.currentSongID = songID
+            self?.currentTime = 0
+        }
     }
 }
 

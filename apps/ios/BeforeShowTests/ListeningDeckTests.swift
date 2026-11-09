@@ -167,6 +167,23 @@ final class ListeningDeckTests: XCTestCase {
         XCTAssertEqual(factory.last.loadCount, 1)
     }
 
+    func testNextNeverBouncesBackWhileThePlayerIsStillOnTheOldSong() async throws {
+        let factory = PlayerFactory { $0.skipLandingDelay = .milliseconds(150) }
+        let deck = ListeningDeck(makeEngine: factory.make)
+        deck.load([album("a", songs: ["a1", "a2", "a3"])], cursor: "a1")
+        deck.play(source: .fullCatalog)
+        try await waitUntil { deck.isPlaying }
+
+        for (delta, target) in [(1, "a2"), (-1, "a1")] {
+            deck.skip(by: delta, source: .fullCatalog)
+            await deck.settle()
+            XCTAssertNotEqual(factory.last.currentSongID, target, "the player has not landed yet")
+            XCTAssertEqual(deck.cursorSongID, target, "the old song must not flash back")
+            try await waitUntil { factory.last.currentSongID == target }
+            XCTAssertEqual(deck.cursorSongID, target)
+        }
+    }
+
     func testCursorFollowsNaturalPlaybackAcrossCompilationVolumes() async throws {
         let factory = PlayerFactory()
         let deck = ListeningDeck(makeEngine: factory.make)

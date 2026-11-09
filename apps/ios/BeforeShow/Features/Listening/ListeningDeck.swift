@@ -238,11 +238,10 @@ final class ListeningDeck {
         if continues, let source, isQueueLoaded, let engine, engine.source == source,
            engine.failure == nil, engine.queuedSongIDs.contains(songID) {
             recordSample(immediate: false)
-            navigatingTargetSongID = songID
             moveCursor(to: songID)
             failed = false
             command = .play
-            perform { engine in
+            perform(navigatingTo: songID) { engine in
                 if engine.currentSongID != songID {
                     try await engine.skip(to: songID)
                 }
@@ -255,7 +254,7 @@ final class ListeningDeck {
         }
         unloadQueue()
         command = nil; failed = false; resumeTime = 0
-        navigatingTargetSongID = songID; moveCursor(to: songID)
+        moveCursor(to: songID)
         if continues, let source {
             play(source: source)
         } else {
@@ -276,10 +275,9 @@ final class ListeningDeck {
             return
         }
         recordSample(immediate: false)
-        navigatingTargetSongID = target
         moveCursor(to: target)
         if wantsPlayback { command = .play }
-        perform { engine in
+        perform(navigatingTo: target) { engine in
             // Decided against the player's position when the command runs, so
             // quick repeated taps stay correct while earlier ones are in flight.
             let queue = engine.queuedSongIDs
@@ -431,9 +429,11 @@ final class ListeningDeck {
         onTransportChange()
     }
 
-    private func perform(_ action: @escaping @MainActor (any ListeningPlaybackServicing) async throws -> Void) {
+    /// Until the player reports `target`, its older reports must not pull the cursor back.
+    private func perform(navigatingTo target: String? = nil, _ action: @escaping @MainActor (any ListeningPlaybackServicing) async throws -> Void) {
         guard let engine else { return }
         cancelCommand()
+        navigatingTargetSongID = target
         commandGeneration += 1
         let generation = commandGeneration
         commandTask = Task { @MainActor [weak self] in
@@ -478,15 +478,16 @@ final class ListeningDeck {
     /// confirms must not hide the player's actual state indefinitely.
     private func expectAcknowledgement() {
         acknowledgementTimeout?.cancel()
-        guard command != nil, commandTask == nil else { return }
+        guard command != nil || navigatingTargetSongID != nil, commandTask == nil else { return }
         let generation = commandGeneration
         acknowledgementTimeout = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
             guard let self, !Task.isCancelled, generation == self.commandGeneration,
-                  self.commandTask == nil, self.command != nil,
+                  self.commandTask == nil, self.command != nil || self.navigatingTargetSongID != nil,
                   self.engine?.phase != .interrupted else { return }
             self.navigatingTargetSongID = nil
             self.command = nil
+            self.syncWithPlayer()
             self.onTransportChange()
         }
     }
