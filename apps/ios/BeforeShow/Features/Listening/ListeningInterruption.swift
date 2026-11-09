@@ -91,4 +91,10 @@ enum ListeningCutIn {
         room.loadDisc(seated.disc, songID: seated.songID, autoplay: seated.wasPlaying, resumeAt: seated.time)
         return true
     }
+
+    /// 用户在插播中途换了其他唱片，丢弃此前暂存的底色唱片，避免未来误恢复。
+    static func discardIfUnrelated(currentDiscID: String?) {
+        guard let s = seated, s.cutInDiscID != currentDiscID else { return }
+        seated = nil
+    }
 }

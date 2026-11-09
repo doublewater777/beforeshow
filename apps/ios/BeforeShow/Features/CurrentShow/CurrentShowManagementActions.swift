@@ -42,33 +42,38 @@ extension CurrentShowManagementSection {
     }
 
     func performPrimaryAction(_ action: HomeCountdownLockup.PrimaryAction) {
-        if action.playsMusic, let room = ListeningRoomSessionStore.shared.room, room.isPlaying {
-            room.playPause()
-            return
+        if action.playsMusic, let room = ListeningRoomSessionStore.shared.room, room.wantsPlayback {
+            if isPlayingCurrentShowContent(action: action, in: room) {
+                room.playPause()
+                return
+            }
         }
         switch action {
         case .listen:
             Task { await ListeningIntentHandler.shared.perform(.play) }
         case .replayShow:
-            let room = ListeningRoomSessionStore.shared.room
-            if room?.loadedDisc?.id == ShowSetlistPlayback.discID(for: show.id), let room {
-                room.playPause()
-                return
-            }
-            let songs = ShowSetlistPlayback.playedSongs(showID: show.id, in: modelContext)
-            Task {
-                await ShowSetlistPlayback.play(
-                    songs.map { ($0.catalogSongID, $0.manualTitle ?? "", $0.manualArtistName ?? "") },
-                    show: show,
-                    title: show.name
-                )
-            }
+            let disc = ShowSetlistPlayback.replayDisc(for: show, in: modelContext)
+            Task { await ShowSetlistPlayback.play(disc) }
         case .route:
             openRouteChooser()
         case .addShow:
             onAddShow()
         case .fillNewDate:
             homeRoute = .editShow
+        }
+    }
+
+    private func isPlayingCurrentShowContent(
+        action: HomeCountdownLockup.PrimaryAction,
+        in room: ListeningRoomCoordinator
+    ) -> Bool {
+        switch action {
+        case .replayShow:
+            return room.loadedDisc?.id == "setlist-replay-\(show.id.uuidString)"
+        case .listen:
+            return room.show?.id == show.id
+        default:
+            return false
         }
     }
 

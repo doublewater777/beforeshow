@@ -356,14 +356,16 @@ struct ShowSetlistSheet: View {
     // MARK: - Play in Listen Action
 
     private func playInListen() {
-        guard !items.isEmpty else { return }
+        let songs = items.map { ShowSetlistRecording.Song(catalogSongID: $0.catalogSongID, title: $0.title, artistName: $0.artistName) }
+        let disc = ShowSetlistPlayback.disc(
+            songs,
+            show: show,
+            kind: .preview,
+            title: BSLocalization.text("预习歌单"),
+            catalog: ShowSetlistPlayback.catalog(for: songs, in: modelContext)
+        )
         Task { @MainActor in
-            await ShowSetlistPlayback.play(
-                items.map { ($0.catalogSongID, $0.title, $0.artistName) },
-                show: show,
-                title: BSLocalization.text("预习歌单")
-            )
-            playFeedback.toggle()
+            if await ShowSetlistPlayback.play(disc) { playFeedback.toggle() }
         }
     }
 

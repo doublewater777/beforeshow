@@ -139,12 +139,7 @@ struct PlayedSong: Equatable {
 enum PlayedSongs {
     /// Songs ticked as played, in setlist order, named from the catalog when it has them.
     static func resolve(_ memories: [ShowSetlistMemory], catalog: [CatalogSong]) -> [PlayedSong] {
-        memories
-            .filter(\.isPlayed)
-            .sorted {
-                if let o1 = $0.order, let o2 = $1.order, o1 != o2 { return o1 < o2 }
-                return $0.createdAt < $1.createdAt
-            }
+        ShowSetlistRecording.played(memories)
             .map { memory in
                 let song = memory.catalogSongID.flatMap { id in catalog.first { $0.appleMusicSongID == id } }
                 return PlayedSong(

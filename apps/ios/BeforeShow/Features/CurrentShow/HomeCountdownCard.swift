@@ -276,9 +276,12 @@ struct HomeCountdownLockup: View {
                 if action.playsMusic {
                     Image(systemName: showsPause ? "pause.fill" : "play.fill")
                         .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 16)
                 }
                 Text(showsPause ? BSLocalization.text("暂停") : action.title)
+                    .contentTransition(.interpolate)
             }
+            .animation(.snappy(duration: BSMotion.interface), value: showsPause)
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(BSColor.Stage.background)
             .frame(maxWidth: .infinity)

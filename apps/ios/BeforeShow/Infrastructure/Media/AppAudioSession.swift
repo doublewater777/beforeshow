@@ -89,7 +89,7 @@ enum AppAudioSession {
         let category: AVAudioSession.Category
         let mode: AVAudioSession.Mode
         let options: AVAudioSession.CategoryOptions
-        if !leases.isDisjoint(with: [.listening, .timetablePreview, .footprintSong]) {
+        if !leases.isDisjoint(with: [.listening, .timetablePreview, .pickAudition, .footprintSong]) {
             category = .playback
             mode = .default
             options = []

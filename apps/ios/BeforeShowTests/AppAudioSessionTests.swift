@@ -31,6 +31,13 @@ final class AppAudioSessionTests: XCTestCase {
         XCTAssertEqual(AVAudioSession.sharedInstance().category, .ambient)
     }
 
+    func testPickAuditionPlaysThroughTheSilentSwitch() async {
+        AppAudioSession.lease(.pickAudition)
+        await AppAudioSession.waitForPendingOperations()
+        XCTAssertEqual(AVAudioSession.sharedInstance().category, .playback)
+        AppAudioSession.release(.pickAudition)
+    }
+
     func testEachOwnerHoldsItsOwnLease() async {
         AppAudioSession.lease(.listening)
         AppAudioSession.lease(.timetablePreview)

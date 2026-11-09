@@ -1043,20 +1043,16 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     }
     func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true, resumeAt time: TimeInterval = 0) {
         if loadedDisc == disc {
-            guard let songID else { return }
-            selectTrack(songID, autoplay: autoplay)
+            if let songID { selectTrack(songID, autoplay: autoplay) }
+            else if autoplay, !wantsPlayback { startPlayback() }
             return
         }
         if autoplay { AppAudioSession.claimFocus(.listening) }
-        deck.endSession(); shuffleRun = nil
+        deck.endSession(); shuffleRun = nil; ListeningCutIn.discardIfUnrelated(currentDiscID: disc.id)
         loadedDisc = disc
         deck.load([disc], cursor: songID, resumeAt: time)
         persistLoadedDisc(force: true)
-        if autoplay {
-            startPlaybackIfPossible()
-        } else {
-            prewarmLoadedDisc()
-        }
+        if autoplay { startPlaybackIfPossible() } else { prewarmLoadedDisc() }
     }
     func playFromSleeve(_ disc: ListeningDisc, songID: String) {
         guard discs.contains(where: { $0.id == disc.id }),

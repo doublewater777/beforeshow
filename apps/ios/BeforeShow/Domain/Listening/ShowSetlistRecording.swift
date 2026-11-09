@@ -17,6 +17,25 @@ enum ShowSetlistRecording {
         ))
     }
 
+    /// 现场唱过的歌（没标没唱的都算），按歌单顺序；旧记录没有 order 时排在有序号之后，按记下的先后。
+    static func played(_ memories: [ShowSetlistMemory]) -> [ShowSetlistMemory] {
+        memories
+            .filter(\.isPlayed)
+            .sorted {
+                switch ($0.order, $1.order) {
+                case let (o1?, o2?):
+                    if o1 != o2 { return o1 < o2 }
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    break
+                }
+                return $0.createdAt < $1.createdAt
+            }
+    }
+
     /// 已记 → 移除；未记 → 记下。返回切换后是否已记。
     @discardableResult
     static func toggle(_ song: Song, showID: UUID, in context: ModelContext, wasPlayed: Bool? = nil, now: Date = Date()) throws -> Bool {

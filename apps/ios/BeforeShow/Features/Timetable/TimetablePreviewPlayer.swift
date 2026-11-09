@@ -178,12 +178,13 @@ final class TimetablePreviewPlayer {
         let key = id.map { "id:\($0)" } ?? "name:\(ArtistNameMatching.normalized(name))"
         if let cached = cache[key] { return cached }
 
+        let country = await AppleMusicArtistSearchService.currentFallbackCountry(preferred: nil)
         var components = URLComponents(string: "https://itunes.apple.com/\(id == nil ? "search" : "lookup")")!
         components.queryItems = [
             URLQueryItem(name: id == nil ? "term" : "id", value: id ?? name),
             URLQueryItem(name: "entity", value: "song"),
             URLQueryItem(name: "limit", value: "25"),
-            URLQueryItem(name: "country", value: "CN")
+            URLQueryItem(name: "country", value: country)
         ]
         guard let url = components.url else { return nil }
         let (data, response) = try await URLSession.shared.data(from: url)

@@ -61,7 +61,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         guard !queuedSongIDs.isEmpty else { return false }
         let status = player.state.playbackStatus
         guard status == .stopped || status == .paused else { return false }
-        guard let songID = currentEntrySongID else { return true }
+        guard let songID = currentEntrySongID ?? queuedSongIDs.last else { return false }
         // Only the last song can end the queue; a pause near the end of another is a pause.
         guard songID == queuedSongIDs.last else { return false }
         return ListeningPlaybackCompletionPolicy.hasEnded(

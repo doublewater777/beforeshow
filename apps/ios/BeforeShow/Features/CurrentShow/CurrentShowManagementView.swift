@@ -318,7 +318,7 @@ struct CurrentShowManagementSection: View {
                 timeState: timeState,
                 now: now,
                 hasPlayedSongs: timeState.kind == .postShow
-                    && !ShowSetlistPlayback.playedSongs(showID: show.id, in: modelContext).isEmpty,
+                    && ShowSetlistPlayback.hasPlayableSongs(for: show, in: modelContext),
                 hasFutureShow: FeatureRecommendationLedger.nextFutureShow(
                     excluding: show.id,
                     in: attachedCandidateShows,
@@ -377,7 +377,10 @@ struct CurrentShowManagementSection: View {
                         show: show,
                         snapshot: snapshot,
                         primaryAction: displayedPrimaryAction,
-                        isPlaying: ListeningRoomSessionStore.shared.room?.isPlaying == true,
+                        isPlaying: isCurrentShowAudioActive(
+                            room: ListeningRoomSessionStore.shared.room,
+                            action: displayedPrimaryAction
+                        ),
                         onPrimaryAction: performPrimaryAction,
                         onOpenRoute: embedsRouteInLocation
                             ? { openRouteChooser() }
@@ -573,4 +576,18 @@ struct CurrentShowManagementSection: View {
         openURL(url)
     }
 
+    private func isCurrentShowAudioActive(
+        room: ListeningRoomCoordinator?,
+        action: HomeCountdownLockup.PrimaryAction?
+    ) -> Bool {
+        guard let room, room.wantsPlayback, let action else { return false }
+        switch action {
+        case .replayShow:
+            return room.loadedDisc?.id == "setlist-replay-\(show.id.uuidString)"
+        case .listen:
+            return room.show?.id == show.id
+        default:
+            return false
+        }
+    }
 }
