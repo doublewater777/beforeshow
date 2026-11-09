@@ -13,6 +13,7 @@ struct FootprintEntryTiles: View {
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
     @State private var isReadingBook = false
+    @Environment(\.footprintBadgeDefaults) var badgeDefaults
 
     private enum Door: Hashable { case years, artists, venues, cities, badges, candle, setlist, companions, merch, ledger, book }
 

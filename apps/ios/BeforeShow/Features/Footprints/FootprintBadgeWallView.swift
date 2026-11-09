@@ -15,7 +15,8 @@ struct FootprintBadgeWallView: View {
     @State private var dropped = false
     @State private var drops = 0
 
-    private let seenStore = FootprintBadgeSeenStore()
+    @Environment(\.footprintBadgeDefaults) private var badgeDefaults
+    private var seenStore: FootprintBadgeSeenStore { FootprintBadgeSeenStore(defaults: badgeDefaults) }
 
     private var badges: [FootprintBadge] {
         FootprintBadgeCatalog.badges(FootprintBadgeCatalog.facts(archive: archive, memories: setlist, merch: merch, fragments: fragments, assets: assets))

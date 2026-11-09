@@ -71,8 +71,8 @@ enum FootprintEmptyStateCopy {
     static func content(hasCurrentShow: Bool) -> Content {
         if hasCurrentShow {
             return Content(
-                title: BSLocalization.text("这场结束后，会来到足迹"),
-                message: BSLocalization.text("当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。"),
+                title: BSLocalization.text("散场后送你"),
+                message: BSLocalization.text("这场结束后会收进足迹，\n第一张唱片现在就能先听。"),
                 actionTitle: BSLocalization.text("添加现场")
             )
         }

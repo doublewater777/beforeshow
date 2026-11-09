@@ -21,27 +21,35 @@ struct FootprintsView: View {
             assets: assets
         )
         let prepared = PreparedFootprint(archive: archive, covers: covers)
-        return NavigationStack {
-            timelineContent(
-                prepared,
-                hasCurrentShow: currentShowSession.selectCurrentShow(
-                    from: shows,
-                    manualSelection: selections.first
-                ) != nil
-            )
+        let currentShow = currentShowSession.selectCurrentShow(from: shows, manualSelection: selections.first)
+        return Group {
+            if archive.shows.isEmpty, currentShow == nil {
+                FootprintDemoView(onAdd: { isAddingShow = true })
+            } else {
+                NavigationStack {
+                    timelineContent(prepared, currentShow: currentShow)
+                }
+            }
+        }
+        .sheet(isPresented: $isAddingShow) {
+            AddShowCoordinatorSheet()
+                .presentationDetents([.large])
+                .presentationCornerRadius(26)
+                .presentationDragIndicator(.visible)
         }
     }
 
     private func timelineContent(
         _ prepared: PreparedFootprint,
-        hasCurrentShow: Bool
+        currentShow: Show?
     ) -> some View {
         let archive = prepared.archive
         let covers = prepared.covers
         return Group {
             if archive.shows.isEmpty {
                 FootprintEmptyView(
-                    content: FootprintEmptyStateCopy.content(hasCurrentShow: hasCurrentShow),
+                    content: FootprintEmptyStateCopy.content(hasCurrentShow: currentShow != nil),
+                    currentShow: currentShow,
                     onAdd: { isAddingShow = true }
                 )
                 .bsAdaptiveContentWidth()
@@ -57,12 +65,6 @@ struct FootprintsView: View {
                     show: target.show,
                     archive: archive
                 )
-            }
-            .sheet(isPresented: $isAddingShow) {
-                AddShowCoordinatorSheet()
-                .presentationDetents([.large])
-                .presentationCornerRadius(26)
-                .presentationDragIndicator(.visible)
             }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
@@ -104,8 +106,9 @@ struct FootprintBackground: View {
     }
 }
 
-private struct FootprintEmptyView: View {
+struct FootprintEmptyView: View {
     let content: FootprintEmptyStateCopy.Content
+    let currentShow: Show?
     let onAdd: () -> Void
 
     var body: some View {
@@ -115,7 +118,11 @@ private struct FootprintEmptyView: View {
             message: content.message,
             actionTitle: content.actionTitle ?? BSLocalization.text("添加现场"),
             action: onAdd
-        )
+        ) {
+            if let currentShow {
+                FootprintFirstUnlockPreview(show: currentShow)
+            }
+        }
         .overlay(alignment: .top) {
             Text(BSLocalization.text("足迹"))
                 .font(BSFont.pageTitle)

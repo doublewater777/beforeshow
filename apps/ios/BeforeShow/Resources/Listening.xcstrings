@@ -324,6 +324,23 @@
         }
       }
     },
+    "唱片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唱片"
+          }
+        }
+      }
+    },
     "唱片就从这里开始。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -371,6 +388,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "大合唱"
+          }
+        }
+      }
+    },
+    "大合唱 · 新歌 · 深挖" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sing-Along · New Songs · Deep Cuts"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大合唱 · 新歌 · 深挖"
           }
         }
       }
@@ -1187,6 +1221,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "載入中…"
+          }
+        }
+      }
+    },
+    "这场艺人的专辑，帮你挑一张" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums by this show's artists, picked for you"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這場藝人的專輯，幫你挑一張"
+          }
+        }
+      }
+    },
+    "这场艺人的现场视频" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live videos of this show's artists"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這場藝人的現場影片"
           }
         }
       }

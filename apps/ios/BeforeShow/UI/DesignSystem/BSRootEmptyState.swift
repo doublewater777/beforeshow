@@ -4,12 +4,13 @@ import SwiftUI
 /// Title and message always reserve two lines so block height stays stable
 /// across tabs with different copy lengths. Bottom chrome clearance is applied
 /// manually so NavigationStack vs non-stack hosts stay vertically aligned.
-struct BSRootEmptyState: View {
+struct BSRootEmptyState<Preview: View>: View {
     let iconSystemName: String
     let title: String
     let message: String
     let actionTitle: String
     let action: () -> Void
+    @ViewBuilder var preview: Preview
 
     var body: some View {
         VStack(spacing: BSSpacing.md) {
@@ -35,6 +36,8 @@ struct BSRootEmptyState: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2, reservesSpace: true)
 
+            preview
+
             Button(action: action) {
                 Text(actionTitle)
                     .font(.system(size: 14.5, weight: .semibold))
@@ -52,5 +55,11 @@ struct BSRootEmptyState: View {
         .padding(.bottom, BSLayout.floatingTabBarClearance)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .bottom)
+    }
+}
+
+extension BSRootEmptyState where Preview == EmptyView {
+    init(iconSystemName: String, title: String, message: String, actionTitle: String, action: @escaping () -> Void) {
+        self.init(iconSystemName: iconSystemName, title: title, message: message, actionTitle: actionTitle, action: action) { EmptyView() }
     }
 }

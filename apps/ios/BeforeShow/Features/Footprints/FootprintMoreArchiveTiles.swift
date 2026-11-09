@@ -89,7 +89,7 @@ extension FootprintEntryTiles {
 
     func badgesTile(_ badges: [FootprintBadge]) -> some View {
         let earned = badges.reduce(0) { $0 + $1.tier }
-        let fresh = FootprintBadgeSeenStore().unseen(in: badges).count
+        let fresh = FootprintBadgeSeenStore(defaults: badgeDefaults).unseen(in: badges).count
         let subtitle = fresh > 0
             ? BSLocalization.format("已得 %1$lld 枚 · 新 %2$lld", earned, fresh)
             : BSLocalization.format("已得 %lld 枚", earned)

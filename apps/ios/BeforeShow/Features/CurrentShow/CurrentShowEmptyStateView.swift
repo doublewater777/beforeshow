@@ -21,7 +21,11 @@ struct CurrentShowEmptyStateView: View {
             message: message,
             actionTitle: BSLocalization.text(hasShows ? "选择现场" : "添加现场"),
             action: hasShows ? onOpenShowLibrary : onAddShow
-        )
+        ) {
+            if !hasShows {
+                CurrentShowStagePreview()
+            }
+        }
         .overlay(alignment: .top) {
             HStack {
                 Text(BSLocalization.text("当前"))
@@ -57,5 +61,17 @@ struct CurrentShowEmptyStateView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+    }
+}
+
+/// 还没有现场时，先让人看到一场现场从开场前到散场后都能做什么。
+private struct CurrentShowStagePreview: View {
+    var body: some View {
+        BSFeaturePreviewCard(rows: [
+            .init(icon: "hourglass", title: BSLocalization.text("开演前"), detail: BSLocalization.text("倒数 · 听几首 · 路线")),
+            .init(icon: "music.mic", title: BSLocalization.text("现场"), detail: BSLocalization.text("时刻表 · 记忆碎片 · 歌单")),
+            .init(icon: "opticaldisc", title: BSLocalization.text("散场后"), detail: BSLocalization.text("数字唱片 · 足迹"))
+        ])
+        .padding(.top, BSSpacing.sm)
     }
 }
