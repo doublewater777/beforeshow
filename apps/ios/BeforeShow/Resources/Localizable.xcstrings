@@ -4055,22 +4055,6 @@
         }
       }
     },
-    "Pro 已启用，已解锁无限添加现场与时刻表智能识别。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro is active. Unlimited shows and smart timetable recognition unlocked."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro 已啟用，已解鎖無限新增現場與時刻表智慧辨識。"
-          }
-        }
-      }
-    },
     "Pro 已启用。" : {
       "localizations" : {
         "en" : {
@@ -26390,6 +26374,566 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "送你一首和 %lld 有關的歌"
+          }
+        }
+      }
+    },
+    "怎么玩" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to play"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "怎麼玩"
+          }
+        }
+      }
+    },
+    "怎么看" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to read it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "怎麼看"
+          }
+        }
+      }
+    },
+    "每颗星是一位看过的艺人，越亮看得越多" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each star is an artist you've seen. Brighter means more often."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每顆星是一位看過的藝人，越亮看得越多"
+          }
+        }
+      }
+    },
+    "连线：同一场演出里一起出现过" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lines: they played the same show."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線：同一場演出裡一起出現過"
+          }
+        }
+      }
+    },
+    "「某某座」：连在一起的一组，以最亮的星命名" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Constellations: a connected group, named after its brightest star."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「某某座」：連在一起的一組，以最亮的星命名"
+          }
+        }
+      }
+    },
+    "背景里的小星点：其他艺人" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faint specks: other artists you've seen."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景裡的小星點：其他藝人"
+          }
+        }
+      }
+    },
+    "点一颗星，看和这位艺人的现场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a star to see your shows with that artist."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一顆星，看和這位藝人的現場"
+          }
+        }
+      }
+    },
+    "每颗星都是一个音，越往右越高" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every star is a note, higher to the right."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每顆星都是一個音，越往右越高"
+          }
+        }
+      }
+    },
+    "连着点几颗再停一下，会合成一个和弦" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a few, then pause: they ring out as a chord."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連著點幾顆再停一下，會合成一個和弦"
+          }
+        }
+      }
+    },
+    "可以几根手指一起按" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use several fingers at once."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以幾根手指一起按"
+          }
+        }
+      }
+    },
+    "五声音阶" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pentatonic"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "五聲音階"
+          }
+        }
+      }
+    },
+    "大调" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Major"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大調"
+          }
+        }
+      }
+    },
+    "小调" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小調"
+          }
+        }
+      }
+    },
+    "都节音阶" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Miyako-bushi"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "都節音階"
+          }
+        }
+      }
+    },
+    "布鲁斯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blues"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "藍調"
+          }
+        }
+      }
+    },
+    "音阶" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scale"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音階"
+          }
+        }
+      }
+    },
+    "小星星" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twinkle, Twinkle"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小星星"
+          }
+        }
+      }
+    },
+    "茉莉花" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jasmine Flower"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "茉莉花"
+          }
+        }
+      }
+    },
+    "绿袖子" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Greensleeves"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "綠袖子"
+          }
+        }
+      }
+    },
+    "樱花" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sakura"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "櫻花"
+          }
+        }
+      }
+    },
+    "星空布鲁斯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starlight Blues"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星空藍調"
+          }
+        }
+      }
+    },
+    "弹一首《%@》" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "彈一首《%@》"
+          }
+        }
+      }
+    },
+    "自由星空" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free sky"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自由星空"
+          }
+        }
+      }
+    },
+    "北斗七星" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Big Dipper"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "北斗七星"
+          }
+        }
+      }
+    },
+    "猎户座" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "獵戶座"
+          }
+        }
+      }
+    },
+    "仙后座" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cassiopeia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仙后座"
+          }
+        }
+      }
+    },
+    "天蝎座" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scorpius"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "天蠍座"
+          }
+        }
+      }
+    },
+    "星图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Star map"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星圖"
+          }
+        }
+      }
+    },
+    "音阶和星图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scale and star map"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音階和星圖"
+          }
+        }
+      }
+    },
+    "只看过一场的小星不写名字，点一下就能看到" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faint stars seen once go unnamed; tap one to see who it is."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只看過一場的小星不寫名字，點一下就能看到"
+          }
+        }
+      }
+    },
+    "点右上角 ▶，星空会自己弹一首歌" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap ▶ at the top right and the sky plays a song by itself."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點右上角 ▶，星空會自己彈一首歌"
+          }
+        }
+      }
+    },
+    "点右上角 ✦ 换音阶和星图，每种音阶有自己的音色和歌" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap ✦ at the top right to change the scale and star map. Each scale has its own sound and song."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點右上角 ✦ 換音階和星圖，每種音階有自己的音色和歌"
+          }
+        }
+      }
+    },
+    "星空音阶与星图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sky scales and star maps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星空音階與星圖"
+          }
+        }
+      }
+    },
+    "在「你的星空」里换大调、小调、都节音阶或布鲁斯来弹，各有音色和歌；星星还能排成北斗七星、猎户座、仙后座和天蝎座。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play “Your Sky” in major, minor, Miyako-bushi or blues, each with its own sound and song, and arrange the stars as the Big Dipper, Orion, Cassiopeia or Scorpius."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「你的星空」裡換大調、小調、都節音階或藍調來彈，各有音色和歌；星星還能排成北斗七星、獵戶座、仙后座和天蠍座。"
+          }
+        }
+      }
+    },
+    "Pro 已启用，已解锁无限添加现场、时刻表智能识别与星空音阶、星图。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro is active. Unlimited shows, smart timetable recognition, sky scales and star maps unlocked."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 已啟用，已解鎖無限新增現場、時刻表智慧辨識與星空音階、星圖。"
           }
         }
       }

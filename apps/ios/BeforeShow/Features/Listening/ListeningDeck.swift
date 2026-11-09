@@ -39,6 +39,7 @@ final class ListeningDeck {
     @ObservationIgnored private let makeEngine: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
     @ObservationIgnored private var commandTask: Task<Void, Never>?
     @ObservationIgnored private var commandGeneration = 0
+    @ObservationIgnored private var navigatingTargetSongID: String?
     @ObservationIgnored private var acknowledgementTimeout: Task<Void, Never>?
     @ObservationIgnored private var observationTask: Task<Void, Never>?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
@@ -237,6 +238,7 @@ final class ListeningDeck {
         if continues, let source, isQueueLoaded, let engine, engine.source == source,
            engine.failure == nil, engine.queuedSongIDs.contains(songID) {
             recordSample(immediate: false)
+            navigatingTargetSongID = songID
             moveCursor(to: songID)
             failed = false
             command = .play
@@ -252,10 +254,8 @@ final class ListeningDeck {
             return
         }
         unloadQueue()
-        command = nil
-        failed = false
-        resumeTime = 0
-        moveCursor(to: songID)
+        command = nil; failed = false; resumeTime = 0
+        navigatingTargetSongID = songID; moveCursor(to: songID)
         if continues, let source {
             play(source: source)
         } else {
@@ -276,6 +276,7 @@ final class ListeningDeck {
             return
         }
         recordSample(immediate: false)
+        navigatingTargetSongID = target
         moveCursor(to: target)
         if wantsPlayback { command = .play }
         perform { engine in
@@ -382,9 +383,12 @@ final class ListeningDeck {
             onFinish()
             return
         }
+        if let target = navigatingTargetSongID, change.songID == target {
+            navigatingTargetSongID = nil
+        }
         // The player owns which song is current, except while our own
         // navigation is still on its way to it.
-        if commandTask == nil, let songID = change.songID, songID != cursorSongID,
+        if commandTask == nil, navigatingTargetSongID == nil, let songID = change.songID, songID != cursorSongID,
            tracks.contains(where: { $0.id == songID }) {
             evidenceProvider()?.breakContinuity()
             moveCursor(to: songID)
@@ -450,8 +454,10 @@ final class ListeningDeck {
             } catch is CancellationError {
             } catch ListeningPlaybackError.queueBoundary {
                 self?.command = nil
+                self?.navigatingTargetSongID = nil
             } catch {
                 guard let self, generation == self.commandGeneration else { return }
+                self.navigatingTargetSongID = nil
                 self.fail()
             }
             guard let self, generation == self.commandGeneration else { return }
@@ -479,21 +485,22 @@ final class ListeningDeck {
             guard let self, !Task.isCancelled, generation == self.commandGeneration,
                   self.commandTask == nil, self.command != nil,
                   self.engine?.phase != .interrupted else { return }
+            self.navigatingTargetSongID = nil
             self.command = nil
             self.onTransportChange()
         }
     }
 
     private func cancelCommand() {
-        commandTask?.cancel()
-        commandTask = nil
-        acknowledgementTimeout?.cancel()
-        acknowledgementTimeout = nil
+        commandTask?.cancel(); commandTask = nil
+        navigatingTargetSongID = nil
+        acknowledgementTimeout?.cancel(); acknowledgementTimeout = nil
     }
 
     private func unloadQueue() {
         commandTask?.cancel()
         commandTask = nil
+        navigatingTargetSongID = nil
         commandGeneration += 1
         acknowledgementTimeout?.cancel()
         prefetchTask?.cancel()

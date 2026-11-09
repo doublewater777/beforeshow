@@ -15,13 +15,24 @@ struct FootprintConstellationView: View {
     private let synth = FootprintStarSynth.shared
     @State private var linesDrawn = false
     @State private var detailTarget: FootprintDetailDestination?
+    @State private var isShowingGuide = false
+    @State private var isShowingPaywall = false
+    @AppStorage(FootprintSkyScale.storageKey) private var scaleRawValue = FootprintSkyScale.pentatonic.rawValue
+    @AppStorage(FootprintSkyShape.storageKey) private var shapeRawValue = FootprintSkyShape.free.rawValue
+    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
+    @State private var song: Task<Void, Never>?
+    /// The star the song is on right now.
+    @State private var songKey: String?
+    /// The accompaniment chord sounding now and the stars it lights.
+    @State private var songChord: (name: String, keys: Set<String>)?
+    @State private var interrupted: InterruptedListening?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let sky = FootprintConstellationBuilder.make(shows: archive.shows)
-        let notes = Self.notes(for: sky)
+        let sky = shape.apply(to: FootprintConstellationBuilder.make(shows: archive.shows))
+        let notes = Self.notes(for: sky, scale: scale)
         let selected = sky.stars.first { $0.name == selectedName }
-        let pressed = Set(held.values).union(ringing)
+        let pressed = Set(held.values).union(ringing).union(songKey.map { [$0] } ?? []).union(songChord?.keys ?? [])
         VStack(spacing: 0) {
             GeometryReader { proxy in
                 let size = proxy.size
@@ -38,7 +49,7 @@ struct FootprintConstellationView: View {
                             note: notes[star.name],
                             isSelected: star.name == selected?.name,
                             isPressed: pressed.contains(star.name),
-                            showsName: star.count > 1 || neighbours.contains(star.name)
+                            showsName: star.count > 1 || neighbours.contains(star.name) || star.name == songKey
                         )
                         .position(point(star.position, in: size))
                     }
@@ -80,27 +91,71 @@ struct FootprintConstellationView: View {
                         .foregroundStyle(BSColor.Stage.muted)
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { song == nil ? playSong(notes: notes, stars: Set(sky.stars.map(\.name))) : stopSong() } label: {
+                    Image(systemName: song == nil ? "play.circle" : "stop.circle")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .accessibilityLabel(song == nil ? BSLocalization.format("弹一首《%@》", FootprintStarSong.song(for: scale).title) : BSLocalization.text("停止"))
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                FootprintSkyMenu(
+                    scale: scale,
+                    shape: shape,
+                    isPro: isPro,
+                    onScale: { scaleRawValue = $0.rawValue },
+                    onShape: { shapeRawValue = $0.rawValue },
+                    onLocked: { isShowingPaywall = true }
+                )
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { isShowingGuide = true } label: { Image(systemName: "info.circle") }
+                    .accessibilityLabel(BSLocalization.text("怎么玩"))
+                    .popover(isPresented: $isShowingGuide) {
+                        FootprintConstellationGuide()
+                            .presentationCompactAdaptation(.popover)
+                    }
+            }
         }
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
+        .sheet(isPresented: $isShowingPaywall) { ProPaywallView() }
+        .onChange(of: scale) { resetPlaying() }
+        .onChange(of: shape) { resetPlaying() }
         .sensoryFeedback(.impact(weight: .light), trigger: held.count)
         .sensoryFeedback(.impact(weight: .medium), trigger: ringing.isEmpty) { _, isEmpty in !isEmpty }
         .onAppear {
-            synth.start()
             withAnimation(reduceMotion ? nil : .easeInOut(duration: 1.6).delay(0.3)) { linesDrawn = true }
         }
         .onDisappear {
+            stopSong()
             resolving?.cancel()
             synth.stop()
+            restoreInterruptedListening()
         }
+    }
+
+    // MARK: Scale and shape
+
+    private var isPro: Bool { ProEntitlementStorage.decode(entitlementRawValue).isProActive }
+
+    private var scale: FootprintSkyScale { .effective(scaleRawValue, isPro: isPro) }
+
+    private var shape: FootprintSkyShape { .effective(shapeRawValue, isPro: isPro) }
+
+    private func resetPlaying() {
+        stopSong()
+        resolving?.cancel()
+        phrase = []
+        ringing = []
     }
 
     // MARK: Playing
 
     /// Every point of light's note, tuned by how far across the sky it sits, like a keyboard.
-    private static func notes(for sky: FootprintConstellation) -> [String: Int] {
-        var notes = Dictionary(uniqueKeysWithValues: sky.stars.map { ($0.name, FootprintStarScale.note(across: $0.position.x)) })
+    private static func notes(for sky: FootprintConstellation, scale: FootprintSkyScale) -> [String: Int] {
+        var notes = Dictionary(uniqueKeysWithValues: sky.stars.map { ($0.name, FootprintStarScale.note(across: $0.position.x, scale: scale)) })
         for (index, unit) in FootprintStarDust.points(count: sky.dustCount).enumerated() {
-            notes[dustKey(index)] = FootprintStarScale.note(across: unit.x)
+            notes[dustKey(index)] = FootprintStarScale.note(across: unit.x, scale: scale)
         }
         return notes
     }
@@ -114,9 +169,11 @@ struct FootprintConstellationView: View {
 
     private func press(_ finger: Int, _ name: String, sky: FootprintConstellation, notes: [String: Int]) {
         guard let note = notes[name] else { return }
+        rememberInterruptedListening()
+        stopSong()
         let star = sky.stars.first { $0.name == name }
         // Artists seen once still ring clearly; the brightest carry the most overtone.
-        synth.press(finger, note: note, brightness: star.map { $0.count >= 3 ? 1 : $0.count == 2 ? 0.8 : 0.6 } ?? 0.55)
+        synth.press(finger, note: note, brightness: star.map { $0.count >= 3 ? 1 : $0.count == 2 ? 0.8 : 0.6 } ?? 0.55, timbre: scale.timbre)
         held[finger] = name
         resolving?.cancel()
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -132,6 +189,74 @@ struct FootprintConstellationView: View {
             }
         }
     }
+
+    /// The sky plays this scale's song by itself, lighting the nearest star on each note. A finger takes over.
+    private func playSong(notes: [String: Int], stars: Set<String>) {
+        rememberInterruptedListening()
+        stopSong()
+        let tune = FootprintStarSong.song(for: scale)
+        let timbre = scale.timbre
+        song = Task { @MainActor in
+            async let accompaniment: Void = playChords(tune, timbre: timbre, notes: notes, stars: stars)
+            await playMelody(tune, timbre: timbre, notes: notes, stars: stars)
+            await accompaniment
+            guard !Task.isCancelled else { return }
+            song = nil
+        }
+    }
+
+    private func rememberInterruptedListening() {
+        if interrupted == nil { interrupted = InterruptedListening.capture() }
+    }
+
+    private func restoreInterruptedListening() {
+        defer { interrupted = nil }
+        interrupted?.resume()
+    }
+
+    private func playMelody(_ tune: FootprintStarSong, timbre: FootprintStarSynth.Timbre, notes: [String: Int], stars: Set<String>) async {
+        for step in tune.steps {
+            let length = step.beats * tune.beat
+            synth.press(Self.songVoice, note: step.note, brightness: 0.8, timbre: timbre)
+            withAnimation(.easeOut(duration: 0.12)) { songKey = FootprintStarSong.key(for: step.note, notes: notes, stars: stars) }
+            try? await Task.sleep(for: .seconds(length * 0.85))
+            guard !Task.isCancelled else { return }
+            synth.release(Self.songVoice)
+            withAnimation(.easeOut(duration: 0.2)) { songKey = nil }
+            try? await Task.sleep(for: .seconds(length * 0.15))
+            guard !Task.isCancelled else { return }
+        }
+    }
+
+    /// The accompaniment: each chord strummed low to high under the melody, its stars lit while it sounds.
+    private func playChords(_ tune: FootprintStarSong, timbre: FootprintStarSynth.Timbre, notes: [String: Int], stars: Set<String>) async {
+        for chord in tune.chords {
+            let keys = Set(chord.notes.compactMap { FootprintStarSong.key(for: $0, notes: notes, stars: stars) })
+            withAnimation(.easeOut(duration: 0.15)) { songChord = chord.notes.isEmpty ? nil : (chord.name, keys) }
+            for (index, note) in chord.notes.enumerated() {
+                synth.press(Self.songChordVoice + index, note: note, brightness: 0.5, timbre: timbre, gain: 0.45)
+                try? await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 25))
+            }
+            try? await Task.sleep(for: .seconds(chord.beats * tune.beat - (reduceMotion ? 0 : 0.025) * Double(chord.notes.count)))
+            for index in chord.notes.indices { synth.release(Self.songChordVoice + index) }
+            guard !Task.isCancelled else { return }
+        }
+        withAnimation(.easeOut(duration: 0.3)) { songChord = nil }
+    }
+
+    private func stopSong() {
+        guard let song else { return }
+        song.cancel()
+        self.song = nil
+        synth.release(Self.songVoice)
+        for index in 0..<4 { synth.release(Self.songChordVoice + index) }
+        songKey = nil
+        songChord = nil
+    }
+
+    /// Voice ids for the song's melody and accompaniment, clear of finger and chord ids.
+    private static let songVoice = 2_000_000
+    private static let songChordVoice = 2_000_100
 
     /// More than this many notes stops sounding like one chord.
     private static let phraseLimit = 6
@@ -160,7 +285,7 @@ struct FootprintConstellationView: View {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { ringing = keys }
         for (index, key) in keys.enumerated() {
             guard !Task.isCancelled, let note = notes[key] else { break }
-            synth.press(Self.chordVoice + index, note: note, brightness: 0.85)
+            synth.press(Self.chordVoice + index, note: note, brightness: 0.85, timbre: scale.timbre)
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 35))
         }
         try? await Task.sleep(for: .milliseconds(1500))
@@ -203,7 +328,23 @@ struct FootprintConstellationView: View {
     private func chordReadout(notes: [String: Int]) -> some View {
         let isRinging = !ringing.isEmpty
         let playing = (isRinging ? ringing : phrase).compactMap { notes[$0] }
-        if !playing.isEmpty {
+        if song != nil {
+            VStack(spacing: 2) {
+                Text(verbatim: "《\(FootprintStarSong.song(for: scale).title)》 · \(scale.title)")
+                    .font(.system(size: 13, design: .serif))
+                    .tracking(2)
+                    .foregroundStyle(FootprintRoomPalette.starlight.opacity(0.75))
+                if let chord = songChord?.name {
+                    Text(verbatim: chord)
+                        .font(.system(size: 30, weight: .semibold, design: .serif))
+                        .foregroundStyle(FootprintRoomPalette.spotlight)
+                        .contentTransition(.opacity)
+                }
+            }
+            .padding(.top, 8)
+            .transition(.opacity)
+            .allowsHitTesting(false)
+        } else if !playing.isEmpty {
             VStack(spacing: 2) {
                 if isRinging, let chord = FootprintStarScale.chord(of: playing) {
                     Text(verbatim: chord)
@@ -245,7 +386,7 @@ struct FootprintConstellationView: View {
 
     private func groupLabels(_ sky: FootprintConstellation, size: CGSize) -> some View {
         ForEach(sky.groups, id: \.brightest) { group in
-            Text(BSLocalization.format("%@座", group.brightest))
+            Text(group.title ?? BSLocalization.format("%@座", group.brightest))
                 .font(.system(size: 13, design: .serif).italic())
                 .foregroundStyle(FootprintRoomPalette.starlight.opacity(0.45))
                 .position(point(group.labelAnchor, in: size).applying(.init(translationX: 0, y: 40)))

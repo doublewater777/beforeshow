@@ -137,6 +137,12 @@ struct ProPaywallBenefitCard: View {
                 title: BSLocalization.text("时刻表智能识别"),
                 subtitle: BSLocalization.text("不限次数通过图片识别演出排期与舞台矩阵（普通用户赠送 2 次）。")
             )
+            Divider().overlay(BSColor.Stage.border)
+            benefitRow(
+                icon: "music.note",
+                title: BSLocalization.text("星空音阶与星图"),
+                subtitle: BSLocalization.text("在「你的星空」里换大调、小调、都节音阶或布鲁斯来弹，各有音色和歌；星星还能排成北斗七星、猎户座、仙后座和天蝎座。")
+            )
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 14)
@@ -180,7 +186,7 @@ struct ProPaywallActiveCard: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 20))
                 .foregroundStyle(BSColor.brandGradient)
-            Text(BSLocalization.text("Pro 已启用，已解锁无限添加现场与时刻表智能识别。"))
+            Text(BSLocalization.text("Pro 已启用，已解锁无限添加现场、时刻表智能识别与星空音阶、星图。"))
                 .font(BSFont.body)
                 .foregroundStyle(BSColor.Stage.foreground)
         }

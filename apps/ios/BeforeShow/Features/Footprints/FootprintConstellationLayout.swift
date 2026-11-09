@@ -24,6 +24,8 @@ struct FootprintConstellation: Equatable {
         let brightest: String
         /// Below the group's lowest star, centred on the group, so the name never sits on a star.
         let labelAnchor: CGPoint
+        /// A real constellation's own name; otherwise the group is named after its brightest star.
+        var title: String? = nil
     }
 
     let stars: [Star]
