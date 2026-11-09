@@ -1,13 +1,21 @@
 import SwiftUI
 
-/// 散场后倒计时卡里的一次性揭晓：唱片转进来，徽章跟在后面。点了去唱片墙或徽章墙。
+/// 散场后倒计时卡里的解锁：唱片转进来，徽章跟在后面。点了去唱片墙或徽章墙。
 struct ShowUnlockRow: View {
     let unlocks: ShowUnlocks
     let onOpenRecords: () -> Void
     let onOpenBadges: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var arrived = false
+    @State private var arrived: Bool
+
+    /// 第一次出现时唱片转进来；之后整个停留期都静止显示。
+    init(unlocks: ShowUnlocks, animatesArrival: Bool, onOpenRecords: @escaping () -> Void, onOpenBadges: @escaping () -> Void) {
+        self.unlocks = unlocks
+        self.onOpenRecords = onOpenRecords
+        self.onOpenBadges = onOpenBadges
+        _arrived = State(initialValue: !animatesArrival)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

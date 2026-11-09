@@ -4,6 +4,8 @@ import SwiftData
 /// 这场现场散场后解锁的东西：第 N 张数字唱片，以及因为这场才升档的徽章。
 struct ShowUnlocks: Equatable {
     let showID: UUID
+    /// 这场在足迹里的序号；还没归档时为空。
+    var showNumber: Int? = nil
     let record: FootprintNumberSong?
     let badges: [FootprintBadge]
 
@@ -47,6 +49,7 @@ enum ShowUnlockReveal {
         let before = Dictionary(uniqueKeysWithValues: badges(without).map { ($0.family, $0.tier) })
         return ShowUnlocks(
             showID: show.id,
+            showNumber: index + 1,
             record: FootprintNumberSongs.song(for: index + 1),
             badges: badges(with).filter { $0.tier > (before[$0.family] ?? 0) }
         )

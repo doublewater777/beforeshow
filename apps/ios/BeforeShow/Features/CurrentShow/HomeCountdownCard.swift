@@ -10,6 +10,7 @@ struct HomeCountdownLockup: View {
     var onPrimaryAction: (PrimaryAction) -> Void = { _ in }
     var onOpenRoute: (() -> Void)? = nil
     var unlocks: ShowUnlocks? = nil
+    var unlocksAnimateArrival = true
     var onOpenRecords: () -> Void = {}
     var onOpenBadges: () -> Void = {}
 
@@ -55,8 +56,8 @@ struct HomeCountdownLockup: View {
                 .padding(.top, 6)
             }
 
-            if let unlocks {
-                ShowUnlockRow(unlocks: unlocks, onOpenRecords: onOpenRecords, onOpenBadges: onOpenBadges)
+            if let unlocks, !unlocks.isEmpty {
+                ShowUnlockRow(unlocks: unlocks, animatesArrival: unlocksAnimateArrival, onOpenRecords: onOpenRecords, onOpenBadges: onOpenBadges)
                     .transition(.opacity)
             }
 
@@ -164,7 +165,7 @@ struct HomeCountdownLockup: View {
             if show.endedAt == nil {
                 return Ticker(headline: BSLocalization.text("这场已经结束了吗？"), unit: "", detail: startLine, tint: BSColor.Stage.foreground)
             }
-            return Ticker(headline: BSLocalization.text("这一场结束了"), unit: "", detail: startLine, tint: BSColor.Stage.foreground)
+            return Ticker(headline: Self.endedHeadline(showNumber: unlocks?.showNumber), unit: "", detail: startLine, tint: BSColor.Stage.foreground)
         case .inactive:
             let canceled = timeState.kind == .canceled
             return Ticker(
@@ -174,6 +175,12 @@ struct HomeCountdownLockup: View {
                 tint: BSColor.Stage.dim
             )
         }
+    }
+
+    /// 散场后告诉用户这是第几场；序号与足迹、唱片墙一致。
+    static func endedHeadline(showNumber: Int?) -> String {
+        guard let showNumber else { return BSLocalization.text("这一场结束了") }
+        return BSLocalization.format("第 %lld 场，结束了", showNumber)
     }
 
     private func dayEndedCopy(_ timeState: CurrentShowTimeState) -> String {

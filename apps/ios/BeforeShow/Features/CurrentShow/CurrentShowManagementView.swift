@@ -43,6 +43,7 @@ struct CurrentShowManagementSection: View {
     @State var notificationRouter = NotificationDeepLinkRouter.shared
     @State var homeRoute: CurrentShowHomeRoute?
     @State var revealedUnlocks: ShowUnlocks?
+    @State var unlocksAnimateArrival = false
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -382,6 +383,7 @@ struct CurrentShowManagementSection: View {
                             ? { openRouteChooser() }
                             : nil,
                         unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,
+                        unlocksAnimateArrival: unlocksAnimateArrival,
                         onOpenRecords: { homeRoute = .recordWall },
                         onOpenBadges: { homeRoute = .badgeWall }
                     )

@@ -35,6 +35,20 @@ final class ShowUnlockRevealTests: XCTestCase {
         XCTAssertFalse(result.badges.contains { $0.family == .cities })
     }
 
+    func testShowNumberFollowsTheArchiveOrderEvenPastTheLastRecord() throws {
+        let shows = try (0..<51).map { try show($0 * 2, city: "上海") }
+        let tonight = shows[50]
+        let result = unlocks(for: tonight, in: shows, now: tonight.date.addingTimeInterval(4 * 3_600))
+
+        XCTAssertEqual(result.showNumber, 51)
+        XCTAssertNil(result.record)
+    }
+
+    func testEndedHeadlineCarriesTheShowNumber() {
+        XCTAssertEqual(HomeCountdownLockup.endedHeadline(showNumber: 7), BSLocalization.format("第 %lld 场，结束了", 7))
+        XCTAssertEqual(HomeCountdownLockup.endedHeadline(showNumber: nil), BSLocalization.text("这一场结束了"))
+    }
+
     func testShowNotYetOverUnlocksNothing() throws {
         let tonight = try show(0, city: "上海")
         let result = unlocks(for: tonight, in: [tonight], now: tonight.date.addingTimeInterval(-3_600))

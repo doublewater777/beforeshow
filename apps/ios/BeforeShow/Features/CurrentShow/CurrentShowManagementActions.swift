@@ -31,14 +31,14 @@ extension CurrentShowManagementSection {
         }
     }
 
-    /// 散场后首页第一次真正可见时揭晓一次；没有解锁就什么都不出现。
+    /// 散场停留期里一直带着这场的序号和解锁；揭晓动画只在第一次真正可见时播放。
     func revealUnlocksIfNeeded(isPostShow: Bool) {
+        guard isPostShow, isHeroPlaybackActive, revealedUnlocks?.showID != show.id else { return }
         let store = ShowUnlockRevealStore()
-        guard isPostShow, isHeroPlaybackActive, !store.hasShown(show.id) else { return }
+        unlocksAnimateArrival = !store.hasShown(show.id)
         store.markShown(show.id)
         let unlocks = ShowUnlockReveal.unlocks(for: show, shows: attachedCandidateShows, in: modelContext)
-        guard !unlocks.isEmpty else { return }
-        withAnimation(.easeOut(duration: 0.3)) { revealedUnlocks = unlocks }
+        withAnimation(unlocksAnimateArrival ? .easeOut(duration: 0.3) : nil) { revealedUnlocks = unlocks }
     }
 
     func performPrimaryAction(_ action: HomeCountdownLockup.PrimaryAction) {

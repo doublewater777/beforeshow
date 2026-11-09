@@ -26361,6 +26361,22 @@
     },
     "%lld SHOW" : {
       "shouldTranslate" : false
+    },
+    "第 %lld 场，结束了" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show No. %lld is over"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 場，結束了"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
