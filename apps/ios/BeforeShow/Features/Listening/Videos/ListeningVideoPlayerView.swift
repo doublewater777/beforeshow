@@ -175,7 +175,6 @@ struct ListeningVideoMiniPlayer: View {
 
                 button(dock.isPlaying ? "pause.fill" : "play.fill") { dock.togglePlayback() }
                     .contentTransition(.symbolEffect(.replace))
-                    .disabled(dock.player == nil)
                     .padding(.trailing, 4)
             }
         }

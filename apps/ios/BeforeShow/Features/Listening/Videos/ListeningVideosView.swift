@@ -49,13 +49,21 @@ struct ListeningVideosView: View {
         return lineup.artists.filter { $0.name == filter }
     }
 
+    private var isFinishedLoading: Bool {
+        lineup.artists.allSatisfy { library.results[$0.name] != nil }
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: BSSpacing.lg) {
                 if lineup.artists.count > 1 { chips }
                 let visible = visibleArtists
-                ForEach(visible) { artist in
-                    section(artist, stacked: visible.count == 1)
+                if visible.isEmpty && isFinishedLoading {
+                    emptyState
+                } else {
+                    ForEach(visible) { artist in
+                        section(artist, stacked: visible.count == 1)
+                    }
                 }
                 Text(ListeningCopy.text("视频来自哔哩哔哩"))
                     .font(BSListeningTokens.caption)
@@ -66,6 +74,17 @@ struct ListeningVideosView: View {
             .padding(.bottom, 120)
         }
         .task(id: lineup) { await library.loadAll(lineup.artists.map(\.name)) }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: BSSpacing.sm) {
+            Text(ListeningCopy.text("暂未找到相关现场视频"))
+                .font(.subheadline)
+                .foregroundStyle(BSColor.Stage.muted)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, BSSpacing.xl)
+        .padding(.horizontal, BSSpacing.roomy)
     }
 
     private var chips: some View {

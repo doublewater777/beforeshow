@@ -19,11 +19,11 @@ final class ListeningVideoLibrary {
         await withTaskGroup(of: Void.self) { group in
             var queue = pending.makeIterator()
             for _ in 0..<Self.concurrentSearches {
-                guard let name = queue.next() else { break }
+                guard !Task.isCancelled, let name = queue.next() else { break }
                 group.addTask { await self.load(name) }
             }
             for await _ in group {
-                guard let name = queue.next() else { continue }
+                guard !Task.isCancelled, let name = queue.next() else { continue }
                 group.addTask { await self.load(name) }
             }
         }

@@ -38,7 +38,7 @@ final class ListeningVideoDock {
         if self.selection == nil {
             AppAudioSession.lease(.artistVideo)
             focusToken = AppAudioSession.observeFocusLoss(of: .artistVideo) { [weak self] in
-                self?.close()
+                self?.pause()
             }
         }
         self.selection = selection
@@ -51,10 +51,18 @@ final class ListeningVideoDock {
         load()
     }
 
+    func pause() {
+        player?.pause()
+        isPlaying = false
+    }
+
     func togglePlayback() {
-        guard let player else { return }
+        guard let player else {
+            if hasVideo { retry() }
+            return
+        }
         if isPlaying {
-            player.pause()
+            pause()
         } else {
             // Take the app's sound before the video starts, not after it is heard.
             AppAudioSession.claimFocus(.artistVideo)
