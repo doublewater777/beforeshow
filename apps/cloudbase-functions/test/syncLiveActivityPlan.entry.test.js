@@ -85,6 +85,7 @@ test("syncLiveActivityPlan saves new plan and marks steps", async () => {
     },
     {},
     {
+      findExisting: async () => null,
       savePlan: async (record) => {
         savedRecord = record;
       }

@@ -17,5 +17,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@cloudbase/node-sdk": "^3.18.3"
   }
 }

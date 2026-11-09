@@ -41,6 +41,10 @@ export async function main(event = {}, context = {}, options = {}) {
     };
   }
 
+  if (activePlans.length === 0) {
+    return { ok: true, processedCount: 0, dispatchedCount: 0, expiredTokenCount: 0 };
+  }
+
   let processedCount = 0;
   let dispatchedCount = 0;
   let expiredTokenCount = 0;
@@ -188,8 +192,7 @@ export async function main(event = {}, context = {}, options = {}) {
 }
 
 async function queryActivePlansFromDb(now, options = {}) {
-  const { default: cloudbase } = await import("@cloudbase/node-sdk");
-  const db = cloudbase.init({}).database();
+  const db = await liveActivityDatabase();
   const _ = db?.command;
 
   const pageSize = options.pageSize ?? 100;

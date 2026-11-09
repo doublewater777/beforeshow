@@ -16,7 +16,8 @@ await esbuild.build({
   platform: "node",
   target: "node18",
   format: "cjs",
-  external: ["@cloudbase/node-sdk"],
+  // SDK is bundled in: the timer runs cold every 5 min, and resolving its node_modules tree dominated each run.
+  minify: true,
   outfile: resolve(outputRoot, "index.js")
 });
 
@@ -27,9 +28,6 @@ await writeFile(
     version: "0.1.0",
     private: true,
     main: "index.js",
-    dependencies: {
-      "@cloudbase/node-sdk": "3.18.3"
-    },
     engines: {
       node: ">=18"
     }

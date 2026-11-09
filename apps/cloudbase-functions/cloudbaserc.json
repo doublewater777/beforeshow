@@ -72,7 +72,7 @@
       "timeout": 30,
       "runtime": "Nodejs18.15",
       "memorySize": 128,
-      "installDependency": true,
+      "installDependency": false,
       "triggers": [
         {
           "name": "everyFiveMinutes",

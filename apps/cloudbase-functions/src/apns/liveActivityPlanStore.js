@@ -3,9 +3,10 @@ import { deliveredReminderKeys } from './liveActivityReminder.js';
 
 const COLLECTION = 'liveActivityPlans';
 
-export async function liveActivityDatabase() {
-  const { default: cloudbase } = await import('@cloudbase/node-sdk');
-  return cloudbase.init({}).database();
+let database;
+export function liveActivityDatabase() {
+  database ??= import('@cloudbase/node-sdk').then(({ default: cloudbase }) => cloudbase.init({}).database());
+  return database;
 }
 
 function document(db, id) { return db.collection(COLLECTION).doc(id); }
