@@ -50,6 +50,38 @@ enum AddShowLifecyclePolicy {
     }
 }
 
+/// 新加的现场何时接管当前现场（不论原选择是自动还是手动）：
+/// 用户确认还在现场；或原当前现场已散场（含停留期）/ 已取消 / 不存在。
+/// 原当前现场还没开场或仍在进行（含音乐节两天之间）时不动。
+enum AddShowCurrentShowPolicy {
+    enum Takeover: Equatable {
+        case userConfirmedLive
+        case replacesFinished
+        case keep
+    }
+
+    static func takeover(
+        lifecycle: AddShowFinalLifecycle,
+        previousCurrent: Show?,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Takeover {
+        switch lifecycle {
+        case .ended: return .keep
+        case .live: return .userConfirmedLive
+        case .future: break
+        }
+        guard let previousCurrent else { return .replacesFinished }
+        if previousCurrent.endedAt != nil { return .replacesFinished }
+        switch CurrentShowTimeState(show: previousCurrent, calendar: calendar, now: now).kind {
+        case .postShow, .ended, .canceled:
+            return .replacesFinished
+        case .before, .today, .dayEnded, .postponed:
+            return .keep
+        }
+    }
+}
+
 enum AddShowFinalLifecycle: Equatable {
     case future
     case live
@@ -91,6 +123,11 @@ enum AddShowPersistenceCoordinator {
         }
 
         let selectionStore = CurrentShowSelectionStore(modelContext: modelContext)
+        let previousCurrent = CurrentShowSession().selectCurrentShow(
+            from: persistedShows,
+            manualSelection: try selectionStore.canonicalSelection(),
+            now: now
+        )
         modelContext.insert(show)
 
         let notificationState: NotificationSchedulingState?
@@ -110,13 +147,27 @@ enum AddShowPersistenceCoordinator {
         // Reconcile the complete portfolio so an earlier show can replace an
         // automatic upcoming selection, but not a manual one.
         let availableShows = try modelContext.fetch(FetchDescriptor<Show>())
-        let selection = try selectionStore.bootstrapIfNeeded(shows: availableShows, now: now)
+        var selection = try selectionStore.bootstrapIfNeeded(shows: availableShows, now: now)
+        switch AddShowCurrentShowPolicy.takeover(
+            lifecycle: lifecycle,
+            previousCurrent: previousCurrent,
+            now: now
+        ) {
+        case .userConfirmedLive:
+            selection = try selectionStore.select(showID: show.id)
+        case .replacesFinished:
+            let record = try selection ?? selectionStore.select(showID: show.id)
+            record.selectAutomatically(showID: show.id)
+            selection = record
+        case .keep:
+            break
+        }
         let resolved = CurrentShowSession().selectCurrentShow(
             from: availableShows, manualSelection: selection, now: now
         )
         let outcome: AddShowSaveOutcome = lifecycle == .ended
             ? .footprint
-            : (lifecycle == .live && resolved?.id == show.id ? .current : .future)
+            : (resolved?.id == show.id ? .current : .future)
 
         let committedState: CurrentShowCommittedState
         do {

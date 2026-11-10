@@ -52,12 +52,20 @@ struct CurrentShowFollowUpSummary: View {
                         onSetCurrent(show)
                     }
                 ) {
-                    NavigationLink {
-                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-                    } label: {
-                        followUpRow(show)
+                    HStack(spacing: 0) {
+                        NavigationLink {
+                            ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                        } label: {
+                            followUpRow(show)
+                        }
+                        .buttonStyle(.plain)
+
+                        CurrentShowSetCurrentButton {
+                            revealedShowID = nil
+                            onSetCurrent(show)
+                        }
+                        .padding(.trailing, 11)
                     }
-                    .buttonStyle(.plain)
                 }
             }
 

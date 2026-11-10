@@ -416,7 +416,7 @@ final class FootprintArchiveTests: XCTestCase {
             manualSelection: selection,
             now: now
         )
-        XCTAssertEqual(result.outcome, .future)
+        XCTAssertEqual(result.outcome, .current)
         XCTAssertNotNil(result.notificationState)
         XCTAssertEqual(selected?.id, closer.id)
     }
@@ -481,13 +481,13 @@ final class FootprintArchiveTests: XCTestCase {
             effects: .skipped
         )
 
-        XCTAssertEqual(result.outcome, .future)
+        XCTAssertEqual(result.outcome, .current)
         XCTAssertNotNil(result.notificationState)
         let selections = try context.fetch(FetchDescriptor<CurrentShowSelection>())
         XCTAssertEqual(selections.first?.selectedShowID, future.id)
     }
 
-    func testUnifiedConfirmedLiveAddDoesNotStealExistingCurrentShow() async throws {
+    func testUnifiedConfirmedLiveAddBecomesCurrentShow() async throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             ShowOpeningFamiliarityBaseline.self, ShowOpeningArtistTier.self, ShowArtistListeningPreference.self,
@@ -517,9 +517,9 @@ final class FootprintArchiveTests: XCTestCase {
             effects: .skipped
         )
 
-        XCTAssertEqual(result.outcome, .future)
+        XCTAssertEqual(result.outcome, .current)
         XCTAssertNotNil(result.notificationState)
-        XCTAssertEqual(selection.selectedShowID, existing.id)
+        XCTAssertEqual(selection.selectedShowID, live.id)
     }
 
     func testDetailIdentityDynamicallyRanksShowCityAndCompanion() throws {

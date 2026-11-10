@@ -382,7 +382,76 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         XCTAssertEqual(selection.isManual, false)
         XCTAssertEqual(selection.selectionPolicyVersion, 2)
         XCTAssertNotNil(result.notificationState)
-        XCTAssertEqual(result.outcome, .future)
+        XCTAssertEqual(result.outcome, .current)
+    }
+
+    @MainActor
+    func testAddingAfterPinnedShowHasEndedTakesOverCurrentShow() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let pastDate = now.addingTimeInterval(-30 * 86_400)
+        let old = try Show(name: "钉住的旧现场", date: pastDate, startTime: pastDate)
+        let selection = CurrentShowSelection(selectedShowID: old.id)
+        context.insert(old)
+        context.insert(selection)
+        try context.save()
+
+        let nextDate = now.addingTimeInterval(5 * 86_400)
+        let next = try Show(name: "下一场", date: nextDate, startTime: nextDate)
+        let result = try await AddShowPersistenceCoordinator.persist(
+            next, lifecycle: .future, in: context, now: now, effects: .skipped
+        )
+
+        XCTAssertEqual(result.outcome, .current)
+        XCTAssertEqual(selection.selectedShowID, next.id)
+        XCTAssertEqual(selection.isManual, false)
+    }
+
+    @MainActor
+    func testAddingDuringPostShowStayTakesOverCurrentShow() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let yesterday = now.addingTimeInterval(-86_400)
+        let finished = try Show(name: "昨晚", date: yesterday, startTime: yesterday)
+        finished.markEnded(at: yesterday.addingTimeInterval(3 * 3600))
+        let selection = CurrentShowSelection(selectedShowID: finished.id)
+        context.insert(finished)
+        context.insert(selection)
+        try context.save()
+
+        let nextDate = now.addingTimeInterval(10 * 86_400)
+        let next = try Show(name: "下一场", date: nextDate, startTime: nextDate)
+        let result = try await AddShowPersistenceCoordinator.persist(
+            next, lifecycle: .future, in: context, now: now, effects: .skipped
+        )
+
+        XCTAssertEqual(result.outcome, .current)
+        XCTAssertEqual(selection.selectedShowID, next.id)
+    }
+
+    @MainActor
+    func testConfirmedLiveShowBecomesCurrentEvenWithManualSelection() async throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let laterDate = now.addingTimeInterval(7 * 86_400)
+        let upcoming = try Show(name: "手动选的", date: laterDate, startTime: laterDate)
+        let selection = CurrentShowSelection(selectedShowID: upcoming.id)
+        context.insert(upcoming)
+        context.insert(selection)
+        try context.save()
+
+        let startedAt = now.addingTimeInterval(-3600)
+        let live = try Show(name: "正在现场", date: startedAt, startTime: startedAt)
+        let result = try await AddShowPersistenceCoordinator.persist(
+            live, lifecycle: .live, in: context, now: now, effects: .skipped
+        )
+
+        XCTAssertEqual(result.outcome, .current)
+        XCTAssertEqual(selection.selectedShowID, live.id)
+        XCTAssertEqual(selection.isManual, true)
     }
 
     @MainActor
@@ -413,7 +482,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
         XCTAssertEqual(updatedSelection.selectedShowID, added.id)
-        XCTAssertEqual(result.outcome, .future, "An automatically selected upcoming show is still a future addition")
+        XCTAssertEqual(result.outcome, .current)
     }
 
     @MainActor
@@ -487,7 +556,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(events, ["saved", "notifications", "widget"])
         XCTAssertEqual(result.committedState.selection?.selectedShowID, show.id)
-        XCTAssertEqual(result.outcome, .future)
+        XCTAssertEqual(result.outcome, .current)
     }
 
     @MainActor

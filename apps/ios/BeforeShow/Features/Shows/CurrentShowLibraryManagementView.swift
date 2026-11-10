@@ -57,7 +57,8 @@ struct CurrentShowLibraryManagementView: View {
                                         phase: session.phase(for: show, now: now),
                                         actions: actions,
                                         onOpen: { destination = .init(show: show) },
-                                        onAction: { action in handle(action, for: show) }
+                                        onAction: { action in handle(action, for: show) },
+                                        onSetCurrent: actions.contains(.setCurrent) ? { selectCurrent(show) } : nil
                                     )
                                     if actions.contains(.setCurrent) {
                                         // Same gesture as 还有 N 场 on the 当前 tab.

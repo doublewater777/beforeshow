@@ -8,46 +8,54 @@ struct CurrentShowLibraryUpcomingRow: View {
     let actions: [CurrentShowLibraryMenuAction]
     let onOpen: () -> Void
     let onAction: (CurrentShowLibraryMenuAction) -> Void
+    var onSetCurrent: (() -> Void)?
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: BSSpacing.compact) {
-                ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
-                    .frame(width: 54, height: 72)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(show.name)
-                        .font(.system(size: 14.5, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    Text(statusLine)
-                        .font(BSFont.V3.small.weight(.medium))
-                        .foregroundStyle(isChanged ? BSColor.Accent.warm : BSColor.Stage.foreground.opacity(0.82))
-                        .lineLimit(1)
-                    Text([shortDateText, show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
-                        .font(BSFont.V3.caption)
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .lineLimit(1)
+        HStack(spacing: BSSpacing.sm) {
+            Button(action: onOpen) {
+                HStack(spacing: BSSpacing.compact) {
+                    ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
+                        .frame(width: 54, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(show.name)
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.foreground)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Text(statusLine)
+                            .font(BSFont.V3.small.weight(.medium))
+                            .foregroundStyle(isChanged ? BSColor.Accent.warm : BSColor.Stage.foreground.opacity(0.82))
+                            .lineLimit(1)
+                        Text([shortDateText, show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
+                            .font(BSFont.V3.caption)
+                            .foregroundStyle(BSColor.Stage.muted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    if isCurrent {
+                        Text(BSLocalization.text("当前"))
+                            .font(BSFont.V3.caption)
+                            .foregroundStyle(BSColor.Stage.accent)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                    }
                 }
-                Spacer(minLength: 0)
-                if isCurrent {
-                    Text(BSLocalization.text("当前"))
-                        .font(BSFont.V3.caption)
-                        .foregroundStyle(BSColor.Stage.accent)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                }
+                .contentShape(Rectangle())
             }
-            .padding(BSSpacing.compact)
-            .background(BSColor.Stage.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 17))
-            .overlay(
-                RoundedRectangle(cornerRadius: 17)
-                    .stroke(isCurrent ? BSColor.Stage.accent.opacity(0.45) : BSColor.Stage.border, lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 17))
+            .buttonStyle(.plain)
+
+            if !isCurrent, let onSetCurrent {
+                CurrentShowSetCurrentButton(action: onSetCurrent)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(BSSpacing.compact)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 17))
+        .overlay(
+            RoundedRectangle(cornerRadius: 17)
+                .stroke(isCurrent ? BSColor.Stage.accent.opacity(0.45) : BSColor.Stage.border, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 17))
         .contextMenu {
             CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
         }
@@ -158,5 +166,26 @@ private struct CurrentShowLibraryMenuItems: View {
                 Label(CurrentShowLibraryMenuAction.delete.title, systemImage: CurrentShowLibraryMenuAction.delete.icon)
             }
         }
+    }
+}
+
+/// 行内可见的「设为当前」：左滑只是快捷方式，不能作为唯一入口。
+struct CurrentShowSetCurrentButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(BSLocalization.text("设为当前"))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.foreground)
+                .padding(.horizontal, 11)
+                .frame(height: 28)
+                .background(BSColor.Stage.surfaceRaised, in: Capsule())
+                .overlay(Capsule().strokeBorder(BSColor.Stage.border, lineWidth: 1))
+                .frame(minHeight: BSLayout.minTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
     }
 }
