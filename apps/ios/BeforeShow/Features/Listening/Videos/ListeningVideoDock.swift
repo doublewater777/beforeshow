@@ -37,8 +37,13 @@ final class ListeningVideoDock {
         guard self.selection?.video.id != selection.video.id else { return }
         if self.selection == nil {
             AppAudioSession.lease(.artistVideo)
-            focusToken = AppAudioSession.observeFocusLoss(of: .artistVideo) { [weak self] in
-                self?.pause()
+            // Music taking over closes the video so the mini player follows it; other sounds only pause.
+            focusToken = NotificationCenter.default.addObserver(
+                forName: AppAudioSession.focusDidChange, object: nil, queue: nil
+            ) { [weak self] notification in
+                guard AppAudioSession.takesFocus(notification, from: .artistVideo) else { return }
+                let toMusic = notification.object as? AppAudioSession.Owner == .listening
+                MainActor.assumeIsolated { toMusic ? self?.close() : self?.pause() }
             }
         }
         self.selection = selection

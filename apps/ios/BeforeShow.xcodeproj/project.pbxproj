@@ -219,6 +219,7 @@
 		4EF86C137B8EC660AAECE008 /* ArtistProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E48A7413C42E559ED14F32A /* ArtistProfileView.swift */; };
 		4F9BD821BE67BABB24EC720D /* BSScrollObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E5497F5EE579471EACD2C61 /* BSScrollObservation.swift */; };
 		4FC6793534AAED9E04D78856 /* ListeningPickFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA8C1FC1630D47446175FE0 /* ListeningPickFeedView.swift */; };
+		4FCC342FC69EAAACBCB6A623 /* ListeningVideoDockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E38C898FBF96C2FAEFB9D3 /* ListeningVideoDockTests.swift */; };
 		5013514ADE8CFCE8610CB32A /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A3E74923C3782611546C27 /* RootTabView.swift */; };
 		5047974DDCBB0156A18AF094 /* CurrentShowLibraryPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9C841F2491749D5A9E528A /* CurrentShowLibraryPolicies.swift */; };
 		50483219A352833547A8F3EA /* CurrentShowQuickActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4910E3FA251055FDC76293 /* CurrentShowQuickActionsView.swift */; };
@@ -791,6 +792,7 @@
 		1943D91049E452CA3622C186 /* FootprintStarSongTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintStarSongTests.swift; sourceTree = "<group>"; };
 		19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityAndNotificationTests.swift; sourceTree = "<group>"; };
 		19CD5586CC0960656C74465A /* TimetablePullToClose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePullToClose.swift; sourceTree = "<group>"; };
+		19E38C898FBF96C2FAEFB9D3 /* ListeningVideoDockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningVideoDockTests.swift; sourceTree = "<group>"; };
 		1A05FF048A656A3A3B2BAC4C /* ListeningWidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningWidgetTests.swift; sourceTree = "<group>"; };
 		1A265862DEF1190D5B04032E /* LiveActivityRemoteSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityRemoteSyncServiceTests.swift; sourceTree = "<group>"; };
 		1A5AF77F308C6755615D4A79 /* FootprintBookPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookPages.swift; sourceTree = "<group>"; };
@@ -2120,6 +2122,7 @@
 				96BCCE8E6C07F3498C570F28 /* ListeningShowMutationIntegrationTests.swift */,
 				4BD3C1B2FFDD0A7E22DF62AF /* ListeningTestPlayer.swift */,
 				8F56BBB67EE50A54869C62F3 /* ListeningTodayDiscTests.swift */,
+				19E38C898FBF96C2FAEFB9D3 /* ListeningVideoDockTests.swift */,
 				1A05FF048A656A3A3B2BAC4C /* ListeningWidgetTests.swift */,
 				2C4D6FC5594D83118D2C7B25 /* ListenTestData.swift */,
 				19A68DB55BF50557BED557B8 /* LiveActivityAndNotificationTests.swift */,
@@ -3323,6 +3326,7 @@
 				189F34799D46101F56803D17 /* ListeningShowMutationIntegrationTests.swift in Sources */,
 				1575371AA751F7ACF0553FED /* ListeningTestPlayer.swift in Sources */,
 				133F940CCDCA5C74C0E61248 /* ListeningTodayDiscTests.swift in Sources */,
+				4FCC342FC69EAAACBCB6A623 /* ListeningVideoDockTests.swift in Sources */,
 				AFBE4EAB2A593D0FA387CE33 /* ListeningWidgetTests.swift in Sources */,
 				0F3BE470CA1FE8CCCA4FF900 /* LiveActivityAndNotificationTests.swift in Sources */,
 				5C6BA85B7E9E80B885A7E4D7 /* LiveActivityImageBudgetTests.swift in Sources */,
@@ -3523,7 +3527,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -3594,7 +3598,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
