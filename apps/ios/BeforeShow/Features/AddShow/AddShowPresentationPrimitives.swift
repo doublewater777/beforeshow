@@ -86,38 +86,25 @@ extension View {
     }
 }
 
+/// 添加 / 编辑现场的主按钮：与全 App 主动作一致的白底深字。
 struct EditShowSaveButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(
-                isEnabled
-                    ? Color(red: 0.15, green: 0.11, blue: 0.04)
-                    : BSColor.Stage.dim
+            .foregroundStyle(isEnabled ? BSColor.Stage.background : BSColor.Stage.dim)
+            .frame(minHeight: 52)
+            .background(
+                isEnabled ? BSColor.Stage.foreground : BSColor.Stage.surfaceRaised,
+                in: RoundedRectangle(cornerRadius: BSRadius.md)
             )
-            .padding(.vertical, 15)
-            .background(background(isPressed: configuration.isPressed))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .opacity(configuration.isPressed ? 0.9 : 1)
-    }
-
-    @ViewBuilder
-    private func background(isPressed: Bool) -> some View {
-        if isEnabled {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.82, green: 0.67, blue: 0.42),
-                    Color(red: 0.91, green: 0.78, blue: 0.56),
-                    Color(red: 0.95, green: 0.86, blue: 0.66)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .opacity(isPressed ? 0.85 : 1)
-        } else {
-            Color.white.opacity(0.08)
-        }
+            .overlay {
+                RoundedRectangle(cornerRadius: BSRadius.md)
+                    .strokeBorder(BSColor.Stage.border, lineWidth: 1)
+            }
+            .opacity(isEnabled && configuration.isPressed ? 0.85 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }

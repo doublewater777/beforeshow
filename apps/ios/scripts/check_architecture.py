@@ -21,10 +21,9 @@ TEST_ROOTS = ("BeforeShowTests", "BeforeShowUITests")
 
 OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/Listening/ListeningRoomCoordinator.swift": 1284,
-    "BeforeShowTests/ShowDraftTests.swift": 1_051,
+    "BeforeShowTests/ShowDraftTests.swift": 1_020,
     "BeforeShowTests/TimetableImportTests.swift": 1_033,
     "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 701,
-    "BeforeShow/Features/AddShow/AddShowFlowView.swift": 838,
     "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 778,
     "BeforeShowWidgets/CountdownWidgetViews.swift": 728,
     "BeforeShow/Supporting/Debug/LiveAndWidgetShowcaseView.swift": 725,

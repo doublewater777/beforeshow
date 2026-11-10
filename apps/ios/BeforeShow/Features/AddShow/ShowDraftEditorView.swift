@@ -515,7 +515,7 @@ struct ShowDraftEditorView: View {
                 HStack(spacing: BSSpacing.sm) {
                     if isSaving {
                         ProgressView()
-                            .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                            .tint(BSColor.Stage.background)
                     }
                     Text(isSaving ? "正在保存" : saveTitle)
                 }

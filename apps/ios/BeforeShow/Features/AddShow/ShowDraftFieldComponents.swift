@@ -62,7 +62,7 @@ struct AddShowFieldLabel: View {
             if isRequired {
                 Text("*")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
+                    .foregroundStyle(BSColor.Accent.danger)
             }
 
             Spacer(minLength: 0)

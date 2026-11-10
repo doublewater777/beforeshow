@@ -61,11 +61,11 @@ private struct AddShowCoverActionChip: View {
             if showsSpinner {
                 ProgressView()
                     .controlSize(.small)
-                    .tint(BSColor.Accent.violet)
+                    .tint(BSColor.Stage.foreground)
             } else if let icon {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isActive ? BSColor.Stage.accent : BSColor.Accent.violet)
+                    .foregroundStyle(isActive ? BSColor.Stage.accent : BSColor.Stage.foreground)
             }
             Text(title)
                 .font(.system(size: 13, weight: .semibold))

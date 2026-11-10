@@ -83,7 +83,7 @@ private struct AddShowConstrainedDatePicker: View {
                 .labelsHidden()
                 .environment(\.calendar, calendar)
                 .environment(\.timeZone, calendar.timeZone)
-                .tint(BSColor.Accent.violet)
+                .tint(BSColor.Stage.foreground)
                 .datePickerStyle(.compact)
                 .padding(.leading, 16)
 
@@ -128,9 +128,9 @@ private struct AddShowConfirmButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(BSColor.Stage.accent)
             .frame(maxWidth: .infinity, minHeight: 40)
-            .background(BSColor.Accent.violet.opacity(configuration.isPressed ? 0.75 : 1))
+            .background(BSColor.Stage.accent.opacity(configuration.isPressed ? 0.22 : 0.14))
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
             .contentShape(RoundedRectangle(cornerRadius: BSRadius.md))
     }
@@ -247,7 +247,7 @@ private struct AddShowEndTimeField: View {
                 Spacer(minLength: 0)
                 Toggle("结束时间", isOn: $hasEndTime)
                     .labelsHidden()
-                    .tint(BSColor.Accent.violet)
+                    .tint(BSColor.Stage.foreground)
                     .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget)
             }
 

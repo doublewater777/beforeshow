@@ -62,14 +62,14 @@ struct ArtistInputRow: View {
                     ArtistAvatarThumb(url: url, size: 28)
                 }
 
-                Button(action: onDelete) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .regular))
-                        .foregroundStyle(BSColor.textTertiary)
+                if canDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18, weight: .regular))
+                            .foregroundStyle(BSColor.textTertiary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .disabled(!canDelete)
-                .opacity(canDelete ? 1 : 0.35)
             }
 
             if showsResults {

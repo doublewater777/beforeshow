@@ -27,7 +27,7 @@ struct AddShowLinkGuideStepsView: View {
                         Text(BSLocalization.text("平台列表"))
                             .font(.system(size: 13, weight: .medium))
                     }
-                    .foregroundStyle(BSColor.Accent.violet)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
                 }
@@ -42,7 +42,7 @@ struct AddShowLinkGuideStepsView: View {
                     Text("·")
                         .foregroundStyle(BSColor.textTertiary)
                     Text("\(page + 1) / \(steps.count)")
-                        .foregroundStyle(BSColor.Accent.violet)
+                        .foregroundStyle(BSColor.Stage.foreground)
                 }
                 .font(BSFont.tag)
             }
@@ -78,7 +78,7 @@ struct AddShowLinkGuideStepsView: View {
             HStack(spacing: BSSpacing.sm) {
                 ForEach(steps.indices, id: \.self) { index in
                     Circle()
-                        .fill(index == page ? BSColor.Accent.violet : BSColor.border)
+                        .fill(index == page ? BSColor.Stage.foreground : BSColor.border)
                         .frame(width: BSSpacing.sm, height: BSSpacing.sm)
                 }
             }

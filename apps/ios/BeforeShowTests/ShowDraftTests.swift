@@ -522,37 +522,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertNil(AddShowPasteboardLinkSuggestion.resolve(from: nil))
     }
 
-    func testClipboardPasteChipAppearsWithoutReadingPasteboardContents() {
-        XCTAssertTrue(
-            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
-                hasClipboardText: true,
-                linkText: "",
-                hasImportedDraft: false
-            )
-        )
-        XCTAssertFalse(
-            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
-                hasClipboardText: true,
-                linkText: "https://m.damai.cn/item.htm?id=1",
-                hasImportedDraft: false
-            )
-        )
-        XCTAssertFalse(
-            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
-                hasClipboardText: false,
-                linkText: "",
-                hasImportedDraft: false
-            )
-        )
-        XCTAssertFalse(
-            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
-                hasClipboardText: true,
-                linkText: "",
-                hasImportedDraft: true
-            )
-        )
-    }
-
     func testShowLinkPlatformCatalogRecognizesSupportedHostsAndRejectsLookalikes() {
         let supported: [(String, String)] = [
             ("m.damai.cn", "大麦"),

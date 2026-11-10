@@ -22,6 +22,10 @@ enum AnalyticsEvent {
     case showLinkParsed
     case duplicateShowBlocked(method: String, existingShowID: UUID)
     case proLimitReached
+    /// 添加现场任一环节失败（解析 / 识别 / 校验 / 写库）；只带阶段与原因码，不带用户内容。
+    case addShowFailed(method: String, stage: String, reason: String)
+    /// 填了内容却没保存就离开：记录当时挡住保存的是什么。
+    case addShowAbandoned(method: String, blocker: String)
     case showAdded(showID: UUID, method: String, lifecycle: String, isFirstShow: Bool, isFestival: Bool)
     case showEndedConfirmed(showID: UUID)
     case listenPlaybackStarted(source: ListeningPlaybackSource)
@@ -54,6 +58,8 @@ enum AnalyticsEvent {
         case .showLinkParsed: "show_link_parsed"
         case .duplicateShowBlocked: "duplicate_show_blocked"
         case .proLimitReached: "pro_limit_reached"
+        case .addShowFailed: "add_show_failed"
+        case .addShowAbandoned: "add_show_abandoned"
         case .showAdded: "show_added"
         case .showEndedConfirmed: "show_ended_confirmed"
         case .listenPlaybackStarted: "listen_playback_started"
@@ -128,6 +134,10 @@ enum AnalyticsEvent {
             ]
         case .showEndedConfirmed(let showID):
             return ["show_id": showID.uuidString]
+        case .addShowFailed(let method, let stage, let reason):
+            return ["method": method, "stage": stage, "reason": reason]
+        case .addShowAbandoned(let method, let blocker):
+            return ["method": method, "blocker": blocker]
         case .listenPlaybackStarted(let source):
             return ["source": source == .fullCatalog ? "full" : "preview"]
         case .timetableSaved(let showID, let performanceCount, let isNew):

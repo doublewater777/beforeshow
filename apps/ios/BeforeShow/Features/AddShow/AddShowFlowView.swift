@@ -7,7 +7,6 @@ import UIKit
 // MARK: - Add Show Flow
 
 struct AddShowFlowView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -21,22 +20,21 @@ struct AddShowFlowView: View {
     @State private var draft: ShowDraft
     @State private var selectedScreenshotItem: PhotosPickerItem?
     @State private var linkText = ""
-    @State private var message: String?
+    /// 截图读取 / 识别失败时留在入口页的说明。
+    @State private var importNote: String?
     @State private var linkFailure: AddShowLinkFailurePresentation?
     @State private var isRecognizingScreenshot = false
     @State private var isParsingLink = false
     @State private var isSaving = false
     @State private var hasImportedDraft = false
-    @State private var paywallSheet: AddShowPaywallSheet?
-    @State private var toast: BSToastPayload?
+    @State private var showsPaywall = false
+    @State private var isAtFreeCapacity = false
     @State private var showsLinkGuide = false
-    /// 引导页里点过「打开 XX」才置真；关闭引导页时才读剪贴板内容，换平台名。
-    /// 进入链接页只用 hasStrings 出 chip，避免一进来就弹系统粘贴横幅。
-    @State private var didOpenPlatformFromGuide = false
-    /// 剪贴板可粘贴时出 chip：未读内容用 clipboardText，读过支持平台后带平台名。
-    @State private var linkPasteSuggestion: AddShowPasteOffer?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
+    /// 保存成功后按钮内的轻反馈文案；显示片刻后关闭页面。
+    @State private var savedTitle: String?
+    @State private var saveFailure: String?
     @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
     @State private var importRevision = 0
@@ -51,7 +49,9 @@ struct AddShowFlowView: View {
     @State private var importTask: Task<Void, Never>?
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
     @State private var fallbackDateConfirmed = false
-    @State private var pendingLifecycleConfirmation: PendingAddShowLifecycleConfirmation?
+    @State private var lifecycleQuestion: AddShowLifecycleQuestion?
+    @State private var lifecycleChoice: AddShowLifecycleChoice?
+    @State private var lifecycleEndTime = Date()
 
     init(
         sheet: AddShowSheet,
@@ -111,21 +111,35 @@ struct AddShowFlowView: View {
                             .opacity(isImportingDraft ? 0.55 : 1)
                             .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
 
+                            if let lifecycleQuestion {
+                                AddShowLifecycleChoiceCard(
+                                    question: lifecycleQuestion,
+                                    choice: $lifecycleChoice,
+                                    endTime: $lifecycleEndTime
+                                )
+                                .transition(.opacity)
+                            }
                         }
 
-                        if let message {
-                            AddShowNoteCard(text: message, iconName: "info.circle")
+                        if let importNote, !shouldShowDraftFields {
+                            AddShowNoteCard(text: importNote, iconName: "info.circle")
                         }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
                     .padding(.bottom, 24)
+                    .animation(.easeInOut(duration: BSMotion.interface), value: lifecycleQuestion)
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
 
                 if shouldShowDraftFields {
-                    addSaveBar
+                    AddShowSaveBar(
+                        status: saveBarStatus,
+                        isSaving: isSaving,
+                        savedTitle: savedTitle,
+                        action: { Task { await save() } }
+                    )
                 }
             }
         }
@@ -137,102 +151,58 @@ struct AddShowFlowView: View {
                         dismissKeyboard()
                         sheet = .link
                         hasImportedDraft = false
-                        message = nil
-                        refreshPasteOffer(inspectContents: false)
+                        importNote = nil
                     }
-                    .disabled(isSaving || isImportingDraft)
+                    .disabled(isSaving || isImportingDraft || savedTitle != nil)
                 }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .interactiveDismissDisabled(isSaving)
+        // 已经填了内容就不能被一滑关掉；明确放弃走右上角关闭。
+        .interactiveDismissDisabled(isSaving || savedTitle != nil || hasUnsavedInput)
         .preferredColorScheme(.dark)
         .onChange(of: selectedScreenshotItem) { _, newItem in
             guard let newItem else { return }
             sheet = .screenshot
             linkFailure = nil
-            message = nil
+            importNote = nil
             beginImportTask {
                 await recognizeScreenshot(from: newItem)
             }
         }
-        .onChange(of: linkText) { _, _ in
-            // 用户手动编辑后，之前的剪贴板建议已过期
-            linkPasteSuggestion = nil
+        .onChange(of: linkText) { oldValue, newValue in
+            guard !isParsingLink,
+                  AddShowLinkPasteDetection.shouldAutoParse(previous: oldValue, current: newValue) else { return }
+            startParsingLink()
         }
-        .onDisappear {
-            // 页面离开时作废进行中的导入，避免任务在 dismiss 后继续写状态 / 弹 toast
-            abandonInFlightImport()
-            guard !didSave else { return }
-            coverLifecycle.cancel()
+        .onChange(of: draft) { _, _ in
+            saveFailure = nil
         }
-        .sheet(item: $pendingLifecycleConfirmation) { pending in
-            AddShowLifecycleConfirmationSheet(
-                showName: pending.show.name,
-                showStart: AddShowLifecyclePolicy.minimumEndTime(
-                    for: pending.show,
-                    calendar: pending.show.timingCalendar()
-                ),
-                canConfirmEnd: AddShowLifecyclePolicy.canConfirmEnd(
-                    for: pending.show,
-                    calendar: pending.show.timingCalendar()
-                ),
-                calendar: pending.show.endTimingCalendar(),
-                onLive: {
-                    pendingLifecycleConfirmation = nil
-                    Task { @MainActor in
-                        await persistPreparedShow(pending.show, lifecycle: .live)
-                    }
-                },
-                onEnded: { endTime in
-                    pending.show.markEnded(at: endTime)
-                    pendingLifecycleConfirmation = nil
-                    Task { @MainActor in
-                        await persistPreparedShow(pending.show, lifecycle: .ended)
-                    }
-                }
-            )
-        }
-        .sheet(item: $paywallSheet) { sheet in
-            switch sheet {
-            case .limit:
-                let reason: ProLimitReason = .hardCapLimit
-                BSProLimitSheet(
-                    title: reason.title,
-                    message: reason.message
-                ) {
-                    paywallSheet = .membership
-                } onSecondary: {
-                    paywallSheet = nil
-                }
-            case .membership:
-                ProPaywallSheetView()
-            }
+        .onChange(of: [draft.date, draft.startTime, draft.endDate, draft.endTime]) { _, _ in
+            refreshLifecycleQuestion()
         }
         .onAppear {
-            refreshPasteOffer(inspectContents: false)
+            refreshFreeCapacity()
+            refreshLifecycleQuestion()
         }
-        .sheet(isPresented: $showsLinkGuide, onDismiss: {
-            if didOpenPlatformFromGuide {
-                refreshPasteOffer(inspectContents: true)
+        .onDisappear {
+            // 页面离开时作废进行中的导入，避免任务在 dismiss 后继续写状态
+            abandonInFlightImport()
+            guard !didSave else { return }
+            if hasUnsavedInput {
+                ProductAnalytics.capture(.addShowAbandoned(
+                    method: sheet.rawValue,
+                    blocker: saveBarStatus?.analyticsValue ?? (shouldShowDraftFields ? "none" : "link_entry")
+                ))
             }
-            didOpenPlatformFromGuide = false
-        }) {
-            AddShowLinkGuideView(onOpenPlatform: {
-                didOpenPlatformFromGuide = true
-            })
+            coverLifecycle.cancel()
         }
-        .bsToastOverlay(toast, bottomPadding: 28)
-    }
-
-    /// 粘贴即识别链接来源，不用等一次失败往返。
-    /// 只匹配官方域名及其子域名，避免查询参数或仿冒域名误报。
-    /// 与 `ShowLinkDraftParser.normalizedLink` 使用同一套规范化，避免 chip 成功但提交失败。
-    private var detectedLinkSource: String? {
-        let candidate = ShowLinkDraftParser.normalizedLink(linkText)
-        guard !candidate.isEmpty,
-              let host = URL(string: candidate)?.host()?.lowercased() else { return nil }
-        return ShowLinkPlatformCatalog.displayName(forHost: host)
+        .sheet(isPresented: $showsPaywall, onDismiss: refreshFreeCapacity) {
+            ProPaywallSheetView()
+        }
+        .sheet(isPresented: $showsLinkGuide) {
+            AddShowLinkGuideView()
+        }
     }
 
     /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
@@ -247,13 +217,49 @@ struct AddShowFlowView: View {
         isParsingLink || isRecognizingScreenshot
     }
 
+    private var hasUnsavedInput: Bool {
+        hasImportedDraft
+            || !userEditedFields.isEmpty
+            || !linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var saveBarStatus: AddShowSaveBarStatus? {
+        AddShowSaveBarStatus.resolve(.init(
+            isParsingLink: isParsingLink,
+            isRecognizingScreenshot: isRecognizingScreenshot,
+            nameIsEmpty: draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            needsDateConfirmation: needsDateConfirmation,
+            hasStartTime: draft.startTime != nil,
+            hasValidEndTime: draft.startTime == nil || draft.hasValidEndTime(),
+            needsLifecycleChoice: lifecycleQuestion != nil && lifecycleChoice == nil,
+            isAtFreeCapacity: isAtFreeCapacity,
+            failure: saveFailure
+        ))
+    }
+
     @ViewBuilder
     private var methodContent: some View {
         if !shouldShowDraftFields {
             if isRecognizingScreenshot {
                 screenshotContent
             } else {
-                linkContent
+                if !hasImportedDraft {
+                    AddShowLinkEntryView(
+                        linkText: $linkText,
+                        isParsingLink: isParsingLink,
+                        failure: linkFailure,
+                        onParse: startParsingLink,
+                        onRetry: {
+                            guard !isParsingLink else { return }
+                            linkFailure = nil
+                        },
+                        onManual: switchToManual,
+                        onOpenGuide: {
+                            dismissKeyboard()
+                            showsLinkGuide = true
+                        }
+                    )
+                }
                 HStack(spacing: BSSpacing.compact) {
                     PhotosPicker(selection: $selectedScreenshotItem, matching: .images) {
                         Label(BSLocalization.text("截图识别"), systemImage: "photo")
@@ -272,149 +278,13 @@ struct AddShowFlowView: View {
         }
     }
 
-    @ViewBuilder
-    private var linkContent: some View {
-        // 解析成功后只留结果表单；失败时保留输入与失败卡方便重试
-        if !hasImportedDraft {
-            VStack(alignment: .leading, spacing: BSSpacing.md) {
-                EditShowFormCard(
-                    title: BSLocalization.text("票务链接"),
-                    icon: "link",
-                    tint: BSColor.Stage.accent
-                ) {
-                    AddShowMultilineInput(
-                        placeholder: "https://...",
-                        text: $linkText,
-                        minHeight: 96,
-                        keyboardType: .URL
-                    )
-                    // 解析期间锁定输入，避免返回结果与当前输入不一致
-                    .disabled(isParsingLink)
-                    .opacity(isParsingLink ? 0.55 : 1)
-
-                    // 剪贴板有文本时一键粘贴并解析；进入页不读内容，避免系统粘贴横幅
-                    if let linkPasteSuggestion, !isParsingLink {
-                        Button {
-                            applyPasteSuggestion()
-                        } label: {
-                            HStack(spacing: 7) {
-                                Image(systemName: "doc.on.clipboard")
-                                    .font(.system(size: 12, weight: .semibold))
-                                Text(linkPasteSuggestion.chipTitle)
-                                    .font(.system(size: 13, weight: .semibold))
-                                Spacer(minLength: 0)
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .foregroundStyle(BSColor.Accent.prepare)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(BSColor.Accent.prepare.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: BSRadius.md)
-                                    .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(linkPasteSuggestion.accessibilityLabel)
-                    }
-
-                    if let detectedLinkSource {
-                        HStack(spacing: 8) {
-                            Text("已识别来源")
-                                .font(.system(size: 12))
-                                .foregroundStyle(BSColor.textTertiary)
-
-                            HStack(spacing: 5) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                Text(detectedLinkSource)
-                            }
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(BSColor.Accent.prepare)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(BSColor.Accent.prepare.opacity(0.10))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
-                            )
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-
-                    Button {
-                        dismissKeyboard()
-                        beginImportTask {
-                            await parseLink()
-                        }
-                    } label: {
-                        HStack(spacing: BSSpacing.sm) {
-                            if isParsingLink {
-                                ProgressView()
-                                    .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
-                            }
-                            Text(isParsingLink ? "正在解析…" : "开始解析")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(EditShowSaveButtonStyle())
-                    .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
-
-                    Text(BSLocalization.format("目前支持：%@", ShowLinkPlatformCatalog.supportSummary))
-                        .font(.system(size: 12))
-                        .foregroundStyle(BSColor.Stage.dim)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        dismissKeyboard()
-                        showsLinkGuide = true
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: "globe")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text(BSLocalization.text("打开购票平台"))
-                                .font(.system(size: 13, weight: .semibold))
-                            Spacer(minLength: 0)
-                            Text(BSLocalization.text("如何获取链接？"))
-                                .font(.system(size: 12))
-                                .foregroundStyle(BSColor.textTertiary)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .foregroundStyle(BSColor.Accent.violet)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: BSLayout.minTouchTarget)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(BSLocalization.text("打开购票平台并查看如何获取链接"))
-                }
-
-                if let linkFailure, !isParsingLink {
-                    AddShowLinkFailureCard(
-                        failure: linkFailure,
-                        onRetry: {
-                            guard !isParsingLink else { return }
-                            self.linkFailure = nil
-                        },
-                        onManual: switchToManual
-                    )
-                }
-            }
-        }
-    }
-
     private var screenshotContent: some View {
         EditShowFormCard(
             title: BSLocalization.text("识别进度"),
             icon: "text.viewfinder",
-            tint: BSColor.Accent.violet,
+            tint: BSColor.Stage.foreground,
             pillText: "设备端 · 不上传",
-            pillTint: BSColor.Accent.violet
+            pillTint: BSColor.Stage.muted
         ) {
             AddShowOCRStepsView(activeStep: ocrActiveStep)
         }
@@ -428,7 +298,7 @@ struct AddShowFlowView: View {
             draft.startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: draft.date)
         }
         sheet = .manual
-        message = nil
+        importNote = nil
         linkFailure = nil
     }
 
@@ -436,104 +306,32 @@ struct AddShowFlowView: View {
         sheet == .manual || hasImportedDraft
     }
 
-    // MARK: - 吸底保存栏：按钮始终可见，仅在需要处理时显示状态行
-
-    private var addSaveBar: some View {
-        VStack(spacing: 10) {
-            // 进度阶梯：名称 → 开场时间；全部就绪转薄荷绿
-            HStack(spacing: 5) {
-                saveProgressSegment(
-                    filled: !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                )
-                saveProgressSegment(filled: draft.startTime != nil)
-            }
-
-            if let saveBarStatus {
-                Text(saveBarStatus.text)
-                    .font(.system(size: 12))
-                    .foregroundStyle(saveBarStatus.tint)
-                    .frame(maxWidth: .infinity)
-            }
-
-            Button {
-                Task {
-                    await save()
-                }
-            } label: {
-                HStack(spacing: BSSpacing.sm) {
-                    if isSaving {
-                        ProgressView()
-                            .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
-                    }
-                    Text(isSaving ? BSLocalization.text("正在保存") : AddShowConfiguration.saveButtonTitle)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(EditShowSaveButtonStyle())
-            .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation || isImportingDraft)
-            .accessibilityLabel(
-                isImportingDraft
-                    ? BSLocalization.text("正在导入，暂不可保存")
-                    : (isSaving ? BSLocalization.text("正在保存") : AddShowConfiguration.saveButtonTitle)
-            )
+    private func refreshLifecycleQuestion() {
+        let question = AddShowLifecycleQuestion.resolve(for: draft)
+        guard question != lifecycleQuestion else { return }
+        lifecycleQuestion = question
+        lifecycleChoice = nil
+        if let question {
+            lifecycleEndTime = question.defaultEnd()
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 10)
-        .background(.bar)
     }
 
-    private func saveProgressSegment(filled: Bool) -> some View {
-        let ready = draft.isReadyToSave && !needsDateConfirmation && !isImportingDraft
-        let fill: Color = filled
-            ? (ready ? BSColor.Accent.prepare : BSColor.Stage.accent)
-            : Color.white.opacity(0.10)
-        return RoundedRectangle(cornerRadius: 2)
-            .fill(fill)
-            .frame(height: 3)
-            .shadow(
-                color: filled ? fill.opacity(0.5) : .clear,
-                radius: 3
-            )
-            .animation(.easeInOut(duration: 0.18), value: filled)
-            .animation(.easeInOut(duration: 0.18), value: ready)
+    private func refreshFreeCapacity() {
+        guard draft.creationOrigin == .user else {
+            isAtFreeCapacity = false
+            return
+        }
+        isAtFreeCapacity = !FreeShowCapacityCoordinator().canAddShow(
+            from: shows,
+            entitlement: ProEntitlementStorage.decode(entitlementRawValue)
+        )
     }
 
-    private struct SaveBarStatus {
-        let text: String
-        let tint: Color
-    }
-
-    /// 按优先级说明距离可保存还差什么；信息已满足保存条件时不显示状态文案。
-    private var saveBarStatus: SaveBarStatus? {
-        if isImportingDraft {
-            return SaveBarStatus(
-                text: isParsingLink ? "正在解析链接…" : "正在识别截图…",
-                tint: BSColor.Stage.muted
-            )
+    private func startParsingLink() {
+        dismissKeyboard()
+        beginImportTask {
+            await parseLink()
         }
-        if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return SaveBarStatus(text: BSLocalization.text("还差现场名称"), tint: BSColor.Stage.muted)
-        }
-        if needsDateConfirmation {
-            return SaveBarStatus(
-                text: BSLocalization.text("还差确认开场日期 · 截图没读到日期，已先填今天"),
-                tint: BSColor.Stage.muted
-            )
-        }
-        if draft.startTime == nil {
-            return SaveBarStatus(
-                text: BSLocalization.text("还差开场时间 · 用于开场前提醒，可先填大概时间"),
-                tint: BSColor.Stage.muted
-            )
-        }
-        if !draft.hasValidEndTime() {
-            return SaveBarStatus(
-                text: BSLocalization.text("时间范围无效，结束时间需要晚于开始时间"),
-                tint: BSColor.Accent.danger
-            )
-        }
-        return nil
     }
 
     /// 启动解析 / OCR 任务；替换上一轮未完成的导入。
@@ -594,11 +392,8 @@ struct AddShowFlowView: View {
                 guard isActiveImportRequest(requestRevision) else { return }
                 // 与 catch 分支一致：读取失败统一清除导入状态，
                 // 不保留上一次识别成功的标题 / 横幅 / 标记
-                draft.source = .manual
-                hasImportedDraft = false
-                sheet = .link
-                message = BSLocalization.text("没有读到这张截图，请改用手动填写。")
-                presentToast(.failure, message: BSLocalization.text("读取失败"))
+                reportFailure(stage: "screenshot", reason: "image_unreadable")
+                failScreenshotImport(BSLocalization.text("没有读到这张截图，请改用手动填写。"))
                 return
             }
 
@@ -617,65 +412,23 @@ struct AddShowFlowView: View {
             hasImportedDraft = true
             importRevision += 1
             fallbackDateConfirmed = false
-            if !recognized.recognizedFields.contains(.date) {
-                // OCR 日期回退为当天不算识别成功，必须引导用户确认
-                message = BSLocalization.text("截图里没有识别到日期，已先填今天，请改成实际开场日期。")
-            } else if recognized.startTime == nil {
-                message = BSLocalization.text("已识别部分信息，请确认日期并补充开场时间。")
-            } else {
-                message = nil
-            }
+            importNote = nil
             ProductAnalytics.capture(.screenshotRecognized)
-            presentToast(.success, message: BSLocalization.text("识别完成"))
         } catch is CancellationError {
             // 页面关闭或新请求取消：不写失败态
             return
         } catch {
             guard isActiveImportRequest(requestRevision) else { return }
-            draft.source = .manual
-            hasImportedDraft = false
-            sheet = .link
-            message = BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。")
-            presentToast(.failure, message: BSLocalization.text("识别失败"))
+            reportFailure(stage: "screenshot", error: error)
+            failScreenshotImport(BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。"))
         }
     }
 
-    /// 进入链接页：只看有没有文本，不读内容，避免系统粘贴横幅。
-    /// 从引导页打开过平台回来：再读一次内容，chip 才能带上平台名。
-    private func refreshPasteOffer(inspectContents: Bool) {
-        guard AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
-            hasClipboardText: UIPasteboard.general.hasStrings || UIPasteboard.general.hasURLs,
-            linkText: linkText,
-            hasImportedDraft: hasImportedDraft
-        ), sheet == .link else { return }
-
-        if inspectContents,
-           let suggestion = AddShowPasteboardLinkSuggestion.resolve(from: UIPasteboard.general.string) {
-            linkPasteSuggestion = .knownPlatform(suggestion)
-            return
-        }
-
-        if linkPasteSuggestion == nil {
-            linkPasteSuggestion = .clipboardText
-        }
-    }
-
-    /// chip 确认后：填入链接并直接开始解析，意图已足够明确。
-    private func applyPasteSuggestion() {
-        guard let offer = linkPasteSuggestion else { return }
-        linkPasteSuggestion = nil
-        let raw: String?
-        switch offer {
-        case .knownPlatform(let suggestion):
-            raw = suggestion.link
-        case .clipboardText:
-            raw = UIPasteboard.general.string
-        }
-        guard let pasted = AddShowPasteboardLinkSuggestion.pasteableLink(from: raw) else { return }
-        linkText = pasted
-        beginImportTask {
-            await parseLink()
-        }
+    private func failScreenshotImport(_ note: String) {
+        draft.source = .manual
+        hasImportedDraft = false
+        sheet = .link
+        importNote = note
     }
 
     @MainActor
@@ -704,11 +457,8 @@ struct AddShowFlowView: View {
             linkFailure = nil
             importRevision += 1
             fallbackDateConfirmed = false
-            message = draft.startTime == nil
-                ? BSLocalization.text("链接里没有明确开场时间，请确认后再添加。")
-                : nil
+            importNote = nil
             ProductAnalytics.capture(.showLinkParsed)
-            presentToast(.success, message: BSLocalization.text("解析完成"))
         } catch is CancellationError {
             return
         } catch {
@@ -716,37 +466,30 @@ struct AddShowFlowView: View {
             draft.source = .manual
             hasImportedDraft = false
             linkFailure = AddShowLinkFailurePresentation.resolve(error)
-            message = nil
-            presentToast(.failure, message: BSLocalization.text("解析失败"))
+            reportFailure(stage: "link_parse", error: error)
         }
     }
 
     @MainActor
     private func save() async {
-        guard !isSaving else { return }
-        guard !isImportingDraft else { return }
-        guard !needsDateConfirmation else { return }
-        isSaving = true
+        guard !isSaving, savedTitle == nil, !isImportingDraft, !needsDateConfirmation else { return }
         dismissKeyboard()
+        saveFailure = nil
 
+        refreshFreeCapacity()
+        if isAtFreeCapacity {
+            ProductAnalytics.capture(.proLimitReached)
+            showsPaywall = true
+            return
+        }
+
+        isSaving = true
         do {
             let show = try draft.makeShow()
             if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: shows) {
                 ProductAnalytics.capture(.duplicateShowBlocked(method: sheet.rawValue, existingShowID: duplicate.id))
-                message = BSLocalization.text("这场已经在 BeforeShow 里了")
-                presentToast(.neutral, message: BSLocalization.text("这场已经在 BeforeShow 里了"))
+                failSave(BSLocalization.text("这场已经在 BeforeShow 里了"))
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                isSaving = false
-                return
-            }
-
-            let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
-            let capacity = FreeShowCapacityCoordinator()
-            guard !show.countsTowardFreeShowCapacity || capacity.canAddShow(from: shows, entitlement: entitlement) else {
-                ProductAnalytics.capture(.proLimitReached)
-                paywallSheet = .limit
-                presentToast(.neutral, message: BSLocalization.text("保存上限"))
-                isSaving = false
                 return
             }
 
@@ -756,27 +499,53 @@ struct AddShowFlowView: View {
             case .ended:
                 await persistPreparedShow(show, lifecycle: .ended)
             case .needsEndConfirmation:
-                pendingLifecycleConfirmation = PendingAddShowLifecycleConfirmation(show: show)
-                isSaving = false
+                refreshLifecycleQuestion()
+                guard lifecycleQuestion != nil else {
+                    // 还不可能已经结束：只能是正在进行。
+                    await persistPreparedShow(show, lifecycle: .live)
+                    return
+                }
+                switch lifecycleChoice {
+                case .live:
+                    await persistPreparedShow(show, lifecycle: .live)
+                case .ended:
+                    show.markEnded(at: lifecycleEndTime)
+                    await persistPreparedShow(show, lifecycle: .ended)
+                case nil:
+                    // 选项就在表单里，保存栏已说明还差这一步。
+                    isSaving = false
+                }
             }
-        } catch ShowValidationError.invalidEndTime {
-            message = BSLocalization.text("结束时间需要晚于开始时间。")
-            presentToast(.failure, message: BSLocalization.text("时间范围无效"))
-            isSaving = false
-        } catch ShowValidationError.missingStartTime {
-            message = BSLocalization.text("请确认开场时间。")
-            presentToast(.failure, message: BSLocalization.text("还缺开场时间"))
-            isSaving = false
-        } catch ShowValidationError.emptyName {
-            message = BSLocalization.text("请填写现场名称。")
-            presentToast(.failure, message: BSLocalization.text("保存失败"))
-            isSaving = false
         } catch {
             modelContext.rollback()
-            message = BSLocalization.text("请填写必填信息。")
-            presentToast(.failure, message: BSLocalization.text("保存失败"))
-            isSaving = false
+            reportFailure(stage: "validation", error: error)
+            switch error as? ShowValidationError {
+            case .invalidEndTime: failSave(BSLocalization.text("结束时间需要晚于开始时间。"))
+            case .missingStartTime: failSave(BSLocalization.text("请确认开场时间。"))
+            case .emptyName: failSave(BSLocalization.text("请填写现场名称。"))
+            default: failSave(BSLocalization.text("请填写必填信息。"))
+            }
         }
+    }
+
+    private func reportFailure(stage: String, error: Error) {
+        reportFailure(stage: stage, reason: AddShowFailureReason.code(for: error))
+    }
+
+    private func reportFailure(stage: String, reason: String) {
+        ProductAnalytics.capture(.addShowFailed(method: sheet.rawValue, stage: stage, reason: reason))
+    }
+
+    /// 写库失败不是用户填错了：如实说保存没成功、可以重试，并留下错误码便于排查。
+    private func failPersist(_ error: Error) {
+        let nsError = error as NSError
+        reportFailure(stage: "persist", error: error)
+        failSave(BSLocalization.format("没有保存成功，请再试一次（%@ %ld）", nsError.domain, nsError.code))
+    }
+
+    private func failSave(_ message: String) {
+        saveFailure = message
+        isSaving = false
     }
 
     @MainActor
@@ -807,32 +576,25 @@ struct AddShowFlowView: View {
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                     isSaving = false
 
-                    // Saving is the end of the add transaction. If another Current Show already
-                    // exists, preserve it silently; users can switch later from the Current tab.
-                    onSaved?(show.id)
+                    // 保存即结束添加事务：按钮内告诉用户这场去了哪里，片刻后关闭。
+                    // 已有当前现场时静默保留，用户可稍后在当前页切换。
+                    savedTitle = AddShowSavedFeedback.title(
+                        for: outcome,
+                        showDate: show.date,
+                        calendar: show.timingCalendar()
+                    )
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(900))
+                        onSaved?(show.id)
+                    }
                 }
             )
         } catch AddShowPersistenceError.duplicateShow {
             modelContext.rollback()
-            message = BSLocalization.text("这场已经在 BeforeShow 里了")
-            presentToast(.neutral, message: BSLocalization.text("这场已经在 BeforeShow 里了"))
-            isSaving = false
+            failSave(BSLocalization.text("这场已经在 BeforeShow 里了"))
         } catch {
             modelContext.rollback()
-            message = BSLocalization.text("请填写必填信息。")
-            presentToast(.failure, message: BSLocalization.text("保存失败"))
-            isSaving = false
-        }
-    }
-
-    private func presentToast(_ tone: BSToastTone, message: String) {
-        let payload = BSToastPayload(tone: tone, message: message)
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(2200))
-            if toast == payload {
-                toast = nil
-            }
+            failPersist(error)
         }
     }
 }

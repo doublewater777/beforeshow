@@ -63,14 +63,6 @@ enum ShowDetailPresentedSheet: Identifiable, Equatable, Hashable {
     }
 }
 
-/// Add-show paywall occupies one sheet; limit replaces into membership.
-enum AddShowPaywallSheet: String, Identifiable, Equatable {
-    case limit
-    case membership
-
-    var id: String { rawValue }
-}
-
 enum MapChooserPresentation {
     enum Resolution: Equatable {
         case pick([ExternalMapApp])

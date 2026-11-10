@@ -148,7 +148,7 @@ struct ShowDraftFormFields: View {
     /// 四张卡片布局（Stage 色板，与首页 V4 / 现场状态卡同一语言）。
     private var formCards: some View {
         VStack(alignment: .leading, spacing: 18) {
-            EditShowFormCard(title: BSLocalization.text("基本信息"), icon: "square.and.pencil", tint: BSColor.Stage.accent) {
+            EditShowFormCard(title: BSLocalization.text("基本信息"), icon: "square.and.pencil", tint: BSColor.Stage.foreground) {
                 AddShowLabeledTextField(
                     title: BSLocalization.text("现场名称"),
                     placeholder: BSLocalization.text("例：五月天上海演唱会"),
@@ -206,9 +206,9 @@ struct ShowDraftFormFields: View {
                     Button {
                         draft.artists.append(ArtistSlot(name: "", avatarURL: nil))
                     } label: {
-                        Label("+ 新增艺人", systemImage: "plus.circle")
+                        Label("新增艺人", systemImage: "plus")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(BSColor.Accent.violet)
+                            .foregroundStyle(BSColor.Stage.muted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -222,7 +222,7 @@ struct ShowDraftFormFields: View {
             EditShowFormCard(
                 title: BSLocalization.text("日期与时间"),
                 icon: "clock",
-                tint: BSColor.Accent.violet
+                tint: BSColor.Stage.foreground
             ) {
                 AddShowScheduleFields(
                     draft: $draft,
@@ -252,7 +252,7 @@ struct ShowDraftFormFields: View {
                 }
             }
 
-            EditShowFormCard(title: BSLocalization.text("地点"), icon: "mappin.and.ellipse", tint: BSColor.Accent.prepare) {
+            EditShowFormCard(title: BSLocalization.text("地点"), icon: "mappin.and.ellipse", tint: BSColor.Stage.foreground) {
                 AddShowLabeledTextField(
                     title: BSLocalization.text("城市"),
                     placeholder: BSLocalization.text("上海"),
@@ -277,7 +277,7 @@ struct ShowDraftFormFields: View {
             EditShowFormCard(
                 title: BSLocalization.text("封面"),
                 icon: "photo",
-                tint: BSColor.Stage.accent
+                tint: BSColor.Stage.foreground
             ) {
                 if !draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     ShowDraftCoverPreview(urlString: draft.coverImageURL)
@@ -285,7 +285,7 @@ struct ShowDraftFormFields: View {
                     HStack(spacing: 10) {
                         Image(systemName: "photo")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(BSColor.Accent.violet)
+                            .foregroundStyle(BSColor.Stage.muted)
                         Text("还没加封面")
                             .font(.system(size: 12.5))
                             .foregroundStyle(BSColor.Stage.dim)
@@ -370,9 +370,10 @@ struct ShowDraftFormFields: View {
             return
         }
 
-        let resolvedEndDay = max(
-            draft.endTimingCalendar().startOfDay(for: endDate),
-            draft.timingCalendar().startOfDay(for: draft.date)
+        let resolvedEndDay = draft.resolvedEndDay(
+            requested: endDate,
+            endClock: endTime,
+            startClock: draft.startTime ?? startTime
         )
         endDate = resolvedEndDay
         draft.endDate = resolvedEndDay

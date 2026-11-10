@@ -192,6 +192,20 @@ struct ShowDraft: Equatable {
             of: calendar.startOfDay(for: day)
         ) ?? day
     }
+
+    /// 结束日期还是开场当天、结束时刻却不晚于开场时，按跨午夜处理顺延一天
+    /// （20:00 开场、00:30 散场）；用户已选更晚的日期时原样保留。
+    func resolvedEndDay(requested: Date, endClock: Date, startClock: Date) -> Date {
+        let calendar = timingCalendar()
+        let endCalendar = endTimingCalendar()
+        let startDay = calendar.startOfDay(for: date)
+        let endDay = max(endCalendar.startOfDay(for: requested), startDay)
+        guard endDay == startDay else { return endDay }
+        let start = mergedTime(startClock, into: startDay, calendar: calendar)
+        let end = mergedTime(endClock, into: endDay, calendar: endCalendar)
+        guard end <= start else { return endDay }
+        return endCalendar.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+    }
 }
 
 extension ShowDraft {

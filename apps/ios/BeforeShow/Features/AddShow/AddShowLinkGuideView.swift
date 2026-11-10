@@ -3,16 +3,12 @@ import SwiftUI
 /// 购票平台快捷入口及「如何获取链接？」图文引导。
 /// 首次进入默认展示 5 步滑动图文教程；之后直接展示平台列表，用户可随时主动点击查看教程。
 struct AddShowLinkGuideView: View {
-    /// 用户点了「打开 XX」时回调，用于只在真正去拿过链接后才读剪贴板。
-    var onOpenPlatform: (() -> Void)?
-
     @AppStorage("addShow.hasSeenLinkGuide") private var hasSeenLinkGuide = false
     @State private var showingTutorial: Bool
     @State private var browserPage: BSInAppBrowserPage?
     @Environment(\.dismiss) private var dismiss
 
-    init(onOpenPlatform: (() -> Void)? = nil) {
-        self.onOpenPlatform = onOpenPlatform
+    init() {
         _showingTutorial = State(
             initialValue: !UserDefaults.standard.bool(forKey: "addShow.hasSeenLinkGuide")
         )
@@ -91,7 +87,6 @@ struct AddShowLinkGuideView: View {
                     ForEach(platforms) { platform in
                         Button {
                             guard let url = platform.url else { return }
-                            onOpenPlatform?()
                             browserPage = BSInAppBrowserPage(url: url)
                         } label: {
                             HStack(alignment: .top) {
@@ -137,7 +132,7 @@ struct AddShowLinkGuideView: View {
             HStack(spacing: 12) {
                 Image(systemName: "questionmark.circle.fill")
                     .font(.system(size: 20))
-                    .foregroundStyle(BSColor.Accent.violet)
+                    .foregroundStyle(BSColor.Stage.foreground)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(BSLocalization.text("如何获取链接？"))
@@ -156,15 +151,15 @@ struct AddShowLinkGuideView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                 }
-                .foregroundStyle(BSColor.Accent.violet)
+                .foregroundStyle(BSColor.Stage.foreground)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(BSColor.Accent.violet.opacity(0.08))
+            .background(BSColor.Stage.foreground.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: BSRadius.md)
-                    .stroke(BSColor.Accent.violet.opacity(0.22), lineWidth: 1)
+                    .stroke(BSColor.Stage.foreground.opacity(0.22), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

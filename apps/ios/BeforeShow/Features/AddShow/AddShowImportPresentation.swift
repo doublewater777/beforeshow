@@ -64,9 +64,21 @@ struct AddShowPasteboardLinkSuggestion: Equatable {
     let link: String
     let platform: String
 
+    /// 购票 App 分享出来的常是「【大麦】演出名 https://…」整段文案，先试整串，再从文案里找链接。
     static func resolve(from raw: String?) -> Self? {
         guard let raw else { return nil }
-        let candidate = ShowLinkDraftParser.normalizedLink(raw)
+        if let direct = supported(ShowLinkDraftParser.normalizedLink(raw)) {
+            return direct
+        }
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let matches = detector?.matches(in: raw, range: NSRange(raw.startIndex..., in: raw)) ?? []
+        return matches.lazy
+            .compactMap { $0.url?.absoluteString }
+            .compactMap(supported)
+            .first
+    }
+
+    private static func supported(_ candidate: String) -> Self? {
         guard !candidate.isEmpty,
               let host = URL(string: candidate)?.host()?.lowercased(),
               let platform = ShowLinkPlatformCatalog.displayName(forHost: host) else { return nil }
@@ -80,39 +92,6 @@ struct AddShowPasteboardLinkSuggestion: Equatable {
         guard let raw else { return nil }
         let candidate = ShowLinkDraftParser.normalizedLink(raw)
         return candidate.isEmpty ? nil : candidate
-    }
-
-    static func shouldOfferClipboardChip(
-        hasClipboardText: Bool,
-        linkText: String,
-        hasImportedDraft: Bool
-    ) -> Bool {
-        hasClipboardText
-            && !hasImportedDraft
-            && linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-}
-
-enum AddShowPasteOffer: Equatable {
-    case knownPlatform(AddShowPasteboardLinkSuggestion)
-    case clipboardText
-
-    var chipTitle: String {
-        switch self {
-        case .knownPlatform(let suggestion):
-            return BSLocalization.format("粘贴%@链接？", suggestion.platform)
-        case .clipboardText:
-            return BSLocalization.text("粘贴剪贴板里的链接？")
-        }
-    }
-
-    var accessibilityLabel: String {
-        switch self {
-        case .knownPlatform(let suggestion):
-            return BSLocalization.format("粘贴%@链接并开始解析", suggestion.platform)
-        case .clipboardText:
-            return BSLocalization.text("粘贴剪贴板里的链接并开始解析")
-        }
     }
 }
 
@@ -278,7 +257,7 @@ struct AddShowImportedBanner: View {
 
             Text(BSLocalization.format("已从%@识别出信息，请核对；金色标出的还需补充。", sourceName))
                 .font(.system(size: 12.5))
-                .foregroundStyle(Color(red: 0.79, green: 0.92, blue: 0.87))
+                .foregroundStyle(BSColor.Stage.foreground)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -323,7 +302,7 @@ struct AddShowOCRStepsView: View {
                         } else if step == activeStep {
                             ProgressView()
                                 .controlSize(.mini)
-                                .tint(BSColor.Accent.violet)
+                                .tint(BSColor.Stage.foreground)
                         } else {
                             Text("\(step)")
                                 .font(.system(size: 11, weight: .semibold))
@@ -345,7 +324,7 @@ struct AddShowOCRStepsView: View {
         if step < activeStep {
             return BSColor.Accent.prepare.opacity(0.15)
         } else if step == activeStep {
-            return BSColor.Accent.violet.opacity(0.16)
+            return BSColor.Stage.foreground.opacity(0.16)
         }
         return Color.white.opacity(0.06)
     }
