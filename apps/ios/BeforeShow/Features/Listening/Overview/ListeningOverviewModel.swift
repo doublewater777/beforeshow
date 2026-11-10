@@ -71,6 +71,13 @@ enum ListeningPickOrder {
         guard let playing, order.first?.id != playing.id else { return order }
         return [playing] + order.filter { $0.id != playing.id }
     }
+
+    /// On a shelf the opening albums sit mid-row, with albums on both sides to browse.
+    static func centred(_ order: [ListeningDisc], leading count: Int) -> [ListeningDisc] {
+        let rest = order.dropFirst(count)
+        let middle = rest.startIndex + rest.count / 2
+        return Array(rest[..<middle]) + order.prefix(count) + rest[middle...]
+    }
 }
 
 /// When the 「帮我挑一张」 card draws a new album. It never reshuffles on its own.

@@ -86,6 +86,23 @@
         }
       }
     },
+    "3D 唱片柜" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D Record Shelf"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D 唱片櫃"
+          }
+        }
+      }
+    },
     "Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -150,6 +167,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Day %d · %@"
+          }
+        }
+      }
+    },
+    "一屏一张" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One per Screen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一屏一張"
           }
         }
       }
@@ -252,6 +286,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允許存取 Apple Music 後，可嘗試完整播放；目前沒有可用試聽片段。"
+          }
+        }
+      }
+    },
+    "免费试用，剩 %lld 次" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free trial, %lld left"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費試用，剩 %lld 次"
           }
         }
       }
@@ -936,6 +987,23 @@
         }
       }
     },
+    "样式" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Style"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "樣式"
+          }
+        }
+      }
+    },
     "正在准备…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -966,6 +1034,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在搜尋藝人…"
+          }
+        }
+      }
+    },
+    "正面唱片架" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Front-Facing Rack"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正面唱片架"
           }
         }
       }

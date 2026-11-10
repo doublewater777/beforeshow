@@ -11,7 +11,8 @@ import UIKit
     static func tone(for url: URL) async -> UIColor? {
         if let color = cache[url] { return color }
         guard let image = await ShowCoverImageCache.shared.image(from: url),
-              let color = average(image) else { return nil }
+              // Averaging decodes the whole cover; keep it off the main thread.
+              let color = await Task.detached(priority: .utility, operation: { average(image) }).value else { return nil }
         cache[url] = color
         return color
     }
@@ -30,7 +31,7 @@ import UIKit
     }
 
     /// Pale covers keep a pale spine with dark ink; everything else gets a deepened spine.
-    static func spine(for tone: UIColor) -> (fill: UIColor, isLight: Bool) {
+    nonisolated static func spine(for tone: UIColor) -> (fill: UIColor, isLight: Bool) {
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
         tone.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
         if brightness > 0.78, saturation < 0.18 {

@@ -69,6 +69,13 @@ final class ListeningOverviewModelTests: XCTestCase {
         XCTAssertEqual(ListeningPickOrder.keeping(nil, above: order).map(\.id), ["b", "c", "a"])
     }
 
+    func testShelfOrderPutsTheOpeningAlbumsInTheMiddle() {
+        let order = ["p", "o", "1", "2", "3", "4"].map { disc($0) }
+        XCTAssertEqual(ListeningPickOrder.centred(order, leading: 2).map(\.id), ["1", "2", "p", "o", "3", "4"])
+        XCTAssertEqual(ListeningPickOrder.centred(order, leading: 1).map(\.id), ["o", "1", "p", "2", "3", "4"])
+        XCTAssertEqual(ListeningPickOrder.centred([disc("o")], leading: 1).map(\.id), ["o"])
+    }
+
     func testPickCardOnlyRedrawsWhenEmptyOrItsAlbumLeftThePool() {
         XCTAssertTrue(ListeningPickCardPolicy.needsNewDraw(current: nil, candidateIDs: ["a"]))
         XCTAssertFalse(ListeningPickCardPolicy.needsNewDraw(current: disc("a"), candidateIDs: ["a", "b"]))

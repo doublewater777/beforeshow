@@ -102,10 +102,13 @@ struct ListeningOverviewView: View {
                 ListeningPickEntryCard(disc: pickPreview, show: show)
             }
             .buttonStyle(.plain)
-            .disabled(pickPreview == nil)
+            .disabled(count == 0)
             .accessibilityIdentifier("listening.overview.pick")
         }
         .padding(.horizontal, BSSpacing.roomy)
+        // The shelf can fill in without the candidate list changing under this view; draw when the card shows empty.
+        .onAppear { if pickPreview == nil { pickPreview = drawPreview() } }
+        .onChange(of: count) { if pickPreview == nil { pickPreview = drawPreview() } }
     }
 
     @ViewBuilder
