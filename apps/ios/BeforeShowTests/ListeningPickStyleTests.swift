@@ -16,6 +16,14 @@ final class ListeningPickStyleTests: XCTestCase {
         XCTAssertEqual(resolve("shelf3D", trialUsed: 3, counted: true), .shelf3D)
     }
 
+    func testCarouselIsProAndSharesTheTrial() {
+        XCTAssertEqual(resolve("ring", trialUsed: 2), .ring)
+        XCTAssertEqual(resolve("ring", trialUsed: 3), .feed)
+        XCTAssertEqual(resolve("ring", trialUsed: 3, counted: true), .ring)
+        XCTAssertEqual(resolve("ring", isPro: true, trialUsed: 99), .ring)
+        XCTAssertEqual(resolve("ring", trialUsed: 0, supports: false), .ring)
+    }
+
     func testProAlwaysGetsTheShelf() {
         XCTAssertEqual(resolve("shelf3D", isPro: true, trialUsed: 99), .shelf3D)
     }
@@ -31,8 +39,8 @@ final class ListeningPickStyleTests: XCTestCase {
 
     func testWithoutShelfSupportFeedIsShownAndShelfIsNotOffered() {
         XCTAssertEqual(resolve("", isPro: true, trialUsed: 0, supports: false), .feed)
-        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: false), [.feed, .rack])
-        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: true), [.shelf3D, .feed, .rack])
+        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: false), [.feed, .rack, .ring])
+        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: true), [.shelf3D, .feed, .rack, .ring])
     }
 
     func testTrialOpensLeft() {

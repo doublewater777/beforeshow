@@ -167,8 +167,10 @@ final class ShelfScene3D {
         let top = Float(project(center + [0, caseHeight / 2, 0], in: size).y)
         let bottom = Float(project(center - [0, caseHeight / 2, 0], in: size).y)
         let height = Float(size.height)
-        let back = min(1, max(0, (top - 55) / 35))
-        let front = min(1, max(0, (height - 190 - bottom) / 70))
+        // The margins clear the title and controls; a view smaller than a phone, such as a style preview, shrinks them.
+        let scale = min(1, height / 700)
+        let back = min(1, max(0, (top - 55 * scale) / (35 * scale)))
+        let front = min(1, max(0, (height - 190 * scale - bottom) / (70 * scale)))
         return min(back, front)
     }
 

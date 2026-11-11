@@ -314,7 +314,7 @@ struct ListeningRoomView: View {
     private func openPickFeed() {
         let isPresenting = overviewSheet != nil || isSearching || matchingSlotIndex != nil
             || room.browser.detail != nil || session.isNowPlayingPresented
-        guard !isPresenting, room.showsRack, !room.pickCandidates(filter: .all).isEmpty else { return }
+        guard !isPresenting, room.showsRack, !room.pickCandidates().isEmpty else { return }
         pickFeedStart = ListeningPickFeedStart(disc: nil)
     }
 }

@@ -62,7 +62,7 @@ struct ListeningOverviewView: View {
                 }
             }
         }
-        .onChange(of: room.pickCandidates(filter: .all).map(\.id), initial: true) { _, ids in
+        .onChange(of: room.pickCandidates().map(\.id), initial: true) { _, ids in
             if ListeningPickCardPolicy.needsNewDraw(current: pickPreview, candidateIDs: ids) { pickPreview = drawPreview() }
         }
     }
@@ -88,13 +88,13 @@ struct ListeningOverviewView: View {
 
     private func drawPreview() -> ListeningDisc? {
         ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: ListeningDiscPickPolicy.showScopeKey,
-                                     candidates: room.pickCandidates(filter: .all),
+                                     candidates: room.pickCandidates(),
                                      lineupNames: show.artistNames)
     }
 
     @ViewBuilder
     private var pickSection: some View {
-        let count = room.pickCandidates(filter: .all).count
+        let count = room.pickCandidates().count
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             sectionHeader(ListeningCopy.text("帮我挑一张"),
                           trailing: count > 0 ? ListeningCopy.format("%d 张唱片", count) : nil)

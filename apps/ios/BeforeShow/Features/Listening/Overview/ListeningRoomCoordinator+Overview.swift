@@ -20,9 +20,9 @@ import Foundation
         display.player.isPlaybackActive && loadedDisc?.id == disc.id
     }
 
-    func pickCandidates(filter: ListeningDiscPickFilter) -> [ListeningDisc] {
+    func pickCandidates() -> [ListeningDisc] {
         let candidates = ListeningDiscPickCandidates.discs(in: rackGroups, scope: .all)
-            .filter { !$0.tracks.isEmpty && $0.origin == .album && filter.includes($0) }
+            .filter { !$0.tracks.isEmpty && $0.origin == .album }
         let loadable = candidates.filter { discPresentation(for: $0).canLoad }
         return loadable.isEmpty ? candidates : loadable
     }
@@ -37,7 +37,7 @@ import Foundation
         guard !hasLoadedDisc || track == nil else { return track }
         guard let show else { return nil }
 
-        let candidates = pickCandidates(filter: .all)
+        let candidates = pickCandidates()
         let pool = (candidates.isEmpty ? discs : candidates).filter { !$0.tracks.isEmpty }
         guard !pool.isEmpty else { return nil }
 

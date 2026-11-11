@@ -22,7 +22,7 @@ import Foundation
         guard let show else { return nil }
         return ListeningTodayDiscPolicy.disc(
             showID: show.id,
-            candidates: pickCandidates(filter: .all),
+            candidates: pickCandidates(),
             heardSongIDs: actualSongIDs,
             reminderDiscID: widgetSync.reminderDiscID(showID: show.id, on: date),
             on: date

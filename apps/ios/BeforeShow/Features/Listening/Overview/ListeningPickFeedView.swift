@@ -8,7 +8,6 @@ struct ListeningPickFeedView: View {
     let startingDisc: ListeningDisc?
     /// Hands back the album the user stopped on, so Listen shows it.
     let onClose: (ListeningDisc?) -> Void
-    @State private var filter: ListeningDiscPickFilter = .all
     @State private var order: [ListeningDisc] = []
     @State private var currentID: String?
     @State private var openingID: String?
@@ -18,9 +17,9 @@ struct ListeningPickFeedView: View {
     @AppStorage(ListeningPickStyle.storageKey) private var styleRawValue = ""
     @AppStorage(ListeningPickStyle.trialOpensKey) private var trialOpensUsed = 0
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    /// This open already used one of the 3D shelf's free tries.
+    /// This open already used one of the Pro styles' free tries.
     @State private var countedTrialThisOpen = false
-    @State private var isShowingPaywall = false
+    @State private var isShowingStyles = false
 
     private var scopeKey: String { ListeningDiscPickPolicy.showScopeKey }
     /// The scroll view reports nil while it first lays out; the opening album still counts as on screen.
@@ -35,7 +34,7 @@ struct ListeningPickFeedView: View {
         ZStack(alignment: .top) {
             BSColor.Stage.background.ignoresSafeArea()
             if order.isEmpty {
-                Text(ListeningCopy.text(filter == .all ? "这排柜子暂时没有可挑的唱片" : "没有符合筛选条件的唱片"))
+                Text(ListeningCopy.text("这排柜子暂时没有可挑的唱片"))
                     .font(.subheadline)
                     .foregroundStyle(BSColor.Stage.muted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,14 +73,20 @@ struct ListeningPickFeedView: View {
             header
         }
         .foregroundStyle(BSColor.Stage.foreground)
-        .sheet(isPresented: $isShowingPaywall) { ProPaywallView() }
+        .sheet(isPresented: $isShowingStyles) {
+            ListeningPickStyleSheet(
+                discs: order, show: show, currentID: settledID, current: style,
+                trialLeft: ListeningPickStyle.trialOpensLeft(isPro: isPro, used: trialOpensUsed),
+                isLocked: ListeningPickStyle.trialOpensLeft(isPro: isPro, used: trialOpensUsed) == 0 && !countedTrialThisOpen,
+                onChoose: { styleRawValue = $0.rawValue }
+            )
+        }
         .onChange(of: style, initial: true) { _, style in countTrial(for: style) }
         .onChange(of: style) { _, _ in rebuild(startingWith: settledDisc, keepingPlaying: true) }
         .onAppear {
             isListeningOutside = room.wantsPlayback
             rebuild(startingWith: startingDisc, keepingPlaying: true)
         }
-        .onChange(of: filter) { _, _ in rebuild(startingWith: nil, keepingPlaying: false) }
         .task(id: settledID) {
             prefetchNextPage()
             guard !isListeningOutside else { return }
@@ -108,52 +113,20 @@ struct ListeningPickFeedView: View {
                 Text(ListeningCopy.text("帮我挑一张")).font(ListeningOverviewStyle.headerTitle)
             }
             Spacer()
-            Menu {
-                Picker(ListeningCopy.text("筛选唱片"), selection: $filter) {
-                    ForEach(ListeningDiscPickFilter.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                Section(ListeningCopy.text("样式")) {
-                    ForEach(ListeningPickStyle.available()) { styleItem($0) }
-                }
-            } label: {
-                Image(systemName: "line.3.horizontal.decrease")
+            Button { isShowingStyles = true } label: {
+                Image(systemName: "square.grid.2x2")
                     .font(ListeningOverviewStyle.headerTitle)
                     .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                     .background(Circle().fill(ListeningOverviewStyle.scrim))
             }
-            .accessibilityLabel(ListeningCopy.text("筛选唱片"))
-            .accessibilityIdentifier("listening.pickFeed.filter")
+            .accessibilityLabel(ListeningCopy.text("样式"))
+            .accessibilityIdentifier("listening.pickFeed.style")
         }
         .buttonStyle(.plain)
         .padding(.horizontal, BSSpacing.compact)
     }
 
-    private func styleItem(_ option: ListeningPickStyle) -> some View {
-        let trialLeft = option.isPro ? ListeningPickStyle.trialOpensLeft(isPro: isPro, used: trialOpensUsed) : nil
-        let isLocked = trialLeft == 0 && !countedTrialThisOpen
-        return Button {
-            if isLocked {
-                isShowingPaywall = true
-            } else {
-                styleRawValue = option.rawValue
-            }
-        } label: {
-            Label {
-                Text(option.title)
-                if let trialLeft, !isLocked {
-                    Text(ListeningCopy.format("免费试用，剩 %lld 次", trialLeft))
-                }
-            } icon: {
-                if option == style {
-                    Image(systemName: "checkmark")
-                } else if isLocked {
-                    Image(systemName: "lock")
-                }
-            }
-        }
-    }
-
-    /// Free users' opens of the 3D shelf count towards its trial, once per open.
+    /// Free users' opens of a Pro style count towards the shared trial, once per open.
     private func countTrial(for style: ListeningPickStyle) {
         guard style.isPro, !isPro, !countedTrialThisOpen else { return }
         countedTrialThisOpen = true
@@ -161,7 +134,7 @@ struct ListeningPickFeedView: View {
     }
 
     private func rebuild(startingWith start: ListeningDisc?, keepingPlaying: Bool) {
-        let candidates = room.pickCandidates(filter: filter)
+        let candidates = room.pickCandidates()
         let drawn = ListeningPickOrder.feed(first: start, candidates: candidates) { remaining in
             ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: remaining, lineupNames: show.artistNames)
         }
