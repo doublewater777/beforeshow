@@ -140,8 +140,7 @@ struct ListeningPickFeedView: View {
         let playing = keepingPlaying && room.wantsPlayback ? room.loadedDisc : nil
         let kept = ListeningPickOrder.keeping(playing, above: drawn)
         let leading = (kept.firstIndex { $0.id == drawn.first?.id } ?? 0) + 1
-        // The 3D shelf opens at its near end, after running the whole row from the far one.
-        order = style == .feed || style == .shelf3D ? kept : ListeningPickOrder.centred(kept, leading: leading)
+        order = style == .feed ? kept : ListeningPickOrder.placed(kept, leading: leading, at: .random(in: 0...kept.count - leading))
         openingID = drawn.first?.id
         currentID = openingID
     }

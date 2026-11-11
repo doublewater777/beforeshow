@@ -20416,18 +20416,18 @@
         }
       }
     },
-    "省 40%" : {
+    "省 20%" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save 40%"
+            "value" : "Save 20%"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "省 40%"
+            "value" : "省 20%"
           }
         }
       }
@@ -26302,18 +26302,18 @@
         }
       }
     },
-    "限时优惠 · 最高 40% OFF" : {
+    "限时优惠 · 最高 20% OFF" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Limited-time offer · up to 40% OFF"
+            "value" : "Limited-time offer · up to 20% OFF"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "限時優惠 · 最高 40% OFF"
+            "value" : "限時優惠 · 最高 20% OFF"
           }
         }
       }

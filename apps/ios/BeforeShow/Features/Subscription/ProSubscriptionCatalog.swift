@@ -119,7 +119,7 @@ enum ProSubscriptionCatalog {
             id: yearlyDiscountProductID,
             plan: .yearlyDiscount,
             displayName: BSLocalization.text("BeforeShow Pro 特惠年度"),
-            priceText: BSLocalization.text("$2.99/年"),
+            priceText: BSLocalization.text("$3.99/年"),
             benefitCopy: [
                 "无限添加现场"
             ]

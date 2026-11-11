@@ -14,7 +14,7 @@ final class ProSubscriptionTests: XCTestCase {
             "com.doublewaterapps.beforeshow.pro.yearly.discount",
             "com.doublewaterapps.beforeshow.pro.lifetime.discount"
         ])
-        XCTAssertEqual(products.map(\.priceText), ["$4.99/年", "$8.99", "$2.99/年", "$5.99"])
+        XCTAssertEqual(products.map(\.priceText), ["$4.99/年", "$8.99", "$3.99/年", "$5.99"])
         XCTAssertEqual(ProSubscriptionCatalog.standardPlans, [.yearly, .lifetime])
         XCTAssertEqual(ProSubscriptionCatalog.winbackPlans, [.yearlyDiscount, .lifetimeDiscount])
         XCTAssertTrue(ProSubscriptionPlan.lifetime.isLifetime)
@@ -635,7 +635,7 @@ final class ProSubscriptionTests: XCTestCase {
             "以特惠价解锁 Pro · %@",
             "暂时不要",
             "再想一下？",
-            "限时优惠 · 最高 40% OFF",
+            "限时优惠 · 最高 20% OFF",
             "价格暂不可用",
             "推荐",
             "无限添加现场",

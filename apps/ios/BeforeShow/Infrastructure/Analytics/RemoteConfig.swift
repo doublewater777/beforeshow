@@ -9,7 +9,7 @@ import PostHog
 /// 注意 PostHog flag 在首次请求返回前 `isFeatureEnabled` 为 false，所以每个 flag
 /// 的默认值都必须是「关闭」也安全的那一侧。
 enum RemoteConfig {
-    /// 挽留弹窗文案实验：开启后把「省 40%」换成更高价值的表述。
+    /// 挽留弹窗文案实验：开启后把「省 20%」换成更高价值的表述。
     /// flag 关闭时沿用现有文案，App Store 已审文案不变。
     enum FlagKey {
         static let winbackSaveCopyVariant = "winback-save-copy-variant"

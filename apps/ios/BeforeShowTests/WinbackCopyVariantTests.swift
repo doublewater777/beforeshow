@@ -61,7 +61,7 @@ final class WinbackCopyExperimentTests: XCTestCase {
         )
         XCTAssertEqual(
             ProPaywallCopy.winbackSaveLabel(.yearlyDiscount, variant: .control),
-            BSLocalization.text("省 40%")
+            BSLocalization.text("省 20%")
         )
         // 非挽留方案恒为空角标。
         XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.yearly, variant: .access), "")
@@ -80,7 +80,7 @@ final class WinbackCopyExperimentTests: XCTestCase {
                 XCTAssertEqual(label, BSLocalization.text("现场与回忆保留"))
                 XCTAssertEqual(snapshot.superPropertyValue, "access")
             case .control:
-                XCTAssertEqual(label, BSLocalization.text("省 40%"))
+                XCTAssertEqual(label, BSLocalization.text("省 20%"))
                 XCTAssertEqual(snapshot.superPropertyValue, "control")
             }
         }
@@ -259,10 +259,10 @@ final class PurchaseRevenueTests: XCTestCase {
 /// docs/observability/posthog-activation-goal.md 第 5 项：feature flag 驱动实验分组。
 ///
 /// flag 未命中 / 关闭时（`variantKey` 返回 nil，测试环境下 SDK 未 setup），
-/// 文案必须退回 control，即线上已审的「省 40%」。
+/// 文案必须退回 control，即线上已审的「省 20%」。
 final class WinbackCopyVariantTests: XCTestCase {
     func testControlCopyWhenFlagNotEvaluated() {
-        XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.yearlyDiscount), BSLocalization.text("省 40%"))
+        XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.yearlyDiscount), BSLocalization.text("省 20%"))
         XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.lifetimeDiscount), BSLocalization.text("省 33%"))
     }
 

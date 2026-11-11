@@ -39,11 +39,6 @@ struct ListeningPickShelfStage: View {
         }
     }
 
-    /// How far along its run the 3D shelf's opening is at `t` (0 → 1): eases in, cruises, eases out.
-    static func openingRun(_ t: Double) -> Double {
-        t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2
-    }
-
     /// The on-screen step from one album to the next one back.
     static func rowStep(for style: ListeningPickStyle, count: Int, in size: CGSize) -> CGVector {
         switch style {

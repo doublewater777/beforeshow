@@ -57,11 +57,14 @@ final class ListeningOverviewModelTests: XCTestCase {
         XCTAssertEqual(ListeningPickOrder.keeping(nil, above: order).map(\.id), ["b", "c", "a"])
     }
 
-    func testShelfOrderPutsTheOpeningAlbumsInTheMiddle() {
+    func testShelfOrderPutsTheOpeningAlbumsWhereverTheyFall() {
         let order = ["p", "o", "1", "2", "3", "4"].map { disc($0) }
-        XCTAssertEqual(ListeningPickOrder.centred(order, leading: 2).map(\.id), ["1", "2", "p", "o", "3", "4"])
-        XCTAssertEqual(ListeningPickOrder.centred(order, leading: 1).map(\.id), ["o", "1", "p", "2", "3", "4"])
-        XCTAssertEqual(ListeningPickOrder.centred([disc("o")], leading: 1).map(\.id), ["o"])
+        XCTAssertEqual(ListeningPickOrder.placed(order, leading: 2, at: 0).map(\.id), ["p", "o", "1", "2", "3", "4"])
+        XCTAssertEqual(ListeningPickOrder.placed(order, leading: 2, at: 3).map(\.id), ["1", "2", "3", "p", "o", "4"])
+        XCTAssertEqual(ListeningPickOrder.placed(order, leading: 2, at: 4).map(\.id), ["1", "2", "3", "4", "p", "o"])
+        XCTAssertEqual(ListeningPickOrder.placed(order, leading: 1, at: 9).map(\.id), ["o", "1", "2", "3", "4", "p"],
+                       "a slot past the end puts them last")
+        XCTAssertEqual(ListeningPickOrder.placed([disc("o")], leading: 1, at: 0).map(\.id), ["o"])
     }
 
     func testPickCardOnlyRedrawsWhenEmptyOrItsAlbumLeftThePool() {

@@ -121,7 +121,7 @@ enum ProPaywallCopy {
             }
         }
         switch plan {
-        case .yearlyDiscount: return BSLocalization.text("省 40%")
+        case .yearlyDiscount: return BSLocalization.text("省 20%")
         case .lifetimeDiscount: return BSLocalization.text("省 33%")
         default: return ""
     }

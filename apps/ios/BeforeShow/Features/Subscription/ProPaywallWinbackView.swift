@@ -17,7 +17,7 @@ struct ProPaywallWinbackView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
-            Text(BSLocalization.text("限时优惠 · 最高 40% OFF"))
+            Text(BSLocalization.text("限时优惠 · 最高 20% OFF"))
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(BSColor.Stage.accent)
                 .padding(.horizontal, 9)

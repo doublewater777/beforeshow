@@ -63,11 +63,11 @@ enum ListeningPickOrder {
         return [playing] + order.filter { $0.id != playing.id }
     }
 
-    /// On a shelf the opening albums sit mid-row, with albums on both sides to browse.
-    static func centred(_ order: [ListeningDisc], leading count: Int) -> [ListeningDisc] {
+    /// On a shelf the opening albums sit wherever the draw puts them: `slot` other albums come before them.
+    static func placed(_ order: [ListeningDisc], leading count: Int, at slot: Int) -> [ListeningDisc] {
         let rest = order.dropFirst(count)
-        let middle = rest.startIndex + rest.count / 2
-        return Array(rest[..<middle]) + order.prefix(count) + rest[middle...]
+        let split = rest.startIndex + min(max(slot, 0), rest.count)
+        return Array(rest[..<split]) + order.prefix(count) + rest[split...]
     }
 }
 
