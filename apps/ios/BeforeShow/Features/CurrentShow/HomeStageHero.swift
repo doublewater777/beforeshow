@@ -62,7 +62,7 @@ struct HomeStageHero: View {
             let perf = screens.main.performance
             return ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName))
         }
-        return show.coverImageURL.flatMap(URL.init(string:))
+        return ShowCoverReference.url(show.coverImageURL)
     }
 
     private var lighting: BSStageLighting {

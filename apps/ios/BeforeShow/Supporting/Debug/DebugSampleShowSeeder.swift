@@ -350,10 +350,9 @@ enum DebugSampleShowSeeder {
             return nil
         }
         do {
-            let directory = try ShowCoverLocalImageStore.directory()
-            let url = directory.appendingPathComponent("app-store-yehang-cover.jpg")
-            try data.write(to: url, options: .atomic)
-            return url.absoluteString
+            let fileName = "app-store-yehang-cover.jpg"
+            try data.write(to: try ShowCoverLocalImageStore.directory().appendingPathComponent(fileName), options: .atomic)
+            return ShowCoverReference.stored(fileName: fileName)
         } catch {
             return nil
         }

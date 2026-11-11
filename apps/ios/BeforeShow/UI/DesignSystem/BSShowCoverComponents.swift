@@ -131,9 +131,7 @@ struct ShowCoverImageView: View {
             loadState = .idle
         }
         guard image == nil,
-              let urlString,
-              !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let url = URL(string: urlString) else { return }
+              let url = ShowCoverReference.url(urlString) else { return }
         loadState = .loading
         let loadedImage = await ShowCoverImageCache.shared.image(from: url)
         guard !Task.isCancelled else { return }
@@ -142,16 +140,14 @@ struct ShowCoverImageView: View {
     }
 
     private static func memoryImage(for urlString: String?) -> UIImage? {
-        guard let urlString,
-              let url = URL(string: urlString) else { return nil }
+        guard let url = ShowCoverReference.url(urlString) else { return nil }
         return ShowCoverImageCache.shared.memoryImage(for: url)
     }
 
     private static func persistedImage(for urlString: String?) -> UIImage? {
         // Opt-in first-frame path for high-priority surfaces such as Current's
         // hero. Network and widget fallback remain asynchronous in loadImage().
-        guard let urlString,
-              let url = URL(string: urlString) else { return nil }
+        guard let url = ShowCoverReference.url(urlString) else { return nil }
         return ShowCoverImageCache.shared.persistedImage(for: url)
     }
 }

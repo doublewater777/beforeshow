@@ -427,11 +427,9 @@ struct ShowDraftFormFields: View {
                 return
             }
 
-            let directory = try ShowCoverLocalImageStore.directory()
-            let fileURL = directory.appendingPathComponent("\(UUID().uuidString).jpg")
-            try jpegData.write(to: fileURL, options: [.atomic])
+            let stored = try ShowCoverLocalImageStore.save(jpegData)
             let previousURL = draft.coverImageURL
-            draft.coverImageURL = fileURL.absoluteString
+            draft.coverImageURL = stored
             onCoverImported(previousURL, draft.coverImageURL)
             coverImportMessage = BSLocalization.text("已换成本地封面")
         } catch {

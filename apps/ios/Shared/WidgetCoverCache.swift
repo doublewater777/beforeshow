@@ -264,7 +264,7 @@ private actor CoverCacheMutator {
     }
 
     private func download(_ source: String) async {
-        guard let url = URL(string: source) else { return }
+        guard let url = ShowCoverReference.url(source) else { return }
         do {
             let data: Data
             if url.isFileURL {

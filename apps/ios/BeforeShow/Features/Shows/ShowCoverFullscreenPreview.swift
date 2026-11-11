@@ -28,6 +28,6 @@ struct ShowCoverFullscreenPreview: View {
     }
 
     private static func coverURL(_ urlString: String?) -> URL? {
-        urlString.flatMap(URL.init(string:))
+        ShowCoverReference.url(urlString)
     }
 }

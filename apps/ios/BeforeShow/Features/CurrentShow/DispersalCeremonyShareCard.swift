@@ -32,8 +32,7 @@ enum DispersalCeremonyShareExport {
     }
 
     static func loadAmbientColor(for coverURLString: String?) async -> Color? {
-        guard let coverURLString,
-              let url = URL(string: coverURLString),
+        guard let url = ShowCoverReference.url(coverURLString),
               let image = await ShowCoverImageCache.shared.image(from: url),
               let ambient = CoverAmbientColor.uiColor(from: image) else {
             return nil

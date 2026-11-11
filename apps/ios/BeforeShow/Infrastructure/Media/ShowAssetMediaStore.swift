@@ -190,7 +190,6 @@ actor ShowAssetMediaStore {
                 withIntermediateDirectories: true
             )
             try fileData.write(to: destination, options: .atomic)
-            try excludeFromBackup(at: destination)
         } catch {
             try? fileManager.removeItem(at: destination)
             throw ShowAssetMediaStoreError.map(error)
@@ -312,10 +311,6 @@ actor ShowAssetMediaStore {
     private func prepareRootDirectory() throws {
         do {
             try fileManager.createDirectory(at: location.rootDirectory, withIntermediateDirectories: true)
-            var values = URLResourceValues()
-            values.isExcludedFromBackup = true
-            var root = location.rootDirectory
-            try root.setResourceValues(values)
         } catch {
             throw ShowAssetMediaStoreError.map(error)
         }
@@ -325,13 +320,6 @@ actor ShowAssetMediaStore {
         if let storageError {
             throw storageError
         }
-    }
-
-    private func excludeFromBackup(at url: URL) throws {
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        var url = url
-        try url.setResourceValues(values)
     }
 
     nonisolated private static func isSafeRelativePath(_ relativePath: String) -> Bool {

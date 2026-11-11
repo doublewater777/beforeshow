@@ -19,10 +19,6 @@ extension MemoryFragmentMediaStore {
 
     private func prepareRootDirectory() throws {
         try fileManager.createDirectory(at: location.rootDirectory, withIntermediateDirectories: true)
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        var root = location.rootDirectory
-        try root.setResourceValues(values)
     }
 
     func removeIfPresent(_ url: URL) throws {

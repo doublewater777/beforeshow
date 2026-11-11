@@ -79,7 +79,7 @@ enum ShowSetlistPlayback {
         return ListeningDisc(
             id: discID(for: show, kind: kind),
             title: title,
-            artworkURL: show.coverImageURL.flatMap(URL.init(string:)),
+            artworkURL: ShowCoverReference.url(show.coverImageURL),
             tracks: tracks,
             artistNames: show.artistNames,
             origin: .compilation(showID: show.id, number: 0)

@@ -132,6 +132,7 @@ struct BeforeShowApp: App {
                         )
 
                         isLocalMediaMaintenanceRunning = true
+                        await MediaBackupInclusion.includeIfNeeded()
                         await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                         await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                         await reconcileAllShowAssets(in: modelContainer.mainContext)

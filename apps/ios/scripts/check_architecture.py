@@ -30,7 +30,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/Timetable/TimetableSheet.swift": 699,
     "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 674,
     "Shared/CurrentShowTimeState.swift": 636,
-    "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 613,
+    "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 612,
 }
 
 # Once a hotspot has been retired, do not allow a later change to recreate it

@@ -81,9 +81,7 @@ enum FootprintCoverResolver {
         assets: [ShowAsset],
         ordinal: Int
     ) -> FootprintCover {
-        if let rawURL = show.coverImageURL,
-           let url = URL(string: rawURL.trimmingCharacters(in: .whitespacesAndNewlines)),
-           !rawURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if let url = ShowCoverReference.url(show.coverImageURL) {
             return FootprintCover(
                 showID: show.id,
                 source: url.isFileURL ? .local(url) : .remote(url),

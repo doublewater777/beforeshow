@@ -5,7 +5,7 @@ enum WidgetArtworkPreparation {
     static func prepareCached(sources: Set<String>) async {
         for source in sources {
             guard !Task.isCancelled else { return }
-            guard !isReady(source), let url = URL(string: source) else { continue }
+            guard !isReady(source), let url = ShowCoverReference.url(source) else { continue }
             let file = ShowCoverDiskCache.application.fileURL(for: url)
             let data = await Task.detached(priority: .userInitiated) {
                 try? Data(contentsOf: file)

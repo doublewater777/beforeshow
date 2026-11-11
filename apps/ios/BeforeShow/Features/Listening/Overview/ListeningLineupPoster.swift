@@ -45,7 +45,7 @@ struct ListeningPosterLayout: View {
     var expandable = false
     @State private var isExpanded = false
 
-    private var coverURL: URL? { show.coverImageURL.flatMap(URL.init(string:)) ?? fallbackCoverURL }
+    private var coverURL: URL? { ShowCoverReference.url(show.coverImageURL) ?? fallbackCoverURL }
 
     var body: some View {
         let tiers = ListeningPosterTiers(names, expanded: isExpanded)

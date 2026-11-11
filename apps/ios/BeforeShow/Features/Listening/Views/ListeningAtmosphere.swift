@@ -82,7 +82,7 @@ struct ListeningStageBackground: View {
     }
 
     private static func loadAmbientColor(for urlString: String?) async -> Color? {
-        guard let urlString, let url = URL(string: urlString) else { return nil }
+        guard let url = ShowCoverReference.url(urlString) else { return nil }
         return await loadAmbientColor(for: url)
     }
 

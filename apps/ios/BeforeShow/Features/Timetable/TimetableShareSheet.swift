@@ -157,7 +157,7 @@ struct TimetableShareSheet: View {
         let days = timetable.orderedDays
         let performers = days.flatMap(\.performances).filter { mode == .full || $0.isInterested }
         var urls = Set(performers.compactMap { avatarURL($0) })
-        if let cover = show?.coverImageURL.flatMap(URL.init(string:)) { urls.insert(cover) }
+        if let cover = ShowCoverReference.url(show?.coverImageURL) { urls.insert(cover) }
         await withTaskGroup(of: Void.self) { group in
             for url in urls {
                 group.addTask { _ = await ShowCoverImageCache.shared.image(from: url) }

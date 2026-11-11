@@ -4,27 +4,23 @@ import Foundation
 
 enum ShowCoverLocalImageStore {
     static func directory() throws -> URL {
-        let baseURL = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let directory = baseURL.appendingPathComponent("ShowCovers", isDirectory: true)
+        guard let directory = ShowCoverReference.directory else { throw CocoaError(.fileNoSuchFile) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }
 
-    static func removeManagedLocalImage(at urlString: String) {
-        guard let url = URL(string: urlString),
-              url.isFileURL,
-              let managedDirectory = try? directory().standardizedFileURL,
-              url.standardizedFileURL.deletingLastPathComponent() == managedDirectory else {
-            return
-        }
-        try? FileManager.default.removeItem(at: url)
+    /// Saves an imported cover and returns what the show stores for it.
+    static func save(_ jpegData: Data) throws -> String {
+        let fileName = "\(UUID().uuidString).jpg"
+        try jpegData.write(to: try directory().appendingPathComponent(fileName), options: [.atomic])
+        return ShowCoverReference.stored(fileName: fileName)
     }
 
+    static func removeManagedLocalImage(at stored: String) {
+        guard let name = ShowCoverReference.localFileName(stored),
+              let directory = try? directory() else { return }
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+    }
 }
 
 struct ShowCoverLifecycle {

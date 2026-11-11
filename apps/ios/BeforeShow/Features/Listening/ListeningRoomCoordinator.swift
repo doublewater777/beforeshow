@@ -801,7 +801,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                 releaseDates[song.appleMusicSongID] = date
             }
         }
-        let showCoverURL = show.coverImageURL.flatMap(URL.init(string:))
+        let showCoverURL = ShowCoverReference.url(show.coverImageURL)
             ?? show.artists.compactMap { $0.avatarURL.flatMap(URL.init(string:)) }.first
         compilationDiscs = ListeningCompilationAssembler.discs(
             showID: show.id,

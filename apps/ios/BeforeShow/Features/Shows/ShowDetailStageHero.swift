@@ -234,7 +234,7 @@ struct ShowDetailStageHero: View {
     }
 
     private func sampleLights() async {
-        guard let link = show.coverImageURL, let url = URL(string: link),
+        guard let url = ShowCoverReference.url(show.coverImageURL),
               let image = await ShowCoverImageCache.shared.image(from: url) else { return }
         let picked = await BSStageLights.sampled(from: image)
         withAnimation(.easeInOut(duration: 0.6)) { lights = picked }

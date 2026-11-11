@@ -28,8 +28,10 @@ struct ShowCoverDiskCache: Sendable {
         }
     }
 
+    /// An imported cover kept under an older container path (a restored record) is read from today's folder.
     func fileURL(for sourceURL: URL) -> URL {
-        sourceURL.isFileURL ? sourceURL : cachedFileURL(for: sourceURL)
+        guard sourceURL.isFileURL else { return cachedFileURL(for: sourceURL) }
+        return ShowCoverReference.url(sourceURL.absoluteString) ?? sourceURL
     }
 
     private func cachedFileURL(for sourceURL: URL) -> URL {

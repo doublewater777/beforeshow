@@ -17,7 +17,7 @@ struct ListeningSleeveIdentity {
     }
     var artworkURL: URL? {
         if case .compilation = disc.origin {
-            return show?.coverImageURL.flatMap(URL.init(string:))
+            return ShowCoverReference.url(show?.coverImageURL)
                 ?? show?.artists.compactMap { $0.avatarURL.flatMap(URL.init(string:)) }.first
         }
         return disc.artworkURL
