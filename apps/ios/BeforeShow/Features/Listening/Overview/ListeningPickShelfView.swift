@@ -35,7 +35,13 @@ struct ListeningPickShelfView: View {
         _position = State(initialValue: Double(discs.firstIndex { $0.id == currentID.wrappedValue } ?? 0))
     }
 
-    private var index: Int { min(max(Int(position.rounded()), 0), discs.count - 1) }
+    /// The carousel goes round for ever; the shelves stop at their ends.
+    private var loops: Bool { style == .ring }
+    /// Where the row is within one lap, for the scrubber.
+    private var lapPosition: Double { loops ? ListeningPickLoop.wrapped(position, count: discs.count) : position }
+    private var index: Int {
+        loops ? ListeningPickLoop.index(at: position, count: discs.count) : min(max(Int(position.rounded()), 0), discs.count - 1)
+    }
     private var current: ListeningDisc { discs[index] }
 
     var body: some View {
@@ -142,7 +148,7 @@ struct ListeningPickShelfView: View {
             let total = count * barsPerDisc
             let gap = width / CGFloat(max(total, 1))
             let maxTracks = Double(discs.map(\.tracks.count).max() ?? 1)
-            let knobX = gap * (CGFloat(position) * CGFloat(barsPerDisc) + CGFloat(barsPerDisc) / 2)
+            let knobX = gap * (CGFloat(lapPosition) * CGFloat(barsPerDisc) + CGFloat(barsPerDisc) / 2)
             ZStack(alignment: .bottomLeading) {
                 // One canvas instead of a view per bar: this redraws every frame while the shelf moves.
                 Canvas { context, canvas in
@@ -160,7 +166,8 @@ struct ListeningPickShelfView: View {
                     .onChanged { value in
                         guard !isPicking else { return }
                         ticker.stop()
-                        position = clamp(Double(value.location.x / width) * Double(count) - 0.5)
+                        let target = min(max(Double(value.location.x / width) * Double(count) - 0.5, 0), Double(count - 1))
+                        position += target - lapPosition
                     }
                     .onEnded { _ in glide(velocity: 0) }
             )
@@ -173,7 +180,7 @@ struct ListeningPickShelfView: View {
             let disc = discs[bar / barsPerDisc]
             let wobble = Double((bar * 7919 + disc.id.count * 31) % 9) / 9
             let base: Double = 0.18 + 0.32 * Double(disc.tracks.count) / max(maxTracks, 1) + 0.12 * wobble
-            let distance: Double = (Double(bar) + 0.5) / Double(barsPerDisc) - position - 0.5
+            let distance: Double = (Double(bar) + 0.5) / Double(barsPerDisc) - lapPosition - 0.5
             let swell: Double = exp(-distance * distance / 3.2)
             let height = CGFloat(max(3, 30 * (base + 0.55 * swell)))
             let x: CGFloat = gap * CGFloat(bar) + gap / 2 - 0.75
@@ -234,7 +241,7 @@ struct ListeningPickShelfView: View {
         // Shows at most a couple of dozen albums going by; the rest is skipped mid-run, while the row is still fast
         // and the landing covers have had time to load.
         let from = position
-        let distance = Double(target) - from
+        let distance = loops ? ListeningPickLoop.turn(from: from, to: target, count: discs.count) : Double(target) - from
         let run = min(abs(distance), 24) * (distance < 0 ? -1 : 1)
         let skip = distance - run
         let duration = 1.1 + abs(run) * 0.02
@@ -263,7 +270,7 @@ struct ListeningPickShelfView: View {
         }
     }
 
-    private func clamp(_ value: Double) -> Double { min(max(value, 0), Double(discs.count - 1)) }
+    private func clamp(_ value: Double) -> Double { loops ? value : min(max(value, 0), Double(discs.count - 1)) }
 }
 
 /// Steps an animation once per screen refresh; the step returns false when it is done.

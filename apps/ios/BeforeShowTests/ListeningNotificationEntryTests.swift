@@ -45,16 +45,17 @@ final class ListeningNotificationEntryTests: XCTestCase {
         defer { room.stop() }
         await room.load(show: show)
         room.restoreDisc(try XCTUnwrap(room.discs.first { $0.id == "album" }))
+        // The player reports playing before the room hears about it, so wait for the record itself.
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying }
+        try await ListenTestData.settle(room) { room.isPlaying && room.recentListening != nil }
         room.playPause()
+        try await ListenTestData.settle(room) { !room.isPlaying }
         let recent = try XCTUnwrap(room.recentListening)
-        let yesterday = Date().addingTimeInterval(-172800)
-        recent.playedAt = yesterday
+        recent.playedAt = Date().addingTimeInterval(-172800)
         try container.mainContext.save()
         room.playPause()
-        try await ListenTestData.settle(room) { room.isPlaying }
-        XCTAssertTrue(show.timingCalendar().isDate(recent.playedAt, inSameDayAs: Date()))
+        let calendar = show.timingCalendar()
+        try await ListenTestData.settle(room) { room.isPlaying && calendar.isDate(recent.playedAt, inSameDayAs: Date()) }
     }
 
     func testMissingDiscsFallBackToTheArtistAndLegacyPayloadsStillOpenTheRoom() async throws {

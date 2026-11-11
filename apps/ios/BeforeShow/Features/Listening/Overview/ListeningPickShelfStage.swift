@@ -120,14 +120,14 @@ struct ListeningPickShelfStage: View {
                     ringItem(discs[itemIndex], offset: remainder(Double(itemIndex) - turn, Double(slots)), slots: slots, fades: false, ring: ring)
                 }
             } else {
-                // Half a slot past each side, so the two ends of the run cross-fade where they meet at the back.
+                // More albums than slots go round in turn: half a slot past each side, so the album leaving
+                // at the back cross-fades with the one arriving.
                 let half = Double(slots) / 2 + 0.5
-                let lower = max(0, Int((turn - half).rounded(.up)))
-                let upper = min(discs.count - 1, Int((turn + half).rounded(.down)))
-                if lower <= upper {
-                    ForEach(lower...upper, id: \.self) { itemIndex in
-                        ringItem(discs[itemIndex], offset: Double(itemIndex) - turn, slots: slots, fades: true, ring: ring)
-                    }
+                let lower = Int((turn - half).rounded(.up))
+                let upper = Int((turn + half).rounded(.down))
+                ForEach(lower...upper, id: \.self) { step in
+                    ringItem(discs[ListeningPickLoop.index(at: Double(step), count: discs.count)],
+                             offset: Double(step) - turn, slots: slots, fades: true, ring: ring)
                 }
             }
         }

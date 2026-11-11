@@ -67,6 +67,18 @@ final class ListeningOverviewModelTests: XCTestCase {
         XCTAssertEqual(ListeningPickOrder.placed([disc("o")], leading: 1, at: 0).map(\.id), ["o"])
     }
 
+    func testCarouselGoesRoundForEver() {
+        XCTAssertEqual(ListeningPickLoop.index(at: 4.4, count: 5), 4)
+        XCTAssertEqual(ListeningPickLoop.index(at: 4.6, count: 5), 0, "past the last album comes the first")
+        XCTAssertEqual(ListeningPickLoop.index(at: -1, count: 5), 4)
+        XCTAssertEqual(ListeningPickLoop.index(at: 12, count: 5), 2)
+        XCTAssertEqual(ListeningPickLoop.wrapped(4.6, count: 5), -0.4, accuracy: 1e-9)
+        XCTAssertEqual(ListeningPickLoop.wrapped(-3, count: 5), 2, accuracy: 1e-9)
+        XCTAssertEqual(ListeningPickLoop.turn(from: 3, to: 1, count: 5), 3, accuracy: 1e-9,
+                       "a pick turns on round the ring, never back")
+        XCTAssertEqual(ListeningPickLoop.turn(from: 8, to: 4, count: 5), 1, accuracy: 1e-9)
+    }
+
     func testPickCardOnlyRedrawsWhenEmptyOrItsAlbumLeftThePool() {
         XCTAssertTrue(ListeningPickCardPolicy.needsNewDraw(current: nil, candidateIDs: ["a"]))
         XCTAssertFalse(ListeningPickCardPolicy.needsNewDraw(current: disc("a"), candidateIDs: ["a", "b"]))

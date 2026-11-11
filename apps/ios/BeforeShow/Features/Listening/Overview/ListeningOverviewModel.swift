@@ -71,6 +71,26 @@ enum ListeningPickOrder {
     }
 }
 
+/// The carousel goes round for ever: any point on its row is an album, the first coming after the last.
+enum ListeningPickLoop {
+    /// The row position folded into one lap, from half an album before the first to half after the last.
+    static func wrapped(_ position: Double, count: Int) -> Double {
+        let lap = Double(max(count, 1))
+        return position - lap * ((position + 0.5) / lap).rounded(.down)
+    }
+
+    static func index(at position: Double, count: Int) -> Int {
+        min(Int((wrapped(position, count: count) + 0.5).rounded(.down)), max(count - 1, 0))
+    }
+
+    /// How far to turn on to reach `target`, always forward.
+    static func turn(from position: Double, to target: Int, count: Int) -> Double {
+        let lap = Double(max(count, 1))
+        let ahead = (Double(target) - position).truncatingRemainder(dividingBy: lap)
+        return ahead < 0 ? ahead + lap : ahead
+    }
+}
+
 /// When the 「帮我挑一张」 card draws a new album. It never reshuffles on its own.
 enum ListeningPickCardPolicy {
     /// An album the pool no longer offers is replaced; a playlist the user stopped on is kept.

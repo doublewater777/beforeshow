@@ -15,37 +15,49 @@ struct ListeningPickShelf3D: View {
     /// The scene is built; RealityKit takes a moment to start, so the entrance waits for this.
     var onReady: () -> Void = {}
     @State private var scene = ShelfScene3D()
+    /// RealityKit holds the main thread while it builds its view, well over a second on the first open after launch,
+    /// so the scene mounts a beat after the shelf appears: the screen slides up meanwhile instead of waiting for it.
+    @State private var isMounted = false
 
     var body: some View {
         GeometryReader { proxy in
-            let size = proxy.size
-            let render = CGSize(width: size.width * ShelfScene3D.overscan, height: size.height * ShelfScene3D.overscan)
-            RealityView { content in
-                content.camera = .virtual
-                // The far end of the row goes soft towards the top-right corner.
-                if #available(iOS 26.0, *) {
-                    content.renderingEffects.customPostProcessing = .effect(ShelfFarBlur(overscan: Float(ShelfScene3D.overscan)))
-                }
-                scene.install(in: &content)
-                scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
-                // Give the covers round the opening album a moment to arrive, so the row swings in printed.
-                let opening = ShelfScene3D.openingOrder(count: discs.count, around: position).prefix(ShelfScene3D.openingBatch).map { discs[$0].id }
-                for _ in 0..<20 where !scene.hasInserts(for: opening) {
-                    try? await Task.sleep(for: .milliseconds(50))
-                }
-                onReady()
-            } update: { _ in
-                scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
+            if isMounted {
+                stage(in: proxy.size)
             }
-            .frame(width: render.width, height: render.height)
-            .projectionEffect(ShelfScene3D.levelling(in: render, view: size))
-            .frame(width: size.width, height: size.height)
-            .clipped()
         }
         // Inserts load while RealityKit starts, nearest the opening album first.
         .task(id: discs.map(\.id)) {
             await scene.preload(ShelfScene3D.openingOrder(count: discs.count, around: position).map { discs[$0] })
         }
+        .task {
+            try? await Task.sleep(for: .milliseconds(80))
+            isMounted = true
+        }
+    }
+
+    private func stage(in size: CGSize) -> some View {
+        let render = CGSize(width: size.width * ShelfScene3D.overscan, height: size.height * ShelfScene3D.overscan)
+        return RealityView { content in
+            content.camera = .virtual
+            // The far end of the row goes soft towards the top-right corner.
+            if #available(iOS 26.0, *) {
+                content.renderingEffects.customPostProcessing = .effect(ShelfFarBlur(overscan: Float(ShelfScene3D.overscan)))
+            }
+            scene.install(in: &content)
+            scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
+            // Give the covers round the opening album a moment to arrive, so the row swings in printed.
+            let opening = ShelfScene3D.openingOrder(count: discs.count, around: position).prefix(ShelfScene3D.openingBatch).map { discs[$0].id }
+            for _ in 0..<20 where !scene.hasInserts(for: opening) {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            onReady()
+        } update: { _ in
+            scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
+        }
+        .frame(width: render.width, height: render.height)
+        .projectionEffect(ShelfScene3D.levelling(in: render, view: size))
+        .frame(width: size.width, height: size.height)
+        .clipped()
     }
 }
 
@@ -183,8 +195,9 @@ final class ShelfScene3D {
         return min(back, front)
     }
 
-    private let anchor = Entity()
-    private let camera = PerspectiveCamera()
+    // Made on first use: the first entity of a launch starts RealityKit, which must wait until the scene mounts.
+    private lazy var anchor = Entity()
+    private lazy var camera = PerspectiveCamera()
     private var cases: [String: Entity] = [:]
     /// Printed inserts by disc, kept so a case made again later needs no new drawing.
     private var loadedInserts: [String: PhysicallyBasedMaterial] = [:]
