@@ -33,7 +33,7 @@ struct ListeningPickShelf3D: View {
                 scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
             }
             .frame(width: render.width, height: render.height)
-            .projectionEffect(ShelfScene3D.levelling(in: render, viewHeight: size.height))
+            .projectionEffect(ShelfScene3D.levelling(in: render, view: size))
             .frame(width: size.width, height: size.height)
             .clipped()
         }
@@ -90,17 +90,43 @@ final class ShelfScene3D {
     /// Camera 33° round to the right of the covers and 34° above, framed close like the drawn shelf: the row runs from off the
     /// bottom-left edge to off the right edge just under the title, with the picked case right of centre.
     static let cameraOffset: SIMD3<Float> = [4.289, 5.312, 6.605]
-    static let aim: SIMD3<Float> = [0.5, -0.12, -0.5]
-    static let fieldOfView: Float = 30
+    /// Wider screens (iPad landscape) swing the camera further round and lower, so the row lies flatter and still runs
+    /// from the bottom-left edge to the top-right one.
+    static func cameraOffset(for size: CGSize) -> SIMD3<Float> {
+        guard size.height > 0 else { return cameraOffset }
+        let wide = Float(min(1, max(0, (size.width / size.height - 0.75) / 0.6)))
+        let distance = simd_length(cameraOffset)
+        let azimuth = (33 + 14 * wide) * .pi / 180
+        let elevation = (34 - 12 * wide) * .pi / 180
+        return [distance * cos(elevation) * sin(azimuth), distance * sin(elevation), distance * cos(elevation) * cos(azimuth)]
+    }
+    static let aim: SIMD3<Float> = [1.5, 0.9, 1.3]
+    static let fieldOfView: CGFloat = 30
     /// The scene renders a little beyond the view, so straightening the verticals leaves no empty corners.
     static let overscan: CGFloat = 1.25
-    private static var renderFieldOfView: Float { 2 * atan(Float(overscan) * tan(fieldOfView / 2 * .pi / 180)) * 180 / .pi }
-    private static var elevation: Float { asin(cameraOffset.y / simd_length(cameraOffset)) }
+    /// Lens scale in points. A phone gets `fieldOfView` across its height; taller screens (iPad) stop growing the cases
+    /// a little past phone size and show more of the row instead.
+    static func focal(forHeight height: CGFloat) -> CGFloat {
+        let phoneFocal = 874 / 2 / tan(fieldOfView / 2 * .pi / 180)
+        return min(height / 2 / tan(fieldOfView / 2 * .pi / 180), phoneFocal * 1.15)
+    }
+    /// How much more of the row fits than on a phone.
+    private static func reach(forHeight height: CGFloat) -> Double {
+        Double(height / 2 / focal(forHeight: height) / tan(fieldOfView / 2 * .pi / 180))
+    }
+    private static func renderFieldOfView(forHeight height: CGFloat) -> Float {
+        Float(2 * atan(overscan * height / 2 / focal(forHeight: height)) * 180 / .pi)
+    }
+    private static func elevation(for size: CGSize) -> Float {
+        let offset = cameraOffset(for: size)
+        return asin(offset.y / simd_length(offset))
+    }
 
     /// Looking down tilts upright edges inward. This straightens them, like a shift lens: the camera's
     /// image is re-projected as if it looked level, keeping the aim point where it was.
-    static func levelling(in render: CGSize, viewHeight: CGFloat) -> ProjectionTransform {
-        let focal = viewHeight / 2 / CGFloat(tan(fieldOfView / 2 * .pi / 180))
+    static func levelling(in render: CGSize, view: CGSize) -> ProjectionTransform {
+        let focal = focal(forHeight: view.height)
+        let elevation = elevation(for: view)
         var level = CATransform3DIdentity
         level.m22 = 1 / CGFloat(cos(elevation))
         level.m24 = -CGFloat(tan(elevation)) / focal
@@ -119,11 +145,13 @@ final class ShelfScene3D {
 
     /// Where a point in the scene lands in the view.
     static func project(_ point: SIMD3<Float>, in size: CGSize) -> CGPoint {
-        let eye = aim + cameraOffset
-        let forward = simd_normalize(-cameraOffset)
+        let offset = cameraOffset(for: size)
+        let elevation = elevation(for: size)
+        let eye = aim + offset
+        let forward = simd_normalize(-offset)
         let right = simd_normalize(simd_cross(forward, [0, 1, 0]))
         let up = simd_cross(right, forward)
-        let focal = Float(size.height / 2) / tan(fieldOfView / 2 * .pi / 180)
+        let focal = Float(focal(forHeight: size.height))
         let v = point - eye
         let depth = simd_dot(v, forward)
         let x = focal * simd_dot(v, right) / depth
@@ -145,6 +173,7 @@ final class ShelfScene3D {
     }
 
     private let anchor = Entity()
+    private let camera = PerspectiveCamera()
     private var cases: [String: Entity] = [:]
     /// How fast the row is moving, in albums a second; a fast row stays one straight line.
     private var speed: Double = 0
@@ -153,9 +182,6 @@ final class ShelfScene3D {
 
     @available(iOS 18.0, *)
     func install(in content: inout RealityViewCameraContent) {
-        let camera = PerspectiveCamera()
-        camera.camera.fieldOfViewInDegrees = Self.renderFieldOfView
-        camera.look(at: Self.aim, from: Self.aim + Self.cameraOffset, relativeTo: nil, forward: .negativeZ)
         anchor.addChild(camera)
 
         let key = DirectionalLight()
@@ -176,9 +202,12 @@ final class ShelfScene3D {
 
     func update(discs: [ListeningDisc], position: Double, landing: Int?, entrance: Double, size: CGSize) {
         guard !discs.isEmpty else { return }
+        camera.camera.fieldOfViewInDegrees = Self.renderFieldOfView(forHeight: size.height)
+        camera.look(at: Self.aim, from: Self.aim + Self.cameraOffset(for: size), relativeTo: nil, forward: .negativeZ)
         let base = Int(position.rounded(.down))
-        let lower = max(0, base - 8)
-        let upper = min(discs.count - 1, base + 32)
+        let reach = Self.reach(forHeight: size.height)
+        let lower = max(0, base - Int(14 * reach))
+        let upper = min(discs.count - 1, base + Int(32 * reach))
         guard lower <= upper else { return }
         let now = CACurrentMediaTime()
         if let lastPosition, now > lastTime {

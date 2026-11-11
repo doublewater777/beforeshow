@@ -195,18 +195,23 @@ struct ListeningPickShelfView: View {
 
     // MARK: - Shelf
 
+    /// The rack's cover size: phone-sized on a phone, growing with the height on iPad.
+    private func rackSide(in size: CGSize) -> CGFloat {
+        min(size.width * 0.5, max(200, min(size.height * 0.26, 300)))
+    }
+
     private func shelf(in size: CGSize) -> some View {
-        let lower = max(0, index - 10)
-        let upper = min(discs.count - 1, index + 22)
-        let side = min(size.width * 0.5, 200)
+        let side = rackSide(in: size)
+        // Enough spines on each side to reach the screen edges.
+        let reach = Int((size.width / 2 / (side * 0.065)).rounded(.up)) + 2
+        let lower = max(0, index - reach)
+        let upper = min(discs.count - 1, index + reach)
         return ZStack {
             if style == .rack {
                 Rectangle()
                     .fill(.white.opacity(0.14))
                     .frame(height: 1.5)
                     .position(x: size.width / 2, y: size.height * 0.62 + side / 2 + 6)
-            }
-            if style == .rack {
                 ForEach(Array(discs[lower...upper].enumerated()), id: \.element.id) { offset, disc in
                     item(disc, at: lower + offset, side: side, in: size)
                 }
@@ -225,7 +230,7 @@ struct ListeningPickShelfView: View {
                 .scaleEffect(0.86 + 0.2 * pop)
                 .rotation3DEffect(.degrees(-80 * flank), axis: (x: 0, y: 1, z: 0), perspective: 0.35)
                 .shadow(color: .black.opacity(0.2 + 0.3 * pop), radius: 4 + 16 * pop, y: 6 + 12 * pop)
-                .position(x: size.width / 2 + d * 13 + flank * side * 0.58, y: size.height * 0.62 - side * 0.5 * pop)
+                .position(x: size.width / 2 + d * side * 0.065 + flank * side * 0.58, y: size.height * 0.62 - side * 0.5 * pop)
                 .zIndex(-abs(d) * 10)
         }
     }
@@ -239,7 +244,7 @@ struct ListeningPickShelfView: View {
         if style == .shelf3D, #available(iOS 18.0, *) {
             return ShelfScene3D.screenStep(in: size)
         }
-        return CGVector(dx: 26, dy: 0)
+        return CGVector(dx: rackSide(in: size) * 0.13, dy: 0)
     }
 
     /// Albums travelled for a finger movement, so the row stays under the finger.
