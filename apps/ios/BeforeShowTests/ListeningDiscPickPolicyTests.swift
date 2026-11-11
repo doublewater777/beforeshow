@@ -283,6 +283,55 @@ final class ListeningDiscPickPolicyTests: XCTestCase {
         XCTAssertEqual(picked?.id, "guest", "When only collaborations exist, they remain drawable")
     }
 
+    func testFeedOrderCoversEveryDiscOnceWithLeadsFirstAndLastDrawHeldBack() throws {
+        let suite = "DiscPickPolicy.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let showID = UUID()
+        let leads = (0..<6).map { lineupDisc("lead\($0)", artists: ["许钧"]) }
+        let guests = (0..<6).map { lineupDisc("guest\($0)", artists: ["苏运莹", "许钧"]) }
+        let empty = ListeningDisc(id: "empty", title: "empty", artworkURL: nil, tracks: [], artistNames: ["许钧"])
+        let candidates = [guests[0], leads[0], empty] + leads.dropFirst() + guests.dropFirst() + [leads[1]]
+        ListeningDiscPickPolicy.recordDraw(showID: showID, scopeKey: "all", discID: "lead2", defaults: defaults)
+
+        var generator = SeededGenerator(state: 7)
+        var firsts = Set<String>()
+        for _ in 0..<40 {
+            let order = ListeningDiscPickPolicy.order(
+                showID: showID, scopeKey: "all", candidates: candidates,
+                lineupNames: ["许钧"], defaults: defaults, using: &generator
+            ).map(\.id)
+            XCTAssertEqual(order.count, 13)
+            XCTAssertEqual(Set(order), Set((leads + guests + [empty]).map(\.id)))
+            XCTAssertEqual(Set(order.prefix(6)), Set(leads.map(\.id)), "lead releases come before collaborations")
+            XCTAssertEqual(order[5], "lead2", "the last draw waits until the rest of its group is drawn")
+            XCTAssertEqual(order.last, "empty", "discs with nothing to play stay at the end")
+            firsts.insert(order[0])
+        }
+        XCTAssertEqual(firsts, Set(leads.map(\.id)).subtracting(["lead2"]), "any other lead release can open the feed")
+    }
+
+    func testFeedOrderWithoutLineupShufflesTheWholePool() throws {
+        let suite = "DiscPickPolicy.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let discs = (0..<5).map { sampleDisc("d\($0)", songIDs: ["s\($0)"]) }
+        var generator = SeededGenerator(state: 3)
+        let order = ListeningDiscPickPolicy.order(
+            showID: UUID(), scopeKey: "all", candidates: discs, defaults: defaults, using: &generator
+        )
+        XCTAssertEqual(Set(order.map(\.id)), Set(discs.map(\.id)))
+        XCTAssertEqual(order.count, 5)
+    }
+
+    private func lineupDisc(_ id: String, artists: [String]) -> ListeningDisc {
+        ListeningDisc(
+            id: id, title: id, artworkURL: nil,
+            tracks: [ListeningDiscTrack(CatalogSong(appleMusicSongID: id, title: id, artistName: artists[0]))],
+            artistNames: artists
+        )
+    }
+
     func testDisplayArtistNamePutsLineupArtistInFront() {
         let solo = ListeningDisc(id: "1", title: "T", artworkURL: nil, tracks: [], artistNames: ["许钧"])
         XCTAssertEqual(solo.displayArtistName(lineupNames: ["许钧"]), "许钧")

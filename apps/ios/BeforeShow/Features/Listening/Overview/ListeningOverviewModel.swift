@@ -48,20 +48,11 @@ enum ListeningArtistReleases {
 }
 
 enum ListeningPickOrder {
-    /// The whole feed is drawn up front so swiping back returns to the same albums.
-    /// Each draw only sees albums not yet in the feed, so every candidate appears exactly once.
-    static func feed(first: ListeningDisc?, candidates: [ListeningDisc], draw: ([ListeningDisc]) -> ListeningDisc?) -> [ListeningDisc] {
-        var order: [ListeningDisc] = []
-        var seen = Set<String>()
-        var remaining = candidates.filter { seen.insert($0.id).inserted }
-        seen.removeAll()
-        if let first, let index = remaining.firstIndex(where: { $0.id == first.id }) {
-            order.append(remaining.remove(at: index))
-        }
-        while !remaining.isEmpty {
-            let pick = draw(remaining).flatMap { next in remaining.firstIndex { $0.id == next.id } } ?? 0
-            order.append(remaining.remove(at: pick))
-        }
+    /// The whole feed is drawn up front so swiping back returns to the same albums; the album being previewed opens it.
+    static func feed(first: ListeningDisc?, drawn: [ListeningDisc]) -> [ListeningDisc] {
+        guard let first, let index = drawn.firstIndex(where: { $0.id == first.id }) else { return drawn }
+        var order = drawn
+        order.insert(order.remove(at: index), at: 0)
         return order
     }
 

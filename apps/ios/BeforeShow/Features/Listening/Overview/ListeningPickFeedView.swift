@@ -134,10 +134,9 @@ struct ListeningPickFeedView: View {
     }
 
     private func rebuild(startingWith start: ListeningDisc?, keepingPlaying: Bool) {
-        let candidates = room.pickCandidates()
-        let drawn = ListeningPickOrder.feed(first: start, candidates: candidates) { remaining in
-            ListeningDiscPickPolicy.pick(showID: show.id, scopeKey: scopeKey, candidates: remaining, lineupNames: show.artistNames)
-        }
+        let drawn = ListeningPickOrder.feed(first: start, drawn: ListeningDiscPickPolicy.order(
+            showID: show.id, scopeKey: scopeKey, candidates: room.pickCandidates(), lineupNames: show.artistNames
+        ))
         let playing = keepingPlaying && room.wantsPlayback ? room.loadedDisc : nil
         let kept = ListeningPickOrder.keeping(playing, above: drawn)
         let leading = (kept.firstIndex { $0.id == drawn.first?.id } ?? 0) + 1

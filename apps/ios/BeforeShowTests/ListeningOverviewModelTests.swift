@@ -40,24 +40,12 @@ final class ListeningOverviewModelTests: XCTestCase {
         XCTAssertEqual(ListeningArtistReleases.featured([single, ep])?.id, single.id)
     }
 
-    func testPickFeedStartsWithPreviewAndCoversEveryCandidateOnce() {
-        let candidates = ["a", "b", "c", "d"].map { disc($0) }
-        var offered: [[String]] = []
-        let order = ListeningPickOrder.feed(first: candidates[1], candidates: candidates) { remaining in
-            offered.append(remaining.map(\.id))
-            return remaining.last
-        }
-        XCTAssertEqual(order.map(\.id), ["b", "d", "c", "a"])
-        XCTAssertEqual(offered, [["a", "c", "d"], ["a", "c"], ["a"]])
-    }
-
-    func testPickFeedStillCoversEveryCandidateWhenDrawRepeatsOrGivesUp() {
-        let candidates = ["a", "b", "c"].map { disc($0) } + [disc("a")]
-        let repeating = ListeningPickOrder.feed(first: nil, candidates: candidates) { _ in candidates[0] }
-        XCTAssertEqual(Set(repeating.map(\.id)), ["a", "b", "c"])
-        XCTAssertEqual(repeating.count, 3)
-        let empty = ListeningPickOrder.feed(first: nil, candidates: candidates) { _ in nil }
-        XCTAssertEqual(empty.map(\.id), ["a", "b", "c"])
+    func testPickFeedStartsWithPreviewAndKeepsTheDrawnOrder() {
+        let drawn = ["a", "b", "c", "d"].map { disc($0) }
+        XCTAssertEqual(ListeningPickOrder.feed(first: disc("c"), drawn: drawn).map(\.id), ["c", "a", "b", "d"])
+        XCTAssertEqual(ListeningPickOrder.feed(first: nil, drawn: drawn).map(\.id), ["a", "b", "c", "d"])
+        XCTAssertEqual(ListeningPickOrder.feed(first: disc("x"), drawn: drawn).map(\.id), ["a", "b", "c", "d"],
+                       "a preview outside the pool is not added")
     }
 
     func testPickFeedKeepsThePlayingRecordOnePageAboveTheOpeningAlbum() {

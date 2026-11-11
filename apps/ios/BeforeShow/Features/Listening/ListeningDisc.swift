@@ -156,9 +156,13 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
 
 extension ListeningDisc {
     /// True if the leading credited artist belongs to the show's lineup.
-    func isLeadArtist(lineupNames: [String]) -> Bool {
-        guard !lineupNames.isEmpty, let lead = artistNames.first else { return false }
-        let normalizedLineup = Set(lineupNames.map { ArtistNameMatching.normalized($0) })
+    /// The lineup as `isLeadArtist` matches it; normalise once and check every disc against it.
+    static func normalizedLineup(_ lineupNames: [String]) -> Set<String> {
+        Set(lineupNames.map { ArtistNameMatching.normalized($0) })
+    }
+
+    func isLeadArtist(normalizedLineup: Set<String>) -> Bool {
+        guard !normalizedLineup.isEmpty, let lead = artistNames.first else { return false }
         return normalizedLineup.contains(ArtistNameMatching.normalized(lead))
     }
 

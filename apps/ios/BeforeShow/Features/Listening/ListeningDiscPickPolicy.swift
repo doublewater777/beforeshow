@@ -96,20 +96,52 @@ enum ListeningDiscPickPolicy {
         let pool = candidatePool(from: candidates)
         guard !pool.isEmpty else { return nil }
 
-        let key = storageKey(showID: showID, scopeKey: scopeKey)
-        let recentIDs = load(key: key, defaults: defaults).recentIDs
+        let lastDraw = load(key: storageKey(showID: showID, scopeKey: scopeKey), defaults: defaults).recentIDs.last
 
         // Prioritize releases where the show's artist is the lead artist over guest collaborations.
-        let activePool: [ListeningDisc]
-        if !lineupNames.isEmpty {
-            let leads = pool.filter { $0.isLeadArtist(lineupNames: lineupNames) }
-            activePool = leads.isEmpty ? pool : leads
-        } else {
-            activePool = pool
-        }
+        let lineup = ListeningDisc.normalizedLineup(lineupNames)
+        let leads = pool.filter { $0.isLeadArtist(normalizedLineup: lineup) }
+        let activePool = leads.isEmpty ? pool : leads
 
-        let withoutLastDraw = activePool.filter { $0.id != recentIDs.last }
+        let withoutLastDraw = activePool.filter { $0.id != lastDraw }
         return (withoutLastDraw.isEmpty ? activePool : withoutLastDraw).randomElement(using: &generator)
+    }
+
+    /// The whole pick feed at once, as drawing `pick` until nothing is left would give it: lead releases first, then
+    /// the rest, each shuffled with the last draw held back to the end of its group. Discs with nothing to play follow.
+    static func order(
+        showID: UUID,
+        scopeKey: String,
+        candidates: [ListeningDisc],
+        lineupNames: [String] = [],
+        defaults: UserDefaults = .standard
+    ) -> [ListeningDisc] {
+        var generator = SystemRandomNumberGenerator()
+        return order(showID: showID, scopeKey: scopeKey, candidates: candidates,
+                     lineupNames: lineupNames, defaults: defaults, using: &generator)
+    }
+
+    static func order<R: RandomNumberGenerator>(
+        showID: UUID,
+        scopeKey: String,
+        candidates: [ListeningDisc],
+        lineupNames: [String] = [],
+        defaults: UserDefaults = .standard,
+        using generator: inout R
+    ) -> [ListeningDisc] {
+        let pool = candidatePool(from: candidates)
+        let lastDraw = load(key: storageKey(showID: showID, scopeKey: scopeKey), defaults: defaults).recentIDs.last
+        let lineup = ListeningDisc.normalizedLineup(lineupNames)
+        let isLead = pool.map { $0.isLeadArtist(normalizedLineup: lineup) }
+
+        func shuffled(_ group: [ListeningDisc]) -> [ListeningDisc] {
+            var group = group.shuffled(using: &generator)
+            if let index = group.firstIndex(where: { $0.id == lastDraw }) { group.append(group.remove(at: index)) }
+            return group
+        }
+        let drawn = shuffled(zip(pool, isLead).filter(\.1).map(\.0)) + shuffled(zip(pool, isLead).filter { !$0.1 }.map(\.0))
+        var seen = Set(drawn.map(\.id))
+        return drawn + candidates.filter { seen.insert($0.id).inserted }
     }
 
     private static func candidatePool(from candidates: [ListeningDisc]) -> [ListeningDisc] {

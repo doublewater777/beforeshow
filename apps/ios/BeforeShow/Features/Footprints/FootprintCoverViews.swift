@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 import UIKit
 
@@ -60,6 +61,7 @@ private struct FootprintCoverLocalImage<Fallback: View>: View {
     init(url: URL, @ViewBuilder fallback: () -> Fallback) {
         self.url = url
         self.fallback = fallback()
+        _image = State(initialValue: FootprintLocalCoverCache.cached(url))
     }
 
     var body: some View {
@@ -77,10 +79,40 @@ private struct FootprintCoverLocalImage<Fallback: View>: View {
         .bsMaskUserContent()
         .task(id: url) {
             guard image == nil else { return }
-            image = await Task.detached(priority: .userInitiated) { [url] in
-                UIImage(contentsOfFile: url.path)
-            }.value
+            image = await FootprintLocalCoverCache.image(at: url)
         }
+    }
+}
+
+/// User photos decoded once, at screen size and off the main thread, so covers coming back into view show at once.
+private enum FootprintLocalCoverCache {
+    nonisolated(unsafe) private static let cache: NSCache<NSURL, UIImage> = {
+        let cache = NSCache<NSURL, UIImage>()
+        cache.totalCostLimit = 120 * 1024 * 1024
+        return cache
+    }()
+
+    static func cached(_ url: URL) -> UIImage? { cache.object(forKey: url as NSURL) }
+
+    static func image(at url: URL) async -> UIImage? {
+        if let image = cached(url) { return image }
+        let image = await Task.detached(priority: .userInitiated) { decode(url) }.value
+        if let image, let cgImage = image.cgImage {
+            cache.setObject(image, forKey: url as NSURL, cost: cgImage.bytesPerRow * cgImage.height)
+        }
+        return image
+    }
+
+    /// A full-width cover on a 3× screen needs about 1300 pixels; photos are often 4000.
+    nonisolated private static func decode(_ url: URL) -> UIImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1600,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary).map { UIImage(cgImage: $0) }
     }
 }
 

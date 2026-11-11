@@ -168,7 +168,7 @@ struct FootprintYearsView: View {
         return Button { detailTarget = FootprintDetailDestination(show: show) } label: {
             HStack(spacing: 14) {
                 FootprintResolvedCoverImage(show: show, cover: covers[show.id])
-                    .frame(width: 64, height: 64)
+                    .frame(width: 54, height: 72)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(show.name)
@@ -277,7 +277,7 @@ struct FootprintGalleryHall: View {
             let isSelected = selectedID == show.id
             Button { onTap?(show) } label: {
                 FootprintResolvedCoverImage(show: show, cover: covers[show.id])
-                    .frame(width: edge, height: edge)
+                    .frame(width: edge * 0.75, height: edge)
                     .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .stroke(isSelected ? BSColor.Stage.accent : .white.opacity(0.1), lineWidth: isSelected ? 2 : 0.5))
@@ -285,8 +285,8 @@ struct FootprintGalleryHall: View {
             .buttonStyle(.plain)
             .disabled(onTap == nil)
             .rotation3DEffect(.degrees(side * facing), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-            .brightness(-0.4 * haze)
-            .blur(radius: 2.5 * haze)
+            // Haze darkens rather than blurs: a blur per cover is an offscreen pass every frame.
+            .brightness(-0.45 * haze)
             .opacity(min(1, max(0, (depth - 0.7) / 0.6)) * min(1, (far - depth) / 1.5))
             .position(x: centre.x + side * focal * Self.halfWidth / depth, y: centre.y + focal * lift / depth)
             .zIndex(-depth)
