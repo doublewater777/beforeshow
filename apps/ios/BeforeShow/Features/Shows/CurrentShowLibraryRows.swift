@@ -8,7 +8,6 @@ struct CurrentShowLibraryUpcomingRow: View {
     let actions: [CurrentShowLibraryMenuAction]
     let onOpen: () -> Void
     let onAction: (CurrentShowLibraryMenuAction) -> Void
-    var onSetCurrent: (() -> Void)?
 
     var body: some View {
         HStack(spacing: BSSpacing.sm) {
@@ -43,10 +42,6 @@ struct CurrentShowLibraryUpcomingRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            if !isCurrent, let onSetCurrent {
-                CurrentShowSetCurrentButton(action: onSetCurrent)
-            }
         }
         .padding(BSSpacing.compact)
         .background(BSColor.Stage.surface)
@@ -169,23 +164,3 @@ private struct CurrentShowLibraryMenuItems: View {
     }
 }
 
-/// 行内可见的「设为当前」：左滑只是快捷方式，不能作为唯一入口。
-struct CurrentShowSetCurrentButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(BSLocalization.text("设为当前"))
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .padding(.horizontal, 11)
-                .frame(height: 28)
-                .background(BSColor.Stage.surfaceRaised, in: Capsule())
-                .overlay(Capsule().strokeBorder(BSColor.Stage.border, lineWidth: 1))
-                .frame(minHeight: BSLayout.minTouchTarget)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .fixedSize()
-    }
-}

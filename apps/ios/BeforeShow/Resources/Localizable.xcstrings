@@ -13309,22 +13309,6 @@
         }
       }
     },
-    "当前展示中" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Currently displayed"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前展示中"
-          }
-        }
-      }
-    },
     "当前已是 Pro，挽留方案不适用。" : {
       "localizations" : {
         "en" : {
@@ -23138,22 +23122,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設為展示"
-          }
-        }
-      }
-    },
-    "设为当前" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set as Current"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設為目前"
           }
         }
       }

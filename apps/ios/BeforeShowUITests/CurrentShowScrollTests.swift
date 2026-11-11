@@ -1,7 +1,7 @@
 import XCTest
 
 @MainActor final class CurrentShowScrollTests: XCTestCase {
-    func testFollowUpRowAllowsVerticalScrollingAndHorizontalReveal() throws {
+    func testFollowUpRowScrollsAndSetsCurrentFromDetail() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--seed-app-store-screenshots", "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
@@ -24,26 +24,16 @@ import XCTest
             if row.isHittable && row.frame.midY < app.windows.firstMatch.frame.height - 130 { break }
             scroll.swipeUp()
         }
-        let pin = app.buttons["设为当前"]
-        row.swipeLeft()
-        XCTAssertTrue(pin.waitForExistence(timeout: 3), "Horizontal swipes must still reveal the pin action")
-        // A tap on the open row closes it without navigating.
+        // Rows only open details; setting current lives on the detail page.
         row.tap()
-        XCTAssertFalse(pin.isHittable)
-        XCTAssertFalse(app.navigationBars["现场详情"].exists)
+        let detail = app.navigationBars["现场详情"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+        let setCurrent = app.buttons["设为当前现场"]
+        XCTAssertTrue(setCurrent.waitForExistence(timeout: 3))
+        setCurrent.tap()
+        XCTAssertTrue(setCurrent.waitForNonExistence(timeout: 5))
+        detail.buttons.firstMatch.tap()
 
-        // A plain tap still opens the show's detail.
-        row.tap()
-        XCTAssertTrue(app.navigationBars["现场详情"].waitForExistence(timeout: 5))
-        app.navigationBars["现场详情"].buttons.firstMatch.tap()
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
-
-        // Setting it current moves it out of the follow-up list.
-        row.swipeLeft()
-        XCTAssertTrue(pin.waitForExistence(timeout: 3))
-        // Every follow-up row carries its own pin button; tap the revealed one.
-        let pins = app.buttons.matching(NSPredicate(format: "label == %@", "设为当前")).allElementsBoundByIndex
-        try XCTUnwrap(pins.first { abs($0.frame.midY - row.frame.midY) < row.frame.height / 2 }).tap()
         let followUpRow = app.buttons.matching(NSPredicate(
             format: "label CONTAINS %@ AND label CONTAINS %@", "潮汐 Livehouse · 杭州站", "天后"
         )).firstMatch
