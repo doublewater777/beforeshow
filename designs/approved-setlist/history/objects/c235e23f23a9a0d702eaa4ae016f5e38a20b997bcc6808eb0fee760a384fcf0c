@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>3. 文本导出 · 格式排版与复制</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+.device-shell {
+  width: 390px;
+  height: 844px;
+  background: #040508;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #F3F4F8;
+}
+/* Blurred background backdrop simulating page behind sheet */
+.backdrop-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 50% 20%, #1A1F2C 0%, #07090E 100%);
+  filter: blur(10px) brightness(0.4);
+  transform: scale(1.05);
+  pointer-events: none;
+}
+/* Device Chrome */
+.status-bar {
+  height: 44px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  z-index: 30;
+  flex-shrink: 0;
+}
+.dynamic-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 32px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 40;
+}
+.home-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  z-index: 40;
+}
+/* Sheet Modal Container */
+.sheet-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 90px;
+  background: #0F131D;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+.sheet-handle-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  margin: 10px auto 4px auto;
+  flex-shrink: 0;
+}
+.sheet-header {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.sheet-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+.close-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #94A3B8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+/* Sheet Scrollable Body */
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 20px 100px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: none;
+}
+.sheet-body::-webkit-scrollbar {
+  display: none;
+}
+/* Format Segment Tabs */
+.format-segmented {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 3px;
+  display: flex;
+}
+.segment-btn {
+  flex: 1;
+  padding: 8px 0;
+  text-align: center;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94A3B8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.segment-btn.active {
+  background: #F59E0B;
+  color: #000000;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+}
+/* Formatted Preview Box */
+.preview-card {
+  background: #080A10;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.preview-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748B;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+.preview-badge {
+  color: #34D399;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.text-content-area {
+  font-family: ui-monospace, SFMono-Regular, "SF Pro Text", Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #E2E8F0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+/* Inclusion Options */
+.options-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.options-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #E2E8F0;
+}
+.custom-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: #F59E0B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+}
+/* Bottom Floating Action Dock */
+.sheet-dock {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 20px 28px 20px;
+  background: linear-gradient(180deg, rgba(15, 19, 29, 0) 0%, #0F131D 20%, #0F131D 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 30;
+}
+.btn-primary-copy {
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  border: none;
+  color: #000000;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+}
+.secondary-actions {
+  display: flex;
+  gap: 10px;
+}
+.btn-secondary {
+  flex: 1;
+  height: 40px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #CBD5E1;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+</style>
+</helmet>
+
+<div class="device-shell">
+  <div class="backdrop-bg"></div>
+  <div class="dynamic-island"></div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>09:41</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <svg width="15" height="11" viewBox="0 0 17 11" fill="none" aria-hidden="true">
+        <path d="M1 9.5C3.5 6.5 8 6.5 10.5 9.5M3 7C5 4.5 8.5 4.5 10.5 7M6 4C7 3 8.5 3 9.5 4M8 1.5C8 1.2 8.2 1 8.5 1C8.8 1 9 1.2 9 1.5Z" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <div style="width: 22px; height: 11px; border: 1px solid #FFFFFF; border-radius: 3px; padding: 1px; display: flex; align-items: center;">
+        <div style="width: 15px; height: 7px; background: #FFFFFF; border-radius: 1.5px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sheet Modal -->
+  <div class="sheet-container">
+    <div class="sheet-handle-bar"></div>
+
+    <div class="sheet-header">
+      <div class="sheet-title">导出文字报批清单</div>
+      <button class="close-btn" type="button" aria-label="关闭">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="sheet-body">
+      <!-- Format Selector -->
+      <div class="format-segmented">
+        <button class="segment-btn active" type="button">微信群聊排版</button>
+        <button class="segment-btn" type="button">小红书/MD</button>
+        <button class="segment-btn" type="button">极简纯清单</button>
+      </div>
+
+      <!-- Live Formatted Preview Box -->
+      <div class="preview-card">
+        <div class="preview-card-header">
+          <span>实时预览 (共 3 组乐队 · 31 首曲目)</span>
+          <div class="preview-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+            排版已优化
+          </div>
+        </div>
+
+        <div class="text-content-area">🎸【2026不止音乐节 · 官方报批歌单核验】
+🏛 批文号：深文旅审〔2026〕0384号
+📅 日期：2026.04.18 - 04.19
+🔍 数据源：DeepSeek + 百度文旅联网核准
+
+━━━ 痛仰乐队（已批 12 首）━━━
+1. 《再见杰克》（词曲：高虎）
+2. 《西湖》（词曲：高虎）
+3. 《公路之歌》（词曲：高虎）
+4. 《为你唱首歌》（词曲：高虎）
+5. 《愿爱无忧》（词曲：高虎）
+6. 《安阳》（词曲：高虎）
+7. 《点石成金》（词曲：高虎）
+8. 《生命中最美丽的一天》（词曲：高虎）
+9. 《改变你的生活》（词曲：高虎）
+10. 《不要停止我的音乐》（词曲：高虎）
+11. 《博卡拉》（词曲：高虎）
+12. 《微风》（词曲：高虎）
+
+━━━ 万能青年旅店（已批 10 首）━━━
+1. 《秦皇岛》 2. 《山雀》 3. 《杀死那个石家庄人》 4. 《采石》 5. 《河北墨麒麟》...
+
+━━━ 草东没有派对（已批 9 首）━━━
+1. 《大风吹》 2. 《山海》 3. 《烂泥》 4. 《床》 5. 《如常》...
+
+*以上歌单经政务公开数据库核准，BeforeShow App 实时整理</div>
+      </div>
+
+      <!-- Config Checkboxes -->
+      <div class="options-section">
+        <div class="options-title">导出配置项</div>
+        <div class="checkbox-item">
+          <span>包含文旅局行政审批决定书文号</span>
+          <div class="custom-check">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="checkbox-item">
+          <span>标注词曲创作者与版权归属信息</span>
+          <div class="custom-check">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="checkbox-item">
+          <span>附带 DeepSeek / 百度 API 溯源说明</span>
+          <div class="custom-check">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sheet Bottom Floating Dock -->
+    <div class="sheet-dock">
+      <button class="btn-primary-copy" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        <span>一键复制排版文本</span>
+      </button>
+      <div class="secondary-actions">
+        <button class="btn-secondary" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+            <polyline points="16 6 12 2 8 6"></polyline>
+            <line x1="12" y1="2" x2="12" y2="15"></line>
+          </svg>
+          <span>发送到微信好友</span>
+        </button>
+        <button class="btn-secondary" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+          <span>保存到手机备忘录</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844},"festivalTitle":{"editor":"text","default":"2026不止音乐节 · 官方报批歌单"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      festivalTitle: this.props.festivalTitle ?? "2026不止音乐节 · 官方报批歌单"
+    };
+  }
+}
+</script>
+</body>
+</html>

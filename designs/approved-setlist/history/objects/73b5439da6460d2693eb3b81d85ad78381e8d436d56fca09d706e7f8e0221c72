@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>4. 视觉长图导出 · 报批海报生成</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+.device-shell {
+  width: 390px;
+  height: 844px;
+  background: #07090E;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #F3F4F8;
+}
+/* Device Chrome */
+.status-bar {
+  height: 44px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  z-index: 30;
+  flex-shrink: 0;
+}
+.dynamic-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 32px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 40;
+}
+.home-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  z-index: 30;
+}
+/* Navigation */
+.nav-bar {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+  flex-shrink: 0;
+}
+.nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  cursor: pointer;
+  padding: 0;
+}
+.nav-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+/* Style Switcher Bar */
+.style-switch-bar {
+  padding: 0 16px 8px 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.style-pill {
+  padding: 5px 12px;
+  border-radius: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94A3B8;
+  cursor: pointer;
+}
+.style-pill.active {
+  background: #F59E0B;
+  color: #000000;
+  border-color: #F59E0B;
+}
+/* Poster Viewport Scroll */
+.poster-viewport {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 20px 96px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  scrollbar-width: none;
+}
+.poster-viewport::-webkit-scrollbar {
+  display: none;
+}
+/* The Actual Generated Card to Export */
+.export-card {
+  width: 100%;
+  background: #11141E;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+.export-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #F59E0B 0%, #EC4899 50%, #6366F1 100%);
+}
+/* Poster Card Header */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+}
+.fest-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.12);
+  padding: 3px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+.fest-name {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+.fest-sub {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+/* Official Red Stamp Mockup */
+.official-stamp {
+  width: 68px;
+  height: 68px;
+  border: 2px dashed rgba(239, 68, 68, 0.7);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #EF4444;
+  transform: rotate(-12deg);
+  opacity: 0.85;
+  flex-shrink: 0;
+  padding: 4px;
+  text-align: center;
+}
+.stamp-star {
+  font-size: 10px;
+  line-height: 1;
+}
+.stamp-txt {
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.2px;
+}
+/* Permit Details Bar */
+.card-permit-bar {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #CBD5E1;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+/* Poster Artist Blocks */
+.poster-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.poster-artist-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid #F59E0B;
+  padding: 8px 10px 8px 12px;
+  border-radius: 0 8px 8px 0;
+}
+.poster-artist-block.stage2 {
+  border-left-color: #60A5FA;
+}
+.poster-artist-block.stage3 {
+  border-left-color: #F43F5E;
+}
+.artist-bar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.artist-title-left {
+  font-size: 13px;
+  font-weight: 800;
+  color: #FFFFFF;
+}
+.artist-title-right {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94A3B8;
+}
+.poster-song-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+.poster-song-item {
+  font-size: 11px;
+  color: #E2E8F0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.song-num {
+  font-size: 9px;
+  color: #64748B;
+  font-family: ui-monospace, monospace;
+}
+/* Poster Footer */
+.poster-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+.footer-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.footer-logo {
+  font-size: 12px;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: -0.2px;
+}
+.footer-note {
+  font-size: 9px;
+  color: #64748B;
+}
+.footer-qr-mock {
+  width: 38px;
+  height: 38px;
+  background: #FFFFFF;
+  border-radius: 6px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-pattern {
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 8px;
+  font-weight: 800;
+}
+/* Bottom Floating Action Bar */
+.bottom-dock {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px 28px 16px;
+  background: linear-gradient(180deg, rgba(7, 9, 14, 0) 0%, rgba(7, 9, 14, 0.95) 20%, #07090E 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  gap: 10px;
+  z-index: 25;
+}
+.btn-save-image {
+  flex: 1.2;
+  height: 46px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  border: none;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+}
+.btn-share-social {
+  flex: 1;
+  height: 46px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+</style>
+</helmet>
+
+<div class="device-shell">
+  <div class="dynamic-island"></div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>09:41</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <svg width="15" height="11" viewBox="0 0 17 11" fill="none" aria-hidden="true">
+        <path d="M1 9.5C3.5 6.5 8 6.5 10.5 9.5M3 7C5 4.5 8.5 4.5 10.5 7M6 4C7 3 8.5 3 9.5 4M8 1.5C8 1.2 8.2 1 8.5 1C8.8 1 9 1.2 9 1.5Z" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <div style="width: 22px; height: 11px; border: 1px solid #FFFFFF; border-radius: 3px; padding: 1px; display: flex; align-items: center;">
+        <div style="width: 15px; height: 7px; background: #FFFFFF; border-radius: 1.5px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation Bar -->
+  <div class="nav-bar">
+    <button class="nav-btn" type="button" aria-label="返回">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+    <div class="nav-title">海报预览 · 图片导出</div>
+    <button class="nav-btn" type="button" aria-label="设置">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Style Switcher -->
+  <div class="style-switch-bar">
+    <div class="style-pill active">黑胶暗调</div>
+    <div class="style-pill">复古纸质批文</div>
+    <div class="style-pill">极简白底</div>
+  </div>
+
+  <!-- Viewport of the Share Poster Card -->
+  <div class="poster-viewport">
+    <div class="export-card">
+      <div class="card-header">
+        <div>
+          <span class="fest-badge">OFFICIAL SETLIST PERMIT</span>
+          <div class="fest-name">2026 不止音乐节<br>官方报批歌单总览</div>
+          <div class="fest-sub">2026.04.18 - 04.19 · 深圳大梅沙海滨公园</div>
+        </div>
+        <div class="official-stamp">
+          <div class="stamp-star">★</div>
+          <div class="stamp-txt">文旅局审批<br>准予演出<br>公示在案</div>
+        </div>
+      </div>
+
+      <div class="card-permit-bar">
+        <span>批文号: 深文旅审〔2026〕0384号</span>
+        <span style="color: #34D399;">● 100% 核验通过</span>
+      </div>
+
+      <div class="poster-sections">
+        <!-- Section 1: 痛仰乐队 -->
+        <div class="poster-artist-block">
+          <div class="artist-bar-title">
+            <span class="artist-title-left">🎸 痛仰乐队 (12首全部过审)</span>
+            <span class="artist-title-right">4.19 太阳舞台压轴</span>
+          </div>
+          <div class="poster-song-grid">
+            <div class="poster-song-item"><span class="song-num">01</span> 再见杰克</div>
+            <div class="poster-song-item"><span class="song-num">02</span> 西湖</div>
+            <div class="poster-song-item"><span class="song-num">03</span> 公路之歌</div>
+            <div class="poster-song-item"><span class="song-num">04</span> 为你唱首歌</div>
+            <div class="poster-song-item"><span class="song-num">05</span> 愿爱无忧</div>
+            <div class="poster-song-item"><span class="song-num">06</span> 安阳</div>
+          </div>
+        </div>
+
+        <!-- Section 2: 万能青年旅店 -->
+        <div class="poster-artist-block stage2">
+          <div class="artist-bar-title">
+            <span class="artist-title-left" style="color: #93C5FD;">🎺 万能青年旅店 (10首过审)</span>
+            <span class="artist-title-right">4.18 太阳舞台压轴</span>
+          </div>
+          <div class="poster-song-grid">
+            <div class="poster-song-item"><span class="song-num">01</span> 秦皇岛</div>
+            <div class="poster-song-item"><span class="song-num">02</span> 杀死那个石家庄人</div>
+            <div class="poster-song-item"><span class="song-num">03</span> 山雀</div>
+            <div class="poster-song-item"><span class="song-num">04</span> 采石</div>
+          </div>
+        </div>
+
+        <!-- Section 3: 草东没有派对 -->
+        <div class="poster-artist-block stage3">
+          <div class="artist-bar-title">
+            <span class="artist-title-left" style="color: #FDA4AF;">⚡ 草东没有派对 (9首过审)</span>
+            <span class="artist-title-right">4.19 太阳舞台</span>
+          </div>
+          <div class="poster-song-grid">
+            <div class="poster-song-item"><span class="song-num">01</span> 大风吹</div>
+            <div class="poster-song-item"><span class="song-num">02</span> 山海</div>
+            <div class="poster-song-item"><span class="song-num">03</span> 烂泥</div>
+            <div class="poster-song-item"><span class="song-num">04</span> 如常</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poster-footer">
+        <div class="footer-left">
+          <div class="footer-logo">BeforeShow · 演出前专属指南</div>
+          <div class="footer-note">DeepSeek + 百度文旅政务检索增强 · 2026.04 更新</div>
+        </div>
+        <div class="footer-qr-mock">
+          <div class="qr-pattern">BS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Floating Action Bar -->
+  <div class="bottom-dock">
+    <button class="btn-save-image" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      <span>保存高清长图到相册</span>
+    </button>
+    <button class="btn-share-social" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+      </svg>
+      <span>分享给乐迷</span>
+    </button>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844},"posterTheme":{"editor":"text","default":"黑胶暗调"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      posterTheme: this.props.posterTheme ?? "黑胶暗调"
+    };
+  }
+}
+</script>
+</body>
+</html>

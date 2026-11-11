@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>2. 艺人报批曲目 · 详细核验</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+.device-shell {
+  width: 390px;
+  height: 844px;
+  background: #07090E;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #F3F4F8;
+}
+/* Device Chrome */
+.status-bar {
+  height: 44px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  z-index: 30;
+  flex-shrink: 0;
+}
+.dynamic-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 32px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 40;
+}
+.home-bar {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  z-index: 30;
+}
+/* Navigation */
+.nav-bar {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+  flex-shrink: 0;
+}
+.nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  cursor: pointer;
+  padding: 0;
+}
+.nav-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.nav-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.nav-subtitle {
+  font-size: 10px;
+  color: #94A3B8;
+}
+/* Scroll Container */
+.content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 16px 96px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 10;
+  scrollbar-width: none;
+}
+.content-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* Artist Header Banner */
+.artist-banner {
+  background: linear-gradient(145deg, #1A1F2C 0%, #10131E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.artist-banner::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.14) 0%, rgba(245, 158, 11, 0) 70%);
+  pointer-events: none;
+}
+.banner-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #F59E0B 0%, #B45309 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+  color: #000000;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.25);
+}
+.banner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.banner-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.banner-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: #FFFFFF;
+}
+.badge-pass {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.banner-details {
+  font-size: 11px;
+  color: #94A3B8;
+  line-height: 1.4;
+}
+/* Evidence Accordion / Gov Proof Box */
+.gov-proof-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+.proof-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #E2E8F0;
+  font-weight: 600;
+}
+.proof-tag-ai {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.proof-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  color: #94A3B8;
+}
+.proof-item span {
+  color: #CBD5E1;
+}
+/* Section Header with Select All */
+.list-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px;
+}
+.list-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: #E2E8F0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.list-heading span {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+}
+.select-all-btn {
+  background: transparent;
+  border: none;
+  color: #F59E0B;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px;
+}
+/* Song List Rows */
+.song-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.song-row {
+  background: #11141E;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.song-checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid #F59E0B;
+  background: #F59E0B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.song-index {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748B;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.song-main-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.song-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.song-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+.song-label-tag {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.15);
+  color: #F59E0B;
+}
+.song-credits {
+  font-size: 11px;
+  color: #64748B;
+}
+.song-action-icon {
+  color: #475569;
+  cursor: pointer;
+  padding: 4px;
+}
+/* Bottom Floating Action Bar */
+.bottom-dock {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px 28px 16px;
+  background: linear-gradient(180deg, rgba(7, 9, 14, 0) 0%, rgba(7, 9, 14, 0.95) 20%, #07090E 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 25;
+}
+.selection-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.selection-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+.selection-sub {
+  font-size: 10px;
+  color: #64748B;
+}
+.dock-buttons {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+}
+.btn-export-text {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.btn-export-poster {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  border: none;
+  color: #000000;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+}
+</style>
+</helmet>
+
+<div class="device-shell">
+  <div class="dynamic-island"></div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>09:41</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <svg width="15" height="11" viewBox="0 0 17 11" fill="none" aria-hidden="true">
+        <path d="M1 9.5C3.5 6.5 8 6.5 10.5 9.5M3 7C5 4.5 8.5 4.5 10.5 7M6 4C7 3 8.5 3 9.5 4M8 1.5C8 1.2 8.2 1 8.5 1C8.8 1 9 1.2 9 1.5Z" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <div style="width: 22px; height: 11px; border: 1px solid #FFFFFF; border-radius: 3px; padding: 1px; display: flex; align-items: center;">
+        <div style="width: 15px; height: 7px; background: #FFFFFF; border-radius: 1.5px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation Bar -->
+  <div class="nav-bar">
+    <button class="nav-btn" type="button" aria-label="返回">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+    <div class="nav-center">
+      <div class="nav-title">痛仰乐队 · 报批曲目</div>
+      <div class="nav-subtitle">2026 不止音乐节 · 压轴专场</div>
+    </div>
+    <button class="nav-btn" type="button" aria-label="分享">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+        <polyline points="16 6 12 2 8 6"></polyline>
+        <line x1="12" y1="2" x2="12" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Content Scroll -->
+  <div class="content-scroll">
+    <!-- Artist Banner -->
+    <div class="artist-banner">
+      <div class="banner-avatar">痛</div>
+      <div class="banner-info">
+        <div class="banner-name-row">
+          <div class="banner-name">痛仰乐队 (Miserable Faith)</div>
+          <span class="badge-pass">12首准予演出</span>
+        </div>
+        <div class="banner-details">
+          4月19日 20:30 · 太阳舞台压轴 (75分钟)<br>
+          主唱: 高虎 | 吉他: 宋捷 | 贝斯: 张静 | 鼓手: 大伟
+        </div>
+      </div>
+    </div>
+
+    <!-- Official Proof Citation Box -->
+    <div class="gov-proof-card">
+      <div class="proof-header">
+        <span>政务审批信息核验</span>
+        <span class="proof-tag-ai">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 16h2v2h-2zm0-6h2v4h-2z"/>
+          </svg>
+          DeepSeek + 百度联网溯源
+        </span>
+      </div>
+      <div class="proof-grid">
+        <div class="proof-item">文书批号: <span>深文旅审〔2026〕0384号</span></div>
+        <div class="proof-item">审批部门: <span>深圳市文化广电旅游体育局</span></div>
+        <div class="proof-item">申报类型: <span>涉外涉港澳台营业性演出</span></div>
+        <div class="proof-item">核验状态: <span>文旅局官网公示在案</span></div>
+      </div>
+    </div>
+
+    <!-- Song List Header -->
+    <div class="list-controls">
+      <div class="list-heading">
+        全部过审曲目
+        <span>(12首)</span>
+      </div>
+      <button class="select-all-btn" type="button">全选 (已选 12)</button>
+    </div>
+
+    <!-- Song 1 -->
+    <div class="song-row">
+      <div class="song-checkbox" aria-label="已选中">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="song-index">01</div>
+      <div class="song-main-info">
+        <div class="song-title-row">
+          <span class="song-name">再见杰克</span>
+          <span class="song-label-tag">必唱压轴</span>
+        </div>
+        <div class="song-credits">词: 高虎 / 曲: 痛仰乐队 · 批次编号 #01</div>
+      </div>
+    </div>
+
+    <!-- Song 2 -->
+    <div class="song-row">
+      <div class="song-checkbox">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="song-index">02</div>
+      <div class="song-main-info">
+        <div class="song-title-row">
+          <span class="song-name">西湖</span>
+          <span class="song-label-tag">万人大合唱</span>
+        </div>
+        <div class="song-credits">词: 高虎 / 曲: 高虎 · 批次编号 #02</div>
+      </div>
+    </div>
+
+    <!-- Song 3 -->
+    <div class="song-row">
+      <div class="song-checkbox">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="song-index">03</div>
+      <div class="song-main-info">
+        <div class="song-title-row">
+          <span class="song-name">公路之歌</span>
+          <span class="song-label-tag">现场跳水</span>
+        </div>
+        <div class="song-credits">词: 高虎 / 曲: 高虎 · 批次编号 #03</div>
+      </div>
+    </div>
+
+    <!-- Song 4 -->
+    <div class="song-row">
+      <div class="song-checkbox">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="song-index">04</div>
+      <div class="song-main-info">
+        <div class="song-title-row">
+          <span class="song-name">为你唱首歌</span>
+        </div>
+        <div class="song-credits">词: 高虎 / 曲: 痛仰乐队 · 批次编号 #04</div>
+      </div>
+    </div>
+
+    <!-- Song 5 -->
+    <div class="song-row">
+      <div class="song-checkbox">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="song-index">05</div>
+      <div class="song-main-info">
+        <div class="song-title-row">
+          <span class="song-name">愿爱无忧</span>
+          <span class="song-label-tag">雷鬼编曲</span>
+        </div>
+        <div class="song-credits">词: 高虎 / 曲: 高虎 · 批次编号 #05</div>
+      </div>
+    </div>
+
+    <!-- Song 6 -->
+    <div class="song-row">
+      <div class="song-checkbox">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="song-index">06</div>
+      <div class="song-main-info">
+        <div class="song-title-row">
+          <span class="song-name">安阳</span>
+        </div>
+        <div class="song-credits">词: 高虎 / 曲: 高虎 · 批次编号 #06</div>
+      </div>
+    </div>
+
+    <!-- Song 7 -->
+    <div class="song-row">
+      <div class="song-checkbox">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="song-index">07</div>
+      <div class="song-main-info">
+        <div class="song-title-row">
+          <span class="song-name">点石成金</span>
+        </div>
+        <div class="song-credits">词: 高虎 / 曲: 痛仰乐队 · 批次编号 #07</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Floating Action Dock -->
+  <div class="bottom-dock">
+    <div class="selection-stats">
+      <div class="selection-count">已选 12 首</div>
+      <div class="selection-sub">占总报批 100%</div>
+    </div>
+    <div class="dock-buttons">
+      <button class="btn-export-text" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+        </svg>
+        <span>导出选中文本</span>
+      </button>
+      <button class="btn-export-poster" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <span>生成专属歌单卡</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844},"artistName":{"editor":"text","default":"痛仰乐队"},"approvedCount":{"editor":"int","default":12}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      artistName: this.props.artistName ?? "痛仰乐队",
+      approvedCount: this.props.approvedCount ?? 12
+    };
+  }
+}
+</script>
+</body>
+</html>

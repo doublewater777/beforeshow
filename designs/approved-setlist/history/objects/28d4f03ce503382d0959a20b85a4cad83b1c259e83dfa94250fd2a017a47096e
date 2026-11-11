@@ -1,0 +1,62 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-03T04:37:00Z"
+  },
+  "title": "2026不止音乐节 · 报批歌单检索与导出",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "01-RepertoireSearch.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "1. 报批歌单 · AI检索主页",
+      "radius": 44
+    },
+    "02-RepertoireDetail.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "2. 艺人报批曲目 · 详细核验",
+      "radius": 44
+    },
+    "03-TextExportModal.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "3. 文本导出 · 格式排版与复制",
+      "radius": 44
+    },
+    "04-PosterExportCard.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "4. 视觉长图导出 · 报批海报生成",
+      "radius": 44
+    }
+  },
+  "order": [
+    "01-RepertoireSearch.dc.html",
+    "02-RepertoireDetail.dc.html",
+    "03-TextExportModal.dc.html",
+    "04-PosterExportCard.dc.html"
+  ],
+  "notes": {
+    "feature_overview": {
+      "x": 0,
+      "y": -260,
+      "text": "2026 不止音乐节 · 官方文旅报批歌单功能流程 (DeepSeek / 百度检索增强)",
+      "kind": "title1",
+      "maxW": 1800
+    }
+  },
+  "designSystems": []
+}

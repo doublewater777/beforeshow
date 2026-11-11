@@ -147,12 +147,16 @@ private struct StylePreviewStage: View {
     @State private var start: Date?
     @State private var isDone = false
     private let duration = 1.6
+    /// The 3D preview runs in past a few dozen albums, like the shelf's own opening.
+    private var run: Double { min(30, Double(discs.count - 1) - position) }
 
     var body: some View {
         TimelineView(.animation(paused: isDone)) { context in
+            let entrance = start.map { min(1, context.date.timeIntervalSince($0) / duration) } ?? 0
             ListeningPickShelfStage(
-                style: style, discs: discs, show: show, position: position,
-                entrance: start.map { min(1, context.date.timeIntervalSince($0) / duration) } ?? 0,
+                style: style, discs: discs, show: show,
+                position: style == .shelf3D ? position + run * (1 - ListeningPickShelfStage.openingRun(entrance)) : position,
+                entrance: entrance,
                 onReady: { if start == nil { start = .now } }
             )
         }

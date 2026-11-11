@@ -18,6 +18,8 @@ struct ListeningPickShelfView: View {
     @State private var entranceTicker = ShelfFrameTicker()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPicking = false
+    /// The 3D row streaming in from its far end; the album it opens on stays current meanwhile.
+    @State private var isOpening = false
     @State private var landing: Int?
     @State private var tone: Color = BSColor.Stage.glowBlue
 
@@ -57,8 +59,11 @@ struct ListeningPickShelfView: View {
             ticker.stop()
             position = Double(discs.firstIndex { $0.id == currentID } ?? 0)
         }
-        .onChange(of: index) { _, newIndex in currentID = discs[newIndex].id }
-        .sensoryFeedback(.selection, trigger: index)
+        .onChange(of: index) { _, newIndex in
+            guard !isOpening else { return }
+            currentID = discs[newIndex].id
+        }
+        .sensoryFeedback(trigger: index) { _, _ in isOpening ? nil : .selection }
         .task(id: current.artworkURL) {
             guard let url = current.artworkURL, let color = await ListeningArtworkTone.tone(for: url) else { return }
             withAnimation(.easeInOut(duration: 0.7)) { tone = Color(uiColor: color) }
@@ -183,6 +188,12 @@ struct ListeningPickShelfView: View {
                 guard !isPicking else { return }
                 if dragStart == nil {
                     ticker.stop()
+                    landing = nil
+                    if isOpening {
+                        isOpening = false
+                        entranceTicker.stop()
+                        entrance = 1
+                    }
                     dragStart = position
                 }
                 position = clamp((dragStart ?? position) + albums(for: value.translation, in: size))
@@ -236,15 +247,33 @@ struct ListeningPickShelfView: View {
         }
     }
 
+    /// The 3D row opens at its far end and runs past every album on its way to the one it opens on, so the size of the
+    /// cabinet shows. It gathers speed, cruises and slows in; the album pulls out as it arrives.
     private func playEntrance() {
         guard entrance == 0 else { return }
-        runEntrance()
+        let target = index
+        let far = discs.count - 1
+        let distance = Double(far - target)
+        guard distance > 1 else { return runEntrance(duration: 1.6) }
+        let duration = min(3.2, 1.4 + distance * 0.02)
+        isOpening = true
+        landing = target
+        position = Double(far)
+        runEntrance(duration: duration)
+        ticker.start { elapsed in
+            let t = min(1, elapsed / duration)
+            position = Double(far) - distance * ListeningPickShelfStage.openingRun(t)
+            if t < 1 { return true }
+            landing = nil
+            isOpening = false
+            return false
+        }
     }
 
-    private func runEntrance() {
+    private func runEntrance(duration: Double = 1.6) {
         entrance = 0
         entranceTicker.start { elapsed in
-            entrance = min(1, elapsed / 1.6)
+            entrance = min(1, elapsed / duration)
             return entrance < 1
         }
     }

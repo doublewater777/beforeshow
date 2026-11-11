@@ -28,6 +28,11 @@ struct ListeningPickShelf3D: View {
                 }
                 scene.install(in: &content)
                 scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
+                // The opening starts at the far end: give its covers a moment to arrive so the row opens printed.
+                let farEnd = discs.suffix(ShelfScene3D.openingBatch).map(\.id)
+                for _ in 0..<20 where !scene.hasInserts(for: farEnd) {
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
                 onReady()
             } update: { _ in
                 scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
@@ -36,6 +41,14 @@ struct ListeningPickShelf3D: View {
             .projectionEffect(ShelfScene3D.levelling(in: render, view: size))
             .frame(width: size.width, height: size.height)
             .clipped()
+        }
+        // The opening runs the whole row from the far end to the near one. Inserts load while RealityKit starts: the far
+        // end first, where the row opens, then the near end, where it lands, then the middle, which only flashes past.
+        .task(id: discs.map(\.id)) {
+            let far = discs.suffix(ShelfScene3D.openingBatch).reversed()
+            let near = discs.dropLast(ShelfScene3D.openingBatch).prefix(50)
+            let middle = discs.dropLast(ShelfScene3D.openingBatch).dropFirst(50).reversed()
+            await scene.preload(Array(far) + near + middle)
         }
     }
 }
@@ -84,9 +97,6 @@ final class ShelfScene3D {
     static let pullTurn: Float = 0.2
     /// Cases in front of the picked one ease forward a little, leaving the slot it came from.
     static let frontGap: Float = 0.1
-    /// The opening swing: the row turns in round the case this far back, from this angle off to the right.
-    static let swingPivot: Float = 26
-    static let swingAngle: Float = 1.25
     /// Camera 33° round to the right of the covers and 34° above, framed close like the drawn shelf: the row runs from off the
     /// bottom-left edge to off the right edge just under the title, with the picked case right of centre.
     static let cameraOffset: SIMD3<Float> = [4.289, 5.312, 6.605]
@@ -177,6 +187,13 @@ final class ShelfScene3D {
     private let anchor = Entity()
     private let camera = PerspectiveCamera()
     private var cases: [String: Entity] = [:]
+    /// Printed inserts by disc, kept so a case made again later needs no new drawing.
+    private var loadedInserts: [String: PhysicallyBasedMaterial] = [:]
+    private var loadingInserts: Set<String> = []
+    /// No artwork, or it would not load: the opening does not wait on these.
+    private var failedInserts: Set<String> = []
+    /// Cases made while their insert was still loading.
+    private var waitingInserts: [String: [ModelEntity]] = [:]
     /// How fast the row is moving, in albums a second; a fast row stays one straight line.
     private var speed: Double = 0
     private var lastPosition: Double?
@@ -219,10 +236,9 @@ final class ShelfScene3D {
         lastTime = now
         // Cases only slide out as the row slows down, like the original: nothing pops while flicking past.
         let settled = 1 - smoothstep(Float(min(1, max(0, (speed - 3) / 6))))
-        // Opening: the row swings in from the right around its far end, curled, and straightens; then the front case slides out.
+        // Opening: the row fades in while it runs to the album it opens on, which then slides out.
         let arrival = Float(entrance)
         let pullOut = smoothstep(min(1, max(0, (arrival - 0.75) / 0.25)))
-        let swingProgress = min(1, arrival / 0.8)
         let fadeIn = smoothstep(min(1, arrival / 0.12))
         // Cases are kept well past the visible stretch, so scrolling back never rebuilds them.
         var kept = Set(discs[max(0, lower - 40)...min(discs.count - 1, upper + 40)].map(\.id))
@@ -247,19 +263,8 @@ final class ShelfScene3D {
             let d = Float(Double(index) - position)
             let pop = smoothstep(max(0, 1 - abs(d))) * settled * pullOut
             let aside = smoothstep(min(1, max(0, -d))) * Self.frontGap
-            var place: SIMD3<Float> = [d * Self.stagger + pop * Self.pullOut.x, pop * Self.pullOut.y, -d * Self.spacing + aside + pop * Self.pullOut.z]
-            var turn = simd_quatf(angle: pop * Self.pullTurn, axis: [0, 1, 0])
-            if swingProgress < 1 {
-                // Nearer cases trail further behind, which bends the row into an arc.
-                let lag = 0.5 * min(1, max(0, (Self.swingPivot - d) / Self.swingPivot))
-                let settle = min(1, max(0, (swingProgress - lag) / 0.5))
-                let swing = simd_quatf(angle: Self.swingAngle * pow(1 - settle, 3), axis: [0, 1, 0])
-                let pivot: SIMD3<Float> = [0, 0, -Self.swingPivot * Self.spacing]
-                place = pivot + swing.act(place - pivot)
-                turn = swing * turn
-            }
-            entity.position = place
-            entity.orientation = turn
+            entity.position = [d * Self.stagger + pop * Self.pullOut.x, pop * Self.pullOut.y, -d * Self.spacing + aside + pop * Self.pullOut.z]
+            entity.orientation = simd_quatf(angle: pop * Self.pullTurn, axis: [0, 1, 0])
             let opacity = max(pop, Self.visibility(of: entity.position, in: size)) * fadeIn
             entity.components.set(OpacityComponent(opacity: opacity))
             entity.isEnabled = opacity > 0.01
@@ -326,26 +331,62 @@ final class ShelfScene3D {
 
         anchor.addChild(root)
         cases[disc.id] = root
-        loadInsert(for: disc, into: insert)
+        if let material = loadedInserts[disc.id] {
+            insert.model?.materials = [material]
+        } else {
+            waitingInserts[disc.id, default: []].append(insert)
+            Task { await loadInsert(for: disc) }
+        }
         return root
     }
 
+    /// Covers wanted on screen before the opening run starts.
+    static let openingBatch = 16
+
+    func hasInserts(for ids: [String]) -> Bool {
+        ids.allSatisfy { loadedInserts[$0] != nil || !loadingInserts.contains($0) && failedInserts.contains($0) }
+    }
+
+    /// Loads inserts a few at a time, in the order given.
+    func preload(_ discs: [ListeningDisc]) async {
+        let ids = discs.map(\.id)
+        let byID = Dictionary(discs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        await withTaskGroup(of: Void.self) { [self] group in
+            for (index, id) in ids.enumerated() {
+                if index >= 6 { await group.next() }
+                guard !Task.isCancelled else { break }
+                group.addTask { await self.loadInsert(id: id, from: byID) }
+            }
+        }
+    }
+
+    private func loadInsert(id: String, from discs: [String: ListeningDisc]) async {
+        guard let disc = discs[id] else { return }
+        await loadInsert(for: disc)
+    }
+
     /// The insert is drawn off the main thread; only the finished texture lands on the case.
-    private func loadInsert(for disc: ListeningDisc, into insert: ModelEntity) {
+    private func loadInsert(for disc: ListeningDisc) async {
+        guard loadedInserts[disc.id] == nil, loadingInserts.insert(disc.id).inserted else { return }
+        defer {
+            loadingInserts.remove(disc.id)
+            if loadedInserts[disc.id] == nil { failedInserts.insert(disc.id) }
+        }
         let title = disc.title.uppercased()
         let year = disc.releaseDate.map { String(Calendar.current.component(.year, from: $0)) }
-        Task { @MainActor in
-            guard let url = disc.artworkURL, let cover = await ShowCoverImageCache.shared.image(from: url) else { return }
-            guard let cgImage = await Task.detached(priority: .userInitiated, operation: {
-                ShelfInsertArt.draw(title: title, year: year, cover: cover)
-            }).value,
-                let texture = try? await TextureResource(image: cgImage, options: .init(semantic: .color)) else { return }
-            var material = PhysicallyBasedMaterial()
-            material.baseColor = .init(texture: .init(texture))
-            material.roughness = 0.35
-            material.metallic = 0.0
-            material.clearcoat = 1.0
-            material.clearcoatRoughness = 0.05
+        guard let url = disc.artworkURL, let cover = await ShowCoverImageCache.shared.image(from: url) else { return }
+        guard let cgImage = await Task.detached(priority: .userInitiated, operation: {
+            ShelfInsertArt.draw(title: title, year: year, cover: cover)
+        }).value,
+            let texture = try? await TextureResource(image: cgImage, options: .init(semantic: .color)) else { return }
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(texture: .init(texture))
+        material.roughness = 0.35
+        material.metallic = 0.0
+        material.clearcoat = 1.0
+        material.clearcoatRoughness = 0.05
+        loadedInserts[disc.id] = material
+        for insert in waitingInserts.removeValue(forKey: disc.id) ?? [] {
             insert.model?.materials = [material]
         }
     }
