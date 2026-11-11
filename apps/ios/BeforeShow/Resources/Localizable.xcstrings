@@ -2801,18 +2801,58 @@
         }
       }
     },
-    "%lld 年，%lld 场" : {
+    "%lld 年" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld, %lld shows"
+            "value" : "%#@n@"
+          },
+          "substitutions" : {
+            "n" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg year"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg years"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 年，%lld 場"
+            "value" : "%lld 年"
+          }
+        }
+      }
+    },
+    "%lld 年 · %@ 最满" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld years · %2$@ was fullest"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 年 · %@ 最滿"
           }
         }
       }
@@ -2868,60 +2908,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 座城市"
-          }
-        }
-      }
-    },
-    "%lld 张唱片" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@n@"
-          },
-          "substitutions" : {
-            "n" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg record"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg records"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 張唱片"
-          }
-        }
-      }
-    },
-    "%lld 张唱片 · %@ 最满" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld records · %@ was fullest"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 張唱片 · %@ 最滿"
           }
         }
       }
@@ -4659,38 +4645,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SHOWS 場"
-          }
-        }
-      }
-    },
-    "SIDE A" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SIDE A"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SIDE A"
-          }
-        }
-      }
-    },
-    "SIDE B" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SIDE B"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SIDE B"
           }
         }
       }

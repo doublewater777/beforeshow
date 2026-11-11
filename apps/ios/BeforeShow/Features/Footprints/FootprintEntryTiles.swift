@@ -53,7 +53,7 @@ struct FootprintEntryTiles: View {
     private func link(_ door: Door, anniversary: FootprintAnniversary?, more: FootprintMoreArchiveData, badges: [FootprintBadge]) -> some View {
         switch door {
         case .years:
-            NavigationLink { FootprintVinylYearsView(archive: archive, covers: covers) } label: { yearsTile }
+            NavigationLink { FootprintYearsView(archive: archive, covers: covers) } label: { yearsTile }
                 .buttonStyle(BSPressStyle())
         case .artists:
             NavigationLink { FootprintConstellationView(archive: archive) } label: { artistsTile }
@@ -97,10 +97,12 @@ struct FootprintEntryTiles: View {
     private var yearsTile: some View {
         let peak = archive.years.max { $0.shows.count == $1.shows.count ? $0.year > $1.year : $0.shows.count < $1.shows.count }
         let subtitle = archive.years.count > 1 && peak != nil
-            ? BSLocalization.format("%lld 张唱片 · %@ 最满", archive.years.count, String(peak!.year))
-            : BSLocalization.format("%lld 张唱片", archive.years.count)
+            ? BSLocalization.format("%lld 年 · %@ 最满", archive.years.count, String(peak!.year))
+            : BSLocalization.format("%lld 年", archive.years.count)
         return tile(title: BSLocalization.text("这些年"), subtitle: subtitle, background: AnyShapeStyle(Color(white: 0.09))) {
-            FootprintMiniRecord(show: archive.shows.first, cover: archive.shows.first.flatMap { covers[$0.id] })
+            FootprintGalleryHall(shows: Array(archive.shows.prefix(12)), covers: covers, position: 0, zoom: 1.9)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 
@@ -233,29 +235,6 @@ private struct FootprintMiniBook: View {
         .rotationEffect(.degrees(-6))
         .shadow(color: .black.opacity(0.6), radius: 10, y: 8)
         .accessibilityHidden(true)
-    }
-}
-
-private struct FootprintMiniRecord: View {
-    let show: Show?
-    let cover: FootprintCover?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var spinning = false
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            FootprintRecordDisc(diameter: 88, labelDiameter: 30) {
-                if let show { FootprintResolvedCoverImage(show: show, cover: cover) }
-            }
-            .rotationEffect(.degrees(spinning ? 360 : 0))
-            .animation(reduceMotion ? nil : .linear(duration: 4).repeatForever(autoreverses: false), value: spinning)
-            Capsule()
-                .fill(FootprintRoomPalette.brass)
-                .frame(width: 3, height: 62)
-                .rotationEffect(.degrees(20), anchor: .top)
-                .offset(x: 10, y: -4)
-        }
-        .onAppear { spinning = true }
     }
 }
 

@@ -67,6 +67,7 @@
 		14D8B69F69BB334108B8B8B6 /* FootprintDetailPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B5A18B96BD4AB2F73F4AEE5 /* FootprintDetailPresentationSupport.swift */; };
 		151F804F47E7DDEC6103164C /* TimetableExperienceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F6406F84208F0E1C3A43702 /* TimetableExperienceView.swift */; };
 		1524694A40B0322BEDF5D726 /* ListeningOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB088C3C20314302DA73FBA /* ListeningOverviewView.swift */; };
+		1562E06B5BBE97DB03C0C8CE /* FootprintYearsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F02CDFE367B46961D63F480 /* FootprintYearsView.swift */; };
 		1575371AA751F7ACF0553FED /* ListeningTestPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD3C1B2FFDD0A7E22DF62AF /* ListeningTestPlayer.swift */; };
 		15812FBBA83A0E6509FE79DE /* BSStageLights.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B12E7B441ABD1237EEAAAF4 /* BSStageLights.swift */; };
 		15A72F4FAD9AE9837FF370EB /* ShowTicketPriceField.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F7367A109F82E055180B9B /* ShowTicketPriceField.swift */; };
@@ -649,7 +650,6 @@
 		EC117DB895A250B78BBF8894 /* FootprintCityMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC51C168E097912289A41CB0 /* FootprintCityMapView.swift */; };
 		ECBBAF36054572BD3FB5DBEA /* ListeningDiscDetailHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA47D20900C04DFB928258E /* ListeningDiscDetailHero.swift */; };
 		ED0073F2CF7C0306E90AF48B /* ModelContainerFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110CA86A45FE96CC7A19FD5E /* ModelContainerFactory.swift */; };
-		EDA229D83E370D4D385EE7A6 /* FootprintVinylYearsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E269B5A7D28AA967405C9DC /* FootprintVinylYearsView.swift */; };
 		EDE34C99FF42E3E5801C4577 /* FootprintsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E66BD12E8F6A0C36E091E67 /* FootprintsView.swift */; };
 		EF0B4DBAA2AA696C2C914711 /* MemoryFragmentMediaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C7C70D8A4FF38179DA5CB9 /* MemoryFragmentMediaStore.swift */; };
 		EF1B9ACEE3DFEF146E743988 /* AddShowSaveBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0758453A604F42EEA15F88A /* AddShowSaveBar.swift */; };
@@ -814,7 +814,7 @@
 		1B40307197FB63E23967B651 /* ListeningShowLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningShowLifecycleCoordinator.swift; sourceTree = "<group>"; };
 		1CDAFFFF478D277E6B2F922D /* FootprintCityArchiveViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintCityArchiveViews.swift; sourceTree = "<group>"; };
 		1CE3907BDB4E36A956335898 /* ShowCreationOriginMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowCreationOriginMigration.swift; sourceTree = "<group>"; };
-		1E269B5A7D28AA967405C9DC /* FootprintVinylYearsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintVinylYearsView.swift; sourceTree = "<group>"; };
+		1F02CDFE367B46961D63F480 /* FootprintYearsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintYearsView.swift; sourceTree = "<group>"; };
 		1FD5014A81BF5CDF8B855EEC /* TimetableManagementCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableManagementCoordinator.swift; sourceTree = "<group>"; };
 		20089F131785C4D6F8C725D9 /* TimetablePreviewSearchResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetablePreviewSearchResponseTests.swift; sourceTree = "<group>"; };
 		20C1F4431810B51A96024798 /* ListeningSheetBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningSheetBackground.swift; sourceTree = "<group>"; };
@@ -2413,8 +2413,8 @@
 				2632DBE94C3807F7BD5DB4FA /* FootprintTiltMotion.swift */,
 				2912C8E43F44D329789FDB1F /* FootprintVenueArchiveView.swift */,
 				E7B0083AC91EA910A8275CE7 /* FootprintVenueMap.swift */,
-				1E269B5A7D28AA967405C9DC /* FootprintVinylYearsView.swift */,
 				93461C62DBE725E2DEEA196F /* FootprintYearArchiveView.swift */,
+				1F02CDFE367B46961D63F480 /* FootprintYearsView.swift */,
 			);
 			path = Footprints;
 			sourceTree = "<group>";
@@ -2974,8 +2974,8 @@
 				39365E423FF8FEEB1D8AF364 /* FootprintTiltMotion.swift in Sources */,
 				144AC13E807C61EAA44EA068 /* FootprintVenueArchiveView.swift in Sources */,
 				C288F2FA9EC974B631AF2939 /* FootprintVenueMap.swift in Sources */,
-				EDA229D83E370D4D385EE7A6 /* FootprintVinylYearsView.swift in Sources */,
 				BC35FE8EAD2F7DD7B4183757 /* FootprintYearArchiveView.swift in Sources */,
+				1562E06B5BBE97DB03C0C8CE /* FootprintYearsView.swift in Sources */,
 				EDE34C99FF42E3E5801C4577 /* FootprintsView.swift in Sources */,
 				AC2101E8AC8E236A70DCBA9D /* FreeShowCapacityCoordinator.swift in Sources */,
 				4D1657A54EA9C52E0282DB2B /* FreeShowCapacityStateStore.swift in Sources */,
