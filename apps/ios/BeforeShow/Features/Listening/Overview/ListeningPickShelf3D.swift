@@ -238,7 +238,7 @@ final class ShelfScene3D {
         // Opening: the row swings in from the right around its far end, curled, and straightens; after a beat the case in
         // front slides out.
         let arrival = Float(entrance)
-        let pullOut = smoothstep(min(1, max(0, (arrival - 0.75) / 0.25)))
+        let pullOut = smoothstep(min(1, max(0, (arrival - 0.72) / 0.28)))
         let swingProgress = min(1, arrival / 0.6)
         let fadeIn = smoothstep(min(1, arrival / 0.12))
         // Cases are kept well past the visible stretch, so scrolling back never rebuilds them.

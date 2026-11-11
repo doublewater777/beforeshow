@@ -39,6 +39,9 @@ struct ListeningPickShelfStage: View {
         }
     }
 
+    /// How long a shelf takes to open: the 3D row swings in, holds and pulls its case out; the ring only turns into place.
+    static func openingDuration(for style: ListeningPickStyle) -> Double { style == .shelf3D ? 1.4 : 1.1 }
+
     /// The on-screen step from one album to the next one back.
     static func rowStep(for style: ListeningPickStyle, count: Int, in size: CGSize) -> CGVector {
         switch style {

@@ -237,7 +237,7 @@ struct ListeningPickShelfView: View {
         let distance = Double(target) - from
         let run = min(abs(distance), 24) * (distance < 0 ? -1 : 1)
         let skip = distance - run
-        let duration = 1.6 + abs(run) * 0.03
+        let duration = 1.1 + abs(run) * 0.02
         ticker.start { elapsed in
             let t = min(1, elapsed / duration)
             let eased = 1 - pow(1 - t, 3)
@@ -251,10 +251,11 @@ struct ListeningPickShelfView: View {
 
     private func playEntrance() {
         guard entrance == 0 else { return }
-        runEntrance(duration: 1.5)
+        runEntrance()
     }
 
-    private func runEntrance(duration: Double = 1.6) {
+    private func runEntrance() {
+        let duration = ListeningPickShelfStage.openingDuration(for: style)
         entrance = 0
         entranceTicker.start { elapsed in
             entrance = min(1, elapsed / duration)
@@ -269,7 +270,8 @@ struct ListeningPickShelfView: View {
 @MainActor
 private final class ShelfFrameTicker: NSObject {
     private var link: CADisplayLink?
-    private var startTime: CFTimeInterval?
+    private var lastTime: CFTimeInterval?
+    private var elapsed: Double = 0
     private var step: ((Double) -> Bool)?
 
     func start(_ step: @escaping (Double) -> Bool) {
@@ -284,14 +286,16 @@ private final class ShelfFrameTicker: NSObject {
     func stop() {
         link?.invalidate()
         link = nil
-        startTime = nil
+        lastTime = nil
+        elapsed = 0
         step = nil
     }
 
     @objc private func tick(_ link: CADisplayLink) {
         let now = link.targetTimestamp
-        let elapsed = now - (startTime ?? now)
-        if startTime == nil { startTime = now }
+        // A stalled frame (RealityKit warming up its first render) holds the animation instead of skipping ahead.
+        elapsed += min(now - (lastTime ?? now), 1.0 / 20)
+        lastTime = now
         if step?(elapsed) != true { stop() }
     }
 }

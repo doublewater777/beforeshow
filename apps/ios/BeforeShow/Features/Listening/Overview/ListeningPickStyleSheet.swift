@@ -1,4 +1,5 @@
 import SwiftUI
+import simd
 
 /// Picks how 帮我挑一张 lays out the albums, each style shown with the user's own covers.
 struct ListeningPickStyleSheet: View {
@@ -95,7 +96,11 @@ struct ListeningPickStyleSheet: View {
         } else {
             ZStack {
                 ListeningPickShelfBackdrop()
-                StylePreviewStage(style: style, discs: discs, show: show, position: position)
+                if style == .shelf3D, #available(iOS 18.0, *) {
+                    ShelfStill3D(discs: discs, position: position)
+                } else {
+                    StylePreviewStage(style: style, discs: discs, show: show, position: position)
+                }
             }
             .allowsHitTesting(false)
         }
@@ -146,22 +151,129 @@ private struct StylePreviewStage: View {
 
     @State private var start: Date?
     @State private var isDone = false
-    private let duration = 1.6
+    private var duration: Double { ListeningPickShelfStage.openingDuration(for: style) }
 
     var body: some View {
         TimelineView(.animation(paused: isDone)) { context in
             ListeningPickShelfStage(
                 style: style, discs: discs, show: show, position: position,
-                entrance: start.map { min(1, context.date.timeIntervalSince($0) / duration) } ?? 0,
-                onReady: { if start == nil { start = .now } }
+                entrance: start.map { min(1, context.date.timeIntervalSince($0) / duration) } ?? 0
             )
         }
-        // The 3D shelf starts once RealityKit reports ready; the drawn shelves start straight away.
-        .onAppear { if style != .shelf3D { start = .now } }
+        .onAppear { start = .now }
         .task(id: start) {
             guard start != nil else { return }
             try? await Task.sleep(for: .seconds(duration + 0.1))
             isDone = true
         }
+    }
+}
+
+/// The 3D shelf at rest, drawn flat through the same camera. A live RealityKit preview would share the frame rate with
+/// the 3D shelf under the sheet, and both slow to a crawl.
+@available(iOS 18.0, *)
+private struct ShelfStill3D: View {
+    let discs: [ListeningDisc]
+    let position: Double
+
+    private static let side: CGFloat = 100
+    private static let plastic = Color(red: 0.84, green: 0.82, blue: 0.9)
+
+    private struct Face: Identifiable {
+        let id: String
+        /// Top-left, top-right, bottom-right, bottom-left on screen.
+        let corners: [CGPoint]
+        /// The printed front; nil for a plastic edge.
+        let disc: ListeningDisc?
+        let brightness: Double
+        let opacity: Double
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                ForEach(faces(in: proxy.size)) { face in
+                    content(of: face)
+                        .frame(width: Self.side, height: Self.side)
+                        .projectionEffect(Self.mapping(to: face.corners))
+                        .opacity(face.opacity)
+                }
+            }
+        }
+        .clipped()
+    }
+
+    @ViewBuilder
+    private func content(of face: Face) -> some View {
+        if let disc = face.disc {
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(ListeningArtworkTone.cached(disc.artworkURL).map { Color(uiColor: ListeningArtworkTone.spine(for: $0).fill) } ?? Color(white: 0.12))
+                    .frame(width: Self.side * 0.11)
+                ListeningArtwork(url: disc.artworkURL, title: disc.title)
+                    .frame(width: Self.side * 0.82, height: Self.side * 0.92)
+                    .clipped()
+            }
+            .frame(width: Self.side, height: Self.side)
+            .background(Self.plastic)
+        } else {
+            Self.plastic.brightness(face.brightness)
+        }
+    }
+
+    /// Each case's front, right edge and top, far ones first, placed like `ShelfScene3D` at rest.
+    private func faces(in size: CGSize) -> [Face] {
+        guard !discs.isEmpty, size.width > 0 else { return [] }
+        let base = min(max(Int(position.rounded()), 0), discs.count - 1)
+        let offset = ShelfScene3D.cameraOffset(for: size)
+        let eye = ShelfScene3D.aim + offset
+        let forward = simd_normalize(-offset)
+        let w = ShelfScene3D.caseWidth / 2, h = ShelfScene3D.caseHeight / 2, t = ShelfScene3D.thickness / 2
+        let cases = (max(0, base - 8)...min(discs.count - 1, base + 18)).map { index -> (Int, SIMD3<Float>, simd_quatf) in
+            let d = Float(index - base)
+            if d == 0 {
+                return (index, ShelfScene3D.pullOut, simd_quatf(angle: ShelfScene3D.pullTurn, axis: [0, 1, 0]))
+            }
+            return (index, [0, 0, -d * ShelfScene3D.spacing + (d < 0 ? ShelfScene3D.frontGap : 0)], simd_quatf(angle: 0, axis: [0, 1, 0]))
+        }
+        var faces: [Face] = []
+        for (index, centre, turn) in cases.sorted(by: { simd_dot($0.1 - eye, forward) > simd_dot($1.1 - eye, forward) }) {
+            let d = Double(index - base)
+            let opacity = min(1, max(0, (20 - d) / 8)) * min(1, max(0, (d + 9) / 4))
+            let id = discs[index].id
+            let sides: [(String, [SIMD3<Float>], ListeningDisc?, Double)] = [
+                ("top", [[-w, h, -t], [w, h, -t], [w, h, t], [-w, h, t]], nil, 0.08),
+                ("side", [[w, h, t], [w, h, -t], [w, -h, -t], [w, -h, t]], nil, -0.12),
+                ("front", [[-w, h, t], [w, h, t], [w, -h, t], [-w, -h, t]], discs[index], 0),
+            ]
+            for (name, points, disc, brightness) in sides {
+                var corners: [CGPoint] = []
+                for point in points {
+                    corners.append(ShelfScene3D.project(centre + turn.act(point), in: size))
+                }
+                faces.append(Face(id: id + name, corners: corners, disc: disc, brightness: brightness, opacity: opacity))
+            }
+        }
+        return faces
+    }
+
+    /// Maps the face's square onto its four corners on screen.
+    private static func mapping(to q: [CGPoint]) -> ProjectionTransform {
+        let sx = q[0].x - q[1].x + q[2].x - q[3].x, sy = q[0].y - q[1].y + q[2].y - q[3].y
+        let dx1 = q[1].x - q[2].x, dx2 = q[3].x - q[2].x, dy1 = q[1].y - q[2].y, dy2 = q[3].y - q[2].y
+        let den = dx1 * dy2 - dx2 * dy1
+        let g = den == 0 ? 0 : (sx * dy2 - dx2 * sy) / den
+        let h = den == 0 ? 0 : (dx1 * sy - sx * dy1) / den
+        var square = ProjectionTransform()
+        square.m11 = q[1].x - q[0].x + g * q[1].x
+        square.m12 = q[1].y - q[0].y + g * q[1].y
+        square.m13 = g
+        square.m21 = q[3].x - q[0].x + h * q[3].x
+        square.m22 = q[3].y - q[0].y + h * q[3].y
+        square.m23 = h
+        square.m31 = q[0].x
+        square.m32 = q[0].y
+        square.m33 = 1
+        return ProjectionTransform(CGAffineTransform(scaleX: 1 / side, y: 1 / side)).concatenating(square)
     }
 }
