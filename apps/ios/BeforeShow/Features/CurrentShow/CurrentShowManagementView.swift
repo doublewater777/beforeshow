@@ -13,6 +13,7 @@ struct CurrentShowManagementSection: View {
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
+    var onSetCurrentShow: (Show) -> Void = { _ in }
     var onConfirmEnd: (Date) async -> Bool
     var homeArrival: CurrentShowHomeArrival?
     var onHomeArrivalPrepared: (UUID) -> Void = { _ in }
@@ -411,6 +412,7 @@ struct CurrentShowManagementSection: View {
                     formatter: formatter,
                     now: now,
                     onOpenShowLibrary: onOpenShowLibrary,
+                    onSetCurrent: onSetCurrentShow,
                     onDetailVisibilityChange: onDetailVisibilityChange
                 )
                 .padding(.horizontal, contentInset)

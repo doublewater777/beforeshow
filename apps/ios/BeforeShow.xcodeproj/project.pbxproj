@@ -332,6 +332,7 @@
 		710A049E51762F34777899E0 /* CurrentShowLibraryPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E41D6FF97EF9E3F57FDE21 /* CurrentShowLibraryPerformanceTests.swift */; };
 		712CF226F1BC42E2C0F0E5BD /* ListeningVideoDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB5EC61C9E264AD89D9C65A /* ListeningVideoDock.swift */; };
 		7150E364812A3FA96D6682D4 /* ListeningDiscBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F2A39E6920F022B3840C255 /* ListeningDiscBackdrop.swift */; };
+		7198DA2ECC22130E511EEDBA /* BSSwipeRevealActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */; };
 		71A42A3C94F7EA2095B7D4D3 /* ShowCoverFullscreenPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D369FFD78D510DBA30AE7AF /* ShowCoverFullscreenPreview.swift */; };
 		71B8211141BA72B93C9A7018 /* WidgetSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E8F1F9DA6B60E261D78057 /* WidgetSettingsView.swift */; };
 		71CC00F2332641F22806F53B /* BSZoomableImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF68C1D8DDE12A5D80AD873B /* BSZoomableImageView.swift */; };
@@ -1161,6 +1162,7 @@
 		A489B1E13220281051AA87EB /* DispersalCeremonyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyTests.swift; sourceTree = "<group>"; };
 		A4A78B82F018B3CC4289403D /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
 		A50F4BE8E24B01A3E0482585 /* LocalNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationScheduler.swift; sourceTree = "<group>"; };
+		A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSSwipeRevealActionRow.swift; sourceTree = "<group>"; };
 		A5CDB968E16EBEA19A1580D6 /* HomeCountdownCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCountdownCard.swift; sourceTree = "<group>"; };
 		A6D87D73BEDFED2B10860DBE /* CoverAmbientColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverAmbientColor.swift; sourceTree = "<group>"; };
 		A81A4C22100811A21DBD95FF /* BeforeShow.storekit */ = {isa = PBXFileReference; path = BeforeShow.storekit; sourceTree = "<group>"; };
@@ -2236,6 +2238,7 @@
 				13E13BC475124E615F71E106 /* BSStageProgramme.swift */,
 				27079634F2BD88A29B62E9F3 /* BSStageRig.swift */,
 				D0A989EAB740E584258668E4 /* BSStageScene.swift */,
+				A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */,
 				298DD1DE5E28F44B30D2F12C /* BSTokens.swift */,
 				94AE043D07CC6DE8F32EA4F4 /* BSUserContentMask.swift */,
 				B47757122A352A59C133F3F0 /* BSWideLayout.swift */,
@@ -2831,6 +2834,7 @@
 				77A4381A66F3D652D1C84142 /* BSStageProgramme.swift in Sources */,
 				E7AF650A9548A7B6FEB084B7 /* BSStageRig.swift in Sources */,
 				3A6EF1D449ED6155CDD11A33 /* BSStageScene.swift in Sources */,
+				7198DA2ECC22130E511EEDBA /* BSSwipeRevealActionRow.swift in Sources */,
 				924B2AB9DDE84591041CD0DA /* BSTokens.swift in Sources */,
 				D544343E9C48420D0FAF7F02 /* BSUserContentMask.swift in Sources */,
 				32494F8D4638D7DB7122C9DA /* BSWideLayout.swift in Sources */,

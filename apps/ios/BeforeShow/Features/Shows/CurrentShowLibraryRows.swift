@@ -10,47 +10,44 @@ struct CurrentShowLibraryUpcomingRow: View {
     let onAction: (CurrentShowLibraryMenuAction) -> Void
 
     var body: some View {
-        HStack(spacing: BSSpacing.sm) {
-            Button(action: onOpen) {
-                HStack(spacing: BSSpacing.compact) {
-                    ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
-                        .frame(width: 54, height: 72)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(show.name)
-                            .font(.system(size: 14.5, weight: .semibold))
-                            .foregroundStyle(BSColor.Stage.foreground)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        Text(statusLine)
-                            .font(BSFont.V3.small.weight(.medium))
-                            .foregroundStyle(isChanged ? BSColor.Accent.warm : BSColor.Stage.foreground.opacity(0.82))
-                            .lineLimit(1)
-                        Text([shortDateText, show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
-                            .font(BSFont.V3.caption)
-                            .foregroundStyle(BSColor.Stage.muted)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    if isCurrent {
-                        Text(BSLocalization.text("当前"))
-                            .font(BSFont.V3.caption)
-                            .foregroundStyle(BSColor.Stage.accent)
-                            .frame(maxHeight: .infinity, alignment: .top)
-                    }
+        Button(action: onOpen) {
+            HStack(spacing: BSSpacing.compact) {
+                ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
+                    .frame(width: 54, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(show.name)
+                        .font(.system(size: 14.5, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(statusLine)
+                        .font(BSFont.V3.small.weight(.medium))
+                        .foregroundStyle(isChanged ? BSColor.Accent.warm : BSColor.Stage.foreground.opacity(0.82))
+                        .lineLimit(1)
+                    Text([shortDateText, show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
+                        .font(BSFont.V3.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .lineLimit(1)
                 }
-                .contentShape(Rectangle())
+                Spacer(minLength: 0)
+                if isCurrent {
+                    Text(BSLocalization.text("当前"))
+                        .font(BSFont.V3.caption)
+                        .foregroundStyle(BSColor.Stage.accent)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
             }
-            .buttonStyle(.plain)
+            .padding(BSSpacing.compact)
+            .background(BSColor.Stage.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 17))
+            .overlay(
+                RoundedRectangle(cornerRadius: 17)
+                    .stroke(isCurrent ? BSColor.Stage.accent.opacity(0.45) : BSColor.Stage.border, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 17))
         }
-        .padding(BSSpacing.compact)
-        .background(BSColor.Stage.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 17))
-        .overlay(
-            RoundedRectangle(cornerRadius: 17)
-                .stroke(isCurrent ? BSColor.Stage.accent.opacity(0.45) : BSColor.Stage.border, lineWidth: 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 17))
+        .buttonStyle(.plain)
         .contextMenu {
             CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
         }
@@ -163,4 +160,3 @@ private struct CurrentShowLibraryMenuItems: View {
         }
     }
 }
-

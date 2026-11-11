@@ -119,6 +119,7 @@ struct CurrentShowHomeView: View {
                         onAddShow: { presentedSheet = .addCoordinator },
                         onOpenSettings: { presentedSheet = .settings },
                         onOpenShowLibrary: { presentedSheet = .showLibrary },
+                        onSetCurrentShow: selectCurrentShow,
                         onConfirmEnd: { endDate in
                             await confirmEnd(show, at: endDate)
                         },
@@ -443,6 +444,35 @@ struct CurrentShowHomeView: View {
             }
         } catch {
             modelContext.rollback()
+        }
+    }
+
+    private func selectCurrentShow(_ target: Show) {
+        guard session.isManuallySelectable(target) else {
+            presentToast(.neutral, message: BSLocalization.text("这场不能设为当前现场"))
+            return
+        }
+
+        Task { @MainActor in
+            do {
+                let didSync = try await ShowMutationCoordinator.selectCurrentShow(
+                    showID: target.id,
+                    shows: liveShows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
+                )
+                presentToast(
+                    didSync ? .success : .neutral,
+                    message: didSync
+                        ? BSLocalization.text("已设为当前现场")
+                        : BSLocalization.text("已切换现场，同步暂未更新")
+                )
+            } catch {
+                modelContext.rollback()
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
+            }
         }
     }
 

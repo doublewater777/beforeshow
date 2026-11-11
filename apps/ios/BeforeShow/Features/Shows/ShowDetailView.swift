@@ -89,12 +89,6 @@ struct ShowDetailView: View {
                             onOpenCover: { isShowingCoverPreview = true },
                             topExtension: topInset
                         )
-                        if !isCurrentShow, session.isManuallySelectable(show) {
-                            Button(action: selectCurrent) {
-                                Label(BSLocalization.text("设为当前现场"), systemImage: "music.note.house")
-                            }
-                            .buttonStyle(BSSecondaryButtonStyle())
-                        }
                         // Same blocks in the same order as footprint detail.
                         MemoryContactSheet(
                             fragments: memoryFragments.sorted { $0.createdAt < $1.createdAt },
@@ -135,6 +129,14 @@ struct ShowDetailView: View {
                 Menu {
                     Button(BSLocalization.text("编辑"), systemImage: "square.and.pencil") {
                         presentedSheet = .editor
+                    }
+                    if isCurrentShow {
+                        Button {} label: {
+                            Label(BSLocalization.text("当前展示中"), systemImage: "checkmark.circle")
+                        }
+                        .disabled(true)
+                    } else if session.isManuallySelectable(show) {
+                        Button(BSLocalization.text("设为当前现场"), systemImage: "music.note.house", action: selectCurrent)
                     }
                     Menu {
                         eventStatusMenuActions

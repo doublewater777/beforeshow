@@ -5,7 +5,10 @@ struct CurrentShowFollowUpSummary: View {
     let formatter: ShowDisplayFormatter
     let now: Date
     var onOpenShowLibrary: () -> Void = {}
+    var onSetCurrent: (Show) -> Void = { _ in }
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+
+    @State private var revealedShowID: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -36,13 +39,26 @@ struct CurrentShowFollowUpSummary: View {
             }
 
             ForEach(shows.prefix(2)) { show in
-                NavigationLink {
-                    ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-                } label: {
-                    followUpRow(show)
+                BSSwipeRevealActionRow(
+                    isRevealed: revealedShowID == show.id,
+                    actionTitle: BSLocalization.text("设为当前"),
+                    actionIcon: "pin.fill",
+                    tint: BSColor.Stage.accent,
+                    onReveal: { isRevealed in
+                        revealedShowID = isRevealed ? show.id : nil
+                    },
+                    onAction: {
+                        revealedShowID = nil
+                        onSetCurrent(show)
+                    }
+                ) {
+                    NavigationLink {
+                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                    } label: {
+                        followUpRow(show)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .bsGlassCard(cornerRadius: 20, interactive: false)
             }
 
             if shows.count > 2 {
@@ -159,4 +175,3 @@ struct CurrentShowLibraryEntryTile: View {
         .accessibilityLabel(BSLocalization.format("%@，%lld 场现场", BSLocalization.text("全部现场"), totalShowCount))
     }
 }
-
