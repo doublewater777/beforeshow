@@ -11,6 +11,16 @@ enum AddShowLinkPasteDetection {
     }
 }
 
+/// 从购票平台回来时，剪贴板换过内容且还没填链接，就去读一次（系统会询问是否允许粘贴）。
+enum AddShowLinkReturnPaste {
+    static func shouldRequest(seenChangeCount: Int, changeCount: Int, hasPasteable: Bool, linkText: String, isParsing: Bool) -> Bool {
+        changeCount != seenChangeCount
+            && hasPasteable
+            && linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !isParsing
+    }
+}
+
 struct AddShowLinkEntryView: View {
     @Binding var linkText: String
     let isParsingLink: Bool
@@ -18,9 +28,10 @@ struct AddShowLinkEntryView: View {
     let onParse: () -> Void
     let onRetry: () -> Void
     let onManual: () -> Void
-    let onOpenGuide: () -> Void
 
     @State private var showsEmptyClipboardHint = false
+    @State private var showsGuide = false
+    @State private var seenPasteboardChange = UIPasteboard.general.changeCount
 
     private var detectedLinkSource: String? {
         AddShowPasteboardLinkSuggestion.resolve(from: linkText)?.platform
@@ -86,18 +97,43 @@ struct AddShowLinkEntryView: View {
                     }
                 }
 
-                AddShowLinkGuideRow(onOpenGuide: onOpenGuide)
+                AddShowLinkGuideRow {
+                    dismissKeyboard()
+                    showsGuide = true
+                }
             }
 
             if let failure, !isParsingLink {
                 AddShowLinkFailureCard(failure: failure, onRetry: onRetry, onManual: onManual)
             }
         }
+        .sheet(isPresented: $showsGuide, onDismiss: pasteLinkCopiedElsewhere) {
+            AddShowLinkGuideView()
+        }
+        // 在 sheet 里 scenePhase 不可靠，回到前台以应用通知为准。
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            guard !showsGuide else { return }
+            pasteLinkCopiedElsewhere()
+        }
     }
 }
 
 extension AddShowLinkEntryView {
-    /// 只在用户点按钮时读剪贴板；系统可能询问一次是否允许粘贴。
+    private func pasteLinkCopiedElsewhere() {
+        let pasteboard = UIPasteboard.general
+        guard AddShowLinkReturnPaste.shouldRequest(
+            seenChangeCount: seenPasteboardChange,
+            changeCount: pasteboard.changeCount,
+            hasPasteable: pasteboard.hasStrings || pasteboard.hasURLs,
+            linkText: linkText,
+            isParsing: isParsingLink
+        ) else { return }
+        seenPasteboardChange = pasteboard.changeCount
+        guard let copied = AddShowPasteboardLinkSuggestion.resolve(from: pasteboard.string ?? pasteboard.url?.absoluteString) else { return }
+        showsEmptyClipboardHint = false
+        linkText = copied.link
+    }
+
     private func pasteFromClipboard() {
         guard let pasted = AddShowPasteboardLinkSuggestion.pasteableLink(from: UIPasteboard.general.string) else {
             showsEmptyClipboardHint = true

@@ -29,7 +29,6 @@ struct AddShowFlowView: View {
     @State private var hasImportedDraft = false
     @State private var showsPaywall = false
     @State private var isAtFreeCapacity = false
-    @State private var showsLinkGuide = false
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     /// 保存成功后按钮内的轻反馈文案；显示片刻后关闭页面。
@@ -200,9 +199,6 @@ struct AddShowFlowView: View {
         .sheet(isPresented: $showsPaywall, onDismiss: refreshFreeCapacity) {
             ProPaywallSheetView()
         }
-        .sheet(isPresented: $showsLinkGuide) {
-            AddShowLinkGuideView()
-        }
     }
 
     /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
@@ -253,11 +249,7 @@ struct AddShowFlowView: View {
                             guard !isParsingLink else { return }
                             linkFailure = nil
                         },
-                        onManual: switchToManual,
-                        onOpenGuide: {
-                            dismissKeyboard()
-                            showsLinkGuide = true
-                        }
+                        onManual: switchToManual
                     )
                 }
                 HStack(spacing: BSSpacing.compact) {

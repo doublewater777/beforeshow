@@ -65,6 +65,17 @@ final class AddShowFlowPolicyTests: XCTestCase {
         ))
     }
 
+    func testComingBackWithANewCopyAsksForTheClipboard() {
+        XCTAssertTrue(AddShowLinkReturnPaste.shouldRequest(seenChangeCount: 3, changeCount: 4, hasPasteable: true, linkText: "", isParsing: false))
+    }
+
+    func testComingBackWithoutANewCopyOrWithALinkAlreadyInDoesNotAsk() {
+        XCTAssertFalse(AddShowLinkReturnPaste.shouldRequest(seenChangeCount: 4, changeCount: 4, hasPasteable: true, linkText: "", isParsing: false))
+        XCTAssertFalse(AddShowLinkReturnPaste.shouldRequest(seenChangeCount: 3, changeCount: 4, hasPasteable: false, linkText: "", isParsing: false))
+        XCTAssertFalse(AddShowLinkReturnPaste.shouldRequest(seenChangeCount: 3, changeCount: 4, hasPasteable: true, linkText: "https://m.damai.cn/item.htm?id=1", isParsing: false))
+        XCTAssertFalse(AddShowLinkReturnPaste.shouldRequest(seenChangeCount: 3, changeCount: 4, hasPasteable: true, linkText: "", isParsing: true))
+    }
+
     // MARK: Saved feedback
 
     func testSavedFeedbackTellsWhereTheShowWent() {
