@@ -48,6 +48,9 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     isolated deinit {
+        // Detach the session's KVO before its player finishes asynchronous
+        // initialization; iOS 17 can otherwise notify a released observer.
+        nowPlaying.removePlayer(player)
         for observation in playerObservers { observation.invalidate() }
         playerObservers.removeAll()
         resumeTask?.cancel()

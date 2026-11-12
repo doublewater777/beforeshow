@@ -194,6 +194,19 @@ final class PreviewListeningPlaybackServiceTests: XCTestCase {
         try await waitUntil { self.service.hasEnded }
     }
 
+    func testReleasingPreviewsWhilePlayerInitializationIsPending() async throws {
+        // iOS 17 can deliver FigPlayer/KVO callbacks after a short-lived preview
+        // is released. Exercise both an explicit stop and a still-loaded queue.
+        for batch in 0..<200 {
+            for _ in 0..<5 {
+                let preview = PreviewListeningPlaybackService(owner: .pickAudition)
+                try await preview.load([item("transient")], startingAt: "transient", at: 0)
+                if batch.isMultiple(of: 2) { preview.stop() }
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func start() async throws {
         try await service.load([item("first"), item("second")], startingAt: "first", at: 0)
         try await service.play()
