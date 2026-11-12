@@ -1,4 +1,3 @@
-import Metal
 import RealityKit
 import SwiftUI
 import UIKit
@@ -12,21 +11,26 @@ struct ListeningPickShelf3D: View {
     var landing: Int?
     /// 0 → 1 as the row arrives from its far end when the shelf opens.
     var entrance: Double = 1
-    /// The scene is built; RealityKit takes a moment to start, so the entrance waits for this.
+    /// The opening is ready to play: RealityKit has started and every case the swing shows is printed.
     var onReady: () -> Void = {}
     @State private var scene = ShelfScene3D()
     /// Defer RealityKit mounting without adding a fixed delay.
     @State private var isMounted = false
+    /// The row's first frames render unseen, so the swing plays on built cases and compiled materials.
+    @State private var isRevealed = false
 
     var body: some View {
         GeometryReader { proxy in
-            if isMounted {
-                stage(in: proxy.size)
+            ZStack {
+                Color.clear
+                if isMounted {
+                    stage(in: proxy.size)
+                }
             }
-        }
-        // Inserts load while RealityKit starts, nearest the opening album first.
-        .task(id: discs.map(\.id)) {
-            await scene.preload(ShelfScene3D.openingOrder(count: discs.count, around: position).map { discs[$0] })
+            // Inserts load while RealityKit starts: the cases the swing shows first, nearest the opening album first.
+            .task(id: discs.map(\.id)) {
+                await scene.preload(discs, around: position, size: proxy.size)
+            }
         }
         .task {
             await Task.yield()
@@ -44,10 +48,7 @@ struct ListeningPickShelf3D: View {
                 content.renderingEffects.customPostProcessing = .effect(ShelfFarBlur(overscan: Float(ShelfScene3D.overscan)))
             }
             scene.install(in: &content)
-            scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
-            await scene.waitForOpening(discs: discs, position: position)
-            guard !Task.isCancelled else { return }
-            onReady()
+            scene.beginOpening(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
         } update: { _ in
             scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
         }
@@ -55,52 +56,13 @@ struct ListeningPickShelf3D: View {
         .projectionEffect(ShelfScene3D.levelling(in: render, view: size))
         .frame(width: size.width, height: size.height)
         .clipped()
-    }
-}
-
-/// Runs `shelfFarBlur` (ListeningPickShelfBlur.metal) over each rendered frame.
-@available(iOS 26.0, *)
-private struct ShelfFarBlur: PostProcessEffect {
-    let overscan: Float
-    private var pipeline: (any MTLComputePipelineState)?
-
-    init(overscan: Float) {
-        self.overscan = overscan
-    }
-
-    mutating func prepare(for device: any MTLDevice) {
-        guard let function = device.makeDefaultLibrary()?.makeFunction(name: "shelfFarBlur") else { return }
-        pipeline = try? device.makeComputePipelineState(function: function)
-    }
-
-    mutating func postProcess(context: borrowing PostProcessEffectContext<any MTLCommandBuffer>) {
-        let destination = context.targetColorTexture
-        let linearFormat: MTLPixelFormat
-        switch destination.pixelFormat {
-        case .bgra8Unorm_srgb: linearFormat = .bgra8Unorm
-        case .rgba8Unorm_srgb: linearFormat = .rgba8Unorm
-        default: linearFormat = destination.pixelFormat
+        .opacity(isRevealed ? 1 : 0)
+        .task {
+            await scene.waitForOpening()
+            guard !Task.isCancelled else { return }
+            isRevealed = true
+            onReady()
         }
-        // Some GPUs cannot shader-write sRGB textures. A linear view shares the same storage.
-        let needsEncoding = linearFormat != destination.pixelFormat
-        guard let target = needsEncoding ? destination.makeTextureView(pixelFormat: linearFormat) : destination else { return }
-        guard let pipeline, let encoder = context.commandBuffer.makeComputeCommandEncoder() else { return }
-        var overscan = overscan
-        var encodeSRGB: UInt32 = needsEncoding ? 1 : 0
-        encoder.setComputePipelineState(pipeline)
-        encoder.setTexture(context.sourceColorTexture, index: 0)
-        encoder.setTexture(target, index: 1)
-        encoder.setBytes(&overscan, length: MemoryLayout<Float>.size, index: 0)
-        encoder.setBytes(&encodeSRGB, length: MemoryLayout<UInt32>.size, index: 1)
-        let group = MTLSize(width: 16, height: 16, depth: 1)
-        let grid = MTLSize(
-            width: (context.targetColorTexture.width + group.width - 1) / group.width,
-            height: (context.targetColorTexture.height + group.height - 1) / group.height,
-            depth: 1
-        )
-        // Uniform groups also work on the simulator; the shader bounds-checks the final group.
-        encoder.dispatchThreadgroups(grid, threadsPerThreadgroup: group)
-        encoder.endEncoding()
     }
 }
 
@@ -228,9 +190,85 @@ final class ShelfScene3D {
         return maxX > 0 && minX < size.width && maxY > 0 && minY < size.height
     }
 
+    /// The albums kept as cases round `position`: as far back as the row is seen, and the few in front.
+    private static func window(count: Int, position: Double, size: CGSize) -> ClosedRange<Int>? {
+        let base = Int(position.rounded(.down))
+        let reach = reach(forHeight: size.height)
+        let lower = max(0, base - Int(14 * reach))
+        let upper = min(count - 1, base + Int(32 * reach))
+        return lower <= upper ? lower...upper : nil
+    }
+
+    /// Where the case `d` albums along from the current one stands, `arrival` of the way into the opening;
+    /// nil when it is not drawn.
+    private static func pose(offset d: Float, settled: Float, arrival: Float, size: CGSize) -> (place: SIMD3<Float>, turn: simd_quatf, opacity: Float)? {
+        // Opening: the row swings in from the right around its far end, curled, and straightens; after a beat the case in
+        // front slides out.
+        let pullOut = smoothstep(min(1, max(0, (arrival - 0.72) / 0.28)))
+        let swingProgress = min(1, arrival / 0.6)
+        let fadeIn = smoothstep(min(1, arrival / 0.12))
+        let pop = smoothstep(max(0, 1 - abs(d))) * settled * pullOut
+        let aside = smoothstep(min(1, max(0, -d))) * frontGap
+        var place: SIMD3<Float> = [d * stagger + pop * Self.pullOut.x, pop * Self.pullOut.y, -d * spacing + aside + pop * Self.pullOut.z]
+        var turn = simd_quatf(angle: pop * pullTurn, axis: [0, 1, 0])
+        if swingProgress < 1 {
+            // Nearer cases trail further behind, which bends the row into an arc.
+            let lag = 0.4 * min(1, max(0, (swingPivot - d) / swingPivot))
+            let settle = min(1, max(0, (swingProgress - lag) / 0.6))
+            // Eases out gently, so the curled row stays on screen while it straightens instead of snapping into line.
+            let swing = simd_quatf(angle: swingAngle * pow(1 - settle, 2), axis: [0, 1, 0])
+            let pivot: SIMD3<Float> = [0, 0, -swingPivot * spacing]
+            place = pivot + swing.act(place - pivot)
+            turn = swing * turn
+        }
+        let opacity = max(pop, visibility(of: place, in: size)) * fadeIn
+        guard opacity > 0.01, intersectsViewport(center: place, turn: turn, size: size) else { return nil }
+        return (place, turn, opacity)
+    }
+
+    private static func smoothstep(_ t: Float) -> Float { t * t * (3 - 2 * t) }
+
+    /// Every album the opening shows at some point, as the row swings in and comes to rest.
+    static func entranceIndices(count: Int, position: Double, size: CGSize) -> [Int] {
+        guard let window = window(count: count, position: position, size: size) else { return [] }
+        return window.filter { index in
+            (1...30).contains { pose(offset: Float(Double(index) - position), settled: 1, arrival: Float($0) / 30, size: size) != nil }
+        }
+    }
+
+    /// The swing starts once every case it shows is printed, or this long after RealityKit has drawn its first frame:
+    /// a cold start spends its first frame compiling shaders, and the prints queue behind it.
+    static let openingBudget: Duration = .milliseconds(450)
+
+    static func isOpeningPrinted(cases: [String], sinceFirstFrame: Duration?, isSettled: (String) -> Bool) -> Bool {
+        cases.allSatisfy(isSettled) || sinceFirstFrame.map { $0 >= openingBudget } == true
+    }
+
+    private struct Request {
+        let discs: [ListeningDisc]
+        let position: Double
+        let landing: Int?
+        let entrance: Double
+        let size: CGSize
+    }
+
+    private enum Opening {
+        case pending
+        /// Hidden: the row stands at rest so its first frames draw unseen; the swing waits for the prints of these cases.
+        case warming(cases: [String])
+        case done
+    }
+
     // Made on first use: the first entity of a launch starts RealityKit, which must wait until the scene mounts.
     private lazy var anchor = Entity()
     private lazy var camera = PerspectiveCamera()
+    private var opening = Opening.pending
+    /// The latest row asked for; held back while the opening warms up.
+    private var request: Request?
+    private var frames = 0
+    /// When the second scene update came, which waits on the first frame being drawn.
+    private var firstFrame: ContinuousClock.Instant?
+    private var frameUpdates: EventSubscription?
     private var cases: [String: Entity] = [:]
     /// Printed inserts by disc, kept so a case made again later needs no new drawing.
     private var loadedInserts: [String: PhysicallyBasedMaterial] = [:]
@@ -264,17 +302,79 @@ final class ShelfScene3D {
         anchor.addChild(fill)
 
         content.add(anchor)
+        frameUpdates = content.subscribe(to: SceneEvents.Update.self) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.frames == 1 { self.firstFrame = .now }
+                self.frames += 1
+            }
+        }
     }
 
     func update(discs: [ListeningDisc], position: Double, landing: Int?, entrance: Double, size: CGSize) {
-        guard !discs.isEmpty, size.width > 0, size.height > 0 else { return }
+        let request = Request(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
+        self.request = request
+        if case .warming = opening { return }
+        apply(request)
+    }
+
+    /// Builds the opening while the view is hidden: every case the swing will show, so the swing itself builds none,
+    /// and the row at rest, so its first frames compile the materials and draw the prints unseen.
+    func beginOpening(discs: [ListeningDisc], position: Double, landing: Int?, entrance: Double, size: CGSize) {
+        request = Request(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
+        guard !discs.isEmpty, size.width > 0, size.height > 0 else {
+            opening = .done
+            return
+        }
+        let entrance = Self.entranceIndices(count: discs.count, position: position, size: size)
+        for index in entrance {
+            (cases[discs[index].id] ?? makeCase(discs[index], loadsInsert: false)).isEnabled = false
+        }
+        apply(Request(discs: discs, position: position, landing: landing, entrance: 1, size: size))
+        opening = .warming(cases: entrance.map { discs[$0].id })
+    }
+
+    /// Returns once the opening can play in view: its cases printed (within the budget) and drawn at rest, then set
+    /// back to where the swing starts.
+    func waitForOpening() async {
+        while case .pending = opening {
+            guard (try? await Task.sleep(for: .milliseconds(8))) != nil else { return }
+        }
+        guard case let .warming(ids) = opening else { return }
+        while !Self.isOpeningPrinted(cases: ids, sinceFirstFrame: firstFrame?.duration(to: .now), isSettled: isSettled) {
+            guard (try? await Task.sleep(for: .milliseconds(16))) != nil else { return }
+        }
+        await renderedFrames(2)
+        opening = .done
+        if let request { apply(request) }
+        // The view comes into sight only after the frame showing the swing's start, never the hidden row at rest.
+        await renderedFrames(2)
+    }
+
+    private func isSettled(_ id: String) -> Bool {
+        loadedInserts[id] != nil || !loadingInserts.contains(id) && failedInserts.contains(id)
+    }
+
+    /// The opening has played: the swing is over, or there was none.
+    private var isAtRest: Bool {
+        guard case .done = opening else { return false }
+        return (request?.entrance ?? 1) >= 1
+    }
+
+    private func renderedFrames(_ count: Int) async {
+        let target = frames + count
+        for _ in 0..<25 where frames < target {
+            guard (try? await Task.sleep(for: .milliseconds(8))) != nil else { return }
+        }
+    }
+
+    private func apply(_ request: Request) {
+        let (discs, position, landing, size) = (request.discs, request.position, request.landing, request.size)
+        guard !discs.isEmpty, size.width > 0, size.height > 0,
+              let window = Self.window(count: discs.count, position: position, size: size) else { return }
         camera.camera.fieldOfViewInDegrees = Self.renderFieldOfView(forHeight: size.height)
         camera.look(at: Self.aim, from: Self.aim + Self.cameraOffset(for: size), relativeTo: nil, forward: .negativeZ)
-        let base = Int(position.rounded(.down))
-        let reach = Self.reach(forHeight: size.height)
-        let lower = max(0, base - Int(14 * reach))
-        let upper = min(discs.count - 1, base + Int(32 * reach))
-        guard lower <= upper else { return }
+        let (lower, upper) = (window.lowerBound, window.upperBound)
         let now = CACurrentMediaTime()
         if let lastPosition, now > lastTime {
             speed = speed * 0.5 + abs(position - lastPosition) / max(now - lastTime, 1.0 / 120) * 0.5
@@ -282,13 +382,7 @@ final class ShelfScene3D {
         lastPosition = position
         lastTime = now
         // Cases only slide out as the row slows down, like the original: nothing pops while flicking past.
-        let settled = 1 - smoothstep(Float(min(1, max(0, (speed - 3) / 6))))
-        // Opening: the row swings in from the right around its far end, curled, and straightens; after a beat the case in
-        // front slides out.
-        let arrival = Float(entrance)
-        let pullOut = smoothstep(min(1, max(0, (arrival - 0.72) / 0.28)))
-        let swingProgress = min(1, arrival / 0.6)
-        let fadeIn = smoothstep(min(1, arrival / 0.12))
+        let settled = 1 - Self.smoothstep(Float(min(1, max(0, (speed - 3) / 6))))
         // Keep nearby inserts warm independently of which cases are currently in the scene.
         var kept = Set(discs[max(0, lower - 40)...min(discs.count - 1, upper + 40)].map(\.id))
         if let landing {
@@ -304,40 +398,26 @@ final class ShelfScene3D {
         for id in loadedInserts.keys where !kept.contains(id) {
             loadedInserts[id] = nil
         }
-        var visibleIDs: Set<String> = []
-        for index in lower...upper {
+        for index in window {
             let disc = discs[index]
-            let d = Float(Double(index) - position)
-            let pop = smoothstep(max(0, 1 - abs(d))) * settled * pullOut
-            let aside = smoothstep(min(1, max(0, -d))) * Self.frontGap
-            var place: SIMD3<Float> = [d * Self.stagger + pop * Self.pullOut.x, pop * Self.pullOut.y, -d * Self.spacing + aside + pop * Self.pullOut.z]
-            var turn = simd_quatf(angle: pop * Self.pullTurn, axis: [0, 1, 0])
-            if swingProgress < 1 {
-                // Nearer cases trail further behind, which bends the row into an arc.
-                let lag = 0.4 * min(1, max(0, (Self.swingPivot - d) / Self.swingPivot))
-                let settle = min(1, max(0, (swingProgress - lag) / 0.6))
-                // Eases out gently, so the curled row stays on screen while it straightens instead of snapping into line.
-                let swing = simd_quatf(angle: Self.swingAngle * pow(1 - settle, 2), axis: [0, 1, 0])
-                let pivot: SIMD3<Float> = [0, 0, -Self.swingPivot * Self.spacing]
-                place = pivot + swing.act(place - pivot)
-                turn = swing * turn
+            // Cases within reach that are out of sight are only switched off, so the row never rebuilds them mid-motion.
+            guard let pose = Self.pose(offset: Float(Double(index) - position), settled: settled, arrival: Float(request.entrance), size: size) else {
+                cases[disc.id]?.isEnabled = false
+                continue
             }
-            let opacity = max(pop, Self.visibility(of: place, in: size)) * fadeIn
-            guard opacity > 0.01, Self.intersectsViewport(center: place, turn: turn, size: size) else { continue }
-            visibleIDs.insert(disc.id)
             let entity = cases[disc.id] ?? makeCase(disc)
-            entity.position = place
-            entity.orientation = turn
-            entity.components.set(OpacityComponent(opacity: opacity))
+            if !entity.isEnabled { entity.isEnabled = true }
+            entity.position = pose.place
+            entity.orientation = pose.turn
+            entity.components.set(OpacityComponent(opacity: pose.opacity))
         }
-        for (id, entity) in cases where !visibleIDs.contains(id) {
+        let reachable = Set(discs[window].map(\.id))
+        for (id, entity) in cases where !reachable.contains(id) {
             entity.removeFromParent()
             cases[id] = nil
             waitingInserts[id] = nil
         }
     }
-
-    private func smoothstep(_ t: Float) -> Float { t * t * (3 - 2 * t) }
 
     /// Every case shares the same meshes and plastic; only the printed insert differs.
     private struct Parts {
@@ -349,6 +429,9 @@ final class ShelfScene3D {
         let trayPlastic: PhysicallyBasedMaterial
         let hingePlastic: PhysicallyBasedMaterial
         let placeholder: PhysicallyBasedMaterial
+        /// The glossy finish every print shares; each print only adds its texture, since every property set on a
+        /// material rebuilds its shader on the main thread.
+        let printed: PhysicallyBasedMaterial
     }
 
     private lazy var parts: Parts = {
@@ -364,6 +447,11 @@ final class ShelfScene3D {
         }
         var placeholder = PhysicallyBasedMaterial()
         placeholder.baseColor = .init(tint: UIColor(white: 0.25, alpha: 1))
+        var printed = PhysicallyBasedMaterial()
+        printed.roughness = 0.35
+        printed.metallic = 0.0
+        printed.clearcoat = 1.0
+        printed.clearcoatRoughness = 0.05
         let lidDepth = Self.thickness * 0.38
         return Parts(
             lid: .generateBox(width: Self.caseWidth, height: Self.caseHeight, depth: lidDepth, cornerRadius: 0.01),
@@ -373,11 +461,13 @@ final class ShelfScene3D {
             lidPlastic: plastic(0.84, 0.82, 0.9),
             trayPlastic: plastic(0.66, 0.64, 0.74),
             hingePlastic: plastic(0.9, 0.89, 0.95),
-            placeholder: placeholder
+            placeholder: placeholder,
+            printed: printed
         )
     }()
 
-    private func makeCase(_ disc: ListeningDisc) -> Entity {
+    /// `loadsInsert` false leaves the print to the opening's ordered preload.
+    private func makeCase(_ disc: ListeningDisc, loadsInsert: Bool = true) -> Entity {
         let parts = parts
         let root = Entity()
         let lidDepth = Self.thickness * 0.38
@@ -401,52 +491,53 @@ final class ShelfScene3D {
             insert.model?.materials = [material]
         } else {
             waitingInserts[disc.id, default: []].append(insert)
-            Task { await loadInsert(for: disc) }
+            if loadsInsert { Task { await loadInsert(for: disc) } }
         }
         return root
     }
 
-    /// The cases the opening shows, nearest the album it opens on first: the stretch in front and well back along the row.
+    /// The stretch round `position`, nearest first: where a pick lands, so its inserts load before the row gets there.
     static func openingOrder(count: Int, around position: Double) -> [Int] {
         guard count > 0 else { return [] }
         let base = min(max(Int(position.rounded()), 0), count - 1)
         return Array(max(0, base - 14)...min(count - 1, base + 32)).sorted { abs($0 - base) < abs($1 - base) }
     }
 
-    /// Only the opening case can delay the swing; the rest print while the row moves in.
-    func waitForOpening(discs: [ListeningDisc], position: Double) async {
-        guard let index = Self.openingOrder(count: discs.count, around: position).first else { return }
-        let id = discs[index].id
-        for _ in 0..<3 {
-            if loadedInserts[id] != nil || !loadingInserts.contains(id) && failedInserts.contains(id) { return }
-            do {
-                try await Task.sleep(for: .milliseconds(50))
-            } catch {
-                return
-            }
+    /// The opening's inserts: every case the swing shows, which it waits for, nearest the opening album first; then,
+    /// once the row has come to rest, the rest within reach, so nothing lands while it swings.
+    func preload(_ discs: [ListeningDisc], around position: Double, size: CGSize) async {
+        let nearest = { (lhs: Int, rhs: Int) in abs(Double(lhs) - position) < abs(Double(rhs) - position) }
+        let entrance = Self.entranceIndices(count: discs.count, position: position, size: size)
+        await preload(entrance.sorted(by: nearest).map { discs[$0] })
+        while !isAtRest {
+            guard (try? await Task.sleep(for: .milliseconds(50))) != nil else { return }
         }
+        guard let window = Self.window(count: discs.count, position: position, size: size) else { return }
+        let shown = Set(entrance)
+        let rest = window.filter { !shown.contains($0) }.sorted(by: nearest)
+        await preload(rest.map { discs[$0] }, priority: .utility)
     }
 
     /// Loads inserts a few at a time, in the order given.
-    func preload(_ discs: [ListeningDisc]) async {
+    func preload(_ discs: [ListeningDisc], priority: TaskPriority = .userInitiated) async {
         let ids = discs.map(\.id)
         let byID = Dictionary(discs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         await withTaskGroup(of: Void.self) { [self] group in
             for (index, id) in ids.enumerated() {
                 if index >= 6 { await group.next() }
                 guard !Task.isCancelled else { break }
-                group.addTask { await self.loadInsert(id: id, from: byID) }
+                group.addTask { await self.loadInsert(id: id, from: byID, priority: priority) }
             }
         }
     }
 
-    private func loadInsert(id: String, from discs: [String: ListeningDisc]) async {
+    private func loadInsert(id: String, from discs: [String: ListeningDisc], priority: TaskPriority) async {
         guard let disc = discs[id] else { return }
-        await loadInsert(for: disc)
+        await loadInsert(for: disc, priority: priority)
     }
 
     /// The insert is drawn off the main thread; only the finished texture lands on the case.
-    private func loadInsert(for disc: ListeningDisc) async {
+    private func loadInsert(for disc: ListeningDisc, priority: TaskPriority = .userInitiated) async {
         guard loadedInserts[disc.id] == nil, loadingInserts.insert(disc.id).inserted else { return }
         defer {
             loadingInserts.remove(disc.id)
@@ -456,70 +547,16 @@ final class ShelfScene3D {
         let title = disc.title.uppercased()
         let year = disc.releaseDate.map { String(Calendar.current.component(.year, from: $0)) }
         guard let url = disc.artworkURL, let cover = await ShowCoverImageCache.shared.image(from: url) else { return }
-        guard let cgImage = await Task.detached(priority: .userInitiated, operation: {
+        guard let cgImage = await Task.detached(priority: priority, operation: {
             ShelfInsertArt.draw(title: title, year: year, cover: cover)
         }).value,
             let texture = try? await TextureResource(image: cgImage, options: .init(semantic: .color)) else { return }
         guard retainedInsertIDs?.contains(disc.id) != false else { return }
-        var material = PhysicallyBasedMaterial()
+        var material = parts.printed
         material.baseColor = .init(texture: .init(texture))
-        material.roughness = 0.35
-        material.metallic = 0.0
-        material.clearcoat = 1.0
-        material.clearcoatRoughness = 0.05
         loadedInserts[disc.id] = material
         for insert in waitingInserts.removeValue(forKey: disc.id) ?? [] {
             insert.model?.materials = [material]
         }
-    }
-}
-
-/// The printed insert: spine band with the title, then the cover.
-private enum ShelfInsertArt {
-    static let size = CGSize(width: 416, height: 376)
-    static let band: CGFloat = 45
-
-    nonisolated static func draw(title: String, year: String?, cover: UIImage) -> CGImage? {
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = true
-        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
-            let tone = ListeningArtworkTone.average(cover)
-            let spine = tone.map(ListeningArtworkTone.spine(for:))
-            let fill = spine?.fill ?? UIColor(white: 0.12, alpha: 1)
-            let ink = spine?.isLight == true ? UIColor.black.withAlphaComponent(0.8) : .white
-            fill.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: band, height: size.height))
-
-            // Cover, filling the rest of the insert.
-            let area = CGRect(x: band, y: 0, width: size.width - band, height: size.height)
-            let scale = max(area.width / cover.size.width, area.height / cover.size.height)
-            let drawn = CGSize(width: cover.size.width * scale, height: cover.size.height * scale)
-            context.cgContext.saveGState()
-            context.cgContext.clip(to: area)
-            cover.draw(in: CGRect(x: area.midX - drawn.width / 2, y: area.midY - drawn.height / 2, width: drawn.width, height: drawn.height))
-            context.cgContext.restoreGState()
-
-            // Title up the spine, year at its foot.
-            let paragraph = NSMutableParagraphStyle()
-            paragraph.alignment = .center
-            paragraph.lineBreakMode = .byTruncatingTail
-            let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 17, weight: .heavy), .kern: 1.6,
-                .foregroundColor: ink, .paragraphStyle: paragraph,
-            ]
-            context.cgContext.saveGState()
-            context.cgContext.translateBy(x: band / 2, y: size.height * 0.42)
-            context.cgContext.rotate(by: -.pi / 2)
-            (title as NSString).draw(in: CGRect(x: -132, y: -11, width: 264, height: 22), withAttributes: titleAttributes)
-            context.cgContext.restoreGState()
-            if let year {
-                let yearAttributes: [NSAttributedString.Key: Any] = [
-                    .font: UIFont.systemFont(ofSize: 13, weight: .bold), .foregroundColor: ink, .paragraphStyle: paragraph,
-                ]
-                (year as NSString).draw(in: CGRect(x: 0, y: size.height - 40, width: band, height: 18), withAttributes: yearAttributes)
-            }
-        }
-        return image.cgImage
     }
 }

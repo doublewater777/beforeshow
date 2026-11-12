@@ -6,17 +6,55 @@ import RealityKit
 @available(iOS 18.0, *)
 @MainActor
 final class ListeningPickShelfLoadingTests: XCTestCase {
-    func testSceneOnlyCreatesCasesThatCanBeDrawn() async throws {
-        let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-        let previousWindow = windowScene.keyWindow
-        let window = UIWindow(windowScene: windowScene)
-        window.frame = windowScene.screen.bounds
-        let checked = expectation(description: "Visible scene entities checked")
+    private static let phone = CGSize(width: 402, height: 874)
+    private static let discs = (0..<1000).map {
+        ListeningDisc(id: "case-\($0)", title: "Album \($0)", artworkURL: nil, tracks: [])
+    }
+    private var previousKeyWindow: UIWindow?
+
+    @MainActor
+    private final class Built {
+        var anchor: Entity?
+        var fixtures = 0
+    }
+
+    func testOpeningBuildsEveryCaseBeforeTheSwing() async throws {
+        let (discs, phone) = (Self.discs, Self.phone)
         let scene = ShelfScene3D()
-        let discs = (0..<1000).map {
-            ListeningDisc(id: "visible-\($0)", title: "Album \($0)", artworkURL: nil, tracks: [])
+        let built = Built()
+        let begun = expectation(description: "Opening begun")
+        let window = try host(RealityView { content in
+            content.camera = .virtual
+            scene.install(in: &content)
+            built.anchor = content.entities.first
+            built.fixtures = built.anchor?.children.count ?? 0
+            scene.beginOpening(discs: discs, position: 500, landing: nil, entrance: 0, size: phone)
+            begun.fulfill()
+        })
+        defer { dismiss(window) }
+        await fulfillment(of: [begun], timeout: 15)
+        let root = try XCTUnwrap(built.anchor)
+        let fixtures = built.fixtures
+        let shown = ShelfScene3D.entranceIndices(count: discs.count, position: 500, size: phone)
+        XCTAssertEqual(root.children.count - fixtures, shown.count, "Every case the swing shows is built while hidden")
+
+        await scene.waitForOpening()
+        XCTAssertEqual(root.children.filter(\.isEnabled).count, fixtures,
+                       "The view is revealed on the swing's empty start, not the row at rest")
+        let cases = Set(root.children.map(ObjectIdentifier.init))
+        for step in 0...60 {
+            scene.update(discs: discs, position: 500, landing: nil, entrance: Double(step) / 60, size: phone)
+            XCTAssertTrue(Set(root.children.map(ObjectIdentifier.init)).isSubset(of: cases),
+                          "The swing must not build cases; step \(step)")
         }
-        window.rootViewController = UIHostingController(rootView: RealityView { content in
+        XCTAssertGreaterThan(root.children.filter(\.isEnabled).count, fixtures, "The row comes to rest in view")
+    }
+
+    func testCasesBeyondReachLeaveTheScene() async throws {
+        let (discs, phone) = (Self.discs, Self.phone)
+        let scene = ShelfScene3D()
+        let checked = expectation(description: "Reach checked")
+        let window = try host(RealityView { content in
             content.camera = .virtual
             scene.install(in: &content)
             guard let root = content.entities.first else {
@@ -24,68 +62,33 @@ final class ListeningPickShelfLoadingTests: XCTestCase {
                 checked.fulfill()
                 return
             }
-            let lightingAndCameraCount = root.children.count
-            let size = CGSize(width: 402, height: 874)
-            scene.update(discs: discs, position: 500, landing: nil, entrance: 0, size: size)
-            XCTAssertEqual(root.children.count, lightingAndCameraCount,
-                           "A fully transparent opening must not build any cases")
-
-            for (position, landing, entrance) in [(500.0, nil, 0.2), (500.0, nil, 1.0), (501.5, nil, 1.0), (50.0, 900, 1.0)] as [(Double, Int?, Double)] {
-                scene.update(discs: discs, position: position, landing: landing, entrance: entrance, size: size)
-                XCTAssertTrue(root.children.allSatisfy(\.isEnabled),
-                              "Offscreen cases must be removed rather than kept disabled; position \(position)")
-                if entrance == 1 {
-                    XCTAssertGreaterThan(root.children.count, lightingAndCameraCount, "The visible shelf must still render")
-                }
-                let count = root.children.count - lightingAndCameraCount
-                if entrance == 0.2 {
-                    XCTAssertLessThanOrEqual(count, 8,
-                                             "The first visible stretch must not allocate the offscreen row")
-                }
-                let note = XCTAttachment(string: "position=\(position), entrance=\(entrance), case entities=\(count)")
-                note.lifetime = .keepAlways
-                self.add(note)
+            let fixtures = root.children.count
+            for (position, landing) in [(500.0, nil), (501.5, nil), (50.0, 900)] as [(Double, Int?)] {
+                scene.update(discs: discs, position: position, landing: landing, entrance: 1, size: phone)
+                let count = root.children.count - fixtures
+                XCTAssertGreaterThan(count, 0, "The row at rest must render; position \(position)")
+                XCTAssertLessThanOrEqual(count, 47, "Only the reach round the current album stays built; position \(position)")
             }
             for size in [CGSize(width: 1024, height: 1366), CGSize(width: 1366, height: 1024)] {
                 scene.update(discs: discs, position: 500, landing: nil, entrance: 1, size: size)
-                XCTAssertTrue(root.children.allSatisfy(\.isEnabled), "Viewport resizing must retire invisible cases")
-                XCTAssertGreaterThan(root.children.count, lightingAndCameraCount)
+                XCTAssertGreaterThan(root.children.filter(\.isEnabled).count, fixtures, "The row renders on \(size)")
             }
-            scene.update(discs: discs, position: 50, landing: nil, entrance: 0, size: size)
-            XCTAssertEqual(root.children.count, lightingAndCameraCount, "Cases that stop drawing must leave the scene")
             checked.fulfill()
         })
-        window.makeKeyAndVisible()
-        defer {
-            window.isHidden = true
-            window.rootViewController = nil
-            previousWindow?.makeKey()
-        }
+        defer { dismiss(window) }
         await fulfillment(of: [checked], timeout: 15)
     }
 
     func testShelfBuildsItsSceneWithoutArtwork() async throws {
-        let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-        let previousWindow = windowScene.keyWindow
-        let window = UIWindow(windowScene: windowScene)
-        window.frame = windowScene.screen.bounds
         let ready = expectation(description: "3D shelf ready")
         let clock = ContinuousClock()
         let start = clock.now
         var elapsed: Duration?
-        let discs = (0..<20).map {
-            ListeningDisc(id: "cold-\($0)", title: "Album \($0)", artworkURL: nil, tracks: [])
-        }
-        window.rootViewController = UIHostingController(rootView: ListeningPickShelf3D(discs: discs, position: 10) {
+        let window = try host(ListeningPickShelf3D(discs: Array(Self.discs.prefix(20)), position: 10) {
             elapsed = start.duration(to: clock.now)
             ready.fulfill()
         })
-        window.makeKeyAndVisible()
-        defer {
-            window.isHidden = true
-            window.rootViewController = nil
-            previousWindow?.makeKey()
-        }
+        defer { dismiss(window) }
         await fulfillment(of: [ready], timeout: 15)
         let duration = try XCTUnwrap(elapsed)
         let timing = XCTAttachment(string: "First shelf scene ready: \(duration)")
@@ -93,38 +96,30 @@ final class ListeningPickShelfLoadingTests: XCTestCase {
         add(timing)
     }
 
-    func testUnloadedNeighboursDoNotDelayAnOpeningDiscWithoutArtwork() async {
-        let scene = ShelfScene3D()
-        let discs = (0..<50).map { index in
-            ListeningDisc(
-                id: "\(index)", title: "Album \(index)",
-                artworkURL: index == 30 ? nil : URL(string: "https://shelf-loading.test/\(index)"),
-                tracks: []
-            )
-        }
-        await scene.preload([discs[30]])
-
-        let clock = ContinuousClock()
-        let start = clock.now
-        await scene.waitForOpening(discs: discs, position: 30)
-
-        XCTAssertLessThan(start.duration(to: clock.now), .milliseconds(100),
-                          "The row must enter without waiting for neighbouring artwork")
+    func testOpeningWaitsForItsPrintsWithinABudgetFromTheFirstFrame() {
+        let cases = ["near", "far"]
+        let nearOnly = { (id: String) in id == "near" }
+        XCTAssertTrue(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: nil) { _ in true })
+        XCTAssertFalse(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: nil, isSettled: nearOnly),
+                       "Compiling shaders before the first frame must not use up the wait")
+        XCTAssertFalse(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: .milliseconds(200), isSettled: nearOnly))
+        XCTAssertTrue(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: ShelfScene3D.openingBudget, isSettled: nearOnly),
+                      "A slow cover must not hold the swing")
     }
 
-    func testPendingOpeningArtworkHasAShortWaitBudget() async {
-        let scene = ShelfScene3D()
-        let disc = ListeningDisc(
-            id: "pending", title: "Pending artwork",
-            artworkURL: URL(string: "https://shelf-loading.test/pending"), tracks: []
-        )
+    private func host(_ view: some View) throws -> UIWindow {
+        let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        previousKeyWindow = windowScene.keyWindow
+        let window = UIWindow(windowScene: windowScene)
+        window.frame = windowScene.screen.bounds
+        window.rootViewController = UIHostingController(rootView: view)
+        window.makeKeyAndVisible()
+        return window
+    }
 
-        let clock = ContinuousClock()
-        let start = clock.now
-        await scene.waitForOpening(discs: [disc], position: 0)
-        let elapsed = start.duration(to: clock.now)
-
-        XCTAssertGreaterThanOrEqual(elapsed, .milliseconds(100), "Allow nearby cached artwork to arrive")
-        XCTAssertLessThan(elapsed, .milliseconds(400), "A slow cover must not hold the entrance for a second")
+    private func dismiss(_ window: UIWindow) {
+        window.isHidden = true
+        window.rootViewController = nil
+        previousKeyWindow?.makeKey()
     }
 }
