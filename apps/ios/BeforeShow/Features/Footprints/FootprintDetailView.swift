@@ -93,7 +93,7 @@ struct FootprintDetailView: View {
         )[show.id]
     }
 
-    /// 单场观看时长:已确认散场用真实时刻,否则用录入结束时间或默认估算。
+    /// 单场观看时长：按已记录的散场或历史结束时间逐日累计。
     private var durationText: String? {
         let calendar = show.timingCalendar()
         let timeState = CurrentShowTimeState(show: show, calendar: calendar)

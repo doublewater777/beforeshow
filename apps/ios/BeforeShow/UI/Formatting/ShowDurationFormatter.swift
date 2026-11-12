@@ -30,14 +30,49 @@ enum ShowDurationFormatter {
         return daysText(days: totalHours / 24, restHours: totalHours % 24)
     }
 
-    /// 仅确认散场后统计时长；计划和默认估算不作为观看事实。
+    /// 已确认散场或补录历史现场的已知时长；多日只累计各日场次，跳过夜间和休演日。
     static func minutes(for show: Show, timeState: CurrentShowTimeState) -> Int? {
-        let start = timeState.effectiveStartTime
-            ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar())
-        guard let end = show.endedAt else {
-            return nil
+        let timing = show.timingFields
+        let calendar = timing.eventCalendar(fallback: show.timingCalendar())
+        var sessions = timing.resolvedSessions(calendar: calendar)
+        let recordedEnd: Date?
+        if show.wasAddedAsHistorical == true, timeState.kind == .postShow || timeState.kind == .ended {
+            recordedEnd = sessions.last?.endsAt ?? (show.endTime != nil ? timeState.effectiveEndTime : nil)
+        } else {
+            recordedEnd = nil
         }
-        return minutes(from: start, to: end)
+        guard let end = show.endedAt ?? recordedEnd else { return nil }
+
+        if sessions.isEmpty,
+           CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
+           let finalDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar) {
+            var day = calendar.startOfDay(for: show.effectiveDate)
+            while day <= finalDay {
+                let isFinal = calendar.isDate(day, inSameDayAs: finalDay)
+                // Earlier days need a recorded end clock; don't invent their duration.
+                if show.endTime != nil || isFinal {
+                    sessions.append(ShowSessionTiming(
+                        date: day,
+                        startsAt: CurrentShowTimeState.dailyStartTime(on: day, show: show, calendar: calendar),
+                        endsAt: CurrentShowTimeState.dailyEndTime(on: day, show: show, calendar: calendar)
+                    ))
+                }
+                guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
+            }
+        }
+
+        guard !sessions.isEmpty else {
+            let start = timeState.effectiveStartTime
+                ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+            return minutes(from: start, to: end)
+        }
+        // The confirmed curtain overrides the final session's planned closing.
+        sessions[sessions.count - 1].endsAt = end
+        let seconds = sessions.reduce(0.0) { total, session in
+            total + max(0, min(session.endsAt, end).timeIntervalSince(session.startsAt))
+        }
+        return seconds > 0 ? Int(seconds) / 60 : nil
     }
 
     static func minutes(from start: Date, to end: Date) -> Int? {

@@ -77,6 +77,81 @@ final class ShowDurationFormatterTests: XCTestCase {
         XCTAssertNil(ShowDurationFormatter.minutes(for: show, timeState: state))
     }
 
+    func testHistoricalShowCountsItsRecordedEndWithoutASeparateCurtainConfirmation() throws {
+        let show = try Show(name: "补录现场", date: day(2026, 8, 15),
+                            startTime: day(2026, 8, 15, 19, 30), endTime: day(2026, 8, 15, 22))
+        show.markAddedAsHistorical()
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: day(2026, 9, 1))
+
+        XCTAssertNil(show.endedAt)
+        XCTAssertEqual(ShowDurationFormatter.minutes(for: show, timeState: state), 150)
+    }
+
+    func testConfirmedMultiDayShowCountsEveryDayWithoutOvernightBreaks() throws {
+        let show = try Show(name: "三日音乐节", date: day(2026, 8, 15),
+                            startTime: day(2026, 8, 15, 13), endDate: day(2026, 8, 17),
+                            endTime: day(2026, 8, 15, 22), timeZoneIdentifier: "Asia/Shanghai")
+        show.markEnded(at: day(2026, 8, 17, 21, 30))
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: day(2026, 9, 1))
+
+        XCTAssertEqual(ShowDurationFormatter.minutes(for: show, timeState: state), (9 + 9) * 60 + 8 * 60 + 30)
+    }
+
+    func testHistoricalShowWithoutAnEndDoesNotInventViewingTime() throws {
+        let show = try Show(name: "结束未知", date: day(2026, 8, 15), startTime: day(2026, 8, 15, 19))
+        show.markAddedAsHistorical()
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: day(2026, 9, 1))
+
+        XCTAssertNil(ShowDurationFormatter.minutes(for: show, timeState: state))
+    }
+
+    func testMultiDayOvernightSessionsExcludeTheDaytimeBreaks() throws {
+        let show = try Show(name: "午夜音乐节", date: day(2026, 8, 15),
+                            startTime: day(2026, 8, 15, 22), endDate: day(2026, 8, 17),
+                            endTime: day(2026, 8, 16, 1), timeZoneIdentifier: "Asia/Shanghai")
+        show.markEnded(at: day(2026, 8, 18, 1, 30))
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: day(2026, 9, 1))
+
+        XCTAssertEqual(ShowDurationFormatter.minutes(for: show, timeState: state), 9 * 60 + 30)
+    }
+
+    func testTimetableDurationSkipsRestDaysAndDoesNotDoubleCountParallelStages() throws {
+        let show = try Show(name: "有休演日的音乐节", date: day(2026, 8, 15),
+                            startTime: day(2026, 8, 15, 13), endDate: day(2026, 8, 17))
+        let firstStage = try TimetableStage(name: "主舞台", performances: [
+            TimetablePerformance(artistName: "A", startsAt: day(2026, 8, 15, 13), endsAt: day(2026, 8, 15, 18))
+        ])
+        let parallelStage = try TimetableStage(name: "副舞台", performances: [
+            TimetablePerformance(artistName: "B", startsAt: day(2026, 8, 15, 16), endsAt: day(2026, 8, 15, 22))
+        ])
+        let lastStage = try TimetableStage(name: "主舞台", performances: [
+            TimetablePerformance(artistName: "C", startsAt: day(2026, 8, 17, 14), endsAt: day(2026, 8, 17, 21))
+        ])
+        show.timetable = try Timetable(timeZoneIdentifier: "Asia/Shanghai", days: [
+            TimetableDay(date: day(2026, 8, 15), stages: [firstStage, parallelStage]),
+            TimetableDay(date: day(2026, 8, 17), stages: [lastStage])
+        ])
+        show.markEnded(at: day(2026, 8, 17, 21, 30))
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: day(2026, 9, 1))
+
+        XCTAssertEqual(ShowDurationFormatter.minutes(for: show, timeState: state), 16 * 60 + 30)
+    }
+
+    @MainActor
+    func testArchiveIncludesHistoricalRecordedTimeAndAllFestivalDays() throws {
+        let historical = try Show(name: "补录单场", date: day(2026, 8, 10),
+                                  startTime: day(2026, 8, 10, 19, 30), endTime: day(2026, 8, 10, 22))
+        historical.markAddedAsHistorical()
+        let festival = try Show(name: "三日现场", date: day(2026, 8, 15),
+                                startTime: day(2026, 8, 15, 13), endDate: day(2026, 8, 17),
+                                endTime: day(2026, 8, 15, 22), timeZoneIdentifier: "Asia/Shanghai")
+        festival.markEnded(at: day(2026, 8, 17, 22))
+        let archive = FootprintArchiveBuilder.make(shows: [historical, festival], now: day(2026, 9, 1), calendar: calendar)
+
+        XCTAssertEqual(archive.totalDurationMinutes, 150 + 27 * 60)
+        XCTAssertEqual(archive.yearActivity(for: 2026)?.months[7].durationMinutes, 150 + 27 * 60)
+    }
+
     @MainActor
     func testArchiveBuilderSumsDurationsAcrossShows() throws {
         let confirmed = try Show(name: "已确认散场", date: day(2026, 8, 15), startTime: day(2026, 8, 15, 19, 30))
