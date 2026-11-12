@@ -282,7 +282,7 @@ import SwiftData
         XCTAssertEqual(room.browser.scope, .all)
     }
 
-    func testStopResetsTrackAndRepeatedLoadPreservesPausedPosition() async throws {
+    func testStopResetsTrackAndReloadingTheSeatedDiscResumesWhereItPaused() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         await room.load(show: show)
@@ -295,8 +295,10 @@ import SwiftData
         let pausedAt = room.elapsed
         room.loadDisc(album)
         XCTAssertEqual(room.trackIndex, 1)
-        XCTAssertEqual(room.display.player.phase, .paused)
         XCTAssertEqual(room.elapsed, pausedAt)
+        XCTAssertTrue(room.wantsPlayback, "Loading the seated record again plays it on from where it paused")
+        try await ListenTestData.settle(room) { room.isPlaying }
+        XCTAssertEqual(room.trackIndex, 1)
         room.stop()
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.trackIndex, 0)
@@ -311,7 +313,9 @@ import SwiftData
         XCTAssertEqual(reopened.timeText, "00:00")
 
         room.loadDisc(album)
-        XCTAssertFalse(room.isPlaying)
+        XCTAssertEqual(room.trackIndex, 0, "A stopped record plays again from its first track")
+        try await ListenTestData.settle(room) { room.isPlaying }
+        room.stop()
     }
 
     func testStopDuringPendingTrackImmediatelyRestoresFirstTrack() async throws {
