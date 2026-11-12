@@ -108,26 +108,22 @@ struct ListeningPickFlightField: View {
 
     // MARK: - Feathers
 
-    private func feather(_ cover: Cover) -> some View {
+    private func turned(_ cover: Cover) -> some View {
         let tilt = 1 - cover.facing
-        let swing = sin(cover.sway)
-        let offset = Flight.noise(cover.seed, 4) * 2 * .pi
-        let pitch = 0.45 * (swing * swing - 0.4) + 0.12 * sin(2 * cover.sway + offset + 0.5 * cos(cover.sway)) - 0.12
         return artwork(cover.album, side: cover.side)
-            .rotationEffect(.radians(0.42 * swing * tilt))
-            .rotation3DEffect(.radians(pitch * tilt), axis: (x: 1, y: 0, z: 0), perspective: 0.4)
-            .rotation3DEffect(.radians(0.6 * swing * abs(swing) * tilt), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
-            .brightness(-0.18 * (1 - cover.near))
+            .rotationEffect(.radians(cover.turn.roll * tilt))
+            .rotation3DEffect(.radians(cover.turn.pitch * tilt), axis: (x: 1, y: 0, z: 0), perspective: 0.4)
+            .rotation3DEffect(.radians(cover.turn.yaw * tilt), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
+    }
+
+    private func feather(_ cover: Cover) -> some View {
+        turned(cover)
+            .brightness(-0.08 * (1 - cover.near))
             .position(cover.center)
     }
 
     private func fallingOnShow(_ cover: Cover) -> some View {
-        let tilt = 1 - cover.facing
-        let swing = sin(cover.sway)
-        return artwork(cover.album, side: cover.side)
-            .rotationEffect(.radians(0.3 * swing * tilt))
-            .rotation3DEffect(.radians(0.3 * (swing * swing - 0.4) * tilt), axis: (x: 1, y: 0, z: 0), perspective: 0.4)
-            .rotation3DEffect(.radians(0.4 * swing * abs(swing) * tilt), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
+        turned(cover)
             .shadow(color: .black.opacity(0.3), radius: 14, y: 10)
             .position(cover.center)
             .opacity(cover.opacity)

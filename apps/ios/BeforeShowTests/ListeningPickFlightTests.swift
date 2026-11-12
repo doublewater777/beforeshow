@@ -81,6 +81,61 @@ final class ListeningPickFlightTests: XCTestCase {
         XCTAssertNil(flight.caught)
     }
 
+    func testFeathersStayTurnedTowardYouAndInFocus() {
+        let flight = ListeningPickFlight(style: .feather, at: start)
+        let base = min(size.height * 0.13, size.width * 0.28)
+        XCTAssertLessThanOrEqual(ListeningPickFlight.featherLayers.map(\.blur).max() ?? 0, 1)
+        for step in 0..<240 {
+            for cover in flight.covers(in: layout, time: Double(step) * 0.1) {
+                XCTAssertLessThanOrEqual(abs(cover.turn.roll), 0.25)
+                XCTAssertLessThanOrEqual(abs(cover.turn.pitch), 0.25)
+                XCTAssertLessThanOrEqual(abs(cover.turn.yaw), 0.3)
+                XCTAssertGreaterThanOrEqual(cover.side, base * 0.6)
+            }
+        }
+    }
+
+    func testFeathersKeepTheFieldFilled() {
+        let flight = ListeningPickFlight(style: .feather, at: start)
+        for step in 0..<2000 {
+            let ys = flight.covers(in: layout, time: Double(step) * 0.024).map(\.center.y)
+            XCTAssertGreaterThanOrEqual(ys.filter { (size.height * 0.1...size.height * 0.72).contains($0) }.count, 7, "step \(step)")
+            XCTAssertGreaterThanOrEqual(ys.filter { (size.height * 0.1...size.height * 0.4).contains($0) }.count, 2, "step \(step)")
+        }
+    }
+
+    func testTheFeatherOnShowDriftsOnWithoutFadingOrJumping() {
+        let flight = ListeningPickFlight(style: .feather, at: start)
+        var last: CGPoint?
+        for step in 0...1200 {
+            let cover = flight.onShow(in: layout, time: flight.currentSince + Double(step) * 0.05)
+            XCTAssertEqual(cover.opacity, 1, "step \(step)")
+            XCTAssertTrue((size.height * 0.14...size.height * 0.75).contains(cover.center.y), "step \(step)")
+            // Never more than a sliver past the sides.
+            XCTAssertGreaterThanOrEqual(cover.center.x - cover.side / 2, -cover.side * 0.15, "step \(step)")
+            XCTAssertLessThanOrEqual(cover.center.x + cover.side / 2, size.width + cover.side * 0.15, "step \(step)")
+            if let last {
+                XCTAssertLessThan(hypot(cover.center.x - last.x, cover.center.y - last.y), 12, "jumps at step \(step)")
+            }
+            last = cover.center
+        }
+    }
+
+    func testTheCaughtCoverGrowsAndFliesOffInOneMotion() {
+        for style in [ListeningPickStyle.toss, .feather] {
+            var flight = ListeningPickFlight(style: style, at: start)
+            let (_, point) = reachableCover(in: flight, seenAt: start + 3 - ListeningPickFlight.seenAgo)
+            flight.press(at: point, in: layout, date: start + 3)
+            guard let album = flight.release(in: layout, date: start + 4) else { return XCTFail("\(style)") }
+            let onShowLayout = ListeningPickFlight.Layout(albums: 40, current: album, size: size, isStill: false)
+            let caughtAt = flight.time(at: start + 4, in: onShowLayout)
+            let sides = (0...40).map { flight.onShow(in: onShowLayout, time: caughtAt + Double($0) * 0.025).side }
+            let steps = zip(sides, sides.dropFirst()).map { $1 - $0 }
+            // No pop past full size and back: the size only ever heads one way.
+            XCTAssertTrue(steps.allSatisfy { $0 >= -0.01 } || steps.allSatisfy { $0 <= 0.01 }, "\(style)")
+        }
+    }
+
     /// A background cover a finger can land on, and where.
     private func reachableCover(in flight: ListeningPickFlight, seenAt date: Date) -> (ListeningPickFlight.Cover, CGPoint) {
         let time = flight.time(at: date, in: layout)

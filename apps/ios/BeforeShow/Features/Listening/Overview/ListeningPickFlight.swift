@@ -28,11 +28,13 @@ struct ListeningPickFlight {
         let progress: Double
         /// 0 for the farthest feather, 1 for anything near.
         var near: Double = 1
-        /// How far round a feather's swing is, or which way the album on show is thrown.
+        /// Which way the album on show is thrown.
         var sway: Double = 0
         var opacity: Double = 1
         /// 1 when it is turned to face you, 0 while it tumbles or swings freely.
         var facing: Double = 0
+        /// How far a feather is turned from facing you, in radians: in the screen's plane, tipped back, and swung aside.
+        var turn: (roll: Double, pitch: Double, yaw: Double) = (0, 0, 0)
     }
 
     /// The cover the album on show grew out of, as it was let go.
@@ -153,12 +155,12 @@ struct ListeningPickFlight {
     func covers(in layout: Layout, time: Double) -> [Cover] {
         let all = style == .toss
             ? (0..<Self.tossCards).map { Self.thrown($0, at: time, in: layout.size) }
-            : Self.featherCards.map { Self.falling($0.card, near: $0.near, at: time, in: layout.size) }
+            : Self.featherCards.map { Self.falling($0.card, near: $0.near, phase: $0.phase, at: time, in: layout.size) }
         return all.filter { $0.id != caught?.id }
     }
 
-    /// The album on show. After a catch it grows out of the caught cover, a little past full size and back, and drifts
-    /// from where it was let go into a flight of its own.
+    /// The album on show. After a catch it grows, drifts and turns as one motion, from where the cover was let go into a
+    /// flight of its own.
     func onShow(in layout: Layout, time: Double) -> Cover {
         let shown = max(0, time - currentSince)
         let size = layout.size
@@ -169,11 +171,10 @@ struct ListeningPickFlight {
             : Self.featherLead(at: caught.center, in: size)
         let start = flightOnShow(layout.current, after: lead, toward: toward, in: size)
         var cover = flightOnShow(layout.current, after: lead + shown, toward: toward, in: size)
-        let settled = Self.smootherstep(min(1, shown / 1.0))
-        let grown = Self.overshoot(min(1, shown / 0.45))
+        let settled = Self.smootherstep(min(1, shown / 0.9))
         cover.center.x += (caught.center.x - start.center.x) * (1 - settled)
         cover.center.y += (caught.center.y - start.center.y) * (1 - settled)
-        cover.side = caught.side + (cover.side - caught.side) * grown
+        cover.side = caught.side + (cover.side - caught.side) * settled
         cover.opacity = max(cover.opacity, 1 - settled)
         cover.facing = 1 - settled
         return cover
@@ -265,15 +266,21 @@ struct ListeningPickFlight {
     // MARK: - Feathers
 
     /// One loop; near feathers fall three times in it, middle ones twice, far ones once.
-    private static let featherLoop = 16.0
+    private static let featherLoop = 24.0
+    /// Seconds for the album on show to fall and be carried back up; it falls for the first two thirds.
     private static let currentFall = 12.0
+    private static let currentFalling = 0.68
 
-    /// Far, middle and near, each blurred once as a whole rather than card by card.
-    static let featherLayers: [(lower: Double, upper: Double, blur: CGFloat)] = [(0, 0.36, 2.5), (0.36, 0.72, 1), (0.72, 1, 0)]
+    /// Far, middle and near. Only the far layer is softened, once as a whole, so every cover can still be read.
+    static let featherLayers: [(lower: Double, upper: Double, blur: CGFloat)] = [(0, 0.36, 0.8), (0.36, 0.72, 0), (0.72, 1, 0)]
 
-    /// Every feather far layer first, in drawing order.
-    private static let featherCards: [(card: Int, near: Double)] = featherLayers.flatMap { depth in
-        (0..<18).map { (card: $0, near: nearness($0)) }.filter { depth.lower <= $0.near && $0.near < depth.upper }
+    /// Every feather far layer first, in drawing order. A layer's feathers are spaced evenly down the fall, so the field
+    /// never empties.
+    private static let featherCards: [(card: Int, near: Double, phase: Double)] = featherLayers.flatMap { depth in
+        let cards = (0..<18).filter { depth.lower <= nearness($0) && nearness($0) < depth.upper }
+        return cards.enumerated().map { rank, card in
+            (card: card, near: nearness(card), phase: (Double(rank) + 0.5 * noise(card, 3)) / Double(cards.count))
+        }
     }
 
     /// 0 for the farthest layer, nearly 1 for the nearest.
@@ -283,15 +290,15 @@ struct ListeningPickFlight {
     }
 
     /// Falls the screen while swinging side to side, quickest through the middle of a swing and tipping up at its ends.
-    private static func falling(_ card: Int, near: Double, at time: Double, in size: CGSize) -> Cover {
+    private static func falling(_ card: Int, near: Double, phase: Double, at time: Double, in size: CGSize) -> Cover {
         let falls: Double = near > 0.72 ? 3 : near > 0.36 ? 2 : 1
-        let side = mix(0.85, 1.05, noise(card, 2)) * min(size.height * 0.13, size.width * 0.28) * mix(0.55, 1, near)
-        let phase = Double(card) * 0.618034 + 0.31 * noise(card, 3)
+        let side = mix(0.85, 1.05, noise(card, 2)) * min(size.height * 0.13, size.width * 0.28) * mix(0.72, 1, near)
         let fall = time / featherLoop * falls + phase
         let fallen = fall - fall.rounded(.down)
         let margin = side * 0.9 + 10
         let swings: Double = falls == 3 ? Double(1 + card % 2) : Double(1 + card % 3)
-        let angle = 2 * .pi * swings * fallen + noise(card, 4) * 2 * .pi
+        let offset = noise(card, 4) * 2 * .pi
+        let angle = 2 * .pi * swings * fallen + offset
         let swing = sin(angle)
         let lane = Double(card) * 0.7548 + 0.11
         return Cover(
@@ -301,35 +308,52 @@ struct ListeningPickFlight {
                 x: size.width / 2 + (lane - lane.rounded(.down) - 0.5) * size.width * 0.85 + 0.58 * side * swing,
                 y: -margin + fallen * (size.height + 2 * margin) + 0.15 * side * (swing * swing - 0.5)
             ),
-            side: side, seed: card, progress: fallen, near: near, sway: angle
+            side: side, seed: card, progress: fallen, near: near,
+            // Turned only a little, so it can be read as it swings.
+            turn: (
+                roll: 0.22 * swing,
+                pitch: 0.22 * (swing * swing - 0.4) + 0.06 * sin(2 * angle + offset + 0.5 * cos(angle)) - 0.06,
+                yaw: 0.3 * swing * abs(swing)
+            )
         )
     }
 
-    /// The album on show drifting down in front, larger, slower and calmer than the rest. It fades in near the top and
-    /// out before the controls, so it is almost always in sight.
+    /// The album on show drifting in front, larger, slower and calmer than the rest. It falls swinging through the
+    /// middle of the screen, then a breeze sweeps it back up to one side, so it moves on without a break and stays in sight.
     private static func fallingOnShow(_ current: Int, after shown: Double, in size: CGSize) -> Cover {
         let side = min(size.height * 0.24, size.width * 0.5)
-        let fall = shown / currentFall
-        let round = Int(fall.rounded(.down))
-        let fallen = fall - Double(round)
-        let seed = current * 13 + round * 131
-        let angle = 3 * .pi * fallen + noise(seed, 4) * 2 * .pi
-        let swing = sin(angle)
+        let cycle = shown / currentFall
+        let round = Int(cycle.rounded(.down))
+        let phase = cycle - Double(round)
+        // 0 at the top, 1 at the bottom, easing to a stop at both ends of the fall and of the lift.
+        let depth = phase < currentFalling
+            ? (1 - cos(.pi * phase / currentFalling)) / 2
+            : (1 + cos(.pi * (phase - currentFalling) / (1 - currentFalling))) / 2
+        let gust = phase < currentFalling ? 0 : sin(.pi * (phase - currentFalling) / (1 - currentFalling))
+        // Each breeze blows the other way.
+        let sweep: Double = round.isMultiple(of: 2) ? 1 : -1
+        let seed = current * 13 + 5
+        // One swing every 8 s, carried straight through.
+        let swing = sin(2 * .pi * shown / 8 + noise(seed, 4) * 2 * .pi)
+        let drift = (noise(seed, 5) - 0.5) * size.width * 0.2 + 0.35 * side * swing + sweep * gust * size.width * 0.22
+        // Eased in towards the sides, so no more than a sliver goes past them.
+        let reach = size.width / 2 - side * 0.4
         return Cover(
-            id: ID(card: -1, round: round),
+            id: ID(card: -1, round: 0),
             album: current,
             center: CGPoint(
-                x: size.width / 2 + (noise(seed, 5) - 0.5) * size.width * 0.2 + 0.35 * side * swing,
-                y: size.height * mix(0.2, 0.6, fallen) + 0.12 * side * (swing * swing - 0.5)
+                x: size.width / 2 + reach * tanh(drift / reach),
+                y: size.height * mix(0.2, 0.6, depth) + 0.12 * side * (swing * swing - 0.5)
             ),
-            side: side, seed: seed, progress: fallen, sway: angle,
-            opacity: min(1, fallen / 0.08, (1 - fallen) / 0.1)
+            side: side, seed: seed, progress: phase,
+            turn: (roll: 0.3 * swing + 0.25 * sweep * gust, pitch: 0.3 * (swing * swing - 0.4), yaw: 0.4 * swing * abs(swing))
         )
     }
 
-    /// Seconds into its fall at which the album on show passes `point`, kept clear of its fade in and out.
+    /// Seconds into its fall at which the album on show passes `point`'s height.
     private static func featherLead(at point: CGPoint, in size: CGSize) -> Double {
-        min(max((Double(point.y / size.height) - 0.2) / 0.4, 0.1), 0.85) * currentFall
+        let depth = min(max((Double(point.y / size.height) - 0.2) / 0.4, 0), 1)
+        return currentFalling * acos(1 - 2 * depth) / .pi * currentFall
     }
 
     // MARK: - Shapes
@@ -345,12 +369,6 @@ struct ListeningPickFlight {
     private static func smoothstep(_ t: Double) -> Double { t * t * (3 - 2 * t) }
 
     private static func smootherstep(_ t: Double) -> Double { t * t * t * (t * (6 * t - 15) + 10) }
-
-    /// 0 → 1, going about a tenth past 1 on the way.
-    private static func overshoot(_ t: Double) -> Double {
-        let c = 1.70158
-        return 1 + (c + 1) * pow(t - 1, 3) + c * pow(t - 1, 2)
-    }
 }
 
 extension ListeningPickFlight {
