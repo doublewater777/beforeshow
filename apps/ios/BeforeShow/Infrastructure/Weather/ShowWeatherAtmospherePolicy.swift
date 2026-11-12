@@ -334,13 +334,18 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         sunsetTime: Date?,
         calendar: Calendar
     ) -> String? {
-        if abs(hourDate.timeIntervalSince(startTime)) <= 1800 {
+        // Half-open, so a time on the half hour (19:30) marks only the hour it falls in.
+        func marks(_ time: Date) -> Bool {
+            let offset = hourDate.timeIntervalSince(time)
+            return offset >= -1800 && offset < 1800
+        }
+        if marks(startTime) {
             return BSLocalization.text("开场")
         }
-        if let sunset = sunsetTime, abs(hourDate.timeIntervalSince(sunset)) <= 1800 {
+        if let sunset = sunsetTime, marks(sunset) {
             return BSLocalization.text("日落")
         }
-        if abs(hourDate.timeIntervalSince(endTime)) <= 1800 {
+        if marks(endTime) {
             return BSLocalization.text("散场")
         }
         return nil

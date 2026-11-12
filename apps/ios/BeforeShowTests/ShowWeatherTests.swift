@@ -368,6 +368,33 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertTrue(result.hourly.contains { $0.milestoneLabel == BSLocalization.text("散场") }, "a long day is no longer cut before it ends")
     }
 
+    func testHalfPastMilestonesMarkOneHourEach() throws {
+        let calendar = Calendar.current
+        let showDate = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 2, to: Date())!)
+        func at(_ hour: Int, _ minute: Int) -> Date { calendar.date(bySettingHour: hour, minute: minute, second: 0, of: showDate)! }
+        let day = RawDayForecast(
+            date: showDate, highCelsius: 25, lowCelsius: 16, condition: .clear, conditionDescription: "晴",
+            sunsetTime: at(17, 30), precipitationChance: 0, uvIndex: 3
+        )
+        let hours = (0..<24).map { hour in
+            RawHourForecast(
+                date: calendar.date(byAdding: .hour, value: hour, to: showDate)!,
+                temperatureCelsius: 20, apparentTemperatureCelsius: 20, condition: .clear,
+                uvIndex: 0, windSpeedMps: 1, windDirectionDescription: ""
+            )
+        }
+
+        let result = try policy.resolveForecast(
+            for: UUID(), showDate: showDate, showStartTime: at(19, 30), showEndTime: at(22, 30),
+            calendar: calendar, dailyForecasts: [day], hourlyForecasts: hours, now: Date()
+        )
+
+        func marked(_ label: String) -> [Date] { result.hourly.filter { $0.milestoneLabel == label }.map(\.time) }
+        XCTAssertEqual(marked(BSLocalization.text("开场")), [at(19, 0)])
+        XCTAssertEqual(marked(BSLocalization.text("日落")), [at(17, 0)])
+        XCTAssertEqual(marked(BSLocalization.text("散场")), [at(22, 0)])
+    }
+
     func testForecastWithoutMatchingWindowHoursDegradesGracefullyWithoutFakeHourly() throws {
         let calendar = Calendar.current
         let showDate = calendar.date(byAdding: .day, value: 2, to: Date())!
