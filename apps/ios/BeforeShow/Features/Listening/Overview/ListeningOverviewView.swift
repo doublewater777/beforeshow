@@ -101,8 +101,11 @@ struct ListeningOverviewView: View {
             VStack(alignment: .leading, spacing: BSSpacing.md) {
                 sectionHeader(ListeningCopy.text("帮我挑一张"),
                               trailing: count > 0 ? ListeningCopy.format("%d 张唱片", count) : nil)
-                Button { state == .failed ? room.retryPickCatalogs() : onOpenPick(pickPreview) } label: {
-                    ListeningPickEntryCard(disc: state == .ready ? pickPreview : nil, show: show, state: state)
+                Button { openPick(state) } label: {
+                    ListeningPickEntryCard(
+                        disc: state == .ready ? pickPreview : nil, show: show, state: state,
+                        artistToConnect: state == .needsArtist ? room.pickArtistToConnect?.name : nil
+                    )
                 }
                 .buttonStyle(.plain)
                 .disabled(state == .loading)
@@ -112,6 +115,14 @@ struct ListeningOverviewView: View {
             // The shelf can fill in without the candidate list changing under this view; draw when the card shows empty.
             .onAppear { if pickPreview == nil { pickPreview = drawPreview() } }
             .onChange(of: count) { if pickPreview == nil { pickPreview = drawPreview() } }
+        }
+    }
+
+    private func openPick(_ state: ListeningPickCardState) {
+        switch state {
+        case .failed: room.retryPickCatalogs()
+        case .needsArtist: if let artist = room.pickArtistToConnect { onMatchArtist(artist) }
+        case .ready, .loading, .hidden: onOpenPick(pickPreview)
         }
     }
 
@@ -152,6 +163,8 @@ private struct ListeningPickEntryCard: View {
     let disc: ListeningDisc?
     let show: Show
     let state: ListeningPickCardState
+    /// Shown instead of an album while no lineup artist is matched.
+    let artistToConnect: String?
 
     var body: some View {
         HStack(spacing: BSSpacing.md) {
@@ -159,9 +172,25 @@ private struct ListeningPickEntryCard: View {
                 if let disc { ListeningDiscCover(disc: disc, show: show) } else { BSColor.Stage.surfaceRaised }
             }
             .frame(width: ListeningOverviewStyle.pickCover, height: ListeningOverviewStyle.pickCover)
-            .overlay { if state == .loading { ProgressView().tint(BSColor.Stage.muted) } }
+            .overlay {
+                if state == .loading {
+                    ProgressView().tint(BSColor.Stage.muted)
+                } else if artistToConnect != nil {
+                    Image(systemName: "link.badge.plus")
+                        .font(ListeningOverviewStyle.headerTitle)
+                        .foregroundStyle(BSColor.Stage.muted)
+                }
+            }
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                if let disc {
+                if let artistToConnect {
+                    Text(artistToConnect)
+                        .font(ListeningOverviewStyle.caps(12)).tracking(2).textCase(.uppercase)
+                        .foregroundStyle(BSColor.Stage.accent)
+                        .lineLimit(1)
+                    Text(BSLocalization.text("连接艺人")).font(ListeningOverviewStyle.serif(26)).lineLimit(1)
+                    Text(BSLocalization.text("尚未匹配 Apple Music 艺人"))
+                        .font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.muted)
+                } else if let disc {
                     Text(disc.displayArtistName(for: show))
                         .font(ListeningOverviewStyle.caps(12)).tracking(2).textCase(.uppercase)
                         .foregroundStyle(BSColor.Stage.accent)
@@ -171,7 +200,7 @@ private struct ListeningPickEntryCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: state == .failed ? "arrow.clockwise" : "chevron.up")
+            Image(systemName: state == .failed ? "arrow.clockwise" : artistToConnect != nil ? "link" : "chevron.up")
                 .font(ListeningOverviewStyle.headerTitle)
                 .opacity(state == .loading ? 0.4 : 1)
                 .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)

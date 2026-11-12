@@ -1,7 +1,8 @@
 import Foundation
 
 enum ListeningPickCardState: Equatable {
-    case ready, loading, failed, hidden
+    /// `needsArtist`: no lineup artist is matched to Apple Music yet, so there are no albums to pick from.
+    case ready, loading, failed, needsArtist, hidden
 }
 
 struct ListeningPickCatalogProgress: Equatable {
@@ -69,11 +70,19 @@ struct ListeningPickCatalogProgress: Equatable {
     var pickCardState: ListeningPickCardState {
         if !pickCandidates().isEmpty { return .ready }
         if catalogState == .loading { return .loading }
+        let authorized = access.authorizationStatus == .authorized
         let statuses = missingPickCatalogArtistIDs.map { artistCatalogStatus[$0] }
-        if statuses.contains(where: { $0 != .failed }) {
-            return access.authorizationStatus == .authorized ? .loading : .hidden
-        }
-        return statuses.isEmpty ? .hidden : .failed
+        if statuses.contains(where: { $0 != .failed }) { return authorized ? .loading : .hidden }
+        if !statuses.isEmpty { return .failed }
+        return authorized && pickArtistToConnect != nil ? .needsArtist : .hidden
+    }
+
+    /// The first unmatched artist in shelf order; matching them fills an empty pick with their albums.
+    var pickArtistToConnect: ListeningBrowseArtist? {
+        rackGroups.lazy.compactMap { group -> ListeningBrowseArtist? in
+            guard case let .artist(_, slotIndex, false) = group.kind else { return nil }
+            return self.browseArtists.first { $0.slotIndex == slotIndex }
+        }.first
     }
 
     /// Stages a default track from the show's pick pool or daily featured disc

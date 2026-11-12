@@ -270,11 +270,11 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-0", "artist-0"])
     }
 
-    func testPickHidesWhenNoArtistCanFillIt() async throws {
+    func testPickAsksToConnectAnArtistWhenNoneIsMatched() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let start = Date().addingTimeInterval(20_000)
         let show = try Show(name: "Unmatched", date: start, startTime: start)
-        show.artists = [ArtistSlot(name: "Nobody", avatarURL: nil)]
+        show.artists = [ArtistSlot(name: "Nobody", avatarURL: nil), ArtistSlot(name: "Someone", avatarURL: nil)]
         container.mainContext.insert(show)
         try container.mainContext.save()
         let room = ListeningRoomCoordinator(
@@ -283,7 +283,9 @@ final class ListeningLoadingTests: XCTestCase {
         )
         defer { room.stop() }
         await room.load(show: show)
-        XCTAssertEqual(room.pickCardState, .hidden)
+        XCTAssertTrue(room.showsRack)
+        XCTAssertEqual(room.pickCardState, .needsArtist)
+        XCTAssertEqual(room.pickArtistToConnect?.name, "Nobody")
     }
 
     private func pickRoom(
