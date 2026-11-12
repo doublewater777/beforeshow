@@ -71,7 +71,7 @@ struct ListeningPickShelfView: View {
         .onAppear {
             guard !reduceMotion else { return }
             if style == .shelf3D { entrance = 0 }
-            if [.ring, .toss, .feather].contains(style) { runEntrance() }
+            if style == .ring { runEntrance() }
         }
         .onChange(of: discs.map(\.id)) { _, _ in
             ticker.stop()

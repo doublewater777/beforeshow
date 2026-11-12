@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// What plays on its own behind 冲天抛洒 and 飘羽: covers thrown up from a spout below the screen, or falling like
-/// feathers at three depths. Every card is a function of the clock, so nothing has to drive it.
+/// 冲天抛洒 and 飘羽 play on their own: covers thrown up from a spout below the screen, or falling like feathers at
+/// three depths. The album on show flies with them, larger and on top, never pinned in place. Every card is a function
+/// of the clock, so nothing has to drive it.
 struct ListeningPickFlightField: View {
     let style: ListeningPickStyle
     let discs: [ListeningDisc]
+    /// The album on show; it is thrown, or starts falling, afresh whenever it changes.
+    let current: Int
+    @State private var currentSince = Date()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -12,17 +16,22 @@ struct ListeningPickFlightField: View {
             TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { context in
                 // Folded so the numbers stay small; 3600 s is a whole number of throws and of falls.
                 let time = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600)
+                // Held where it reads best when nothing moves.
+                let shown = reduceMotion
+                    ? (style == .toss ? Self.currentFlight * 0.5 : Self.currentFall * 0.3)
+                    : max(0, context.date.timeIntervalSince(currentSince))
                 if !discs.isEmpty {
                     if style == .toss {
-                        toss(at: time, in: proxy.size)
+                        toss(at: time, shownFor: shown, in: proxy.size)
                     } else {
-                        feathers(at: time, in: proxy.size)
+                        feathers(at: time, shownFor: shown, in: proxy.size)
                     }
                 }
             }
             // Clear of the album title in the header.
             .mask(LinearGradient(stops: [.init(color: .clear, location: 0.02), .init(color: .black, location: 0.14)], startPoint: .top, endPoint: .bottom))
         }
+        .onChange(of: current) { currentSince = .now }
     }
 
     /// A fixed 0…1 per seed and salt.
@@ -46,18 +55,47 @@ struct ListeningPickFlightField: View {
             .clipShape(RoundedRectangle(cornerRadius: side * 0.04, style: .continuous))
     }
 
+    /// Height above the spout along a parabola that peaks at `peak` and ends `drop` below where it started.
+    private static func arc(_ tau: Double, peak: Double, drop: Double) -> Double {
+        let launch = 2 * peak + 2 * (peak * peak + peak * drop).squareRoot()
+        return launch * tau - (launch + drop) * tau * tau
+    }
+
     // MARK: - Toss
 
     private static let tossCards = 24
     /// Seconds from the spout to falling out of sight.
     private static let tossFlight = 4.5
 
-    private func toss(at time: Double, in size: CGSize) -> some View {
+    private static let currentFlight = 5.5
+
+    private func toss(at time: Double, shownFor shown: Double, in size: CGSize) -> some View {
         ZStack {
             ForEach(0..<Self.tossCards, id: \.self) { card in
                 thrown(card, at: time, in: size)
             }
+            thrownCurrent(after: shown, in: size)
         }
+    }
+
+    /// The album on show, thrown again and again: higher, slower and steadier than the rest, so it can be read.
+    private func thrownCurrent(after shown: Double, in size: CGSize) -> some View {
+        let flight = shown / Self.currentFlight
+        let throwIndex = Int(flight.rounded(.down))
+        let tau = flight - Double(throwIndex)
+        let seed = current * 13 + throwIndex * 131 + 5
+        let full = min(size.height * 0.2, size.width * 0.4)
+        let side = full * Self.mix(0.4, 1, 1 - pow(1 - min(1, tau / 0.3), 3))
+        // Each throw goes the other way, always clearly to one side.
+        let lean = (throwIndex.isMultiple(of: 2) ? 1 : -1) * (current.isMultiple(of: 2) ? 1 : -1) * Self.mix(0.35, 1, Self.noise(seed, 2))
+        return cover(current, side: side)
+            .rotation3DEffect(.degrees(22 * sin(tau * 2 * .pi)), axis: (x: 1, y: 0.4 * lean, z: 0), perspective: 0.4)
+            .rotationEffect(.degrees(lean * 24 * (tau - 0.3)))
+            .shadow(color: .black.opacity(0.3), radius: 14, y: 10)
+            .position(
+                x: size.width / 2 + lean * size.width * 0.28 * pow(tau, 0.8),
+                y: size.height + full * 0.5 - Self.arc(tau, peak: size.height * Self.mix(0.6, 0.74, Self.noise(seed, 1)) + full * 0.5, drop: full * 0.8)
+            )
     }
 
     /// Up a parabola from just below the screen to its peak, then down past where it started; each throw is new.
@@ -68,11 +106,7 @@ struct ListeningPickFlightField: View {
         let throwIndex = Int(flight.rounded(.down))
         let tau = flight - Double(throwIndex)
         let seed = card * 7 + throwIndex * 131
-        let spout = size.height + base * 0.3
         let peak = size.height * Self.mix(0.5, 0.88, Self.noise(seed, 1).squareRoot()) + base * 0.3
-        let drop = base * 1.2
-        let launch = 2 * peak + 2 * (peak * peak + peak * drop).squareRoot()
-        let fall = launch + drop
         let spread = Self.noise(seed, 2) * 2 - 1
         let drift = (spread < 0 ? -1 : 1) * pow(abs(spread), 0.8) * size.width * 0.56
         let depth = 1 / (1 - 0.08 * Self.mix(-2.4, 1, Self.noise(seed, 4)) * tau)
@@ -84,7 +118,7 @@ struct ListeningPickFlightField: View {
             .rotation3DEffect(.radians((Self.noise(seed, 12) - 0.5) * 1.1), axis: Self.axis(seed, 10), perspective: 0.4)
             .position(
                 x: size.width / 2 + (Self.noise(seed, 5) - 0.5) * 0.25 * base + drift * pow(tau, 0.8),
-                y: spout - (launch * tau - fall * tau * tau)
+                y: size.height + base * 0.3 - Self.arc(tau, peak: peak, drop: base * 1.2)
             )
     }
 
@@ -97,7 +131,9 @@ struct ListeningPickFlightField: View {
     /// Far, middle and near, each blurred once as a whole rather than card by card.
     private static let featherLayers: [(lower: Double, upper: Double, blur: CGFloat)] = [(0, 0.36, 2.5), (0.36, 0.72, 1), (0.72, 1, 0)]
 
-    private func feathers(at time: Double, in size: CGSize) -> some View {
+    private static let currentFall = 12.0
+
+    private func feathers(at time: Double, shownFor shown: Double, in size: CGSize) -> some View {
         let cards = (0..<Self.featherCards).map { (card: $0, near: Self.nearness($0)) }
         return ZStack {
             ForEach(Self.featherLayers.indices, id: \.self) { layer in
@@ -109,7 +145,29 @@ struct ListeningPickFlightField: View {
                 }
                 .blur(radius: depth.blur)
             }
+            fallingCurrent(after: shown, in: size)
         }
+    }
+
+    /// The album on show drifting down in front, larger, slower and calmer than the rest. It fades in near the top and
+    /// out before the controls, so it is almost always in sight.
+    private func fallingCurrent(after shown: Double, in size: CGSize) -> some View {
+        let side = min(size.height * 0.24, size.width * 0.5)
+        let fall = shown / Self.currentFall
+        let fallen = fall - fall.rounded(.down)
+        let seed = current * 13 + Int(fall.rounded(.down)) * 131
+        let angle = 3 * .pi * fallen + Self.noise(seed, 4) * 2 * .pi
+        let swing = sin(angle)
+        return cover(current, side: side)
+            .rotationEffect(.radians(0.3 * swing))
+            .rotation3DEffect(.radians(0.3 * (swing * swing - 0.4)), axis: (x: 1, y: 0, z: 0), perspective: 0.4)
+            .rotation3DEffect(.radians(0.4 * swing * abs(swing)), axis: (x: 0, y: 1, z: 0), perspective: 0.4)
+            .shadow(color: .black.opacity(0.3), radius: 14, y: 10)
+            .position(
+                x: size.width / 2 + (Self.noise(seed, 5) - 0.5) * size.width * 0.2 + 0.35 * side * swing,
+                y: size.height * Self.mix(0.2, 0.6, fallen) + 0.12 * side * (swing * swing - 0.5)
+            )
+            .opacity(min(1, fallen / 0.08, (1 - fallen) / 0.1))
     }
 
     /// 0 for the farthest layer, nearly 1 for the nearest.
@@ -121,7 +179,7 @@ struct ListeningPickFlightField: View {
     /// Falls the screen while swinging side to side, quickest through the middle of a swing and tipping up at its ends.
     private func falling(_ card: Int, near: Double, at time: Double, in size: CGSize) -> some View {
         let falls: Double = near > 0.72 ? 3 : near > 0.36 ? 2 : 1
-        let side = Self.mix(0.85, 1.05, Self.noise(card, 2)) * min(size.height * 0.16, size.width * 0.34) * Self.mix(0.55, 1, near)
+        let side = Self.mix(0.85, 1.05, Self.noise(card, 2)) * min(size.height * 0.13, size.width * 0.28) * Self.mix(0.55, 1, near)
         let phase = Double(card) * 0.618034 + 0.31 * Self.noise(card, 3)
         let fallen = (time / Self.featherLoop * falls + phase).truncatingRemainder(dividingBy: 1)
         let margin = side * 0.9 + 10
