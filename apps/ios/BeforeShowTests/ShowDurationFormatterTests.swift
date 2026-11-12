@@ -87,6 +87,17 @@ final class ShowDurationFormatterTests: XCTestCase {
         XCTAssertEqual(ShowDurationFormatter.minutes(for: show, timeState: state), 150)
     }
 
+    func testExistingFootprintCountsAnAlreadySavedEndWithoutAHistoricalImportFlag() throws {
+        let show = try Show(name: "旧足迹已补填结束", date: day(2026, 8, 15),
+                            startTime: day(2026, 8, 15, 19), endTime: day(2026, 8, 15, 22),
+                            timeZoneIdentifier: "Asia/Shanghai")
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: day(2026, 9, 1))
+
+        XCTAssertEqual(show.wasAddedAsHistorical, false)
+        XCTAssertNil(show.endedAt)
+        XCTAssertEqual(ShowDurationFormatter.minutes(for: show, timeState: state), 180)
+    }
+
     func testConfirmedMultiDayShowCountsEveryDayWithoutOvernightBreaks() throws {
         let show = try Show(name: "三日音乐节", date: day(2026, 8, 15),
                             startTime: day(2026, 8, 15, 13), endDate: day(2026, 8, 17),

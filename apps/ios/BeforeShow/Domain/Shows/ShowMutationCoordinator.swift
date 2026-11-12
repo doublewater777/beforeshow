@@ -115,7 +115,10 @@ enum ShowMutationCoordinator {
         session: CurrentShowSession = CurrentShowSession(),
         effects: CurrentShowPostCommitEffects = .live
     ) async throws -> Bool {
-        try await commitCurrentShowChange(
+        let oldKind = CurrentShowTimeState(show: show).kind
+        let editedFootprintEnd = (oldKind == .postShow || oldKind == .ended)
+            && draft.endTime != nil && draft.endTime != show.endTime
+        return try await commitCurrentShowChange(
             shows: shows,
             selections: selections,
             notificationStates: notificationStates,
@@ -124,6 +127,18 @@ enum ShowMutationCoordinator {
             effects: effects
         ) {
             try show.apply(draft)
+            guard editedFootprintEnd else { return }
+            // An end entered on an existing footprint is the recorded curtain,
+            // including when an earlier automatic estimate already filled endedAt.
+            let timing = show.declaredTimingFields
+            let calendar = timing.eventCalendar(fallback: .current)
+            let endDay = CurrentShowTimeState.effectiveEndDate(timing: timing, calendar: calendar) ?? timing.effectiveDate
+            if let end = CurrentShowTimeState.effectiveEndTime(
+                timing: timing, calendar: calendar, effectiveDate: endDay,
+                effectiveStartTime: CurrentShowTimeState.effectiveStartTime(timing: timing, calendar: calendar)
+            ), end <= Date() {
+                show.endedAt = end
+            }
         }
     }
 

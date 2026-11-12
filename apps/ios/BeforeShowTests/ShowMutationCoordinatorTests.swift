@@ -74,6 +74,42 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testAddingEndTimeInsideAnExistingFootprintUpdatesPassportHoursAfterSaving() async throws {
+        // Existing footprints include older records with no historical-import flag,
+        // as well as shows whose original end was recorded automatically.
+        for (historicalFlag, automaticallyEnded) in [(false as Bool?, false), (nil, false), (false, true), (true, true)] {
+            let container = try makeContainer()
+            let context = container.mainContext
+            let start = ISO8601DateFormatter().date(from: "2026-08-15T11:00:00Z")!
+            let show = try Show(name: "已有足迹补填结束时间", date: start, startTime: start,
+                                timeZoneIdentifier: "Asia/Shanghai")
+            if automaticallyEnded { show.markEnded(at: start.addingTimeInterval(4 * 3_600)) }
+            show.wasAddedAsHistorical = historicalFlag
+            context.insert(show)
+            try context.save()
+            let now = start.addingTimeInterval(10 * 86_400)
+            XCTAssertNil(show.endTime)
+            XCTAssertEqual(FootprintArchiveBuilder.make(shows: [show], now: now).shows.count, 1)
+
+            var draft = ShowDraft(show: show)
+            draft.endDate = start
+            draft.endTime = start.addingTimeInterval(3 * 3_600)
+            _ = try await ShowMutationCoordinator.applyDraft(
+                draft, to: show, shows: [show], selections: [], notificationStates: [],
+                in: context, effects: .skipped
+            )
+
+            let verification = ModelContext(container)
+            let stored = try XCTUnwrap(verification.fetch(FetchDescriptor<Show>()).first)
+            XCTAssertEqual(stored.endTime, draft.endTime)
+            XCTAssertEqual(stored.wasAddedAsHistorical, historicalFlag)
+            let archive = FootprintArchiveBuilder.make(shows: [stored], now: now)
+            XCTAssertEqual(archive.totalDurationMinutes, 180)
+            XCTAssertEqual(archive.totalDurationMinutes / 60, 3, "Passport HRS must update after adding the end time")
+        }
+    }
+
+    @MainActor
     func testStatusCommitPreservesUserCurrentBeforeFailedNotificationReconcile() async throws {
         let container = try makeContainer()
         let context = container.mainContext

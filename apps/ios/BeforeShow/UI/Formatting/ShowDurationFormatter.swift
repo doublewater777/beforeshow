@@ -30,13 +30,13 @@ enum ShowDurationFormatter {
         return daysText(days: totalHours / 24, restHours: totalHours % 24)
     }
 
-    /// 已确认散场或补录历史现场的已知时长；多日只累计各日场次，跳过夜间和休演日。
+    /// 足迹现场使用已记录的结束时间；多日只累计各日场次，跳过夜间和休演日。
     static func minutes(for show: Show, timeState: CurrentShowTimeState) -> Int? {
         let timing = show.timingFields
         let calendar = timing.eventCalendar(fallback: show.timingCalendar())
         var sessions = timing.resolvedSessions(calendar: calendar)
         let recordedEnd: Date?
-        if show.wasAddedAsHistorical == true, timeState.kind == .postShow || timeState.kind == .ended {
+        if timeState.kind == .postShow || timeState.kind == .ended {
             recordedEnd = sessions.last?.endsAt ?? (show.endTime != nil ? timeState.effectiveEndTime : nil)
         } else {
             recordedEnd = nil
