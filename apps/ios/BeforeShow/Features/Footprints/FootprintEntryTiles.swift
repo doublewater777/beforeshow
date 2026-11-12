@@ -99,7 +99,7 @@ struct FootprintEntryTiles: View {
         let subtitle = archive.years.count > 1 && peak != nil
             ? BSLocalization.format("%lld 年 · %@ 最满", archive.years.count, String(peak!.year))
             : BSLocalization.format("%lld 年", archive.years.count)
-        return tile(title: BSLocalization.text("这些年"), subtitle: subtitle, background: AnyShapeStyle(Color(white: 0.09))) {
+        return tile(title: BSLocalization.text("这些年"), subtitle: subtitle, background: ListeningPickShelfBackdrop().overlay(BSColor.Stage.background.opacity(0.8))) {
             FootprintGalleryHall(shows: Array(archive.shows.prefix(12)), covers: covers, position: 0, zoom: 1.9)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -111,7 +111,7 @@ struct FootprintEntryTiles: View {
             BSLocalization.format("%lld 颗星 · 最亮%@", archive.artists.count, $0.name)
         } ?? BSLocalization.format("%lld 颗星", archive.artists.count)
         let sky = LinearGradient(colors: [FootprintRoomPalette.skyTop, FootprintRoomPalette.skyBottom], startPoint: .top, endPoint: .bottom)
-        return tile(title: BSLocalization.text("艺人"), subtitle: subtitle, background: AnyShapeStyle(sky)) {
+        return tile(title: BSLocalization.text("艺人"), subtitle: subtitle, background: sky) {
             FootprintMiniSky(constellation: FootprintConstellationBuilder.make(shows: archive.shows))
         }
     }
@@ -125,7 +125,7 @@ struct FootprintEntryTiles: View {
             }
             return BSLocalization.format("%lld 块招牌", archive.venues.count)
         }()
-        return tile(title: BSLocalization.text("场馆"), subtitle: subtitle, background: AnyShapeStyle(FootprintRoomPalette.brick)) {
+        return tile(title: BSLocalization.text("场馆"), subtitle: subtitle, background: FootprintRoomPalette.brick) {
             FootprintNeonText(
                 text: featured.map { FootprintNeonVenuesView.signText(for: $0.venue.name, cities: $0.venue.cities).title } ?? "LIVE",
                 font: .system(size: 30, weight: .heavy, design: .rounded),
@@ -144,7 +144,7 @@ struct FootprintEntryTiles: View {
         let subtitle = next.map {
             BSLocalization.format("%lld 站 · 下一站%@", archive.cities.count, $0.city)
         } ?? BSLocalization.format("%lld 站", archive.cities.count)
-        return tile(title: BSLocalization.text("城市"), subtitle: subtitle, background: AnyShapeStyle(FootprintRoomPalette.mapNight)) {
+        return tile(title: BSLocalization.text("城市"), subtitle: subtitle, background: FootprintRoomPalette.mapNight) {
             FootprintMiniCityLights(counts: stops.filter { !$0.isNext }.map(\.count))
         }
     }
@@ -157,7 +157,7 @@ struct FootprintEntryTiles: View {
             show?.name ?? "",
             anniversary.years
         )
-        return tile(title: BSLocalization.text("那年今日"), subtitle: subtitle, background: AnyShapeStyle(FootprintRoomPalette.candleRoom)) {
+        return tile(title: BSLocalization.text("那年今日"), subtitle: subtitle, background: FootprintRoomPalette.candleRoom) {
             FootprintCandleFigure(isLit: true, scale: 0.32)
         }
     }
@@ -168,16 +168,16 @@ struct FootprintEntryTiles: View {
         return tile(
             title: BSLocalization.text("回忆册"),
             subtitle: BSLocalization.format("%1$@ · %2$lld 页", span, archive.shows.count + archive.years.count + 4),
-            background: AnyShapeStyle(FootprintRoomPalette.bookRoom)
+            background: FootprintRoomPalette.bookRoom
         ) {
             FootprintMiniBook(cover: archive.shows.first.map { show in AnyView(FootprintResolvedCoverImage(show: show, cover: covers[show.id])) })
         }
     }
 
-    func tile<Art: View>(
+    func tile<Art: View, Background: View>(
         title: String,
         subtitle: String,
-        background: AnyShapeStyle,
+        background: Background,
         @ViewBuilder art: () -> Art
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -197,7 +197,7 @@ struct FootprintEntryTiles: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 150)
-        .background(background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(background)
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.07)))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))

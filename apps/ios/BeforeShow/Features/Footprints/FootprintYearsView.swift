@@ -9,10 +9,10 @@ struct FootprintYearsView: View {
 
     /// How far down the corridor you stand, in covers. Fractional while walking.
     @State private var resting: Double = 0
-    /// A quick eased walk: the opening, a swipe's landing or a jump to a tapped cover.
+    /// A quick eased walk: a swipe's landing or a jump to a tapped cover.
     @State private var walk: (from: Double, start: Date, duration: Double)?
     /// Walking on by itself towards the oldest show.
-    @State private var stroll: (from: Double, start: Date)?
+    @State private var stroll: FootprintYearsWalk?
     @State private var dragPosition: Double?
     @State private var dragStart: Double?
     @State private var hasAppeared = false
@@ -22,8 +22,6 @@ struct FootprintYearsView: View {
     private var shows: [Show] { archive.shows }
     /// Finger travel for one cover.
     private let stepHeight: CGFloat = 110
-    /// Seconds the stroll spends on each cover.
-    private let strollPace = 2.4
 
     var body: some View {
         TimelineView(.animation(paused: walk == nil && stroll == nil && dragPosition == nil)) { context in
@@ -50,7 +48,7 @@ struct FootprintYearsView: View {
             .animation(.easeOut(duration: 0.25), value: current?.id)
         }
         .gesture(drag)
-        .background(BSColor.Stage.background.ignoresSafeArea())
+        .background(ListeningPickShelfBackdrop().ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .principal) { FootprintNavigationTitle(title: BSLocalization.text("这些年")) } }
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
@@ -59,7 +57,7 @@ struct FootprintYearsView: View {
             guard !hasAppeared else { return startStroll() }
             hasAppeared = true
             // Opens walking in from the corridor's mouth.
-            if reduceMotion { startStroll() } else { walk = (-2.5, .now, 1.4) }
+            startStroll(lead: reduceMotion ? 0 : FootprintYearsWalk.openingLead)
         }
         .onDisappear {
             resting = position(at: .now)
@@ -75,7 +73,7 @@ struct FootprintYearsView: View {
         }
         .task(id: stroll?.start) {
             guard let stroll else { return }
-            try? await Task.sleep(for: .seconds((lastIndex - stroll.from) * strollPace))
+            try? await Task.sleep(for: .seconds(stroll.duration))
             guard !Task.isCancelled else { return }
             resting = lastIndex
             self.stroll = nil
@@ -98,7 +96,7 @@ struct FootprintYearsView: View {
             let eased = 1 - pow(1 - t, 3)
             return walk.from + (resting - walk.from) * eased
         }
-        if let stroll { return min(lastIndex, stroll.from + date.timeIntervalSince(stroll.start) / strollPace) }
+        if let stroll { return stroll.position(at: date) }
         return resting
     }
 
@@ -108,9 +106,9 @@ struct FootprintYearsView: View {
         walk = (position, .now, 0.6)
     }
 
-    private func startStroll() {
-        guard walk == nil, dragPosition == nil, resting < lastIndex else { return }
-        stroll = (resting, .now)
+    private func startStroll(lead: Double = 0) {
+        guard walk == nil, dragPosition == nil, !shows.isEmpty, resting < lastIndex || lead > 0 else { return }
+        stroll = FootprintYearsWalk(from: resting, start: .now, lead: lead, last: lastIndex)
     }
 
     private var drag: some Gesture {
@@ -146,12 +144,12 @@ struct FootprintYearsView: View {
             if let year {
                 Text(verbatim: String(year))
                     .font(.system(size: 44, weight: .regular, design: .serif))
-                    .foregroundStyle(BSColor.Stage.heroIvory)
+                    .foregroundStyle(BSColor.Stage.foreground)
                     .contentTransition(.numericText(value: Double(year)))
                 if let count {
                     Text(BSLocalization.format("%lld 场", count))
-                        .font(.system(size: 13))
-                        .foregroundStyle(BSColor.Stage.muted)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
                 }
             }
         }
@@ -200,6 +198,30 @@ struct FootprintYearsView: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+/// Walking on through the corridor by itself, in covers. The opening starts `lead` back and slows straight into the
+/// stroll, so walking in and strolling on are one motion.
+struct FootprintYearsWalk {
+    /// Seconds the stroll spends on each cover.
+    static let strollPace = 2.4
+    static let openingLead = 2.5
+    /// How quickly the lead is made up.
+    private static let settle = 0.5
+
+    let from: Double
+    let start: Date
+    var lead: Double = 0
+    /// The oldest show, where the stroll stops.
+    let last: Double
+
+    func position(at date: Date) -> Double {
+        let elapsed = max(0, date.timeIntervalSince(start))
+        return min(last, from + elapsed / Self.strollPace) - lead * exp(-elapsed / Self.settle)
+    }
+
+    /// Until it stands still at the oldest show.
+    var duration: Double { max((last - from) * Self.strollPace, lead > 0 ? 8 * Self.settle : 0) }
 }
 
 /// The corridor itself: covers alternating down the left and right walls, each turned a little towards you, fading

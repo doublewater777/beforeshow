@@ -21,7 +21,7 @@ extension FootprintEntryTiles {
         let subtitle = repeated > 0
             ? BSLocalization.format("%1$lld 首 · %2$lld 首听过不止一次", songs.count, repeated)
             : BSLocalization.format("%lld 首", songs.count)
-        return tile(title: BSLocalization.text("曲目"), subtitle: subtitle, background: AnyShapeStyle(FootprintRoomPalette.setlistFloor)) {
+        return tile(title: BSLocalization.text("曲目"), subtitle: subtitle, background: FootprintRoomPalette.setlistFloor) {
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(songs.prefix(3)) { song in
                     Text(song.title)
@@ -47,7 +47,7 @@ extension FootprintEntryTiles {
             BSLocalization.format("%1$lld 位 · 和%2$@最多", bands.count, $0.name)
         } ?? ""
         let maxCount = CGFloat(max(1, bands.first?.count ?? 1))
-        return tile(title: BSLocalization.text("同行"), subtitle: subtitle, background: AnyShapeStyle(Color(white: 0.07))) {
+        return tile(title: BSLocalization.text("同行"), subtitle: subtitle, background: Color(white: 0.07)) {
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(Array(bands.prefix(3).enumerated()), id: \.offset) { index, band in
                     HStack(spacing: 0) {
@@ -68,7 +68,7 @@ extension FootprintEntryTiles {
         return tile(
             title: BSLocalization.text("周边柜"),
             subtitle: BSLocalization.format("%1$lld 件 · %2$lld 层", items.count, shelves.count),
-            background: AnyShapeStyle(FootprintRoomPalette.cabinetRoom)
+            background: FootprintRoomPalette.cabinetRoom
         ) {
             VStack(spacing: 0) {
                 HStack(alignment: .bottom, spacing: 6) {
@@ -93,7 +93,7 @@ extension FootprintEntryTiles {
         let subtitle = fresh > 0
             ? BSLocalization.format("已得 %1$lld 枚 · 新 %2$lld", earned, fresh)
             : BSLocalization.format("已得 %lld 枚", earned)
-        return tile(title: BSLocalization.text("徽章"), subtitle: subtitle, background: AnyShapeStyle(Color(white: 0.07))) {
+        return tile(title: BSLocalization.text("徽章"), subtitle: subtitle, background: Color(white: 0.07)) {
             HStack(spacing: -10) {
                 ForEach(Array(badges.prefix(3).enumerated()), id: \.element.id) { index, badge in
                     FootprintBadgePin(badge: badge, size: 52)
@@ -114,7 +114,7 @@ extension FootprintEntryTiles {
         return tile(
             title: BSLocalization.text("账本"),
             subtitle: BSLocalization.format("记了 %lld 场", recorded),
-            background: AnyShapeStyle(Color(white: 0.06))
+            background: Color(white: 0.06)
         ) {
             VStack(spacing: 5) {
                 Capsule().fill(FootprintRoomPalette.receiptInk).frame(width: 40, height: 4)

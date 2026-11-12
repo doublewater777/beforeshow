@@ -278,6 +278,7 @@
 		5EB2E62B86793F12D15846F2 /* FootprintSkyShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80F0E070A8647A91868E5193 /* FootprintSkyShape.swift */; };
 		5F6A0A7609FB5FA9CD38A691 /* LocalCompanionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8DC7FB73BCD7EC5D39C81D /* LocalCompanionTests.swift */; };
 		5F78901A888AB2F93AFEAEF8 /* BSDateFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D0828056BA70804926DB3E /* BSDateFormat.swift */; };
+		5FBDB90F86066B99FD3AD410 /* FootprintYearsWalkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32B569A549FCF50194429025 /* FootprintYearsWalkTests.swift */; };
 		60039D402ADD9353344CEE4B /* HomeStageScreensTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF771343EA6190084824FAC9 /* HomeStageScreensTests.swift */; };
 		60178CBCA7C8320FC96455F2 /* ShowMutationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93A9E42A34E7825013D1B3B /* ShowMutationCoordinatorTests.swift */; };
 		6044593FB4F19CE8AA99041A /* ListeningRoomCoordinator+Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4722610F77A5DD3E3A90F24 /* ListeningRoomCoordinator+Widget.swift */; };
@@ -872,6 +873,7 @@
 		3287BAA3EF70D7C728E6FBBC /* FootprintShareComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintShareComposerView.swift; sourceTree = "<group>"; };
 		3294E18C9F4F6F982A7F913D /* FootprintStarKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintStarKeys.swift; sourceTree = "<group>"; };
 		329A5C1526A399106BE79FC0 /* FootprintBookShowPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookShowPage.swift; sourceTree = "<group>"; };
+		32B569A549FCF50194429025 /* FootprintYearsWalkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintYearsWalkTests.swift; sourceTree = "<group>"; };
 		3318771F1067657E44FFA460 /* AddShowCoordinatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddShowCoordinatorView.swift; sourceTree = "<group>"; };
 		33A6E9171363656CB8A88892 /* TimetableImportReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableImportReviewView.swift; sourceTree = "<group>"; };
 		3452566ABF8463FA25583AAF /* ListeningRoomCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningRoomCoordinator.swift; sourceTree = "<group>"; };
@@ -2129,6 +2131,7 @@
 				376F149A803650CCADEBCD1E /* FootprintStarScaleTests.swift */,
 				1943D91049E452CA3622C186 /* FootprintStarSongTests.swift */,
 				110BCE121C4B02E6386799F1 /* FootprintVenueMapTests.swift */,
+				32B569A549FCF50194429025 /* FootprintYearsWalkTests.swift */,
 				6FF7533ABD0A413E2E982CCA /* HomeCountdownPrimaryActionTests.swift */,
 				BF771343EA6190084824FAC9 /* HomeStageScreensTests.swift */,
 				250A110A5390FBFD9CACB5C1 /* ListeningArtistAutoMatcherTests.swift */,
@@ -3349,6 +3352,7 @@
 				918A8ACEEE3868098BF59B1D /* FootprintStarScaleTests.swift in Sources */,
 				B123773D822D0D8880607E9D /* FootprintStarSongTests.swift in Sources */,
 				660760890464FC80FDCEF115 /* FootprintVenueMapTests.swift in Sources */,
+				5FBDB90F86066B99FD3AD410 /* FootprintYearsWalkTests.swift in Sources */,
 				B7F3F13F8917B1CEDD9DEC00 /* HomeCountdownPrimaryActionTests.swift in Sources */,
 				60039D402ADD9353344CEE4B /* HomeStageScreensTests.swift in Sources */,
 				9CC19BC646AA9F679C017987 /* ListenTestData.swift in Sources */,
