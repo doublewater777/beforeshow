@@ -133,6 +133,12 @@ struct ProPaywallBenefitCard: View {
             )
             Divider().overlay(BSColor.Stage.border)
             benefitRow(
+                icon: "opticaldisc",
+                title: BSLocalization.text("「挑一张」全部样式"),
+                subtitle: BSLocalization.text("在「听」里换 3D 唱片柜、旋转木马、冲天抛洒或飘羽来挑下一张。")
+            )
+            Divider().overlay(BSColor.Stage.border)
+            benefitRow(
                 icon: "sparkles",
                 title: BSLocalization.text("时刻表智能识别"),
                 subtitle: BSLocalization.text("不限次数通过图片识别演出排期与舞台矩阵（普通用户赠送 2 次）。")
@@ -186,7 +192,7 @@ struct ProPaywallActiveCard: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 20))
                 .foregroundStyle(BSColor.brandGradient)
-            Text(BSLocalization.text("Pro 已启用，已解锁无限添加现场、时刻表智能识别与星空音阶、星图。"))
+            Text(BSLocalization.text("Pro 已启用，全部功能已解锁。"))
                 .font(BSFont.body)
                 .foregroundStyle(BSColor.Stage.foreground)
         }

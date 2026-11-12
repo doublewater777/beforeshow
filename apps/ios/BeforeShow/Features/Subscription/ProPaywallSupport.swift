@@ -29,7 +29,7 @@ struct ProPaywallSheetView: View {
 
 enum ProPaywallCopy {
     static var summary: String {
-        BSLocalization.text("免费版包含 15 场现场容量与 2 次智能识别。Pro 解锁无限场次与不限次时刻表智能识别。")
+        BSLocalization.text("免费版包含 15 场现场容量与 2 次智能识别。")
     }
 
     static let privacyURL = URL(string: "https://beforeshow.doublewaterapps.com/privacy")!

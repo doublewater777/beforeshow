@@ -7107,18 +7107,18 @@
         }
       }
     },
-    "免费版包含 15 场现场容量与 2 次智能识别。Pro 解锁无限场次与不限次时刻表智能识别。" : {
+    "免费版包含 15 场现场容量与 2 次智能识别。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Free tier includes 15 shows and 2 smart recognitions. Pro unlocks unlimited shows and timetable recognition."
+            "value" : "Free tier includes 15 shows and 2 smart recognitions."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免費版包含 15 場現場容量與 2 次智慧辨識。Pro 解鎖無限場次與不限次時刻表智慧辨識。"
+            "value" : "免費版包含 15 場現場容量與 2 次智慧辨識。"
           }
         }
       }
@@ -27337,18 +27337,50 @@
         }
       }
     },
-    "Pro 已启用，已解锁无限添加现场、时刻表智能识别与星空音阶、星图。" : {
+    "「挑一张」全部样式" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pro is active. Unlimited shows, smart timetable recognition, sky scales and star maps unlocked."
+            "value" : "Every “Pick a disc” style"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pro 已啟用，已解鎖無限新增現場、時刻表智慧辨識與星空音階、星圖。"
+            "value" : "「挑一張」全部樣式"
+          }
+        }
+      }
+    },
+    "在「听」里换 3D 唱片柜、旋转木马、冲天抛洒或飘羽来挑下一张。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick your next record in Listen with the 3D Record Shelf, Carousel, Skyward Toss or Drifting Feathers."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「聽」裡換 3D 唱片櫃、旋轉木馬、沖天拋灑或飄羽來挑下一張。"
+          }
+        }
+      }
+    },
+    "Pro 已启用，全部功能已解锁。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro is active. Everything is unlocked."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 已啟用，全部功能已解鎖。"
           }
         }
       }
