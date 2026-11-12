@@ -115,7 +115,7 @@ final class ShelfScene3D {
     /// Each case further back also sits a little to the right, so the row runs diagonally.
     static let stagger: Float = 0
     /// The picked case slides out sideways beside the row and stands facing you.
-    static let pullOut: SIMD3<Float> = [1.5, 0.1, 0.15]
+    static let pullOut: SIMD3<Float> = [1.25, 0.1, 0.15]
     static let pullTurn: Float = 0.2
     /// Cases in front of the picked one ease forward a little, leaving the slot it came from.
     static let frontGap: Float = 0.1
