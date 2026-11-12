@@ -6,6 +6,8 @@ struct ListeningPickShelfStage: View {
     let discs: [ListeningDisc]
     let show: Show
     let position: Double
+    /// 冲天抛洒 and 飘羽's clock and what a finger is doing to them.
+    let flight: ListeningPickFlight
     /// Where a pick will land; the 3D shelf starts loading its cases early.
     var landing: Int?
     /// 0 → 1 while the shelf opens.
@@ -51,13 +53,9 @@ struct ListeningPickShelfStage: View {
         case .ring:
             let slots = RingLayout.slots(for: count)
             return CGVector(dx: RingLayout(size: size, slots: slots).radius * 2 * .pi / Double(slots), dy: 0)
-        case .rack, .feed:
+        // 冲天抛洒 and 飘羽 are held and let go rather than dragged.
+        case .rack, .feed, .toss, .feather:
             return CGVector(dx: rackSide(in: size) * 0.13, dy: 0)
-        // Nothing follows the finger here: a swipe up throws the next album, a swipe down lets it fall.
-        case .toss:
-            return CGVector(dx: 0, dy: size.height * 0.25)
-        case .feather:
-            return CGVector(dx: 0, dy: -size.height * 0.25)
         }
     }
 
@@ -67,7 +65,7 @@ struct ListeningPickShelfStage: View {
             switch style {
             case .rack: rack(in: size).id(tonesLoaded)
             case .ring: carousel(in: size)
-            case .toss, .feather: ListeningPickFlightField(style: style, discs: discs, current: index)
+            case .toss, .feather: ListeningPickFlightField(discs: discs, current: index, flight: flight)
             case .shelf3D, .feed: EmptyView()
             }
         }

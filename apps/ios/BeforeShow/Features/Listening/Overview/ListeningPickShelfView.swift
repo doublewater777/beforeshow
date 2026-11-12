@@ -2,7 +2,8 @@ import SwiftUI
 import UIKit
 
 /// 帮我挑一张 as a record shelf: the 3D cabinet, the front-facing rack, the carousel, the toss or the feathers. Drag the row;
-/// the album in front comes forward.
+/// the album in front comes forward. The toss and the feathers are not dragged: a finger stops them, and letting go over a
+/// cover puts it on show.
 struct ListeningPickShelfView: View {
     let style: ListeningPickStyle
     let discs: [ListeningDisc]
@@ -21,6 +22,9 @@ struct ListeningPickShelfView: View {
     @State private var isPicking = false
     @State private var landing: Int?
     @State private var tone: Color = BSColor.Stage.glowBlue
+    @State private var flight: ListeningPickFlight
+    @State private var isTouching = false
+    @State private var isSliding = false
 
     init(
         style: ListeningPickStyle, discs: [ListeningDisc], show: Show, currentID: Binding<String?>,
@@ -34,6 +38,7 @@ struct ListeningPickShelfView: View {
         self.onListen = onListen
         // Opens on the current album from the first frame, so the 3D shelf loads the covers round it first.
         _position = State(initialValue: Double(discs.firstIndex { $0.id == currentID.wrappedValue } ?? 0))
+        _flight = State(initialValue: ListeningPickFlight(style: style, at: .now))
     }
 
     /// The carousel goes round for ever; the shelves stop at their ends.
@@ -49,13 +54,19 @@ struct ListeningPickShelfView: View {
         GeometryReader { proxy in
             ZStack {
                 ListeningPickShelfStage(
-                    style: style, discs: discs, show: show, position: position,
+                    style: style, discs: discs, show: show, position: position, flight: flight,
                     landing: landing, entrance: entrance, onReady: playEntrance
                 )
                 .allowsHitTesting(false)
-                Color.clear
-                    .contentShape(Rectangle())
-                    .gesture(drag(in: proxy.size))
+                if style == .toss || style == .feather {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(hand(in: proxy.size))
+                } else {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(drag(in: proxy.size))
+                }
                 VStack(spacing: 0) {
                     titleBlock
                     Spacer()
@@ -77,7 +88,11 @@ struct ListeningPickShelfView: View {
             ticker.stop()
             position = Double(discs.firstIndex { $0.id == currentID } ?? 0)
         }
-        .onChange(of: index) { _, newIndex in currentID = discs[newIndex].id }
+        .onChange(of: index) { _, newIndex in
+            currentID = discs[newIndex].id
+            flight.show(newIndex, date: .now)
+        }
+        .sensoryFeedback(.impact(weight: .light), trigger: flight.held) { _, held in held != nil }
         .sensoryFeedback(.selection, trigger: index)
         .task(id: current.artworkURL) {
             guard let url = current.artworkURL, let color = await ListeningArtworkTone.tone(for: url) else { return }
@@ -229,6 +244,35 @@ struct ListeningPickShelfView: View {
             }
             return true
         }
+    }
+
+    /// 冲天抛洒 and 飘羽: a finger stops the field and lifts the cover under it; letting go puts that album on show.
+    private func hand(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                guard !isPicking else { return }
+                let layout = flightLayout(in: size)
+                if !isTouching {
+                    isTouching = true
+                    flight.press(at: value.startLocation, in: layout, date: .now)
+                } else if isSliding || hypot(value.translation.width, value.translation.height) > 8 {
+                    isSliding = true
+                    flight.slide(to: value.location, in: layout, date: .now)
+                }
+            }
+            .onEnded { _ in
+                guard isTouching else { return }
+                isTouching = false
+                isSliding = false
+                if let album = flight.release(in: flightLayout(in: size), date: .now) {
+                    ticker.stop()
+                    position = Double(album)
+                }
+            }
+    }
+
+    private func flightLayout(in size: CGSize) -> ListeningPickFlight.Layout {
+        ListeningPickFlight.Layout(albums: discs.count, current: index, size: size, isStill: reduceMotion)
     }
 
     private func pick() {

@@ -157,6 +157,7 @@ private struct StylePreviewStage: View {
         TimelineView(.animation(paused: isDone)) { context in
             ListeningPickShelfStage(
                 style: style, discs: discs, show: show, position: position,
+                flight: ListeningPickFlight(style: style, at: start ?? .now),
                 entrance: start.map { min(1, context.date.timeIntervalSince($0) / duration) } ?? 0
             )
         }
