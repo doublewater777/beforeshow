@@ -1,5 +1,15 @@
 import Foundation
 
+enum ListeningPickCardState: Equatable {
+    case ready, loading, failed, hidden
+}
+
+struct ListeningPickCatalogProgress: Equatable {
+    let authorized: Bool
+    let missing: [String]
+    let statuses: [String: ListeningArtistCatalogStatus]
+}
+
 @MainActor extension ListeningRoomCoordinator {
     /// Starts a disc unless it is already the one playing, so a second tap never restarts it.
     func play(_ disc: ListeningDisc) {
@@ -25,6 +35,45 @@ import Foundation
             .filter { !$0.tracks.isEmpty && $0.origin == .album }
         let loadable = candidates.filter { discPresentation(for: $0).canLoad }
         return loadable.isEmpty ? candidates : loadable
+    }
+
+    /// Lineup artists whose albums have not arrived, in shelf order. Albums come with an artist's full catalog,
+    /// which otherwise loads only when the user opens that artist.
+    var missingPickCatalogArtistIDs: [String] {
+        let saved = Set(catalogSnapshots.map(\.artistID))
+        return rackGroups.compactMap { group in
+            guard case let .artist(id, _, isConnected) = group.kind, isConnected, !saved.contains(id) else { return nil }
+            return id
+        }
+    }
+
+    /// Changes whenever the next album list may start: one arriving or failing, access, the lineup.
+    var pickCatalogProgress: ListeningPickCatalogProgress {
+        ListeningPickCatalogProgress(authorized: access.authorizationStatus == .authorized,
+                                     missing: missingPickCatalogArtistIDs, statuses: artistCatalogStatus)
+    }
+
+    /// One artist at a time, so a festival fills the shelf without a burst of requests; a failed artist waits for a retry.
+    func loadNextPickCatalog() {
+        let missing = missingPickCatalogArtistIDs
+        guard !missing.contains(where: { artistCatalogStatus[$0] == .loading }),
+              let next = missing.first(where: { artistCatalogStatus[$0] == nil }) else { return }
+        loadArtistCatalogIfNeeded(next)
+    }
+
+    func retryPickCatalogs() {
+        guard let failed = missingPickCatalogArtistIDs.first(where: { artistCatalogStatus[$0] == .failed }) else { return }
+        loadArtistCatalogIfNeeded(failed)
+    }
+
+    var pickCardState: ListeningPickCardState {
+        if !pickCandidates().isEmpty { return .ready }
+        if catalogState == .loading { return .loading }
+        let statuses = missingPickCatalogArtistIDs.map { artistCatalogStatus[$0] }
+        if statuses.contains(where: { $0 != .failed }) {
+            return access.authorizationStatus == .authorized ? .loading : .hidden
+        }
+        return statuses.isEmpty ? .hidden : .failed
     }
 
     /// Stages a default track from the show's pick pool or daily featured disc

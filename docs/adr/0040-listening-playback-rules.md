@@ -17,6 +17,7 @@
 | 重新打开 App | 恢复已装入唱片、曲目与位置，不自动播放；位置超出试听片段长度时从头播放 | Coordinator + 试听服务 |
 | App 内多个声源 | 同一时刻只有一个发声：开始前取得发声权，其他声源暂停。默认不自动恢复；时刻表试听属于临时插播，结束后只恢复仍装着同一歌曲、同一唱片且保持暂停的原「听」会话 | `AppAudioSession.claimFocus` + `TimetablePreviewPlayer` |
 | 开盖 | 暂停，保留曲目与位置 | Coordinator |
+| 开播失败 | 提示一次；播放键仍可按，再按即重试，与 Apple Music 一致 | Projection（`testPlayButtonRetriesAFailedStart`） |
 
 「上一首在播放超过 3 秒时回到本曲开头」不采用：`AVQueuePlayer` 没有原生支持，完整播放的锁屏行为也由系统决定，手写会让两种音源分叉。
 
@@ -26,6 +27,8 @@
 
 - **租约**：来源在可能发声期间持有 `playback`，每个来源各自持有，释放一个不会结束另一个。暂停时保留租约，使 App 仍是 Now Playing 候选；停止才释放。没有租约时回到 `ambient` + `mixWithOthers`。
 - **发声权**：来源在真正发声前调用 `claimFocus`，同步通知其他来源暂停。默认不自动恢复；时刻表临时试听结束时，由 `TimetablePreviewPlayer` 检查原「听」会话仍未改变后明确恢复。
+- **让出给 Apple Music**：`ApplicationMusicPlayer` 在 App 自己的会话之外发声，App 内播放器（挑一张试听、视频）用过后留下的活跃 `playback` 会话会挡住它开播。完整播放在准备和开播前调用 `AppAudioSession.yieldToMusicPlayer()` 先停用 App 自己的会话。
+- **足迹音效**：只在不会打断音乐时响：`ambient` 会话下照常混音；持有 `playback` 租约且「听」或其他 App 正在放时不响，否则会打断音乐且不会还回去。
 
 从外部恢复的完整播放（锁屏直接播放）不经过 App 代码，不会主动取得发声权；此时正在发声的试听拥有自己的 Now Playing，冲突概率低，不为此增加观察。
 

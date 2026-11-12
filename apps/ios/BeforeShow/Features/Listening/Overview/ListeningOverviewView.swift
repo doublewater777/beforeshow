@@ -65,6 +65,7 @@ struct ListeningOverviewView: View {
         .onChange(of: room.pickCandidates().map(\.id), initial: true) { _, ids in
             if ListeningPickCardPolicy.needsNewDraw(current: pickPreview, candidateIDs: ids) { pickPreview = drawPreview() }
         }
+        .onChange(of: room.pickCatalogProgress, initial: true) { room.loadNextPickCatalog() }
     }
 
     private var headerSpacer: some View {
@@ -95,20 +96,23 @@ struct ListeningOverviewView: View {
     @ViewBuilder
     private var pickSection: some View {
         let count = room.pickCandidates().count
-        VStack(alignment: .leading, spacing: BSSpacing.md) {
-            sectionHeader(ListeningCopy.text("帮我挑一张"),
-                          trailing: count > 0 ? ListeningCopy.format("%d 张唱片", count) : nil)
-            Button { onOpenPick(pickPreview) } label: {
-                ListeningPickEntryCard(disc: pickPreview, show: show)
+        let state = room.pickCardState
+        if state != .hidden {
+            VStack(alignment: .leading, spacing: BSSpacing.md) {
+                sectionHeader(ListeningCopy.text("帮我挑一张"),
+                              trailing: count > 0 ? ListeningCopy.format("%d 张唱片", count) : nil)
+                Button { state == .failed ? room.retryPickCatalogs() : onOpenPick(pickPreview) } label: {
+                    ListeningPickEntryCard(disc: state == .ready ? pickPreview : nil, show: show, state: state)
+                }
+                .buttonStyle(.plain)
+                .disabled(state == .loading)
+                .accessibilityIdentifier("listening.overview.pick")
             }
-            .buttonStyle(.plain)
-            .disabled(count == 0)
-            .accessibilityIdentifier("listening.overview.pick")
+            .padding(.horizontal, BSSpacing.roomy)
+            // The shelf can fill in without the candidate list changing under this view; draw when the card shows empty.
+            .onAppear { if pickPreview == nil { pickPreview = drawPreview() } }
+            .onChange(of: count) { if pickPreview == nil { pickPreview = drawPreview() } }
         }
-        .padding(.horizontal, BSSpacing.roomy)
-        // The shelf can fill in without the candidate list changing under this view; draw when the card shows empty.
-        .onAppear { if pickPreview == nil { pickPreview = drawPreview() } }
-        .onChange(of: count) { if pickPreview == nil { pickPreview = drawPreview() } }
     }
 
     @ViewBuilder
@@ -147,6 +151,7 @@ struct ListeningOverviewView: View {
 private struct ListeningPickEntryCard: View {
     let disc: ListeningDisc?
     let show: Show
+    let state: ListeningPickCardState
 
     var body: some View {
         HStack(spacing: BSSpacing.md) {
@@ -154,6 +159,7 @@ private struct ListeningPickEntryCard: View {
                 if let disc { ListeningDiscCover(disc: disc, show: show) } else { BSColor.Stage.surfaceRaised }
             }
             .frame(width: ListeningOverviewStyle.pickCover, height: ListeningOverviewStyle.pickCover)
+            .overlay { if state == .loading { ProgressView().tint(BSColor.Stage.muted) } }
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 if let disc {
                     Text(disc.displayArtistName(for: show))
@@ -165,8 +171,9 @@ private struct ListeningPickEntryCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "chevron.up")
+            Image(systemName: state == .failed ? "arrow.clockwise" : "chevron.up")
                 .font(ListeningOverviewStyle.headerTitle)
+                .opacity(state == .loading ? 0.4 : 1)
                 .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                 .background(Circle().fill(ListeningOverviewStyle.buttonFill))
         }

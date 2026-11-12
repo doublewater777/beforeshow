@@ -50,6 +50,13 @@ final class AppAudioSessionTests: XCTestCase {
         XCTAssertEqual(AVAudioSession.sharedInstance().category, .ambient)
     }
 
+    func testFoleyNeverCutsOffMusicThatIsPlaying() {
+        XCTAssertTrue(FootprintSoundPlayer.plays(category: .ambient, musicIsPlaying: true), "the ambient session mixes")
+        XCTAssertFalse(FootprintSoundPlayer.plays(category: .playback, musicIsPlaying: true),
+                       "a playback session would interrupt the music and never give it back")
+        XCTAssertTrue(FootprintSoundPlayer.plays(category: .playback, musicIsPlaying: false))
+    }
+
     func testClaimingFocusPausesEveryOtherOwnerOnly() {
         var paused: [AppAudioSession.Owner] = []
         let observers = [AppAudioSession.Owner.listening, .timetablePreview, .memoryVideo].map { owner in

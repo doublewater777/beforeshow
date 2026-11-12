@@ -79,6 +79,18 @@ enum AppAudioSession {
         apply()
     }
 
+    /// Apple Music's player sounds outside the app's session. The app's own session, left active
+    /// by an in-app player such as the pick's previews, can keep it from starting, so the app
+    /// steps aside first; every other owner has already paused on `claimFocus`.
+    static func yieldToMusicPlayer() async {
+        await withCheckedContinuation { continuation in
+            workQueue.async {
+                try? AVAudioSession.sharedInstance().setActive(false)
+                continuation.resume()
+            }
+        }
+    }
+
     static func waitForPendingOperations() async {
         await withCheckedContinuation { continuation in
             workQueue.async { continuation.resume() }

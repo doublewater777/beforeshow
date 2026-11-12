@@ -200,7 +200,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertTrue(playing.player.canPlayPause)
         XCTAssertEqual(failed.player.phase, .failed)
         XCTAssertEqual(failed.player.recoveryAction, .retryPlayback)
-        XCTAssertFalse(failed.player.canPlayPause)
+        XCTAssertEqual(failed.player.playPauseAction, .play, "the mini player's Play is how a failed start is retried")
     }
 
     func testPendingPlayIntentProjectsWaitingUntilTransportStarts() {

@@ -554,7 +554,7 @@ enum ListeningDisplayProjector {
                 phase: .failed,
                 source: transport.source,
                 previewRemaining: previewRemaining(from: transport),
-                playPauseAction: .disabled,
+                playPauseAction: .play, // like Apple Music, Play tries the song again
                 blockingReason: failure,
                 recoveryAction: .retryPlayback,
                 errorText: failure,

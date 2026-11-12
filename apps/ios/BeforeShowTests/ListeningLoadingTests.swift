@@ -220,6 +220,92 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(catalog.fullFetchCount, 1, "returning to the compilation scope must not fetch other artists")
     }
 
+    func testPickFetchesMissingAlbumListsOneArtistAtATime() async throws {
+        let (container, catalog, room, show) = try pickRoom(artists: 3)
+        defer {
+            catalog.releaseFullCatalog()
+            room.stop()
+            _ = container
+        }
+        await room.load(show: show)
+        XCTAssertTrue(room.pickCandidates().isEmpty, "top songs alone carry no albums to pick from")
+        XCTAssertEqual(room.pickCardState, .loading)
+
+        room.loadNextPickCatalog()
+        room.loadNextPickCatalog()
+        try await wait { catalog.fullFetchCount == 1 }
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-0"], "one artist at a time")
+
+        catalog.releaseFullCatalog()
+        try await wait { !room.pickCandidates().isEmpty }
+        XCTAssertEqual(room.pickCardState, .ready)
+        for fetched in 1...2 {
+            try await wait { room.artistCatalogStatus.isEmpty }
+            room.loadNextPickCatalog()
+            try await wait { catalog.fullFetchCount == fetched + 1 }
+        }
+        try await wait { room.missingPickCatalogArtistIDs.isEmpty }
+        XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-0", "artist-1", "artist-2"])
+    }
+
+    func testPickOffersRetryWhenNoAlbumListArrives() async throws {
+        let (container, catalog, room, show) = try pickRoom(artists: 1)
+        defer {
+            room.stop()
+            _ = container
+        }
+        catalog.failOnce("artist-0")
+        catalog.releaseFullCatalog()
+        await room.load(show: show)
+
+        room.loadNextPickCatalog()
+        try await wait { room.pickCardState == .failed }
+        room.loadNextPickCatalog()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(catalog.fullFetchCount, 1, "a failed artist waits for a retry")
+
+        room.retryPickCatalogs()
+        try await wait { room.pickCardState == .ready }
+        XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-0", "artist-0"])
+    }
+
+    func testPickHidesWhenNoArtistCanFillIt() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Unmatched", date: start, startTime: start)
+        show.artists = [ArtistSlot(name: "Nobody", avatarURL: nil)]
+        container.mainContext.insert(show)
+        try container.mainContext.save()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext, catalogService: GatedLargeFestivalCatalog(),
+            artistSearchService: EmptyArtistSearch(), playbackFactory: { ListeningFixturePlayer(source: $0) }
+        )
+        defer { room.stop() }
+        await room.load(show: show)
+        XCTAssertEqual(room.pickCardState, .hidden)
+    }
+
+    private func pickRoom(
+        artists: Int
+    ) throws -> (ModelContainer, GatedLargeFestivalCatalog, ListeningRoomCoordinator, Show) {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "First Visit", date: start, startTime: start)
+        show.artists = (0..<artists).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+        try context.save()
+        let catalog = GatedLargeFestivalCatalog()
+        let room = ListeningRoomCoordinator(
+            context: context, catalogService: catalog,
+            artistSearchService: EmptyArtistSearch(), playbackFactory: { ListeningFixturePlayer(source: $0) }
+        )
+        return (container, catalog, room, show)
+    }
+
     func testSelectingArtistDuringRuntimeRefreshLoadsThatArtistAfterRefresh() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
@@ -470,6 +556,9 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
     private var storedFullFetchCount = 0
     private var storedFullFetchArtistIDs: [String] = []
     private var storedFeaturedPlaylistFetchCount = 0
+    private var storedFailures: Set<String> = []
+
+    func failOnce(_ artistID: String) { lock.withLock { _ = storedFailures.insert(artistID) } }
 
     var runtimeFetchCount: Int { lock.withLock { storedRuntimeFetchCount } }
     var fullFetchCount: Int { lock.withLock { storedFullFetchCount } }
@@ -503,6 +592,7 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
             storedFullFetchArtistIDs.append(artistID)
         }
         await waitForFullCatalogRelease()
+        if lock.withLock({ storedFailures.remove(artistID) != nil }) { throw ListeningCatalogError.artistNotFound(artistID) }
         return Self.payload(artistID: artistID, fetchedAt: fetchedAt)
     }
 

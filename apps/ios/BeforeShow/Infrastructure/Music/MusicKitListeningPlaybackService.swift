@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Observation
+import os
 @preconcurrency import MusicKit
 
 /// Full-catalog playback on `ApplicationMusicPlayer`, the way Apple's MusicKit
@@ -10,6 +11,7 @@ import Observation
 @Observable
 final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     let source = ListeningPlaybackSource.fullCatalog
+    private static let logger = Logger(subsystem: "com.doublewaterapps.beforeshow", category: "MusicPlayback")
     private let player: ApplicationMusicPlayer
     private var songsByID: [String: Song] = [:]
     private var durationBySongID: [String: TimeInterval] = [:]
@@ -106,9 +108,14 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         observePlayer()
         playerRevision &+= 1
         AppAudioSession.lease(.listening)
-        await AppAudioSession.waitForPendingOperations()
+        await AppAudioSession.yieldToMusicPlayer()
         try Task.checkCancellation()
-        try await player.prepareToPlay()
+        // Warming up is not playing: Play prepares again and reports a song that truly cannot play.
+        do {
+            try await player.prepareToPlay()
+        } catch {
+            Self.logger.error("prepareToPlay failed: \(error, privacy: .public)")
+        }
         if time > 0 {
             player.playbackTime = time
         }
@@ -116,10 +123,21 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
 
     func play() async throws {
         AppAudioSession.lease(.listening)
-        await AppAudioSession.waitForPendingOperations()
         try Task.checkCancellation()
         AppAudioSession.claimFocus(.listening)
-        try await player.play()
+        await AppAudioSession.yieldToMusicPlayer()
+        try Task.checkCancellation()
+        do {
+            try await player.play()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            // Right after the queue or the audio session changes, the player can refuse a song
+            // it plays a moment later (Control Center then starts it fine).
+            Self.logger.error("play failed, retrying: \(error, privacy: .public)")
+            try await Task.sleep(for: .milliseconds(600))
+            try await player.play()
+        }
     }
 
     func pause() {

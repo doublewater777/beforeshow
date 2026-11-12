@@ -77,6 +77,30 @@ import SwiftData
         room.stop()
     }
 
+    func testPlayButtonRetriesAFailedStart() async throws {
+        let (container, show) = try ListenTestData.make()
+        let player = ListeningTestPlayer()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in player }
+        )
+        await room.load(show: show)
+        let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
+        player.playError = ListeningPlaybackError.songUnavailable("a1")
+        room.playFromSleeve(album, songID: "a1")
+        try await ListenTestData.settle(room) { room.playbackError != nil }
+        XCTAssertEqual(room.display.player.playPauseAction, .play)
+
+        player.playError = nil
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying }
+        XCTAssertNil(room.playbackError)
+        XCTAssertEqual(room.track?.id, "a1")
+        room.stop()
+    }
+
     func testFailedSleevePlaybackLeavesNoHistoryAndCanRetry() async throws {
         let (container, show) = try ListenTestData.make()
         let player = ListeningTestPlayer()
