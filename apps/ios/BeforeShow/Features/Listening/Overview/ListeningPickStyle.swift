@@ -1,11 +1,13 @@
 import Foundation
 
-/// How 帮我挑一张 lays out the albums. The 3D shelf and the carousel are Pro; free users share a few opens of them to try.
+/// How 帮我挑一张 lays out the albums. Everything but 一屏一张 and the front rack is Pro; free users share a few opens of them to try.
 enum ListeningPickStyle: String, CaseIterable, Identifiable {
     case shelf3D
     case feed
     case rack
     case ring
+    case toss
+    case feather
 
     static let storageKey = "listeningPickStyle"
     static let trialOpensKey = "listeningPickShelf3DTrialOpens"
@@ -19,10 +21,12 @@ enum ListeningPickStyle: String, CaseIterable, Identifiable {
         case .feed: ListeningCopy.text("一屏一张")
         case .rack: ListeningCopy.text("正面唱片架")
         case .ring: ListeningCopy.text("旋转木马")
+        case .toss: ListeningCopy.text("冲天抛洒")
+        case .feather: ListeningCopy.text("飘羽")
         }
     }
 
-    var isPro: Bool { self == .shelf3D || self == .ring }
+    var isPro: Bool { self != .feed && self != .rack }
 
     /// RealityView needs iOS 18; on iOS 17 the 3D shelf is not offered.
     static var supportsShelf3D: Bool {

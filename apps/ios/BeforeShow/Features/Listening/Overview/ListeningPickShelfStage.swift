@@ -39,8 +39,16 @@ struct ListeningPickShelfStage: View {
         }
     }
 
-    /// How long a shelf takes to open: the 3D row swings in, holds and pulls its case out; the ring only turns into place.
-    static func openingDuration(for style: ListeningPickStyle) -> Double { style == .shelf3D ? 1.4 : 1.1 }
+    /// How long a shelf takes to open: the 3D row swings in, holds and pulls its case out; the ring only turns into place;
+    /// a tossed album rises quickly, a feather settles slowly.
+    static func openingDuration(for style: ListeningPickStyle) -> Double {
+        switch style {
+        case .shelf3D: 1.4
+        case .toss: 0.9
+        case .feather: 1.4
+        case .feed, .rack, .ring: 1.1
+        }
+    }
 
     /// The on-screen step from one album to the next one back.
     static func rowStep(for style: ListeningPickStyle, count: Int, in size: CGSize) -> CGVector {
@@ -53,6 +61,10 @@ struct ListeningPickShelfStage: View {
             return CGVector(dx: RingLayout(size: size, slots: slots).radius * 2 * .pi / Double(slots), dy: 0)
         case .rack, .feed:
             return CGVector(dx: rackSide(in: size) * 0.13, dy: 0)
+        case .toss:
+            return CGVector(dx: 0, dy: flightSide(in: size) * 0.6)
+        case .feather:
+            return CGVector(dx: 0, dy: -flightSide(in: size) * 0.55)
         }
     }
 
@@ -62,6 +74,8 @@ struct ListeningPickShelfStage: View {
             switch style {
             case .rack: rack(in: size).id(tonesLoaded)
             case .ring: carousel(in: size)
+            case .toss: toss(in: size)
+            case .feather: feather(in: size)
             case .shelf3D, .feed: EmptyView()
             }
         }
@@ -141,9 +155,7 @@ struct ListeningPickShelfStage: View {
         let scale = (1 - RingLayout.perspective) / (1 - RingLayout.perspective * depth)
         let pop = smoothstep(max(0, 1 - abs(d)))
         let fade = fades ? smoothstep(min(1, max(0, Double(slots) / 2 + 0.5 - abs(d)))) : 1
-        return ListeningArtwork(url: disc.artworkURL, title: disc.title)
-            .frame(width: ring.side, height: ring.side)
-            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        return flatCover(disc, side: ring.side)
             .brightness(-0.14 * (1 - depth) / 2)
             .shadow(color: .black.opacity(0.18 + 0.22 * pop), radius: 6 + 12 * pop, y: 4 + 8 * pop)
             .scaleEffect(scale * (1 + 0.12 * pop))
@@ -153,6 +165,98 @@ struct ListeningPickShelfStage: View {
             )
             .opacity(fade)
             .zIndex(depth * 100 + pop)
+    }
+
+    private func flatCover(_ disc: ListeningDisc, side: CGFloat) -> some View {
+        ListeningArtwork(url: disc.artworkURL, title: disc.title)
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+    }
+
+    // MARK: - Toss and feathers
+
+    private static func flightSide(in size: CGSize) -> CGFloat { min(size.width * 0.5, size.height * 0.26, 260) }
+
+    /// The albums within `before` behind and `after` ahead of a point on the row.
+    private func flightRange(before: Double, after: Double) -> [Int] {
+        let lower = max(0, Int((position - before).rounded(.up)))
+        let upper = min(discs.count - 1, Int((position + after).rounded(.down)))
+        return lower <= upper ? Array(lower...upper) : []
+    }
+
+    /// 冲天抛洒: covers keep flying up behind the album on show, which rises from the spout and is thrown off in turn.
+    private func toss(in size: CGSize) -> some View {
+        let side = Self.flightSide(in: size)
+        let centre = CGPoint(x: size.width / 2, y: size.height * 0.4)
+        let arrival = 1 - pow(1 - entrance, 3)
+        return ZStack {
+            ListeningPickFlightField(style: .toss, discs: discs)
+            ZStack {
+                ForEach(flightRange(before: 1, after: 1), id: \.self) { itemIndex in
+                    tossItem(discs[itemIndex], index: itemIndex, offset: Double(itemIndex) - position, side: side, centre: centre,
+                             rise: size.height - centre.y)
+                }
+            }
+            .offset(y: (1 - arrival) * size.height * 0.6)
+            .opacity(min(1, entrance * 3))
+        }
+    }
+
+    private func tossItem(
+        _ disc: ListeningDisc, index: Int, offset d: Double, side: CGFloat, centre: CGPoint, rise: CGFloat
+    ) -> some View {
+        let pop = smoothstep(max(0, 1 - abs(d)))
+        let throwSide: Double = index.isMultiple(of: 2) ? 1 : -1
+        let force = ListeningPickFlightField.noise(index, 9)
+        let rising = min(max(d, 0), 1)
+        let gone = max(0, -d)
+        let lift = 0.55 * gone + 0.3 * gone * gone
+        return flatCover(disc, side: side)
+            .rotation3DEffect(.degrees(80 * force * gone), axis: (x: 1, y: 0.3 * throwSide, z: 0), perspective: 0.4)
+            .rotationEffect(.degrees(throwSide * ((20 + 30 * force) * rising + (25 + 50 * force) * gone)))
+            .shadow(color: .black.opacity(0.18 + 0.27 * pop), radius: 6 + 14 * pop, y: 6 + 10 * pop)
+            .scaleEffect((1 - 0.6 * rising) / (1 + 0.6 * gone) * (1 + 0.06 * pop))
+            .position(
+                x: centre.x + side * throwSide * (0.45 + 0.25 * force) * (gone + 0.35 * gone * gone),
+                y: centre.y + rise * rising - side * lift
+            )
+            // The next one shows only as it rises; the last one fades as it flies off.
+            .opacity(d > 0 ? 1 - smoothstep(rising) : 1 - smoothstep(min(1, max(0, (gone - 0.2) / 0.7))))
+            .zIndex(-abs(d))
+    }
+
+    /// 飘羽: covers keep falling behind the album on show, which floats down into place and drifts off below.
+    private func feather(in size: CGSize) -> some View {
+        let side = Self.flightSide(in: size)
+        let centre = CGPoint(x: size.width / 2, y: size.height * 0.42)
+        let arrival = 1 - pow(1 - entrance, 2)
+        return ZStack {
+            ListeningPickFlightField(style: .feather, discs: discs)
+            ZStack {
+                ForEach(flightRange(before: 1, after: 1), id: \.self) { itemIndex in
+                    featherItem(discs[itemIndex], offset: Double(itemIndex) - position, side: side, centre: centre)
+                }
+            }
+            .offset(y: -(1 - arrival) * size.height * 0.5)
+            .opacity(min(1, entrance * 2.5))
+        }
+    }
+
+    private func featherItem(_ disc: ListeningDisc, offset d: Double, side: CGFloat, centre: CGPoint) -> some View {
+        let pop = smoothstep(max(0, 1 - abs(d)))
+        let swing = sin(d * .pi / 2)
+        return flatCover(disc, side: side)
+            .rotation3DEffect(.degrees(-26 * swing), axis: (x: 0.3, y: 1, z: 0), perspective: 0.5)
+            .rotationEffect(.degrees(-14 * swing))
+            .shadow(color: .black.opacity(0.15 + 0.25 * pop), radius: 8 + 14 * pop, y: 10 + 10 * pop)
+            .scaleEffect((1 - 0.15 * abs(d)) * (1 + 0.06 * pop))
+            .position(
+                x: centre.x + side * 0.5 * swing,
+                // Lowest in the middle of a swing, like a pendulum.
+                y: centre.y - side * (0.9 * d + 0.14 * swing * swing)
+            )
+            .opacity(1 - smoothstep(min(1, abs(d))))
+            .zIndex(-abs(d))
     }
 }
 

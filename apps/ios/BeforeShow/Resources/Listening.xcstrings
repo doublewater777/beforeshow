@@ -341,6 +341,23 @@
         }
       }
     },
+    "冲天抛洒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skyward Toss"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沖天拋灑"
+          }
+        }
+      }
+    },
     "单曲和 EP" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1459,6 +1476,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重試"
+          }
+        }
+      }
+    },
+    "飘羽" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drifting Feathers"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "飄羽"
           }
         }
       }

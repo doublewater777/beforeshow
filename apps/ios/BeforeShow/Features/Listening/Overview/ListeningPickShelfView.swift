@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// 帮我挑一张 as a record shelf: the 3D cabinet, the front-facing rack or the carousel. Drag the row; the album in front comes forward.
+/// 帮我挑一张 as a record shelf: the 3D cabinet, the front-facing rack, the carousel, the toss or the feathers. Drag the row;
+/// the album in front comes forward.
 struct ListeningPickShelfView: View {
     let style: ListeningPickStyle
     let discs: [ListeningDisc]
@@ -70,7 +71,7 @@ struct ListeningPickShelfView: View {
         .onAppear {
             guard !reduceMotion else { return }
             if style == .shelf3D { entrance = 0 }
-            if style == .ring { runEntrance() }
+            if [.ring, .toss, .feather].contains(style) { runEntrance() }
         }
         .onChange(of: discs.map(\.id)) { _, _ in
             ticker.stop()

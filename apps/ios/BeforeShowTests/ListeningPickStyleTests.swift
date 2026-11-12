@@ -24,6 +24,16 @@ final class ListeningPickStyleTests: XCTestCase {
         XCTAssertEqual(resolve("ring", trialUsed: 0, supports: false), .ring)
     }
 
+    func testTossAndFeatherAreProAndShareTheTrial() {
+        for style in [ListeningPickStyle.toss, .feather] {
+            XCTAssertTrue(style.isPro)
+            XCTAssertEqual(resolve(style.rawValue, trialUsed: 2), style)
+            XCTAssertEqual(resolve(style.rawValue, trialUsed: 3), .feed)
+            XCTAssertEqual(resolve(style.rawValue, trialUsed: 3, counted: true), style)
+            XCTAssertEqual(resolve(style.rawValue, isPro: true, trialUsed: 99), style)
+        }
+    }
+
     func testProAlwaysGetsTheShelf() {
         XCTAssertEqual(resolve("shelf3D", isPro: true, trialUsed: 99), .shelf3D)
     }
@@ -39,8 +49,8 @@ final class ListeningPickStyleTests: XCTestCase {
 
     func testWithoutShelfSupportFeedIsShownAndShelfIsNotOffered() {
         XCTAssertEqual(resolve("", isPro: true, trialUsed: 0, supports: false), .feed)
-        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: false), [.feed, .rack, .ring])
-        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: true), [.shelf3D, .feed, .rack, .ring])
+        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: false), [.feed, .rack, .ring, .toss, .feather])
+        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: true), [.shelf3D, .feed, .rack, .ring, .toss, .feather])
     }
 
     func testTrialOpensLeft() {
