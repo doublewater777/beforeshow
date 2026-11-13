@@ -22,5 +22,6 @@
 ## Consequences
 
 - 云端 `syncLiveActivityPlan` 保留步骤的 `endsActivity`，`dispatchLiveActivityPush` 据此发 end；服务端需先于 App 部署。旧服务端会把它当普通 update，上一段要等 App 被唤醒时收起。
+- 60 秒后的重新规划只在 App 仍有执行时间时发生；后台唤醒后被挂起则等下次同步。
 - 用户上划强杀 App 时系统不会后台唤醒，下一段停在预约时的内容，直到下次打开 App。
 - 开场前通知不再带长按「播放」唱片和天气提示（由实时活动接管的那几场）。
