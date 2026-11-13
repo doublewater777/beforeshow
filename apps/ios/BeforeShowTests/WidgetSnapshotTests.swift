@@ -902,4 +902,56 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: nil))
         XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: "/tmp/does-not-exist-\(UUID().uuidString).jpg"))
     }
+
+    func testListeningWidgetCardDoesNotShowCoverWhenDiscTitleIsNil() {
+        let snapshotWithoutDisc = WidgetListeningSnapshot(
+            showID: UUID(),
+            showName: "草莓音乐节",
+            artistName: "回春丹",
+            discTitle: nil,
+            trackTitle: "即刻开唱",
+            coverImageURL: nil,
+            trackCount: 1,
+            phase: .playing,
+            control: .play,
+            hasSession: true,
+            generatedAt: .now
+        )
+        let entryWithoutDisc = ListeningEntry(
+            date: .now,
+            snapshot: snapshotWithoutDisc,
+            coverImagePath: "/path/to/old/cached/image.jpg"
+        )
+        let smallView = SmallListeningView(entry: entryWithoutDisc, uiImage: UIImage())
+        XCTAssertNotNil(smallView)
+
+        let mediumView = MediumListeningView(entry: entryWithoutDisc, uiImage: UIImage())
+        XCTAssertNotNil(mediumView)
+    }
+
+    func testListeningWidgetCardShowsCoverWhenDiscTitleIsPresent() {
+        let snapshotWithDisc = WidgetListeningSnapshot(
+            showID: UUID(),
+            showName: "草莓音乐节",
+            artistName: "回春丹",
+            discTitle: "首张专辑",
+            trackTitle: "即刻开唱",
+            coverImageURL: nil,
+            trackCount: 1,
+            phase: .playing,
+            control: .play,
+            hasSession: true,
+            generatedAt: .now
+        )
+        let entryWithDisc = ListeningEntry(
+            date: .now,
+            snapshot: snapshotWithDisc,
+            coverImagePath: nil
+        )
+        let smallView = SmallListeningView(entry: entryWithDisc, uiImage: UIImage())
+        XCTAssertNotNil(smallView)
+
+        let mediumView = MediumListeningView(entry: entryWithDisc, uiImage: UIImage())
+        XCTAssertNotNil(mediumView)
+    }
 }

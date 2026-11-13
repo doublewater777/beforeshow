@@ -104,7 +104,7 @@ struct SmallListeningView: View {
             let copy = WidgetListeningCopy(snapshot)
             VStack(alignment: .leading, spacing: 0) {
                 if snapshot.discTitle == nil {
-                    SquareCover(path: nil, size: 34, uiImage: uiImage)
+                    SquareCover(path: nil, size: 34, uiImage: nil)
                 } else if let context = copy.context {
                     ContextLine(text: context)
                 }
@@ -144,8 +144,13 @@ struct MediumListeningView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                SquareCover(path: snapshot.discTitle == nil ? nil : entry.coverImagePath, size: coverSize, uiImage: uiImage)
-                    .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
+                let hasDisc = snapshot.discTitle != nil
+                SquareCover(
+                    path: hasDisc ? entry.coverImagePath : nil,
+                    size: coverSize,
+                    uiImage: hasDisc ? uiImage : nil
+                )
+                .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
             }
         } else {
             WidgetListeningEmptyView()
