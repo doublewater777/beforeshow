@@ -3489,6 +3489,22 @@
         }
       }
     },
+    "$6.99" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$6.99"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$6.99"
+          }
+        }
+      }
+    },
     "$8.99" : {
       "localizations" : {
         "en" : {

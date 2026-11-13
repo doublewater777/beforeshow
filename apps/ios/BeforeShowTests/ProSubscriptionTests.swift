@@ -14,7 +14,7 @@ final class ProSubscriptionTests: XCTestCase {
             "com.doublewaterapps.beforeshow.pro.yearly.discount",
             "com.doublewaterapps.beforeshow.pro.lifetime.discount"
         ])
-        XCTAssertEqual(products.map(\.priceText), ["$4.99/年", "$8.99", "$3.99/年", "$5.99"])
+        XCTAssertEqual(products.map(\.priceText), ["$4.99/年", "$8.99", "$3.99/年", "$6.99"])
         XCTAssertEqual(ProSubscriptionCatalog.standardPlans, [.yearly, .lifetime])
         XCTAssertEqual(ProSubscriptionCatalog.winbackPlans, [.yearlyDiscount, .lifetimeDiscount])
         XCTAssertTrue(ProSubscriptionPlan.lifetime.isLifetime)

@@ -128,7 +128,7 @@ enum ProSubscriptionCatalog {
             id: lifetimeDiscountProductID,
             plan: .lifetimeDiscount,
             displayName: BSLocalization.text("BeforeShow Pro 特惠终身"),
-            priceText: BSLocalization.text("$5.99"),
+            priceText: BSLocalization.text("$6.99"),
             benefitCopy: [
                 "无限添加现场"
             ]

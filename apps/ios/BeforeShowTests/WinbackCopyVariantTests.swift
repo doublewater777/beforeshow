@@ -63,6 +63,10 @@ final class WinbackCopyExperimentTests: XCTestCase {
             ProPaywallCopy.winbackSaveLabel(.yearlyDiscount, variant: .control),
             BSLocalization.text("省 20%")
         )
+        XCTAssertEqual(
+            ProPaywallCopy.winbackSaveLabel(.lifetimeDiscount, variant: .control),
+            BSLocalization.text("省 20%")
+        )
         // 非挽留方案恒为空角标。
         XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.yearly, variant: .access), "")
         XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.lifetime, variant: .access), "")
@@ -263,7 +267,7 @@ final class PurchaseRevenueTests: XCTestCase {
 final class WinbackCopyVariantTests: XCTestCase {
     func testControlCopyWhenFlagNotEvaluated() {
         XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.yearlyDiscount), BSLocalization.text("省 20%"))
-        XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.lifetimeDiscount), BSLocalization.text("省 33%"))
+        XCTAssertEqual(ProPaywallCopy.winbackSaveLabel(.lifetimeDiscount), BSLocalization.text("省 20%"))
     }
 
     /// 非挽留方案不论 flag 取何值都不给角标，行为与原来一致。

@@ -2,6 +2,46 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
+// MARK: - Listening Timeline Entry
+
+struct ListeningEntry: TimelineEntry {
+    let date: Date
+    let snapshot: WidgetListeningSnapshot?
+    let coverImagePath: String?
+
+    static let empty = ListeningEntry(
+        date: .now,
+        snapshot: nil,
+        coverImagePath: nil
+    )
+}
+
+// MARK: - App-side Widget Preview Card
+
+struct ListeningWidgetCard: View {
+    let entry: ListeningEntry
+    let family: WidgetFamily
+    var uiImage: UIImage? = nil
+
+    var body: some View {
+        Group {
+            switch family {
+            case .systemSmall:
+                SmallListeningView(entry: entry, uiImage: uiImage)
+            default:
+                MediumListeningView(entry: entry, uiImage: uiImage)
+            }
+        }
+        .widgetTile(family: family) {
+            if entry.snapshot?.discTitle != nil {
+                PosterBackground(coverImagePath: entry.coverImagePath, blurred: family != .systemSmall, uiImage: uiImage)
+            } else {
+                CoverAmbientBloom(ambient: nil)
+            }
+        }
+    }
+}
+
 // MARK: - Listening Widget Views
 // 与 App 迷你播放器同一种视觉：海报背景 + 静态方形封面 + 一个播放/暂停键。
 // 切歌交给系统正在播放控件。
@@ -33,7 +73,7 @@ struct ListeningWidgetView: View {
 
 // MARK: - 文案
 
-private struct ListeningCopy {
+private struct WidgetListeningCopy {
     /// 主标题：曲目 > 唱片 > 演出名
     let title: String
     /// 副标题：有曲目/唱片时给艺人；只剩演出名时不再补字
@@ -55,15 +95,16 @@ private struct ListeningCopy {
 
 // MARK: - 小号：海报铺满
 
-private struct SmallListeningView: View {
+struct SmallListeningView: View {
     let entry: ListeningEntry
+    var uiImage: UIImage? = nil
 
     var body: some View {
         if let snapshot = entry.snapshot {
-            let copy = ListeningCopy(snapshot)
+            let copy = WidgetListeningCopy(snapshot)
             VStack(alignment: .leading, spacing: 0) {
                 if snapshot.discTitle == nil {
-                    SquareCover(path: nil, size: 34)
+                    SquareCover(path: nil, size: 34, uiImage: nil)
                 } else if let context = copy.context {
                     ContextLine(text: context)
                 }
@@ -75,21 +116,22 @@ private struct SmallListeningView: View {
                 }
             }
         } else {
-            ListeningEmptyView()
+            WidgetListeningEmptyView()
         }
     }
 }
 
 // MARK: - 中号：文字列在左、方形封面在右
 
-private struct MediumListeningView: View {
+struct MediumListeningView: View {
     let entry: ListeningEntry
+    var uiImage: UIImage? = nil
 
     private let coverSize: CGFloat = 108
 
     var body: some View {
         if let snapshot = entry.snapshot {
-            let copy = ListeningCopy(snapshot)
+            let copy = WidgetListeningCopy(snapshot)
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 0) {
                     if let context = copy.context {
@@ -102,11 +144,16 @@ private struct MediumListeningView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                SquareCover(path: snapshot.discTitle == nil ? nil : entry.coverImagePath, size: coverSize)
-                    .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
+                let hasDisc = snapshot.discTitle != nil
+                SquareCover(
+                    path: hasDisc ? entry.coverImagePath : nil,
+                    size: coverSize,
+                    uiImage: hasDisc ? uiImage : nil
+                )
+                .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
             }
         } else {
-            ListeningEmptyView()
+            WidgetListeningEmptyView()
         }
     }
 }
@@ -125,7 +172,7 @@ private struct ContextLine: View {
 }
 
 private struct TitleBlock: View {
-    let copy: ListeningCopy
+    let copy: WidgetListeningCopy
     let snapshot: WidgetListeningSnapshot
     let titleSize: CGFloat
 
@@ -146,14 +193,15 @@ private struct TitleBlock: View {
 }
 
 /// 海报背景：封面铺底，压暗后承载文字。中号再做模糊，让右侧方形封面成为主体。
-private struct PosterBackground: View {
+struct PosterBackground: View {
     let coverImagePath: String?
     let blurred: Bool
+    var uiImage: UIImage? = nil
 
     var body: some View {
         ZStack {
             WidgetTheme.background
-            if let image = coverImagePath.flatMap(UIImage.init(contentsOfFile:)) {
+            if let image = uiImage ?? coverImagePath.flatMap(UIImage.init(contentsOfFile:)) {
                 Image(uiImage: image)
                     .resizable()
                     .bsFullColorWidgetImage()
@@ -176,14 +224,15 @@ private struct PosterBackground: View {
 }
 
 /// 与迷你播放器的封面一致：静态方形、细描边；封面未就绪时是音符占位。
-private struct SquareCover: View {
+fileprivate struct SquareCover: View {
     let path: String?
     let size: CGFloat
+    var uiImage: UIImage? = nil
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size > 60 ? 8 : 6, style: .continuous)
         Group {
-            if let image = path.flatMap(UIImage.init(contentsOfFile:)) {
+            if let image = uiImage ?? path.flatMap(UIImage.init(contentsOfFile:)) {
                 Image(uiImage: image)
                     .resizable()
                     .bsFullColorWidgetImage()
@@ -246,7 +295,7 @@ private struct PlayPauseButton: View {
     }
 }
 
-private struct ListeningEmptyView: View {
+struct WidgetListeningEmptyView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SquareCover(path: nil, size: 34)

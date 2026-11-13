@@ -226,8 +226,8 @@ final class WidgetSnapshotTests: XCTestCase {
         }
 
         let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
-        // 默认 4h 演出 → 最多提前 30 分钟 (19:30), 且距离结束不超过 8h
-        XCTAssertEqual(earliest.timeIntervalSince(start), -30 * 60, accuracy: 1)
+        // 默认 4h 演出 → 提前 3 小时, 且距离结束不超过 8h
+        XCTAssertEqual(earliest.timeIntervalSince(start), -3 * 3_600, accuracy: 1)
         XCTAssertLessThanOrEqual(end.timeIntervalSince(earliest), 8 * 3_600)
         // 旧逻辑 12h lead 会在开场前 4h 被系统掐断
         let wrongLead = start.addingTimeInterval(-12 * 3_600)
@@ -745,7 +745,7 @@ final class WidgetSnapshotTests: XCTestCase {
         let normalEnd = start.addingTimeInterval(4 * 3_600)
         XCTAssertEqual(
             LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: normalEnd),
-            start.addingTimeInterval(-30 * 60)
+            start.addingTimeInterval(-3 * 3_600)
         )
     }
 
@@ -901,5 +901,57 @@ final class WidgetSnapshotTests: XCTestCase {
     func testAmbientColorFromMissingCoverPathIsNil() {
         XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: nil))
         XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: "/tmp/does-not-exist-\(UUID().uuidString).jpg"))
+    }
+
+    func testListeningWidgetCardDoesNotShowCoverWhenDiscTitleIsNil() {
+        let snapshotWithoutDisc = WidgetListeningSnapshot(
+            showID: UUID(),
+            showName: "草莓音乐节",
+            artistName: "回春丹",
+            discTitle: nil,
+            trackTitle: "即刻开唱",
+            coverImageURL: nil,
+            trackCount: 1,
+            phase: .playing,
+            control: .play,
+            hasSession: true,
+            generatedAt: .now
+        )
+        let entryWithoutDisc = ListeningEntry(
+            date: .now,
+            snapshot: snapshotWithoutDisc,
+            coverImagePath: "/path/to/old/cached/image.jpg"
+        )
+        let smallView = SmallListeningView(entry: entryWithoutDisc, uiImage: UIImage())
+        XCTAssertNotNil(smallView)
+
+        let mediumView = MediumListeningView(entry: entryWithoutDisc, uiImage: UIImage())
+        XCTAssertNotNil(mediumView)
+    }
+
+    func testListeningWidgetCardShowsCoverWhenDiscTitleIsPresent() {
+        let snapshotWithDisc = WidgetListeningSnapshot(
+            showID: UUID(),
+            showName: "草莓音乐节",
+            artistName: "回春丹",
+            discTitle: "首张专辑",
+            trackTitle: "即刻开唱",
+            coverImageURL: nil,
+            trackCount: 1,
+            phase: .playing,
+            control: .play,
+            hasSession: true,
+            generatedAt: .now
+        )
+        let entryWithDisc = ListeningEntry(
+            date: .now,
+            snapshot: snapshotWithDisc,
+            coverImagePath: nil
+        )
+        let smallView = SmallListeningView(entry: entryWithDisc, uiImage: UIImage())
+        XCTAssertNotNil(smallView)
+
+        let mediumView = MediumListeningView(entry: entryWithDisc, uiImage: UIImage())
+        XCTAssertNotNil(mediumView)
     }
 }

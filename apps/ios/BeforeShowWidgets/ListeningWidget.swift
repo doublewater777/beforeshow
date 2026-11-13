@@ -1,20 +1,6 @@
 import SwiftUI
 import WidgetKit
 
-// MARK: - Listening Timeline Entry
-
-struct ListeningEntry: TimelineEntry {
-    let date: Date
-    let snapshot: WidgetListeningSnapshot?
-    let coverImagePath: String?
-
-    static let empty = ListeningEntry(
-        date: .now,
-        snapshot: nil,
-        coverImagePath: nil
-    )
-}
-
 // MARK: - Timeline Provider
 
 struct ListeningTimelineProvider: TimelineProvider {
