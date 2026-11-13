@@ -52,25 +52,27 @@ struct CountdownShareCard: View {
 
     private static let size = CountdownShareExport.renderSize
     private static let margin: CGFloat = 28
-    private static let stageHeight: CGFloat = 372
+    private static let stageHeight: CGFloat = 420
+    private static let coverWidth: CGFloat = 204
 
     var body: some View {
         ZStack(alignment: .top) {
             BSColor.Stage.background
             BSStageScene(colors: lights, lighting: .show(energy: energy), powered: true, height: Self.stageHeight) {
-                HomeHeroStage(show: show, snapshot: snapshot, coverWidth: 176, reduceMotion: true, onStage: true)
+                HomeHeroStage(show: show, snapshot: snapshot, coverWidth: Self.coverWidth, reduceMotion: true, onStage: true)
+                    // The larger poster keeps its foot where the one on 当前 stands, just above the crowd.
+                    .offset(y: -18)
             }
+            // Pinned to the foot: a long name lifts the countdown further over the crowd instead of off the card.
             VStack(alignment: .leading, spacing: 0) {
+                Spacer(minLength: 0)
                 countdown
                 LinearGradient(colors: [BSColor.Stage.accent.opacity(0.9), BSColor.Stage.accent.opacity(0.15), .clear], startPoint: .leading, endPoint: .trailing)
                     .frame(height: 1)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 12)
                 identity
-                Spacer(minLength: 16)
-                footer
             }
             .padding(.horizontal, Self.margin)
-            .padding(.top, Self.stageHeight - 46)
             .padding(.bottom, 24)
         }
         .frame(width: Self.size.width, height: Self.size.height)
@@ -118,31 +120,32 @@ struct CountdownShareCard: View {
 
     private var identity: some View {
         let copy = ShowIdentityCopy(name: show.name, venueName: show.venueName, city: show.city)
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 10) {
             Text(copy.title)
                 .font(BSFont.Editorial.serif(24))
                 .foregroundStyle(BSColor.Stage.foreground)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
                 .fixedSize(horizontal: false, vertical: true)
-            if let venue = copy.venueSummary {
-                Text(venue)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .lineLimit(1)
-            }
-        }
-    }
-
-    private var footer: some View {
-        HStack(alignment: .bottom) {
-            BSShareByline()
-            Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 7) {
+            // Where it is at the top of the code, what the code does and whose app it opens at its foot.
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let venue = copy.venueSummary {
+                        Text(venue)
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(BSColor.Stage.muted)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 12)
+                    Text(BSLocalization.text("扫码添加这场"))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                    BSShareByline()
+                        .padding(.top, 10)
+                }
+                .frame(height: ShareQRCode.side)
+                Spacer(minLength: 0)
                 ShareQRCode(link: link)
-                Text(BSLocalization.text("扫码添加这场"))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(BSColor.Stage.muted)
             }
         }
     }
@@ -151,6 +154,10 @@ struct CountdownShareCard: View {
 /// Dark ink on a light tile, whatever the card's colours: scanners read that one way round.
 private struct ShareQRCode: View {
     let link: URL
+
+    private static let code: CGFloat = 92
+    private static let inset: CGFloat = 6
+    static let side = code + inset * 2
 
     var body: some View {
         Group {
@@ -162,8 +169,8 @@ private struct ShareQRCode: View {
                     .foregroundStyle(BSColor.Stage.background)
             }
         }
-        .frame(width: 92, height: 92)
-        .padding(6)
+        .frame(width: Self.code, height: Self.code)
+        .padding(Self.inset)
         .background(BSColor.Stage.heroIvory, in: RoundedRectangle(cornerRadius: BSRadius.sm))
     }
 
