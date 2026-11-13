@@ -31,6 +31,7 @@ struct NotificationPortfolioPlanner {
         currentShowID: UUID?,
         recommendations: FeatureRecommendationSnapshot? = nil,
         currentListeningRoster: ListeningReminderRoster? = nil,
+        liveActivityOpenings: [UUID: Date] = [:],
         now: Date = Date()
     ) -> NotificationPortfolioPlan {
         let eligibleShows = shows.filter(Self.isEligibleForPortfolio)
@@ -74,7 +75,14 @@ struct NotificationPortfolioPlanner {
             }
         }
 
-        naturalRequests = Self.deduplicated(naturalRequests)
+        // 实时活动预约的 alert 已经替这次开场说了「开场前」;开场标记仍留在 retained 里。
+        // 只认同一次开场:延期后的新开场不受旧记录影响。
+        naturalRequests = Self.deduplicated(naturalRequests).filter {
+            guard $0.milestone == .showDay, let start = $0.showStartTime,
+                  let alert = liveActivityOpenings[$0.showID] else { return true }
+            return !(alert >= start.addingTimeInterval(-LiveActivityPlanner.startLeadTime - 60)
+                && alert < start.addingTimeInterval(LiveActivityPlanner.maxActiveDuration))
+        }
 
         let allCandidates = Self.sortedForScheduling(naturalRequests)
         // Reserve capacity for openings first, then wanted performances. Earlier

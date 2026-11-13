@@ -20,6 +20,18 @@ func synchronizeFreeShowCapacity(
     )
 }
 
+/// 预约的实时活动到点会把 App 后台拉起:此时没有界面,要在这里同步一次,
+/// 才能结束上一段、把新一段的推送 token 交给云端。
+@MainActor
+func syncLiveActivitiesOnLaunch(in modelContext: ModelContext) {
+    guard let shows = try? modelContext.fetch(FetchDescriptor<Show>(sortBy: [SortDescriptor(\.date)])),
+          let selections = try? modelContext.fetch(FetchDescriptor<CurrentShowSelection>()) else { return }
+    WidgetDataSync.sync(
+        shows: shows.filter(\.isAttached),
+        manualSelection: CurrentShowSelectionStore.canonical(in: selections)
+    )
+}
+
 enum ForegroundMediaMaintenancePolicy {
     static let minimumInterval: TimeInterval = 10 * 60
 

@@ -18,17 +18,21 @@ struct LiveActivityTransitionStep: Codable, Equatable, Sendable {
     var staleAt: Date?
     var state: ShowLiveActivityAttributes.ContentState
     var reminderEvents: [LiveActivityReminderEvent]? = nil
+    /// 分段交接:到点结束本段活动(立即收起),由下一段接力;不是散场。
+    var endsActivity: Bool? = nil
 
     init(
         scheduledAt: Date,
         staleAt: Date? = nil,
         state: ShowLiveActivityAttributes.ContentState,
-        reminderEvents: [LiveActivityReminderEvent]? = nil
+        reminderEvents: [LiveActivityReminderEvent]? = nil,
+        endsActivity: Bool? = nil
     ) {
         self.scheduledAt = scheduledAt
         self.staleAt = staleAt
         self.state = state
         self.reminderEvents = reminderEvents
+        self.endsActivity = endsActivity
     }
 }
 
@@ -66,7 +70,7 @@ struct LiveActivityBoundedTransitionPlan: Codable, Equatable, Sendable {
 }
 
 enum LiveActivityTransitionPlanBuilder {
-    /// 依据当前快照生成有界计划（截至 activityEnd）
+    /// 依据当前快照生成有界计划（截至本段结束；最后一段即散场）
     static func buildPlan(
         snapshot: WidgetShowSnapshot,
         now: Date,
@@ -88,7 +92,10 @@ enum LiveActivityTransitionPlanBuilder {
             return nil
         }
 
-        let activityEnd = currentDesired.activityEnd
+        let segmentEnd = LiveActivityPlanner.segments(snapshot: snapshot, desired: currentDesired)
+            .first { now < $0.end }?.end
+        let activityEnd = min(segmentEnd ?? currentDesired.activityEnd, currentDesired.activityEnd)
+        let isHandover = activityEnd < currentDesired.activityEnd
         var refreshDates: Set<Date> = [now]
 
         var cursor = now
@@ -106,7 +113,16 @@ enum LiveActivityTransitionPlanBuilder {
         var steps: [LiveActivityTransitionStep] = []
 
         for date in sortedDates {
-            if date >= activityEnd {
+            if date >= activityEnd, isHandover {
+                if let desired = LiveActivityPlanner.desiredState(
+                    snapshot: snapshot, now: date, coverFilename: coverFilename,
+                    focusedPerformanceID: focusedPerformanceID, artistImageFilename: artistImageFilename
+                ) {
+                    steps.append(LiveActivityTransitionStep(
+                        scheduledAt: date, staleAt: date, state: desired.state, endsActivity: true
+                    ))
+                }
+            } else if date >= activityEnd {
                 // 自然散场态
                 if let boundaries = LiveActivityPlanner.naturalEndBoundary(snapshot: snapshot, now: date) {
                     let finalState = LiveActivityPlanner.naturalFinalState(

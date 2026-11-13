@@ -183,3 +183,41 @@ test("dispatchLiveActivityPush gracefully skips when APNs credentials are missin
   assert.equal(res.skippedDueToConfig, true);
   assert.equal(res.dispatchedCount, 0);
 });
+
+test("dispatchLiveActivityPush ends a handed-over segment immediately at its boundary", async () => {
+  const now = new Date("2026-10-21T15:02:00Z");
+  const boundary = new Date("2026-10-21T15:00:00Z");
+  let pushedPayload = null;
+  let finalStatus = null;
+
+  const plan = {
+    _id: "dev-1:show-segment",
+    activityPushToken: "token-a",
+    isProduction: false,
+    status: "active",
+    steps: [
+      {
+        stepIndex: 0,
+        scheduledAt: boundary,
+        staleAt: boundary,
+        endsActivity: true,
+        state: { showName: "Strawberry Festival", isEnded: false },
+        isConsumed: false
+      }
+    ]
+  };
+
+  await main({}, {}, {
+    now: () => now,
+    findActivePlans: async () => [plan],
+    updatePlan: async (_, updateData) => { finalStatus = updateData.status; },
+    transport: async (args) => {
+      pushedPayload = args.payload;
+      return { ok: true, statusCode: 200 };
+    }
+  });
+
+  assert.equal(pushedPayload.aps.event, "end");
+  assert.equal(pushedPayload.aps["dismissal-date"], Math.floor(boundary.getTime() / 1000));
+  assert.equal(finalStatus, "completed");
+});

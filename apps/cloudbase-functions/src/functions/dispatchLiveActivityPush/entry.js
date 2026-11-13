@@ -117,7 +117,7 @@ export async function main(event = {}, context = {}, options = {}) {
           body: targetStep.alertBody || targetStep.state?.showName || "", sound: "default" };
       }
 
-      const isEnd = Boolean(targetStep.state?.isEnded);
+      const isEnd = Boolean(targetStep.state?.isEnded || targetStep.endsActivity);
       // Per-event handover metadata stays on the server; the widget only needs the count.
       const { reminderPerformanceIDs: ids, ...contentState } = targetStep.state;
       if (contentState.reminderCount == null && (allDueEvents.length || freshEvents.length)) {

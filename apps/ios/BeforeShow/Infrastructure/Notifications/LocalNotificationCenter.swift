@@ -185,6 +185,7 @@ final class LocalNotificationCenter {
                 currentShowID: currentShowID,
                 recommendations: recommendations,
                 currentListeningRoster: listeningRoster,
+                liveActivityOpenings: LiveActivityOpeningCoverage().coveredOpenings(now: now),
                 now: now
             )
             let normalization = NotificationPortfolioRecordStore.normalize(

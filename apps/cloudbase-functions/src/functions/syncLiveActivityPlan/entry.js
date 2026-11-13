@@ -95,6 +95,8 @@ export async function main(event = {}, context = {}, options = {}) {
       staleAt,
       state,
       reminderEvents: step.reminderEvents ?? null,
+      // Segment handover: the activity ends at this step so the next segment can take over.
+      endsActivity: Boolean(step.endsActivity),
       isReminder,
       alertTitle,
       alertBody,

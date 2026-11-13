@@ -1,30 +1,14 @@
 import Foundation
 
 // MARK: - Live Activity Planner
-// 生命周期决策的纯逻辑,与 ActivityKit 解耦:输入「现在 + 快照 + 现有活动摘要」,
-// 输出动作。actor 只负责把动作翻译成 ActivityKit 调用。
-// 规则(评审定稿):
-// - 活跃窗口 = 预计谢幕前最多 8h(平台活跃上限)
-// - 窗口外:iOS 26+ 可 schedule;pending 内容未变时保留,不重复 schedule
-// - pending 的 start 在 request/schedule 时固定,update 无法改启动时刻
-//   → 内容变了必须 end + request/schedule(或超出视野则 end),不能 .update / .none 保留
-// - 无现场 / 已取消 / 已过谢幕:结束全部
+// 实时活动内容与时间边界的纯逻辑,与 ActivityKit 解耦。
+// - 平台单个活动最多活跃 8h:音乐节一天(开场前 3h → 散场)从散场往前按 8h 切段,
+//   每段一个活动;普通现场只保留散场前最后 8h 一段。
+// - 生命周期决策(请求/预约/更新/结束)见 app 侧 LiveActivityLifecyclePlanner。
 
-/// 现有活动的最小摘要(由 actor 从 ActivityKit 读取后传入)
-struct LiveActivityExisting: Equatable {
-    var showID: String
-    var isPending: Bool
-    var state: ShowLiveActivityAttributes.ContentState
-}
-
-enum LiveActivityAction: Equatable {
-    case keep(ShowLiveActivityAttributes.ContentState)
-    case none
-    case update(ShowLiveActivityAttributes.ContentState)
-    case request(ShowLiveActivityAttributes.ContentState)
-    case schedule(ShowLiveActivityAttributes.ContentState, start: Date)
-    case endNaturally(ShowLiveActivityAttributes.ContentState, dismissAt: Date)
-    case endAll
+struct LiveActivitySegment: Equatable {
+    var start: Date
+    var end: Date
 }
 
 enum LiveActivityPlanner {
@@ -342,7 +326,7 @@ enum LiveActivityPlanner {
                       let maxEnd = day.performances.map(\.endsAt).max() else { continue }
                 let dayStart = sessions.first { $0.date == day.date }?.startsAt ?? minStart
                 let dayEnd = sessions.first { $0.date == day.date }?.endsAt ?? maxEnd
-                boundaries.append(earliestStart(activityStart: dayStart, activityEnd: dayEnd))
+                boundaries += segments(dayStart: dayStart, dayEnd: dayEnd, splitsLongDays: true).map(\.start)
                 boundaries.append(dayEnd)
                 for performance in day.performances {
                     boundaries.append(performance.startsAt.addingTimeInterval(-LivePerformanceSnapshot.startingSoonLead))
@@ -358,15 +342,41 @@ enum LiveActivityPlanner {
             let activityEnd = timeState.endBoundary ?? start.addingTimeInterval(
                 TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600
             )
-            boundaries.append(earliestStart(activityStart: start, activityEnd: activityEnd))
+            boundaries += segments(dayStart: start, dayEnd: activityEnd, splitsLongDays: false).map(\.start)
             boundaries.append(start)
             boundaries.append(activityEnd)
         }
         return boundaries.filter { $0 > now }.min()
     }
 
-    static func earliestStart(activityStart: Date, activityEnd: Date) -> Date {
-        max(activityStart.addingTimeInterval(-startLeadTime), activityEnd.addingTimeInterval(-maxActiveDuration))
+    /// 覆盖「开场前 3h → 散场」。拆段时从散场往前切,压轴所在的最后一段最长;
+    /// 不拆时只留最后 8h。
+    static func segments(dayStart: Date, dayEnd: Date, splitsLongDays: Bool) -> [LiveActivitySegment] {
+        let windowStart = dayStart.addingTimeInterval(-startLeadTime)
+        guard splitsLongDays else {
+            return [LiveActivitySegment(
+                start: max(windowStart, dayEnd.addingTimeInterval(-maxActiveDuration)), end: dayEnd
+            )]
+        }
+        var result: [LiveActivitySegment] = []
+        var end = dayEnd
+        repeat {
+            let start = max(windowStart, end.addingTimeInterval(-maxActiveDuration))
+            result.insert(LiveActivitySegment(start: start, end: end), at: 0)
+            end = start
+        } while end > windowStart
+        return result
+    }
+
+    /// 当前现场这一天的分段(desiredState 选出的那一天)。
+    static func segments(
+        snapshot: WidgetShowSnapshot,
+        desired: (state: ShowLiveActivityAttributes.ContentState, activityEnd: Date, dayStart: Date)
+    ) -> [LiveActivitySegment] {
+        segments(
+            dayStart: desired.dayStart, dayEnd: desired.activityEnd,
+            splitsLongDays: !(snapshot.timetable?.days.isEmpty ?? true)
+        )
     }
 
     static func naturalEndBoundary(snapshot: WidgetShowSnapshot, now: Date) -> (dayStart: Date, activityEnd: Date)? {
@@ -420,70 +430,6 @@ enum LiveActivityPlanner {
             endKind: !(snapshot.timetable?.days.isEmpty ?? true) ? "festival"
                 : snapshot.timing.endTime == nil ? "tracking" : "show"
         )
-    }
-
-    static func action(
-        snapshot: WidgetShowSnapshot?,
-        now: Date,
-        existing: [LiveActivityExisting],
-        coverFilename: String?,
-        focusedPerformanceID: UUID? = nil,
-        artistImageFilename: (String) -> String? = { _ in nil },
-        supportsScheduling: Bool = true
-    ) -> LiveActivityAction {
-        guard let snapshot,
-              snapshot.timing.changeStatus != .canceled,
-              snapshot.timing.endedAt == nil,
-              !(snapshot.timing.changeStatus == .postponed && snapshot.timing.postponedDate == nil) else {
-            return .endAll
-        }
-
-        let showID = snapshot.showID.uuidString
-        let matching = existing.filter { $0.showID == showID }
-
-        guard let desired = desiredState(
-            snapshot: snapshot, now: now, coverFilename: coverFilename,
-            focusedPerformanceID: focusedPerformanceID, artistImageFilename: artistImageFilename
-        ) else {
-            if let boundaries = naturalEndBoundary(snapshot: snapshot, now: now) {
-                let dismissAt = boundaries.activityEnd.addingTimeInterval(dismissalGracePeriod)
-                if now <= dismissAt && !matching.isEmpty {
-                    let finalState = naturalFinalState(
-                        snapshot: snapshot,
-                        dayStart: boundaries.dayStart,
-                        activityEnd: boundaries.activityEnd,
-                        coverFilename: coverFilename
-                    )
-                    return .endNaturally(finalState, dismissAt: dismissAt)
-                }
-            }
-            return .endAll
-        }
-
-        let earliest = earliestStart(activityStart: desired.dayStart, activityEnd: desired.activityEnd)
-        let inWindow = now >= earliest
-        let pending = matching.filter(\.isPending)
-        let hasStalePending = pending.contains { $0.state != desired.state }
-        let hasUnchangedPending = pending.contains { $0.state == desired.state }
-
-        if inWindow {
-            if hasStalePending || matching.isEmpty {
-                return .request(desired.state)
-            }
-            return .update(desired.state)
-        }
-
-        guard supportsScheduling else { return existing.isEmpty ? .none : .endAll }
-
-        if hasUnchangedPending {
-            return .keep(desired.state)
-        }
-
-        if earliest.timeIntervalSince(now) > scheduleHorizon {
-            return matching.isEmpty ? .none : .endAll
-        }
-
-        return .schedule(desired.state, start: earliest)
     }
 
     /// 实时活动当前会用到的艺人图(主现场 / 同时在演 / 下一场),由 app 侧先缓存小图。

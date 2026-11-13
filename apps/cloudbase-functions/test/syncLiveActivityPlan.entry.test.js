@@ -183,3 +183,31 @@ test("syncLiveActivityPlan rejects unauthorized secret tampering", async () => {
   assert.equal(res.ok, false);
   assert.equal(res.error.code, "PLAN_AUTH_FORBIDDEN");
 });
+
+test("syncLiveActivityPlan keeps the segment handover end marker", async () => {
+  const now = new Date("2026-10-21T08:00:00Z");
+  let saved;
+  const result = await main({
+    appInstanceId: "swift-device",
+    appSignature: VALID_APP_SIG,
+    planSecret: VALID_SECRET,
+    plan: {
+      showID: "swift-show",
+      activityPushToken: "test-token",
+      version: 1,
+      deadline: 814266000,
+      steps: [
+        { scheduledAt: 814263300, state: { showName: "Test", startDate: 814263300 } },
+        { scheduledAt: 814266000, staleAt: 814266000, endsActivity: true,
+          state: { showName: "Test", startDate: 814263300 } }
+      ]
+    }
+  }, {}, {
+    now: () => now,
+    findExisting: async () => null,
+    savePlan: async record => { saved = record; }
+  });
+  assert.equal(result.ok, true);
+  assert.equal(saved.steps[0].endsActivity, false);
+  assert.equal(saved.steps[1].endsActivity, true);
+});
