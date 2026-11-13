@@ -58,7 +58,7 @@ final class LiveActivityAlertTests: XCTestCase {
         let coverage = makeCoverage()
         let show = UUID()
         XCTAssertTrue(coverage.reconcile(liveShowID: show, coveredOpening: date(17), now: date(10)))
-        XCTAssertEqual(coverage.coveredShowIDs(now: date(10)), [show])
+        XCTAssertEqual(coverage.coveredOpenings(now: date(10)), [show: date(17)])
         XCTAssertFalse(coverage.reconcile(liveShowID: show, coveredOpening: date(17), now: date(11)))
     }
 
@@ -67,7 +67,7 @@ final class LiveActivityAlertTests: XCTestCase {
         let show = UUID()
         coverage.reconcile(liveShowID: show, coveredOpening: date(17), now: date(10))
         XCTAssertTrue(coverage.reconcile(liveShowID: show, coveredOpening: nil, now: date(12)))
-        XCTAssertEqual(coverage.coveredShowIDs(now: date(12)), [])
+        XCTAssertEqual(coverage.coveredOpenings(now: date(12)), [:])
     }
 
     /// 实时活动已经开始(alert 已响),之后不能让本地通知补发一条。
@@ -76,9 +76,9 @@ final class LiveActivityAlertTests: XCTestCase {
         let show = UUID()
         coverage.reconcile(liveShowID: show, coveredOpening: date(17), now: date(10))
         XCTAssertFalse(coverage.reconcile(liveShowID: show, coveredOpening: nil, now: date(17, 30)))
-        XCTAssertEqual(coverage.coveredShowIDs(now: date(17, 30)), [show])
+        XCTAssertEqual(coverage.coveredOpenings(now: date(17, 30)), [show: date(17)])
         coverage.reconcile(liveShowID: nil, coveredOpening: nil, now: date(17 + 49))
-        XCTAssertEqual(coverage.coveredShowIDs(now: date(17 + 49)), [])
+        XCTAssertEqual(coverage.coveredOpenings(now: date(17 + 49)), [:])
     }
 
     func testCoverageMovesWithTheLiveActivityShow() {
@@ -87,7 +87,7 @@ final class LiveActivityAlertTests: XCTestCase {
         let second = UUID()
         coverage.reconcile(liveShowID: first, coveredOpening: date(17), now: date(10))
         coverage.reconcile(liveShowID: second, coveredOpening: date(40), now: date(11))
-        XCTAssertEqual(coverage.coveredShowIDs(now: date(11)), [second])
+        XCTAssertEqual(coverage.coveredOpenings(now: date(11)), [second: date(40)])
     }
 
     // MARK: - Notification portfolio
@@ -98,7 +98,7 @@ final class LiveActivityAlertTests: XCTestCase {
         let show = try Show(name: "现场", date: date(24), startTime: date(44))
         let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
             shows: [show], existingRecords: [], currentShowID: show.id,
-            liveActivityOpenings: [show.id], now: date(10)
+            liveActivityOpenings: [show.id: date(41)], now: date(10)
         )
         XCTAssertFalse(plan.scheduledRequests.contains { $0.milestone == .showDay })
         XCTAssertTrue(plan.modelRequests.contains { $0.milestone == .showDay }, "开场标记留着,开演前不会被补发")
@@ -107,6 +107,30 @@ final class LiveActivityAlertTests: XCTestCase {
             shows: [show], existingRecords: [], currentShowID: show.id, now: date(10)
         )
         XCTAssertTrue(uncovered.scheduledRequests.contains { $0.milestone == .showDay })
+    }
+
+    /// 被 8 小时上限截短时 alert 晚于本地那条,同一次开场仍算接管。
+    func testShortenedOpeningStillCoversTheReminder() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(name: "现场", date: date(24), startTime: date(44))
+        let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
+            shows: [show], existingRecords: [], currentShowID: show.id,
+            liveActivityOpenings: [show.id: date(43)], now: date(10)
+        )
+        XCTAssertFalse(plan.scheduledRequests.contains { $0.milestone == .showDay })
+    }
+
+    /// 开场后延期:旧开场的接管记录不能挡住新日期的本地提醒。
+    func testPastOpeningDoesNotCoverAPostponedOne() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(name: "现场", date: date(48), startTime: date(68))
+        let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
+            shows: [show], existingRecords: [], currentShowID: show.id,
+            liveActivityOpenings: [show.id: date(41)], now: date(46)
+        )
+        XCTAssertTrue(plan.scheduledRequests.contains { $0.milestone == .showDay })
     }
 
     // MARK: - Helpers

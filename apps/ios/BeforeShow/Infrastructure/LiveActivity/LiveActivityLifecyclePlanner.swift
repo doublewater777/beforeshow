@@ -122,6 +122,16 @@ extension LiveActivityPlanner {
     }
 
     /// 这一天的第一段:它的预约 alert 就是开场前的那条提醒。
+    /// 段到点后宽限期内若还在等系统激活,宽限期一过要再规划一次。
+    static func activationRetryDate(snapshot: WidgetShowSnapshot?, now: Date) -> Date? {
+        guard let snapshot,
+              let desired = desiredState(snapshot: snapshot, now: now, coverFilename: nil),
+              let segment = segments(snapshot: snapshot, desired: desired)
+                .last(where: { $0.start <= now }) else { return nil }
+        let retry = segment.start.addingTimeInterval(pendingActivationGrace)
+        return now < retry ? retry.addingTimeInterval(1) : nil
+    }
+
     static func openingSegment(snapshot: WidgetShowSnapshot, now: Date) -> LiveActivitySegment? {
         desiredState(snapshot: snapshot, now: now, coverFilename: nil)
             .flatMap { segments(snapshot: snapshot, desired: $0).first }

@@ -109,6 +109,17 @@ final class LiveActivitySegmentTests: XCTestCase {
         )
     }
 
+    /// 宽限期结束时要再规划一次,不能等到下一个时刻表边界。
+    func testActivationRetryFollowsEachSegmentStart() {
+        let snapshot = makeLongFestival()
+        XCTAssertEqual(
+            LiveActivityPlanner.activationRetryDate(snapshot: snapshot, now: date(15).addingTimeInterval(3)),
+            date(15, 1).addingTimeInterval(1)
+        )
+        XCTAssertNil(LiveActivityPlanner.activationRetryDate(snapshot: snapshot, now: date(15, 2)))
+        XCTAssertNil(LiveActivityPlanner.activationRetryDate(snapshot: snapshot, now: date(14)))
+    }
+
     /// App 被强杀后不会被唤醒补预约:当天剩余各段一次排好。
     func testEveryRemainingSegmentIsScheduled() throws {
         let snapshot = makeLongFestival(closingHour: 29)

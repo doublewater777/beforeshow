@@ -14,8 +14,9 @@ struct LiveActivityOpeningCoverage {
         self.defaults = defaults
     }
 
-    func coveredShowIDs(now: Date) -> Set<UUID> {
-        Set(entries().filter { $0.value > now.addingTimeInterval(-Self.retention) }.keys)
+    /// showID → 接管的那次开场 alert 时间;只对同一次开场的本地提醒生效。
+    func coveredOpenings(now: Date) -> [UUID: Date] {
+        entries().filter { $0.value > now.addingTimeInterval(-Self.retention) }
     }
 
     /// 以当前实时活动现场的开场段预约结果更新记录;有变化时返回 true。

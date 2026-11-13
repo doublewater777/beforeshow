@@ -28,6 +28,7 @@ actor ShowLiveActivityController {
     private var lastWidgetReloadGeneration: UInt64 = 0
     private var artworkTask: Task<Void, Never>?
     private var boundaryTask: Task<Void, Never>?
+    private var publishTail: Task<Void, Never>?
 
     func sync(
         snapshot: WidgetShowSnapshot?,
@@ -96,7 +97,11 @@ actor ShowLiveActivityController {
 
         // 到下一个场次边界用同一快照重新发布,实时活动才会换到下一位艺人。
         boundaryTask?.cancel()
-        if let boundary = LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: now) {
+        let boundaries = [
+            LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: now),
+            LiveActivityPlanner.activationRetryDate(snapshot: snapshot, now: now),
+        ]
+        if let boundary = boundaries.compactMap({ $0 }).min() {
             boundaryTask = Task {
                 try? await Task.sleep(for: .seconds(max(0, boundary.timeIntervalSinceNow) + 1))
                 guard !Task.isCancelled else { return }
@@ -136,7 +141,18 @@ actor ShowLiveActivityController {
         await publish(fresh, focusedPerformanceID: focusedPerformanceID)
     }
 
+    /// 同步与图片回调都会发布;串行执行,每次都重新读取 ActivityKit 状态,避免重复预约。
     private func publish(_ request: PendingSync, focusedPerformanceID: UUID?) async {
+        let previous = publishTail
+        let task = Task {
+            await previous?.value
+            await self.publishSerially(request, focusedPerformanceID: focusedPerformanceID)
+        }
+        publishTail = task
+        await task.value
+    }
+
+    private func publishSerially(_ request: PendingSync, focusedPerformanceID: UUID?) async {
         guard request.generation == latestGeneration else { return }
         let snapshot = request.snapshot
         let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
