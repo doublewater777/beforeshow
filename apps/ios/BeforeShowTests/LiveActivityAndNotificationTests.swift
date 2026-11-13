@@ -344,16 +344,16 @@ final class LiveActivityAndNotificationTests: XCTestCase {
 
     // MARK: - Issue #359: 启动窗口、内容过期与散场收起
 
-    func testEarliestStartRespectsThirtyMinutesLeadAndEightHoursCap() {
-        // 1. 20:00 - 22:00 普通现场 (2h): 开场前 30m = 19:30, 谢幕前 8h = 14:00 -> 较晚者为 19:30
+    func testEarliestStartRespectsThreeHoursLeadAndEightHoursCap() {
+        // 1. 20:00 - 22:00 普通现场 (2h): 开场前 3h = 17:00, 谢幕前 8h = 14:00 -> 较晚者为 17:00
         let start20 = date(20, 0)
         let end22 = date(22, 0)
         XCTAssertEqual(
             LiveActivityPlanner.earliestStart(activityStart: start20, activityEnd: end22),
-            date(19, 30)
+            date(17, 0)
         )
 
-        // 2. 12:00 - 23:00 音乐节单日 (11h): 开场前 30m = 11:30, 谢幕前 8h = 15:00 -> 较晚者为 15:00
+        // 2. 12:00 - 23:00 音乐节单日 (11h): 开场前 3h = 09:00, 谢幕前 8h = 15:00 -> 较晚者为 15:00
         let start12 = date(12, 0)
         let end23 = date(23, 0)
         XCTAssertEqual(
@@ -378,13 +378,13 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         let earliestEarly = LiveActivityPlanner.earliestStart(activityStart: desiredEarly.dayStart, activityEnd: desiredEarly.activityEnd)
         let earliestLater = LiveActivityPlanner.earliestStart(activityStart: desiredLater.dayStart, activityEnd: desiredLater.activityEnd)
         XCTAssertEqual(earliestEarly, earliestLater, "换场不应改变当日活动启动窗口")
-        XCTAssertEqual(earliestEarly, date(13, 30), "14:00 首演的音乐节应在 13:30 启动")
+        XCTAssertEqual(earliestEarly, date(11, 0), "14:00 首演的音乐节应在 11:00 启动")
     }
 
     func testNextRefreshDateIncludesEarliestStartAndEndBoundaries() {
         let (snapshot, _, _) = makeTwoSetFestival()
-        // 当日首场 14:00，启动窗口 13:30
-        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(12, 0)), date(13, 30))
+        // 当日首场 14:00，启动窗口 11:00
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(10, 0)), date(11, 0))
         // 终场结束 17:30
         XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(17, 0)), date(17, 30))
     }

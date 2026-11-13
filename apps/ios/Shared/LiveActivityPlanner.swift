@@ -86,6 +86,8 @@ enum LiveActivityPlanner {
     static let scheduleHorizon: TimeInterval = 7 * 86_400
     static let dismissalGracePeriod: TimeInterval = 15 * 60
     static let reminderLeadTime: TimeInterval = 15 * 60
+    /// 开场前提前出现,覆盖出门、排队、入场。
+    static let startLeadTime: TimeInterval = 3 * 3_600
 
     static func desiredState(
         snapshot: WidgetShowSnapshot?,
@@ -364,7 +366,7 @@ enum LiveActivityPlanner {
     }
 
     static func earliestStart(activityStart: Date, activityEnd: Date) -> Date {
-        max(activityStart.addingTimeInterval(-30 * 60), activityEnd.addingTimeInterval(-maxActiveDuration))
+        max(activityStart.addingTimeInterval(-startLeadTime), activityEnd.addingTimeInterval(-maxActiveDuration))
     }
 
     static func naturalEndBoundary(snapshot: WidgetShowSnapshot, now: Date) -> (dayStart: Date, activityEnd: Date)? {

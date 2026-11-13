@@ -226,8 +226,8 @@ final class WidgetSnapshotTests: XCTestCase {
         }
 
         let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
-        // 默认 4h 演出 → 最多提前 30 分钟 (19:30), 且距离结束不超过 8h
-        XCTAssertEqual(earliest.timeIntervalSince(start), -30 * 60, accuracy: 1)
+        // 默认 4h 演出 → 提前 3 小时, 且距离结束不超过 8h
+        XCTAssertEqual(earliest.timeIntervalSince(start), -3 * 3_600, accuracy: 1)
         XCTAssertLessThanOrEqual(end.timeIntervalSince(earliest), 8 * 3_600)
         // 旧逻辑 12h lead 会在开场前 4h 被系统掐断
         let wrongLead = start.addingTimeInterval(-12 * 3_600)
@@ -745,7 +745,7 @@ final class WidgetSnapshotTests: XCTestCase {
         let normalEnd = start.addingTimeInterval(4 * 3_600)
         XCTAssertEqual(
             LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: normalEnd),
-            start.addingTimeInterval(-30 * 60)
+            start.addingTimeInterval(-3 * 3_600)
         )
     }
 

@@ -1,6 +1,74 @@
 import SwiftUI
 import WidgetKit
 
+// MARK: - Timeline Entry
+
+struct CountdownEntry: TimelineEntry {
+    let date: Date
+    let snapshot: WidgetShowSnapshot?
+    /// App Group 容器内的封面缓存路径;nil 时用占位/纯色
+    let coverImagePath: String?
+    let ambientColor: WidgetAmbientRGB?
+
+    static let empty = CountdownEntry(
+        date: .now,
+        snapshot: nil,
+        coverImagePath: nil,
+        ambientColor: nil
+    )
+}
+
+// MARK: - App-side Widget Preview Card
+
+struct CountdownWidgetCard: View {
+    let presentation: CountdownPresentation
+    let family: WidgetFamily
+    let coverImagePath: String?
+    let ambientColor: WidgetAmbientRGB?
+
+    init(entry: CountdownEntry, family: WidgetFamily) {
+        self.presentation = CountdownPresentation(entry: entry)
+        self.family = family
+        self.coverImagePath = entry.coverImagePath
+        self.ambientColor = entry.ambientColor
+    }
+
+    init(presentation: CountdownPresentation, family: WidgetFamily, coverImagePath: String? = nil, ambientColor: WidgetAmbientRGB? = nil) {
+        self.presentation = presentation
+        self.family = family
+        self.coverImagePath = coverImagePath
+        self.ambientColor = ambientColor
+    }
+
+    var body: some View {
+        Group {
+            switch family {
+            case .systemSmall:
+                if let phase = presentation.festivalPhase {
+                    FestivalSmallView(phase: phase, showName: presentation.showName)
+                        .environment(\.timeZone, presentation.calendar.timeZone)
+                } else {
+                    SmallCountdownView(presentation: presentation)
+                }
+            case .systemMedium:
+                if let phase = presentation.festivalPhase {
+                    FestivalMediumView(phase: phase, showName: presentation.showName) {
+                        WidgetCoverImage(path: coverImagePath)
+                    }
+                    .environment(\.timeZone, presentation.calendar.timeZone)
+                } else {
+                    MediumCountdownView(presentation: presentation, coverImagePath: coverImagePath)
+                }
+            default:
+                EmptyView()
+            }
+        }
+        .widgetTile(family: family) {
+            WidgetPhaseBloom(tone: presentation.bloomTone, ambient: ambientColor)
+        }
+    }
+}
+
 // MARK: - Countdown Widget Views
 // 设计稿:docs/design/widget/BeforeShow Widgets.html
 // 与 app 首页同一套精度收束:>24h 自然日 hero、≤24h 时:分:秒、live 正在现场;
@@ -79,166 +147,9 @@ struct CountdownWidgetView: View {
     }
 }
 
-// MARK: - Presentation
-// 视图输入一次性算好;kind/phase 推导复用 Shared 的 CurrentShowTimeState + HomeShowPhase。
-
-struct CountdownPresentation {
-    enum Hero: Equatable {
-        case far(days: Int)
-        case near(start: Date)
-        case live(start: Date)
-        case ended
-        /// 估算结束时间已过、用户尚未确认散场:不说「已落幕」,与首页「待确认」一致。
-        case endUnconfirmed
-        case inactive(title: String)
-        case empty
-    }
-
-    let hero: Hero
-    let identity: ShowIdentityCopy
-    let startDate: Date?
-    let endBoundary: Date?
-    let calendar: Calendar
-    let endedTitle: String
-    /// 距开场的秒数(entry 时刻),给圆形进度环用
-    let remainingSeconds: Int
-    /// 有时刻表时的现场切片(主现场 / 下一场 / 第一场想看)。
-    let festival: WidgetFestivalNow?
-
-    /// 音乐节现场模式的状态;非 nil 时各尺寸换成现场版式。
-    var festivalPhase: WidgetFestivalNow.Phase? { festival?.phase }
-
-    var hasShow: Bool { hero != .empty }
-    var showName: String { identity.title }
-
-    init(entry: CountdownEntry) {
-        guard let snapshot = entry.snapshot else {
-            hero = .empty
-            identity = ShowIdentityCopy(name: "")
-            startDate = nil
-            endBoundary = nil
-            calendar = .current
-            endedTitle = ""
-            remainingSeconds = 0
-            festival = nil
-            return
-        }
-
-        festival = WidgetFestivalNow(snapshot: snapshot, now: entry.date)
-        identity = ShowIdentityCopy(
-            name: snapshot.name,
-            venueName: snapshot.venueName,
-            city: snapshot.city
-        )
-
-        let state = CurrentShowTimeState(timing: snapshot.timing, now: entry.date)
-        calendar = snapshot.timing.eventCalendar(fallback: .current)
-        endedTitle = state.kind == .dayEnded
-            ? BSLocalization.text("今天结束了")
-            : BSLocalization.text("已结束")
-        startDate = state.effectiveStartTime
-        endBoundary = state.endBoundary
-        let remaining = state.effectiveStartTime
-            .map { max(0, Int($0.timeIntervalSince(entry.date))) } ?? 0
-        remainingSeconds = remaining
-
-        switch HomeShowPhase(timeState: state, now: entry.date) {
-        case .pre:
-            // 与首页一致:是否进入「天」档仍按真实剩余时间 >24h 判断，
-            // 但一旦展示 N 天，N 使用演出时区自然日差。
-            // 因此 10/1 → 10/3 即使只剩约 40 小时仍显示 2 天；
-            // 而 23:50 → 次日 00:10 仍会进入 near，不显示 1 天。
-            if let days = ShowCountdownRule.dayCount(
-                remainingSeconds: remaining,
-                dayDistance: state.dayDistance
-            ) {
-                hero = .far(days: days)
-            } else if let start = state.effectiveStartTime {
-                hero = .near(start: start)
-            } else {
-                hero = .inactive(title: state.title)
-            }
-        case .live:
-            if let start = state.effectiveStartTime {
-                hero = .live(start: start)
-            } else {
-                hero = .inactive(title: state.title)
-            }
-        case .ended:
-            // 无明确结束时间的演出,start+默认时长 只是估算边界:
-            // 用户未确认 endedAt 前不算「已落幕」。dayEnded 是单日循环内部态,仍按已落幕处理。
-            if CurrentShowTimeState.isUnconfirmedEstimatedEnd(
-                kind: state.kind,
-                hasConfirmedEnd: snapshot.timing.endedAt != nil
-            ) {
-                hero = .endUnconfirmed
-            } else {
-                hero = .ended
-            }
-        case .inactive:
-            hero = .inactive(title: state.title)
-        }
-    }
-
-    var dateLine: String {
-        guard let startDate else { return "" }
-        let components = calendar.dateComponents([.month, .day, .hour, .minute], from: startDate)
-        return String(
-            format: BSLocalization.text("%d月%d日 %02d:%02d"),
-            components.month ?? 0, components.day ?? 0, components.hour ?? 0, components.minute ?? 0
-        )
-    }
-
-    /// 背景氛围随阶段变色:红 = 现在，金 = 等开场，夜蓝 = 今日已结束。
-    var bloomTone: WidgetPhaseBloom.Tone {
-        if let phase = festivalPhase {
-            switch phase {
-            case .live: return .live
-            case .between, .firstSet, .finished: return .gold
-            case .dayEnded: return .night
-            }
-        }
-        switch hero {
-        case .live: return .live
-        case .near: return .gold
-        case .far, .ended, .endUnconfirmed, .inactive, .empty: return .neutral
-        }
-    }
-
-    /// 「今天开场」仅用于当日开场;`<24h` 但跨日仍使用「即将开场」。
-    var isStartToday: Bool {
-        guard let startDate else { return false }
-        return calendar.isDateInToday(startDate)
-    }
-
-    /// 顶部时期标签只在 Hero 是数字(far/near)时出现;
-    /// Hero 已是状态文字(live/ended/inactive)时 kicker 消失,避免同状态说两遍。
-    var showsPhaseTag: Bool {
-        switch hero {
-        case .far, .near:
-            return true
-        case .live, .ended, .endUnconfirmed, .inactive, .empty:
-            return false
-        }
-    }
-
-    var phaseTag: String {
-        switch hero {
-        case .far:
-            return BSLocalization.text("距离开场")
-        case .near:
-            return isStartToday
-                ? BSLocalization.text("今天开场")
-                : BSLocalization.text("即将开场")
-        case .live, .ended, .endUnconfirmed, .inactive, .empty:
-            return ""
-        }
-    }
-}
-
 // MARK: - 共用元素
 
-private struct LiveDot: View {
+struct LiveDot: View {
     var size: CGFloat = 7
 
     var body: some View {
@@ -288,7 +199,7 @@ struct WidgetPhaseBloom: View {
 }
 
 /// 「● 正在现场」状态标签，与音乐节版式同一写法。
-private struct LiveTag: View {
+struct LiveTag: View {
     var body: some View {
         HStack(spacing: 6) {
             LiveDot()
@@ -300,7 +211,7 @@ private struct LiveTag: View {
     }
 }
 
-private struct EmptyWidgetView: View {
+struct EmptyWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: "ticket")
@@ -318,14 +229,14 @@ private struct EmptyWidgetView: View {
     }
 }
 
-private func widgetCountdownRange(to start: Date, now: Date = .now) -> ClosedRange<Date> {
+func widgetCountdownRange(to start: Date, now: Date = .now) -> ClosedRange<Date> {
     if now < start { return now...start }
     return start...start
 }
 
 /// 10 小时以上计时是 `HH:MM:SS` 共 8 位，按原字号会超出小号小组件宽度被截断；
 /// Text(timerInterval:) 不吃 minimumScaleFactor，只能按剩余时长换字号。
-private func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color, now: Date = .now) -> some View {
+func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color, now: Date = .now) -> some View {
     let hasTwoDigitHours = start.timeIntervalSince(now) >= 10 * 3_600
     return Text(timerInterval: widgetCountdownRange(to: start, now: now), countsDown: true)
         .font(.system(size: hasTwoDigitHours ? fontSize * 0.78 : fontSize, weight: .semibold))
@@ -336,7 +247,7 @@ private func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color
 
 // MARK: - 小号 170×170
 
-private struct SmallCountdownView: View {
+struct SmallCountdownView: View {
     let presentation: CountdownPresentation
 
     var body: some View {
@@ -429,7 +340,7 @@ private struct SmallCountdownView: View {
 
 // MARK: - 中号 364×170
 
-private struct MediumCountdownView: View {
+struct MediumCountdownView: View {
     let presentation: CountdownPresentation
     let coverImagePath: String?
 
@@ -560,169 +471,5 @@ struct WidgetCoverImage: View {
         .frame(width: WidgetTheme.mediumCoverSize.width, height: WidgetTheme.mediumCoverSize.height)
         .clipShape(RoundedRectangle(cornerRadius: WidgetTheme.widgetCoverCornerRadius, style: .continuous))
         .accessibilityHidden(true)
-    }
-}
-
-// MARK: - 锁屏 inline(单色,平台强制)
-
-private struct InlineCountdownView: View {
-    let presentation: CountdownPresentation
-
-    var body: some View {
-        statusText
-            .font(.headline.weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.78)
-    }
-
-    // ponytail: 锁屏单行只放纯状态,演出名放不下;识别靠点进 app
-    @ViewBuilder
-    private var statusText: some View {
-        switch presentation.hero {
-        case .far(let days):
-            Text(BSLocalization.format("还有 %lld 天", days))
-        case .near(let start):
-            Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
-                .monospacedDigit()
-        case .live(let start):
-            Text("正在现场 · \(Text(start, style: .timer))")
-        case .ended:
-            Text(presentation.endedTitle)
-        case .endUnconfirmed:
-            Text("散场待确认")
-        case .inactive(let title):
-            Text(title)
-        case .empty:
-            Text("开场前")
-        }
-    }
-}
-
-// MARK: - 锁屏圆形
-
-private struct CircularCountdownView: View {
-    let presentation: CountdownPresentation
-
-    /// 预习期 14 天窗口:环随临近填满,正在现场满环。
-    private var progress: Double {
-        switch presentation.hero {
-        case .live: return 1
-        case .ended, .endUnconfirmed, .inactive, .empty: return 0
-        default:
-            let window: Double = 14 * 86_400
-            return 1 - min(max(Double(presentation.remainingSeconds), 0), window) / window
-        }
-    }
-
-    var body: some View {
-        Gauge(value: progress, in: 0...1) {
-            EmptyView()
-        } currentValueLabel: {
-            centerLabel
-        }
-        .gaugeStyle(.accessoryCircular)
-    }
-
-    @ViewBuilder
-    private var centerLabel: some View {
-        switch presentation.hero {
-        case .far(let days):
-            VStack(spacing: 1) {
-                Text("\(days)")
-                    .font(.title3.weight(.bold))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.78)
-                Text(BSLocalization.format("天（按天数）", days))
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-        case .near(let start):
-            VStack(spacing: 1) {
-                Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
-                    .font(.headline.weight(.bold))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.78)
-                if presentation.isStartToday {
-                    Text("今天")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-            }
-        case .live:
-            VStack(spacing: 1) {
-                Circle().frame(width: 6, height: 6)
-                if let start = presentation.startDate {
-                    // TimelineView 60s 一跳,系统侧渲染,不走原生秒级 timer
-                    TimelineView(.periodic(from: start, by: 60)) { context in
-                        Text(LockScreenCountdownCopy.circularLiveElapsed(
-                            elapsedSeconds: Int(context.date.timeIntervalSince(start))
-                        ))
-                        .font(.caption.weight(.bold))
-                        .monospacedDigit()
-                        .minimumScaleFactor(0.78)
-                    }
-                }
-            }
-        case .ended:
-            Text(presentation.endedTitle)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        case .endUnconfirmed:
-            Text("待确认")
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        case .inactive(let title):
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.68)
-        case .empty:
-            Text("--")
-                .font(.headline.weight(.bold))
-                .monospacedDigit()
-        }
-    }
-}
-
-// MARK: - 锁屏长条
-// 三行:状态 / 演出名 / 时间。与音乐节锁屏同一结构。
-
-private struct RectangularCountdownView: View {
-    let presentation: CountdownPresentation
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            switch presentation.hero {
-            case .far(let days):
-                lines(Text(presentation.phaseTag), Text(presentation.showName),
-                      Text(verbatim: "\(BSLocalization.format("还有 %lld 天", days)) · \(presentation.dateLine)"))
-            case .near(let start):
-                lines(Text(presentation.phaseTag), Text(presentation.showName),
-                      Text(timerInterval: widgetCountdownRange(to: start), countsDown: true))
-            case .live(let start):
-                lines(Text("\(Image(systemName: "waveform")) 正在现场"), Text(presentation.showName),
-                      Text("已开场 · \(Text(start, style: .timer))"))
-            case .ended:
-                lines(nil, Text(presentation.endedTitle), Text(presentation.showName))
-            case .endUnconfirmed:
-                lines(nil, Text("散场待确认"), Text(presentation.showName))
-            case .inactive(let title):
-                lines(nil, Text(title), Text(presentation.showName))
-            case .empty:
-                lines(nil, Text("还没有现场"), Text("打开开场前，添加下一场"))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func lines(_ top: Text?, _ title: Text, _ bottom: Text) -> some View {
-        if let top {
-            top.font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
-        }
-        title.font(.headline.weight(.bold)).lineLimit(1).minimumScaleFactor(0.75)
-        bottom.font(.caption).monospacedDigit().foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.78)
     }
 }

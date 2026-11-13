@@ -3,21 +3,6 @@ import WidgetKit
 
 // MARK: - Timeline
 
-struct CountdownEntry: TimelineEntry {
-    let date: Date
-    let snapshot: WidgetShowSnapshot?
-    /// App Group 容器内的封面缓存路径;nil 时用占位/纯色
-    let coverImagePath: String?
-    let ambientColor: WidgetAmbientRGB?
-
-    static let empty = CountdownEntry(
-        date: .now,
-        snapshot: nil,
-        coverImagePath: nil,
-        ambientColor: nil
-    )
-}
-
 struct CountdownTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> CountdownEntry {
         // 固定示例,不读 App Group,避免组件库预览受用户数据/IO 影响

@@ -1,13 +1,16 @@
 import PostHog
 import SwiftUI
 import UIKit
+import WidgetKit
 
 struct WidgetSettingsView: View {
     @State private var snapshot: WidgetShowSnapshot?
     @State private var listening: WidgetListeningSnapshot?
     @State private var showAmbient: WidgetAmbientRGB?
-    @State private var listeningCover: UIImage?
+    @State private var cachedCoverPath: String?
+    @State private var cachedListeningCoverPath: String?
     @State private var previewTab: WidgetPreviewTab = .homeScreen
+    @State private var homeWidgetSize: HomeWidgetSize = .small
 
     enum WidgetPreviewTab: String, CaseIterable, Identifiable {
         case homeScreen
@@ -19,6 +22,27 @@ struct WidgetSettingsView: View {
             switch self {
             case .homeScreen: return BSLocalization.text("主屏幕")
             case .lockScreen: return BSLocalization.text("锁定屏幕")
+            }
+        }
+    }
+
+    enum HomeWidgetSize: String, CaseIterable, Identifiable {
+        case small
+        case medium
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .small: return BSLocalization.text("小号")
+            case .medium: return BSLocalization.text("中号")
+            }
+        }
+
+        var widgetFamily: WidgetFamily {
+            switch self {
+            case .small: return .systemSmall
+            case .medium: return .systemMedium
             }
         }
     }
@@ -41,7 +65,16 @@ struct WidgetSettingsView: View {
 
                 switch previewTab {
                 case .homeScreen:
+                    Picker("", selection: $homeWidgetSize) {
+                        ForEach(HomeWidgetSize.allCases) { size in
+                            Text(size.title).tag(size)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, BSSpacing.xs)
+
                     homeScreenPreview
+
                     addSteps([
                         AddStep(symbol: "hand.tap.fill", title: BSLocalization.text("长按空白处")),
                         AddStep(symbol: "widget.small.badge.plus", title: BSLocalization.text("编辑 › 添加小组件")),
@@ -49,6 +82,7 @@ struct WidgetSettingsView: View {
                     ])
                 case .lockScreen:
                     lockScreenPreview
+
                     addSteps([
                         AddStep(symbol: "hand.tap.fill", title: BSLocalization.text("长按锁屏")),
                         AddStep(symbol: "widget.small.badge.plus", title: BSLocalization.text("自定义 › 添加小组件")),
@@ -70,102 +104,41 @@ struct WidgetSettingsView: View {
 
     // MARK: - Home Screen Preview
 
+    @ViewBuilder
     private var homeScreenPreview: some View {
-        HStack(spacing: BSSpacing.md) {
-            countdownWidget
-                .smallWidgetTile {
-                    CoverAmbientBloom(ambient: showAmbient)
-                }
+        switch homeWidgetSize {
+        case .small:
+            HStack(spacing: BSSpacing.md) {
+                CountdownWidgetCard(
+                    presentation: countdownPresentation,
+                    family: .systemSmall,
+                    coverImagePath: cachedCoverPath,
+                    ambientColor: showAmbient
+                )
 
-            listeningWidget
-                .smallWidgetTile {
-                    ZStack {
-                        BSColor.Stage.background
-                        coverImage(listeningCover)
-                            .bsMaskUserContent()
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black.opacity(0), location: 0.3),
-                                .init(color: .black.opacity(0.82), location: 1)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    }
-                }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    private var countdownWidget: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(BSLocalization.text("距离开场"))
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(BSColor.Stage.muted)
-
-            Spacer(minLength: BSSpacing.xs)
-
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text("\(countdownDays)")
-                    .font(.system(size: 56, weight: .semibold))
-                    .tracking(-0.5)
-                    .foregroundStyle(BSColor.Stage.heroIvory)
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.6)
-                Text(BSLocalization.format("天（按天数）", countdownDays))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(BSColor.Stage.muted)
+                ListeningWidgetCard(
+                    entry: listeningEntry,
+                    family: .systemSmall
+                )
             }
-            .lineLimit(1)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        case .medium:
+            VStack(spacing: BSSpacing.md) {
+                CountdownWidgetCard(
+                    presentation: countdownPresentation,
+                    family: .systemMedium,
+                    coverImagePath: cachedCoverPath,
+                    ambientColor: showAmbient
+                )
 
-            Spacer(minLength: BSSpacing.sm)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(showTitle)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .lineLimit(2)
-                Text(showDateLine)
-                    .font(.system(size: 10))
-                    .foregroundStyle(BSColor.Stage.dim)
-                    .lineLimit(1)
+                ListeningWidgetCard(
+                    entry: listeningEntry,
+                    family: .systemMedium
+                )
             }
-        }
-    }
-
-    private var listeningWidget: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Spacer(minLength: 0)
-            HStack(alignment: .bottom, spacing: BSSpacing.sm) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(listeningTitle)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .lineLimit(2)
-                    if let listeningSubtitle {
-                        Text(listeningSubtitle)
-                            .font(.system(size: 11))
-                            .foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if listening?.control == .openListen {
-                    Text(BSLocalization.text("打开听"))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .lineLimit(1)
-                } else {
-                    Image(systemName: listening?.control == .pause ? "pause.fill" : "play.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(BSColor.Stage.background)
-                        .frame(width: 34, height: 34)
-                        .background(BSColor.Stage.heroWarmGold, in: Circle())
-                }
-            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 
@@ -178,47 +151,28 @@ struct WidgetSettingsView: View {
                 .foregroundStyle(.white.opacity(0.9))
 
             HStack(spacing: BSSpacing.md) {
-                Gauge(value: lockGaugeProgress) {
-                    EmptyView()
-                } currentValueLabel: {
-                    VStack(spacing: 1) {
-                        Text("\(countdownDays)")
-                            .font(.title3.weight(.bold))
-                            .monospacedDigit()
-                            .minimumScaleFactor(0.78)
-                        Text(BSLocalization.format("天（按天数）", countdownDays))
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .gaugeStyle(.accessoryCircular)
+                CircularCountdownView(presentation: countdownPresentation)
+                    .frame(width: 70, height: 70)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(BSLocalization.format("还有 %lld 天", countdownDays))
-                        .font(.headline.weight(.semibold))
-                        .monospacedDigit()
-                    Text(showTitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .lineLimit(1)
-                .frame(width: 150, alignment: .leading)
+                RectangularCountdownView(presentation: countdownPresentation)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .foregroundStyle(.white)
             .tint(.white)
+            .padding(.horizontal, BSSpacing.sm)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, BSSpacing.roomy)
         .background {
             ZStack {
-                CoverAmbientBloom(ambient: showAmbient)
-                Color.black.opacity(0.25)
+                WidgetPhaseBloom(tone: countdownPresentation.bloomTone, ambient: showAmbient)
+                Color.black.opacity(0.3)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(BSColor.Stage.border, lineWidth: 1)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -271,87 +225,80 @@ struct WidgetSettingsView: View {
         }
     }
 
-    private func coverImage(_ image: UIImage?) -> some View {
-        Group {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-            } else {
-                Image("default_cover")
-                    .resizable()
-            }
+    // MARK: - Presentation & Data Providers
+
+    private var countdownPresentation: CountdownPresentation {
+        if let snapshot {
+            let entry = CountdownEntry(
+                date: .now,
+                snapshot: snapshot,
+                coverImagePath: cachedCoverPath,
+                ambientColor: showAmbient
+            )
+            return CountdownPresentation(entry: entry)
         }
-        .scaledToFill()
-    }
-
-    // MARK: - Helpers
-
-    /// 与真实组件一致：按演出时区的自然日差计天。
-    private var countdownDays: Int {
-        guard let timing = snapshot?.timing else { return 56 }
-        return max(0, CurrentShowTimeState(timing: timing).dayDistance)
-    }
-
-    /// 与锁屏圆形组件一致：14 天窗口内随临近填满。
-    private var lockGaugeProgress: Double {
-        let window: Double = 14 * 86_400
-        let remaining = snapshot.map { $0.timing.startTime.timeIntervalSinceNow } ?? Double(countdownDays) * 86_400
-        return 1 - min(max(remaining, 0), window) / window
-    }
-
-    private var showTitle: String {
-        snapshot?.name ?? BSLocalization.text("「夜航」巡演 · 上海站")
-    }
-
-    private var showDateLine: String {
-        guard let snapshot else {
-            return BSLocalization.text("10月14日 19:30 · 回声剧场")
-        }
-        let components = Calendar.current.dateComponents([.month, .day, .hour, .minute], from: snapshot.timing.startTime)
-        return String(
-            format: BSLocalization.text("%d月%d日 %02d:%02d"),
-            components.month ?? 0, components.day ?? 0, components.hour ?? 0, components.minute ?? 0
+        // 占位示范数据：夜航上海站，56 天倒计时
+        let demoTiming = ShowTimingFields(
+            date: Calendar.current.date(byAdding: .day, value: 56, to: .now) ?? .now,
+            startTime: Calendar.current.date(byAdding: .day, value: 56, to: .now) ?? .now,
+            endDate: nil,
+            endTime: nil,
+            postponedDate: nil,
+            changeStatus: .scheduled
         )
+        let demoSnapshot = WidgetShowSnapshot(
+            showID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            name: BSLocalization.text("「夜航」巡演 · 上海站"),
+            city: BSLocalization.text("上海"),
+            venueName: BSLocalization.text("回声剧场"),
+            coverImageURL: nil,
+            timing: demoTiming,
+            generatedAt: .now
+        )
+        return CountdownPresentation(entry: CountdownEntry(
+            date: .now,
+            snapshot: demoSnapshot,
+            coverImagePath: nil,
+            ambientColor: showAmbient
+        ))
     }
 
-    /// 与听歌组件一致：曲目 > 唱片 > 演出名
-    private var listeningNowPlaying: String? {
-        guard let listening else { return nil }
-        return [listening.trackTitle, listening.discTitle].compactMap { $0 }.first { !$0.isEmpty }
-    }
-
-    private var listeningTitle: String {
-        listeningNowPlaying ?? listening?.showName ?? showTitle
-    }
-
-    private var listeningSubtitle: String? {
-        guard listeningNowPlaying != nil, let artist = listening?.artistName, !artist.isEmpty else { return nil }
-        return artist
+    private var listeningEntry: ListeningEntry {
+        if let listening {
+            return ListeningEntry(
+                date: .now,
+                snapshot: listening,
+                coverImagePath: cachedListeningCoverPath
+            )
+        }
+        // 占位示范数据：回春丹热门合辑
+        let demoListening = WidgetListeningSnapshot(
+            showID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            showName: BSLocalization.text("「夜航」巡演 · 上海站"),
+            artistName: BSLocalization.text("回春丹"),
+            discTitle: BSLocalization.text("热门合辑 01"),
+            trackTitle: BSLocalization.text("艾蜜莉"),
+            coverImageURL: nil,
+            trackCount: 12,
+            phase: .playing,
+            control: .play,
+            hasSession: true,
+            generatedAt: .now
+        )
+        return ListeningEntry(
+            date: .now,
+            snapshot: demoListening,
+            coverImagePath: nil
+        )
     }
 
     private func refreshSnapshot() {
         snapshot = WidgetSnapshotStore.read()
         listening = WidgetListeningStore.read()
+        cachedCoverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
+        cachedListeningCoverPath = WidgetCoverCache.cachedCoverPath(matching: listening?.coverImageURL)
         showAmbient = CoverAmbientColor
-            .uiColor(fromCoverAt: WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL))
+            .uiColor(fromCoverAt: cachedCoverPath)
             .flatMap(WidgetAmbientRGB.init)
-        listeningCover = WidgetCoverCache.cachedCoverPath(matching: listening?.coverImageURL)
-            .flatMap(UIImage.init(contentsOfFile:))
-    }
-}
-
-private extension View {
-    /// 主屏小号组件外形：正方形、内边距与圆角对齐系统小组件。
-    func smallWidgetTile<Background: View>(@ViewBuilder background: () -> Background) -> some View {
-        self
-            .padding(BSSpacing.md)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .aspectRatio(1, contentMode: .fit)
-            .background(background())
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(BSColor.Stage.border, lineWidth: 1)
-            )
     }
 }
