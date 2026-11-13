@@ -28,26 +28,15 @@ enum ListeningPickStyle: String, CaseIterable, Identifiable {
 
     var isPro: Bool { self != .feed && self != .rack }
 
-    /// RealityView needs iOS 18; on iOS 17 the 3D shelf is not offered.
-    static var supportsShelf3D: Bool {
-        if #available(iOS 18.0, *) { true } else { false }
-    }
-
-    static func available(supportsShelf3D: Bool = supportsShelf3D) -> [Self] {
-        allCases.filter { $0 != .shelf3D || supportsShelf3D }
-    }
-
     /// The style an open shows. A new user starts on the 3D shelf; once a free user's trial opens run out a Pro style
     /// falls back to 一屏一张, though an open already counted keeps it until it closes.
     static func resolved(
         storedRawValue: String,
         isPro: Bool,
         trialOpensUsed: Int,
-        countedThisOpen: Bool,
-        supportsShelf3D: Bool = supportsShelf3D
+        countedThisOpen: Bool
     ) -> Self {
         let stored = Self(rawValue: storedRawValue) ?? .shelf3D
-        if stored == .shelf3D, !supportsShelf3D { return .feed }
         guard stored.isPro else { return stored }
         return isPro || countedThisOpen || trialOpensUsed < trialOpens ? stored : .feed
     }

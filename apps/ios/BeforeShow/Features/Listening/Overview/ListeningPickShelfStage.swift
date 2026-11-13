@@ -22,7 +22,7 @@ struct ListeningPickShelfStage: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                if style == .shelf3D, #available(iOS 18.0, *) {
+                if style == .shelf3D {
                     ListeningPickShelf3D(discs: discs, position: position, landing: landing, entrance: entrance, onReady: onReady)
                 }
                 drawn(in: proxy.size)
@@ -48,8 +48,7 @@ struct ListeningPickShelfStage: View {
     static func rowStep(for style: ListeningPickStyle, count: Int, in size: CGSize) -> CGVector {
         switch style {
         case .shelf3D:
-            if #available(iOS 18.0, *) { return ShelfScene3D.screenStep(in: size) }
-            return CGVector(dx: rackSide(in: size) * 0.13, dy: 0)
+            return ShelfGeometry.screenStep(in: size)
         case .ring:
             let slots = RingLayout.slots(for: count)
             return CGVector(dx: RingLayout(size: size, slots: slots).radius * 2 * .pi / Double(slots), dy: 0)

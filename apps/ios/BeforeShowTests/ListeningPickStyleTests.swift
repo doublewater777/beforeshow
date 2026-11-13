@@ -21,7 +21,6 @@ final class ListeningPickStyleTests: XCTestCase {
         XCTAssertEqual(resolve("ring", trialUsed: 3), .feed)
         XCTAssertEqual(resolve("ring", trialUsed: 3, counted: true), .ring)
         XCTAssertEqual(resolve("ring", isPro: true, trialUsed: 99), .ring)
-        XCTAssertEqual(resolve("ring", trialUsed: 0, supports: false), .ring)
     }
 
     func testTossAndFeatherAreProAndShareTheTrial() {
@@ -47,12 +46,6 @@ final class ListeningPickStyleTests: XCTestCase {
         XCTAssertEqual(resolve("diagonal", trialUsed: 0), .shelf3D)
     }
 
-    func testWithoutShelfSupportFeedIsShownAndShelfIsNotOffered() {
-        XCTAssertEqual(resolve("", isPro: true, trialUsed: 0, supports: false), .feed)
-        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: false), [.feed, .rack, .ring, .toss, .feather])
-        XCTAssertEqual(ListeningPickStyle.available(supportsShelf3D: true), [.shelf3D, .feed, .rack, .ring, .toss, .feather])
-    }
-
     func testTrialOpensLeft() {
         XCTAssertNil(ListeningPickStyle.trialOpensLeft(isPro: true, used: 0))
         XCTAssertEqual(ListeningPickStyle.trialOpensLeft(isPro: false, used: 1), 2)
@@ -60,11 +53,10 @@ final class ListeningPickStyleTests: XCTestCase {
     }
 
     private func resolve(
-        _ stored: String, isPro: Bool = false, trialUsed: Int, counted: Bool = false, supports: Bool = true
+        _ stored: String, isPro: Bool = false, trialUsed: Int, counted: Bool = false
     ) -> ListeningPickStyle {
         ListeningPickStyle.resolved(
-            storedRawValue: stored, isPro: isPro, trialOpensUsed: trialUsed,
-            countedThisOpen: counted, supportsShelf3D: supports
+            storedRawValue: stored, isPro: isPro, trialOpensUsed: trialUsed, countedThisOpen: counted
         )
     }
 }

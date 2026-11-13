@@ -15,6 +15,8 @@ enum ShelfInsertArt {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
+        // Cover art is sRGB; a wide-colour bitmap would only double the memory every kept print holds.
+        format.preferredRange = .standard
         let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
             let tone = ListeningArtworkTone.average(cover)
             let spine = tone.map(ListeningArtworkTone.spine(for:))

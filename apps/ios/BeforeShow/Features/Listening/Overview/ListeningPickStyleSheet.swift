@@ -22,7 +22,7 @@ struct ListeningPickStyleSheet: View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 240), spacing: BSSpacing.md)], spacing: BSSpacing.xl) {
-                    ForEach(ListeningPickStyle.available()) { style in
+                    ForEach(ListeningPickStyle.allCases) { style in
                         option(style)
                     }
                 }
@@ -96,7 +96,7 @@ struct ListeningPickStyleSheet: View {
         } else {
             ZStack {
                 ListeningPickShelfBackdrop()
-                if style == .shelf3D, #available(iOS 18.0, *) {
+                if style == .shelf3D {
                     ShelfStill3D(discs: discs, position: position)
                 } else {
                     StylePreviewStage(style: style, discs: discs, show: show, position: position)
@@ -170,9 +170,7 @@ private struct StylePreviewStage: View {
     }
 }
 
-/// The 3D shelf at rest, drawn flat through the same camera. A live RealityKit preview would share the frame rate with
-/// the 3D shelf under the sheet, and both slow to a crawl.
-@available(iOS 18.0, *)
+/// The 3D shelf at rest, drawn through the same camera.
 private struct ShelfStill3D: View {
     let discs: [ListeningDisc]
     let position: Double
@@ -226,16 +224,16 @@ private struct ShelfStill3D: View {
     private func faces(in size: CGSize) -> [Face] {
         guard !discs.isEmpty, size.width > 0 else { return [] }
         let base = min(max(Int(position.rounded()), 0), discs.count - 1)
-        let offset = ShelfScene3D.cameraOffset(for: size)
-        let eye = ShelfScene3D.aim + offset
+        let offset = ShelfGeometry.cameraOffset(for: size)
+        let eye = ShelfGeometry.aim + offset
         let forward = simd_normalize(-offset)
-        let w = ShelfScene3D.caseWidth / 2, h = ShelfScene3D.caseHeight / 2, t = ShelfScene3D.thickness / 2
+        let w = ShelfGeometry.caseWidth / 2, h = ShelfGeometry.caseHeight / 2, t = ShelfGeometry.thickness / 2
         let cases = (max(0, base - 8)...min(discs.count - 1, base + 18)).map { index -> (Int, SIMD3<Float>, simd_quatf) in
             let d = Float(index - base)
             if d == 0 {
-                return (index, ShelfScene3D.pullOut, simd_quatf(angle: ShelfScene3D.pullTurn, axis: [0, 1, 0]))
+                return (index, ShelfGeometry.pullOut, simd_quatf(angle: ShelfGeometry.pullTurn, axis: [0, 1, 0]))
             }
-            return (index, [0, 0, -d * ShelfScene3D.spacing + (d < 0 ? ShelfScene3D.frontGap : 0)], simd_quatf(angle: 0, axis: [0, 1, 0]))
+            return (index, [0, 0, -d * ShelfGeometry.spacing + (d < 0 ? ShelfGeometry.frontGap : 0)], simd_quatf(angle: 0, axis: [0, 1, 0]))
         }
         var faces: [Face] = []
         for (index, centre, turn) in cases.sorted(by: { simd_dot($0.1 - eye, forward) > simd_dot($1.1 - eye, forward) }) {
@@ -250,7 +248,7 @@ private struct ShelfStill3D: View {
             for (name, points, disc, brightness) in sides {
                 var corners: [CGPoint] = []
                 for point in points {
-                    corners.append(ShelfScene3D.project(centre + turn.act(point), in: size))
+                    corners.append(ShelfGeometry.project(centre + turn.act(point), in: size))
                 }
                 faces.append(Face(id: id + name, corners: corners, disc: disc, brightness: brightness, opacity: opacity))
             }

@@ -1,9 +1,8 @@
 import XCTest
 import SwiftUI
-import RealityKit
+import simd
 @testable import BeforeShow
 
-@available(iOS 18.0, *)
 @MainActor
 final class ListeningPickShelfLoadingTests: XCTestCase {
     private static let phone = CGSize(width: 402, height: 874)
@@ -12,99 +11,85 @@ final class ListeningPickShelfLoadingTests: XCTestCase {
     }
     private var previousKeyWindow: UIWindow?
 
-    @MainActor
-    private final class Built {
-        var anchor: Entity?
-        var fixtures = 0
-    }
-
-    func testOpeningBuildsEveryCaseBeforeTheSwing() async throws {
+    func testOpeningBuildsEveryCaseBeforeTheSwing() async {
         let (discs, phone) = (Self.discs, Self.phone)
         let scene = ShelfScene3D()
-        let built = Built()
-        let begun = expectation(description: "Opening begun")
-        let window = try host(RealityView { content in
-            content.camera = .virtual
-            scene.install(in: &content)
-            built.anchor = content.entities.first
-            built.fixtures = built.anchor?.children.count ?? 0
-            scene.beginOpening(discs: discs, position: 500, landing: nil, entrance: 0, size: phone)
-            begun.fulfill()
-        })
-        defer { dismiss(window) }
-        await fulfillment(of: [begun], timeout: 15)
-        let root = try XCTUnwrap(built.anchor)
-        let fixtures = built.fixtures
-        let shown = ShelfScene3D.entranceIndices(count: discs.count, position: 500, size: phone)
-        XCTAssertEqual(root.children.count - fixtures, shown.count, "Every case the swing shows is built while hidden")
+        scene.update(discs: discs, position: 500, landing: nil, entrance: 0, size: phone)
+        let shown = ShelfGeometry.entranceIndices(count: discs.count, position: 500, size: phone)
+        let built = scene.view.layer.sublayers ?? []
+        XCTAssertEqual(built.count, shown.count, "Every case the swing shows is built before it starts")
+        XCTAssertTrue(built.allSatisfy(\.isHidden), "The cases wait out of sight for their prints")
 
         await scene.waitForOpening()
-        XCTAssertEqual(root.children.filter(\.isEnabled).count, fixtures,
-                       "The view is revealed on the swing's empty start, not the row at rest")
-        let cases = Set(root.children.map(ObjectIdentifier.init))
+        XCTAssertTrue((scene.view.layer.sublayers ?? []).allSatisfy(\.isHidden), "The swing starts from an empty stage")
+        let cases = Set(built.map(ObjectIdentifier.init))
         for step in 0...60 {
             scene.update(discs: discs, position: 500, landing: nil, entrance: Double(step) / 60, size: phone)
-            XCTAssertTrue(Set(root.children.map(ObjectIdentifier.init)).isSubset(of: cases),
+            XCTAssertTrue(Set((scene.view.layer.sublayers ?? []).map(ObjectIdentifier.init)).isSubset(of: cases),
                           "The swing must not build cases; step \(step)")
         }
-        XCTAssertGreaterThan(root.children.filter(\.isEnabled).count, fixtures, "The row comes to rest in view")
+        XCTAssertTrue((scene.view.layer.sublayers ?? []).contains { !$0.isHidden }, "The row comes to rest in view")
     }
 
-    func testCasesBeyondReachLeaveTheScene() async throws {
+    func testCasesBeyondReachLeaveTheScene() async {
         let (discs, phone) = (Self.discs, Self.phone)
         let scene = ShelfScene3D()
-        let checked = expectation(description: "Reach checked")
-        let window = try host(RealityView { content in
-            content.camera = .virtual
-            scene.install(in: &content)
-            guard let root = content.entities.first else {
-                XCTFail("The shelf must install its scene")
-                checked.fulfill()
-                return
-            }
-            let fixtures = root.children.count
-            for (position, landing) in [(500.0, nil), (501.5, nil), (50.0, 900)] as [(Double, Int?)] {
-                scene.update(discs: discs, position: position, landing: landing, entrance: 1, size: phone)
-                let count = root.children.count - fixtures
-                XCTAssertGreaterThan(count, 0, "The row at rest must render; position \(position)")
-                XCTAssertLessThanOrEqual(count, 47, "Only the reach round the current album stays built; position \(position)")
-            }
-            for size in [CGSize(width: 1024, height: 1366), CGSize(width: 1366, height: 1024)] {
-                scene.update(discs: discs, position: 500, landing: nil, entrance: 1, size: size)
-                XCTAssertGreaterThan(root.children.filter(\.isEnabled).count, fixtures, "The row renders on \(size)")
-            }
-            checked.fulfill()
-        })
-        defer { dismiss(window) }
-        await fulfillment(of: [checked], timeout: 15)
+        scene.update(discs: discs, position: 500, landing: nil, entrance: 1, size: phone)
+        await scene.waitForOpening()
+        for (position, landing) in [(500.0, nil), (501.5, nil), (50.0, 900)] as [(Double, Int?)] {
+            scene.update(discs: discs, position: position, landing: landing, entrance: 1, size: phone)
+            let built = scene.view.layer.sublayers ?? []
+            XCTAssertTrue(built.contains { !$0.isHidden }, "The row at rest must render; position \(position)")
+            XCTAssertLessThanOrEqual(built.count, 47, "Only the reach round the current album stays built; position \(position)")
+        }
+        for size in [CGSize(width: 1024, height: 1366), CGSize(width: 1366, height: 1024)] {
+            scene.update(discs: discs, position: 500, landing: nil, entrance: 1, size: size)
+            XCTAssertTrue((scene.view.layer.sublayers ?? []).contains { !$0.isHidden }, "The row renders on \(size)")
+        }
     }
 
-    func testShelfBuildsItsSceneWithoutArtwork() async throws {
+    func testShelfOpensWithoutArtwork() async throws {
         let ready = expectation(description: "3D shelf ready")
-        let clock = ContinuousClock()
-        let start = clock.now
-        var elapsed: Duration?
-        let window = try host(ListeningPickShelf3D(discs: Array(Self.discs.prefix(20)), position: 10) {
-            elapsed = start.duration(to: clock.now)
+        let window = try host(ListeningPickShelf3D(discs: Array(Self.discs.prefix(20)), position: 10, entrance: 0) {
             ready.fulfill()
         })
         defer { dismiss(window) }
-        await fulfillment(of: [ready], timeout: 15)
-        let duration = try XCTUnwrap(elapsed)
-        let timing = XCTAttachment(string: "First shelf scene ready: \(duration)")
-        timing.lifetime = .keepAlways
-        add(timing)
+        await fulfillment(of: [ready], timeout: 5)
     }
 
-    func testOpeningWaitsForItsPrintsWithinABudgetFromTheFirstFrame() {
+    func testOpeningWaitsForItsPrintsWithinABudget() {
         let cases = ["near", "far"]
         let nearOnly = { (id: String) in id == "near" }
-        XCTAssertTrue(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: nil) { _ in true })
-        XCTAssertFalse(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: nil, isSettled: nearOnly),
-                       "Compiling shaders before the first frame must not use up the wait")
-        XCTAssertFalse(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: .milliseconds(200), isSettled: nearOnly))
-        XCTAssertTrue(ShelfScene3D.isOpeningPrinted(cases: cases, sinceFirstFrame: ShelfScene3D.openingBudget, isSettled: nearOnly),
+        XCTAssertTrue(ShelfScene3D.isOpeningPrinted(cases: cases, waited: .zero) { _ in true })
+        XCTAssertFalse(ShelfScene3D.isOpeningPrinted(cases: cases, waited: .milliseconds(200), isSettled: nearOnly))
+        XCTAssertTrue(ShelfScene3D.isOpeningPrinted(cases: cases, waited: ShelfScene3D.openingBudget, isSettled: nearOnly),
                       "A slow cover must not hold the swing")
+    }
+
+    func testFaceLandsOnItsProjectedCorners() {
+        let size = CGSize(width: 114, height: 100)
+        let corners = [CGPoint(x: 10, y: 20), CGPoint(x: 200, y: 40), CGPoint(x: 180, y: 300), CGPoint(x: 30, y: 250)]
+        let mapping = ShelfGeometry.mapping(size, onto: corners)
+        let square = [CGPoint.zero, CGPoint(x: size.width, y: 0), CGPoint(x: size.width, y: size.height), CGPoint(x: 0, y: size.height)]
+        for (point, expected) in zip(square, corners) {
+            let x = point.x * mapping.m11 + point.y * mapping.m21 + mapping.m41
+            let y = point.x * mapping.m12 + point.y * mapping.m22 + mapping.m42
+            let w = point.x * mapping.m14 + point.y * mapping.m24 + mapping.m44
+            XCTAssertEqual(x / w, expected.x, accuracy: 0.001)
+            XCTAssertEqual(y / w, expected.y, accuracy: 0.001)
+        }
+    }
+
+    func testOnlyFacesTowardTheCameraAreDrawn() throws {
+        let camera = ShelfCamera(size: Self.phone)
+        let shelfCase = ShelfCaseLayer()
+        // Front, open edge, top, hinge.
+        shelfCase.place(ShelfCaseLayer.placement(.init(place: .zero, turn: simd_quatf(angle: 0, axis: [0, 1, 0]), opacity: 1), camera: camera))
+        let faces = try XCTUnwrap(shelfCase.root.sublayers)
+        XCTAssertEqual(faces.map(\.isHidden), [false, false, false, true], "At rest the hinge is turned away")
+        let swinging = ShelfGeometry.Pose(place: .zero, turn: simd_quatf(angle: ShelfGeometry.swingAngle, axis: [0, 1, 0]), opacity: 1)
+        shelfCase.place(ShelfCaseLayer.placement(swinging, camera: camera))
+        XCTAssertEqual(faces.map(\.isHidden), [false, true, false, false], "Swinging in, the hinge shows and the open edge turns away")
     }
 
     private func host(_ view: some View) throws -> UIWindow {

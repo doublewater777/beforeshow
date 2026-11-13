@@ -345,7 +345,7 @@ private final class ShelfFrameTicker: NSObject {
 
     @objc private func tick(_ link: CADisplayLink) {
         let now = link.targetTimestamp
-        // A stalled frame (RealityKit warming up its first render) holds the animation instead of skipping ahead.
+        // A stalled frame holds the animation instead of skipping ahead.
         elapsed += min(now - (lastTime ?? now), 1.0 / 20)
         lastTime = now
         if step?(elapsed) != true { stop() }
