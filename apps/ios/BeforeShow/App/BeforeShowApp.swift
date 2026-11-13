@@ -53,6 +53,7 @@ struct BeforeShowApp: App {
             MainActor.assumeIsolated {
                 AppPersistenceMigrationRunner.run(in: modelContainer.mainContext)
                 synchronizeFreeShowCapacity(in: modelContainer.mainContext)
+                syncLiveActivitiesOnLaunch(in: modelContainer.mainContext)
             }
 
             let posthogAPIKey = Bundle.main.object(forInfoDictionaryKey: "PostHogAPIKey") as? String ?? ""

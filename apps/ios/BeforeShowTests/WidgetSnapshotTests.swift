@@ -225,7 +225,7 @@ final class WidgetSnapshotTests: XCTestCase {
             return XCTFail("expected start/end")
         }
 
-        let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
+        let earliest = LiveActivityPlanner.segments(dayStart: start, dayEnd: end, splitsLongDays: false)[0].start
         // 默认 4h 演出 → 提前 3 小时, 且距离结束不超过 8h
         XCTAssertEqual(earliest.timeIntervalSince(start), -3 * 3_600, accuracy: 1)
         XCTAssertLessThanOrEqual(end.timeIntervalSince(earliest), 8 * 3_600)
@@ -647,104 +647,102 @@ final class WidgetSnapshotTests: XCTestCase {
         )
     }
 
-    /// 窗口内、无现有活动 → request;有同场活动 → update。
+    /// 窗口内、无现有活动 → request;有同场旧内容活动 → update。
     func testPlannerRequestAndUpdateInsideWindow() {
         let now = Date()
-        // 默认 4h 演出 → 窗口 = 开场前 30m;now+20m 在窗口内
+        // 默认 4h 演出 → 窗口 = 开场前 3h;now+20m 在窗口内
         let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 60))
         let showID = snapshot.showID.uuidString
 
-        let request = LiveActivityPlanner.action(
-            snapshot: snapshot, now: now, existing: [], coverFilename: nil
-        )
-        guard case .request = request else {
-            return XCTFail("expected request, got \(request)")
-        }
-
         let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
-        let existing = [LiveActivityExisting(showID: showID, isPending: false, state: desired.state)]
-        let update = LiveActivityPlanner.action(
-            snapshot: snapshot, now: now, existing: existing, coverFilename: nil
+        XCTAssertEqual(
+            LiveActivityPlanner.operations(snapshot: snapshot, now: now, existing: [], coverFilename: nil),
+            [.request(desired.state, segmentEnd: desired.activityEnd)]
         )
-        guard case .update = update else {
-            return XCTFail("expected update, got \(update)")
-        }
+
+        var outdated = desired.state
+        outdated.venueName = "旧场馆"
+        let existing = [LiveActivityExisting(id: "a", showID: showID, isPending: false, state: outdated)]
+        XCTAssertEqual(
+            LiveActivityPlanner.operations(snapshot: snapshot, now: now, existing: existing, coverFilename: nil),
+            [.update(id: "a", desired.state)]
+        )
     }
 
-    /// 窗口外:pending 内容未变 → none(保留不重建);endDate 变了 → 重新 schedule。
+    /// 窗口外:pending 内容未变 → 保留不重建;endDate 变了 → 结束并重新 schedule。
     func testPlannerKeepsUnchangedPendingOutsideWindow() {
         let now = Date()
-        // now+20h 开场,默认 4h 演出 → 窗口起点 = 开场前 4h = now+16h,现在在窗口外
+        // now+20h 开场,默认 4h 演出 → 窗口起点 = 开场前 3h = now+17h,现在在窗口外
         let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 3_600))
         let showID = snapshot.showID.uuidString
         let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
 
-        let unchanged = LiveActivityPlanner.action(
+        let unchanged = LiveActivityPlanner.operations(
             snapshot: snapshot,
             now: now,
-            existing: [LiveActivityExisting(showID: showID, isPending: true, state: desired.state)],
+            existing: [LiveActivityExisting(id: "a", showID: showID, segmentEnd: desired.activityEnd,
+                                            isPending: true, state: desired.state)],
             coverFilename: nil
         )
-        XCTAssertEqual(unchanged, .keep(desired.state))
+        XCTAssertEqual(unchanged, [])
 
         var changedState = desired.state
         changedState.lifecycleEnd = (desired.state.lifecycleEnd ?? now).addingTimeInterval(3_600)
-        let changed = LiveActivityPlanner.action(
+        let changed = LiveActivityPlanner.operations(
             snapshot: snapshot,
             now: now,
-            existing: [LiveActivityExisting(showID: showID, isPending: true, state: changedState)],
+            existing: [LiveActivityExisting(id: "a", showID: showID, isPending: true, state: changedState)],
             coverFilename: nil
         )
-        guard case .schedule = changed else {
-            return XCTFail("expected schedule on changed pending, got \(changed)")
+        guard changed.count == 2, changed[0] == .end(id: "a"), case .schedule = changed[1] else {
+            return XCTFail("expected end + schedule on changed pending, got \(changed)")
         }
     }
 
-    /// 已过谢幕 / 已取消 → endAll。
+    /// 已过谢幕 / 已取消 → 全部结束。
     func testPlannerEndsAfterShowAndWhenCanceled() {
         let now = Date()
         // 5h 前开场,默认 4h 演出 → 谢幕已过 1h
         let past = makePlannerSnapshot(start: now.addingTimeInterval(-5 * 3_600))
+        let pastExisting = [LiveActivityExisting(
+            id: "a", showID: past.showID.uuidString, isPending: false,
+            state: LiveActivityPlanner.desiredState(snapshot: past, now: now.addingTimeInterval(-3 * 3_600), coverFilename: nil)!.state
+        )]
         XCTAssertEqual(
-            LiveActivityPlanner.action(
-                snapshot: past, now: now, existing: [], coverFilename: nil
-            ),
-            .endAll
+            LiveActivityPlanner.operations(snapshot: past, now: now, existing: pastExisting, coverFilename: nil),
+            [.end(id: "a")]
         )
 
         let canceled = makePlannerSnapshot(start: now.addingTimeInterval(2 * 3_600), canceled: true)
+        let canceledExisting = [LiveActivityExisting(
+            id: "b", showID: canceled.showID.uuidString, isPending: false,
+            state: pastExisting[0].state
+        )]
         XCTAssertEqual(
-            LiveActivityPlanner.action(
-                snapshot: canceled, now: now, existing: [], coverFilename: nil
-            ),
-            .endAll
+            LiveActivityPlanner.operations(snapshot: canceled, now: now, existing: canceledExisting, coverFilename: nil),
+            [.end(id: "b")]
         )
 
         XCTAssertEqual(
-            LiveActivityPlanner.action(
-                snapshot: nil, now: now, existing: [], coverFilename: nil
-            ),
-            .endAll
+            LiveActivityPlanner.operations(snapshot: nil, now: now, existing: canceledExisting, coverFilename: nil),
+            [.end(id: "b")]
         )
     }
 
-    /// 跨天/超 8h 现场:活跃窗口起点钳到开场时刻,绝不排到开场之后。
+    /// 不拆段的超 8h 普通现场:只保留散场前最后 8h。
     func testLiveActivityEarliestStartClampsToShowStartForLongShows() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let start = now.addingTimeInterval(20 * 86_400)
         // 3 天音乐节:endBoundary 远超 start + 8h
         let end = start.addingTimeInterval(3 * 86_400)
 
-        let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
-        // 单日超 8h (例如 11h, 12:00-23:00) 窗口起点取 end - 8h
-        let singleDayEnd = start.addingTimeInterval(11 * 3_600)
-        let singleDayEarliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: singleDayEnd)
-        XCTAssertEqual(singleDayEarliest, singleDayEnd.addingTimeInterval(-8 * 3_600))
+        let earliest = LiveActivityPlanner.segments(dayStart: start, dayEnd: end, splitsLongDays: false)[0].start
+        XCTAssertEqual(earliest, end.addingTimeInterval(-8 * 3_600))
 
         // 常规 4h 演出不受影响
         let normalEnd = start.addingTimeInterval(4 * 3_600)
         XCTAssertEqual(
-            LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: normalEnd),
+            LiveActivityPlanner.segments(dayStart: start, dayEnd: normalEnd, splitsLongDays: false)[0].start,
             start.addingTimeInterval(-3 * 3_600)
         )
     }
@@ -752,20 +750,20 @@ final class WidgetSnapshotTests: XCTestCase {
     /// 超出 schedule 视野(7 天)不安排 pending:不占系统配额,等临近后的前台同步。
     func testPlannerDoesNotScheduleBeyondHorizon() {
         let now = Date()
-        // 30 天后开场:窗口起点(开场前 4h)也远超 7 天视野
+        // 30 天后开场:窗口起点(开场前 3h)也远超 7 天视野
         let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(30 * 86_400))
-        let action = LiveActivityPlanner.action(
-            snapshot: snapshot, now: now, existing: [], coverFilename: nil
+        XCTAssertEqual(
+            LiveActivityPlanner.operations(snapshot: snapshot, now: now, existing: [], coverFilename: nil),
+            []
         )
-        XCTAssertEqual(action, .none)
 
-        // 3 天后开场:窗口起点 = 开场前 4h,在 7 天视野内 → schedule
+        // 3 天后开场:窗口起点 = 开场前 3h,在 7 天视野内 → schedule
         let near = makePlannerSnapshot(start: now.addingTimeInterval(3 * 86_400))
-        let nearAction = LiveActivityPlanner.action(
+        let nearOperations = LiveActivityPlanner.operations(
             snapshot: near, now: now, existing: [], coverFilename: nil
         )
-        guard case .schedule = nearAction else {
-            return XCTFail("expected schedule within horizon, got \(nearAction)")
+        guard nearOperations.count == 1, case .schedule = nearOperations[0] else {
+            return XCTFail("expected schedule within horizon, got \(nearOperations)")
         }
     }
 
@@ -775,7 +773,7 @@ final class WidgetSnapshotTests: XCTestCase {
     /// 不能 .update(改不了 pending 的 start)。
     func testPlannerRequestsWhenStalePendingEntersActiveWindow() {
         let now = Date()
-        // 新时间:20m 后开场 → 窗口内(开场前 30m 起)
+        // 新时间:20m 后开场 → 窗口内(开场前 3h 起)
         let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 60))
         let showID = snapshot.showID.uuidString
         let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
@@ -785,18 +783,17 @@ final class WidgetSnapshotTests: XCTestCase {
         stale.startDate = now.addingTimeInterval(20 * 3_600)
         stale.endDate = stale.startDate.addingTimeInterval(4 * 3_600)
 
-        let action = LiveActivityPlanner.action(
+        let operations = LiveActivityPlanner.operations(
             snapshot: snapshot,
             now: now,
-            existing: [LiveActivityExisting(showID: showID, isPending: true, state: stale)],
+            existing: [LiveActivityExisting(id: "a", showID: showID, isPending: true, state: stale)],
             coverFilename: nil
         )
-        guard case .request = action else {
-            return XCTFail("stale pending inside window must request, got \(action)")
-        }
+        XCTAssertEqual(operations, [.end(id: "a"), .request(desired.state, segmentEnd: desired.activityEnd)],
+                       "stale pending inside window must end and request")
     }
 
-    /// pending 内容变了且新窗口起点超出 7 天视野 → endAll,不得 .none 保留旧 start。
+    /// pending 内容变了且新窗口起点超出 7 天视野 → 结束,不得保留旧 start。
     func testPlannerEndsStalePendingMovedBeyondScheduleHorizon() {
         let now = Date()
         // 新时间:30 天后 → 超出 scheduleHorizon
@@ -809,20 +806,18 @@ final class WidgetSnapshotTests: XCTestCase {
         stale.startDate = now.addingTimeInterval(3 * 86_400)
         stale.endDate = stale.startDate.addingTimeInterval(4 * 3_600)
 
-        let action = LiveActivityPlanner.action(
+        let operations = LiveActivityPlanner.operations(
             snapshot: snapshot,
             now: now,
-            existing: [LiveActivityExisting(showID: showID, isPending: true, state: stale)],
+            existing: [LiveActivityExisting(id: "a", showID: showID, isPending: true, state: stale)],
             coverFilename: nil
         )
-        XCTAssertEqual(action, .endAll, "stale pending beyond horizon must end, not keep")
+        XCTAssertEqual(operations, [.end(id: "a")], "stale pending beyond horizon must end, not keep")
 
-        // 无残留时仍 .none(不占动作)
+        // 无残留时没有动作
         XCTAssertEqual(
-            LiveActivityPlanner.action(
-                snapshot: snapshot, now: now, existing: [], coverFilename: nil
-            ),
-            .none
+            LiveActivityPlanner.operations(snapshot: snapshot, now: now, existing: [], coverFilename: nil),
+            []
         )
     }
 
@@ -855,7 +850,7 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertTrue(ShowCountdownRule.isDayCount(remainingSeconds: remainingAtThreshold + 1))
     }
 
-    /// 正确 pending + 旧 start pending 并存:必须 keep(目标态),不能 .none 把去重交给数组顺序。
+    /// 正确 pending + 旧 start pending 并存:保留目标态,结束旧的,不能把去重交给数组顺序。
     func testPlannerKeepsDesiredPendingWhenStaleDuplicateExists() {
         let now = Date()
         let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 3_600))
@@ -867,16 +862,18 @@ final class WidgetSnapshotTests: XCTestCase {
         stale.endDate = stale.startDate.addingTimeInterval(4 * 3_600)
 
         // 故意把 stale 放前面:模拟 ActivityKit 返回顺序不利
-        let action = LiveActivityPlanner.action(
+        let operations = LiveActivityPlanner.operations(
             snapshot: snapshot,
             now: now,
             existing: [
-                LiveActivityExisting(showID: showID, isPending: true, state: stale),
-                LiveActivityExisting(showID: showID, isPending: true, state: desired.state),
+                LiveActivityExisting(id: "stale", showID: showID, segmentEnd: desired.activityEnd,
+                                     isPending: true, state: stale),
+                LiveActivityExisting(id: "desired", showID: showID, segmentEnd: desired.activityEnd,
+                                     isPending: true, state: desired.state),
             ],
             coverFilename: nil
         )
-        XCTAssertEqual(action, .keep(desired.state))
+        XCTAssertEqual(operations, [.end(id: "stale")])
     }
 
     func testAmbientColorReadsTopBandNotBottom() {

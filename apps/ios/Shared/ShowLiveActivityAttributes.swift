@@ -127,6 +127,8 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
 
     /// 现场身份(app 侧判断是否同一场,决定更新还是重启)
     var showID: String
+    /// 长音乐节日按 8h 切段时本段的结束时刻;旧版本创建的活动为 nil,视为当天最后一段。
+    var segmentEnd: Date? = nil
 }
 
 extension ShowLiveActivityAttributes.ContentState {

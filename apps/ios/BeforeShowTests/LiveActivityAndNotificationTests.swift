@@ -25,22 +25,18 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         let state = try XCTUnwrap(LiveActivityPlanner.desiredState(
             snapshot: snapshot, now: date(-24), coverFilename: nil
         )).state
-        let existing = [LiveActivityExisting(showID: snapshot.showID.uuidString, isPending: false, state: state)]
-        for activities in [[], existing] {
-            let action = LiveActivityPlanner.action(
+        let existing = [LiveActivityExisting(id: "a", showID: snapshot.showID.uuidString, isPending: false, state: state)]
+        for (activities, expected) in [([], []), (existing, [LiveActivityOperation.end(id: "a")])] {
+            XCTAssertEqual(LiveActivityPlanner.operations(
                 snapshot: snapshot, now: date(-24), existing: activities,
                 coverFilename: nil, supportsScheduling: false
-            )
-            switch action {
-            case .none where activities.isEmpty, .endAll where !activities.isEmpty: break
-            default: XCTFail("Old systems must not start or retain an activity before its window")
-            }
+            ), expected, "Old systems must not start or retain an activity before its window")
         }
-        let active = LiveActivityPlanner.action(
+        let active = LiveActivityPlanner.operations(
             snapshot: snapshot, now: date(10), existing: [],
             coverFilename: nil, supportsScheduling: false
         )
-        guard case .request = active else { return XCTFail("Foreground start must remain available") }
+        guard active.count == 1, case .request = active[0] else { return XCTFail("Foreground start must remain available") }
     }
 
     // MARK: - 1. Live Activity Without Interested Shows (Objective Overview)
@@ -202,11 +198,11 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertEqual(focusedState.currentArtistName, "Focused")
         XCTAssertEqual(focusedState.currentStageName, "Main Stage")
         XCTAssertEqual(focusedState.currentStartsAt, date(20, 15))
-        XCTAssertEqual(LiveActivityPlanner.action(
+        XCTAssertEqual(LiveActivityPlanner.operations(
             snapshot: snapshot, now: date(20, 30),
-            existing: [LiveActivityExisting(showID: snapshot.showID.uuidString, isPending: false, state: defaultState)],
+            existing: [LiveActivityExisting(id: "a", showID: snapshot.showID.uuidString, isPending: false, state: defaultState)],
             coverFilename: nil, focusedPerformanceID: focused.id
-        ), .update(focusedState))
+        ), [.update(id: "a", focusedState)])
     }
 
     // MARK: - 3. Multi-day Intermission: Ends Today, Restarts Next Day
@@ -349,16 +345,14 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         let start20 = date(20, 0)
         let end22 = date(22, 0)
         XCTAssertEqual(
-            LiveActivityPlanner.earliestStart(activityStart: start20, activityEnd: end22),
+            LiveActivityPlanner.segments(dayStart: start20, dayEnd: end22, splitsLongDays: false)[0].start,
             date(17, 0)
         )
 
-        // 2. 12:00 - 23:00 音乐节单日 (11h): 开场前 3h = 09:00, 谢幕前 8h = 15:00 -> 较晚者为 15:00
-        let start12 = date(12, 0)
-        let end23 = date(23, 0)
+        // 2. 12:00 - 23:00 音乐节单日 (11h): 开场前 3h = 09:00 起,拆成 09–15、15–23 两段
         XCTAssertEqual(
-            LiveActivityPlanner.earliestStart(activityStart: start12, activityEnd: end23),
-            date(15, 0)
+            LiveActivityPlanner.segments(dayStart: date(12, 0), dayEnd: date(23, 0), splitsLongDays: true).map(\.start),
+            [date(9, 0), date(15, 0)]
         )
 
         // 3. 音乐节换场或切换聚焦不改变当日启动窗口
@@ -375,8 +369,8 @@ final class LiveActivityAndNotificationTests: XCTestCase {
 
         let desiredEarly = LiveActivityPlanner.desiredState(snapshot: festivalSnapshot, now: date(13, 0), coverFilename: nil)!
         let desiredLater = LiveActivityPlanner.desiredState(snapshot: festivalSnapshot, now: date(15, 30), coverFilename: nil)!
-        let earliestEarly = LiveActivityPlanner.earliestStart(activityStart: desiredEarly.dayStart, activityEnd: desiredEarly.activityEnd)
-        let earliestLater = LiveActivityPlanner.earliestStart(activityStart: desiredLater.dayStart, activityEnd: desiredLater.activityEnd)
+        let earliestEarly = LiveActivityPlanner.segments(snapshot: festivalSnapshot, desired: desiredEarly)[0].start
+        let earliestLater = LiveActivityPlanner.segments(snapshot: festivalSnapshot, desired: desiredLater)[0].start
         XCTAssertEqual(earliestEarly, earliestLater, "换场不应改变当日活动启动窗口")
         XCTAssertEqual(earliestEarly, date(11, 0), "14:00 首演的音乐节应在 11:00 启动")
     }
@@ -423,31 +417,33 @@ final class LiveActivityAndNotificationTests: XCTestCase {
         XCTAssertNil(desiredAtEnd, "演出结束后 desiredState 为 nil")
 
         let existingState = LiveActivityPlanner.desiredState(snapshot: snapshot, now: date(13, 0), coverFilename: nil)!.state
-        let existing = [LiveActivityExisting(showID: snapshot.showID.uuidString, isPending: false, state: existingState)]
+        let existing = [LiveActivityExisting(id: "a", showID: snapshot.showID.uuidString, isPending: false, state: existingState)]
 
         // 14:05: 刚过结束点 5 分钟，仍在 15 分钟展示窗口内 -> 自然结束，带有 15 分钟 dismissal
-        let actionWithin15m = LiveActivityPlanner.action(
+        let actionWithin15m = LiveActivityPlanner.operations(
             snapshot: snapshot, now: date(14, 5), existing: existing, coverFilename: nil
         )
-        guard case .endNaturally(let finalState, let dismissDate) = actionWithin15m else {
+        guard actionWithin15m.count == 1,
+              case .endNaturally(let id, let finalState, let dismissDate) = actionWithin15m[0] else {
             return XCTFail("自然结束点应返回 .endNaturally")
         }
+        XCTAssertEqual(id, "a")
         XCTAssertTrue(finalState.isEnded ?? false, "最终态应标记为已结束")
         XCTAssertEqual(dismissDate, date(14, 15), "应在散场 15 分钟后收起")
 
         // 14:20: 超过散场 15 分钟 -> 立即清除
-        let actionAfter15m = LiveActivityPlanner.action(
+        let actionAfter15m = LiveActivityPlanner.operations(
             snapshot: snapshot, now: date(14, 20), existing: existing, coverFilename: nil
         )
-        XCTAssertEqual(actionAfter15m, .endAll)
+        XCTAssertEqual(actionAfter15m, [.end(id: "a")])
 
         // 异常结束（如取消现场）-> 无论何时都应立即清除，不保留 15 分钟
         var canceledSnapshot = snapshot
         canceledSnapshot.timing.changeStatus = .canceled
-        let actionCanceled = LiveActivityPlanner.action(
+        let actionCanceled = LiveActivityPlanner.operations(
             snapshot: canceledSnapshot, now: date(14, 5), existing: existing, coverFilename: nil
         )
-        XCTAssertEqual(actionCanceled, .endAll)
+        XCTAssertEqual(actionCanceled, [.end(id: "a")])
     }
 
     func testContentStateBackwardsCompatibilityDecoding() throws {
