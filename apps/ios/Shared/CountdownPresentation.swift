@@ -22,6 +22,8 @@ struct CountdownPresentation {
     let endBoundary: Date?
     let calendar: Calendar
     let endedTitle: String
+    /// 参考时刻（TimelineEntry 的当前求值时间），避免跨日判断混用系统当前自然日与 Entry 时间。
+    let referenceDate: Date
     /// 距开场的秒数(entry 时刻),给圆形进度环用
     let remainingSeconds: Int
     /// 有时刻表时的现场切片(主现场 / 下一场 / 第一场想看)。
@@ -34,6 +36,7 @@ struct CountdownPresentation {
     var showName: String { identity.title }
 
     init(entry: CountdownEntry) {
+        referenceDate = entry.date
         guard let snapshot = entry.snapshot else {
             hero = .empty
             identity = ShowIdentityCopy(name: "")
@@ -130,7 +133,7 @@ struct CountdownPresentation {
     /// 「今天开场」仅用于当日开场;`<24h` 但跨日仍使用「即将开场」。
     var isStartToday: Bool {
         guard let startDate else { return false }
-        return calendar.isDateInToday(startDate)
+        return calendar.isDate(startDate, inSameDayAs: referenceDate)
     }
 
     /// 顶部时期标签只在 Hero 是数字(far/near)时出现;

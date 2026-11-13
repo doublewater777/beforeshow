@@ -25,19 +25,22 @@ struct CountdownWidgetCard: View {
     let family: WidgetFamily
     let coverImagePath: String?
     let ambientColor: WidgetAmbientRGB?
+    let uiImage: UIImage?
 
     init(entry: CountdownEntry, family: WidgetFamily) {
         self.presentation = CountdownPresentation(entry: entry)
         self.family = family
         self.coverImagePath = entry.coverImagePath
         self.ambientColor = entry.ambientColor
+        self.uiImage = nil
     }
 
-    init(presentation: CountdownPresentation, family: WidgetFamily, coverImagePath: String? = nil, ambientColor: WidgetAmbientRGB? = nil) {
+    init(presentation: CountdownPresentation, family: WidgetFamily, coverImagePath: String? = nil, ambientColor: WidgetAmbientRGB? = nil, uiImage: UIImage? = nil) {
         self.presentation = presentation
         self.family = family
         self.coverImagePath = coverImagePath
         self.ambientColor = ambientColor
+        self.uiImage = uiImage
     }
 
     var body: some View {
@@ -53,11 +56,11 @@ struct CountdownWidgetCard: View {
             case .systemMedium:
                 if let phase = presentation.festivalPhase {
                     FestivalMediumView(phase: phase, showName: presentation.showName) {
-                        WidgetCoverImage(path: coverImagePath)
+                        WidgetCoverImage(path: coverImagePath, uiImage: uiImage)
                     }
                     .environment(\.timeZone, presentation.calendar.timeZone)
                 } else {
-                    MediumCountdownView(presentation: presentation, coverImagePath: coverImagePath)
+                    MediumCountdownView(presentation: presentation, coverImagePath: coverImagePath, uiImage: uiImage)
                 }
             default:
                 EmptyView()
@@ -149,7 +152,7 @@ struct CountdownWidgetView: View {
 
 // MARK: - 共用元素
 
-struct LiveDot: View {
+fileprivate struct LiveDot: View {
     var size: CGFloat = 7
 
     var body: some View {
@@ -211,7 +214,7 @@ struct LiveTag: View {
     }
 }
 
-struct EmptyWidgetView: View {
+fileprivate struct EmptyWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: "ticket")
@@ -234,12 +237,12 @@ func widgetCountdownRange(to start: Date, now: Date = .now) -> ClosedRange<Date>
     return start...start
 }
 
-/// 10 小时以上计时是 `HH:MM:SS` 共 8 位，按原字号会超出小号小组件宽度被截断；
-/// Text(timerInterval:) 不吃 minimumScaleFactor，只能按剩余时长换字号。
-func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color, now: Date = .now) -> some View {
-    let hasTwoDigitHours = start.timeIntervalSince(now) >= 10 * 3_600
-    return Text(timerInterval: widgetCountdownRange(to: start, now: now), countsDown: true)
-        .font(.system(size: hasTwoDigitHours ? fontSize * 0.78 : fontSize, weight: .semibold))
+/// 倒计时时间文本展示。
+/// 统一采用能完整容纳 8 位「HH:MM:SS」的稳定字号（~0.8x），
+/// 避免在 10 小时分界点时因 Text(timerInterval:) 内部走字而外层视图未重新求值导致字号跳变。
+fileprivate func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color, now: Date = .now) -> some View {
+    Text(timerInterval: widgetCountdownRange(to: start, now: now), countsDown: true)
+        .font(.system(size: fontSize * 0.82, weight: .semibold))
         .monospacedDigit()
         .lineLimit(1)
         .foregroundStyle(color)
@@ -343,6 +346,7 @@ struct SmallCountdownView: View {
 struct MediumCountdownView: View {
     let presentation: CountdownPresentation
     let coverImagePath: String?
+    var uiImage: UIImage? = nil
 
     var body: some View {
         if presentation.hasShow {
@@ -450,15 +454,17 @@ struct MediumCountdownView: View {
     }
 
     private var coverView: some View {
-        WidgetCoverImage(path: coverImagePath)
+        WidgetCoverImage(path: coverImagePath, uiImage: uiImage)
     }
 }
 
 /// 中号右侧 3:4 封面；无封面用 default_cover。
 struct WidgetCoverImage: View {
     let path: String?
+    var uiImage: UIImage? = nil
 
     private var image: Image {
+        if let uiImage { return Image(uiImage: uiImage) }
         if let path, let image = UIImage(contentsOfFile: path) { return Image(uiImage: image) }
         return Image("default_cover")
     }

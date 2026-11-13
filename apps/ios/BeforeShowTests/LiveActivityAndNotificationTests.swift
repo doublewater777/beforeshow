@@ -334,9 +334,9 @@ final class LiveActivityAndNotificationTests: XCTestCase {
     func testNextRefreshDateFlipsStandardShowAtStart() {
         let snapshot = makeSnapshot(timetableDays: [])
 
-        // 启动窗口起点为 10:00 - 30m = 09:30
-        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(9, 0)), date(9, 30))
-        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(9, 30)), date(10, 0))
+        // 启动窗口起点为 10:00 - 3h = 07:00
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(6, 0)), date(7, 0))
+        XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(7, 0)), date(10, 0))
         XCTAssertEqual(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(10, 0)), date(14, 0))
         XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: snapshot, now: date(14, 0)))
         XCTAssertNil(LiveActivityPlanner.nextRefreshDate(snapshot: nil, now: date(9, 0)))

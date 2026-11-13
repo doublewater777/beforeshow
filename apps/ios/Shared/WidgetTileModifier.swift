@@ -23,7 +23,7 @@ extension View {
                 .padding(.vertical, 14)
                 .padding(.trailing, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 155)
+                .aspectRatio(364.0 / 170.0, contentMode: .fit)
                 .background(background())
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay(

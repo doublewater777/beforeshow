@@ -4,11 +4,14 @@ import UIKit
 import WidgetKit
 
 struct WidgetSettingsView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var snapshot: WidgetShowSnapshot?
     @State private var listening: WidgetListeningSnapshot?
     @State private var showAmbient: WidgetAmbientRGB?
     @State private var cachedCoverPath: String?
     @State private var cachedListeningCoverPath: String?
+    @State private var cachedCoverImage: UIImage?
+    @State private var cachedListeningCoverImage: UIImage?
     @State private var previewTab: WidgetPreviewTab = .homeScreen
     @State private var homeWidgetSize: HomeWidgetSize = .small
 
@@ -100,6 +103,10 @@ struct WidgetSettingsView: View {
         .onAppear {
             refreshSnapshot()
         }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            refreshSnapshot()
+        }
     }
 
     // MARK: - Home Screen Preview
@@ -113,12 +120,14 @@ struct WidgetSettingsView: View {
                     presentation: countdownPresentation,
                     family: .systemSmall,
                     coverImagePath: cachedCoverPath,
-                    ambientColor: showAmbient
+                    ambientColor: showAmbient,
+                    uiImage: cachedCoverImage
                 )
 
                 ListeningWidgetCard(
                     entry: listeningEntry,
-                    family: .systemSmall
+                    family: .systemSmall,
+                    uiImage: cachedListeningCoverImage
                 )
             }
             .allowsHitTesting(false)
@@ -129,12 +138,14 @@ struct WidgetSettingsView: View {
                     presentation: countdownPresentation,
                     family: .systemMedium,
                     coverImagePath: cachedCoverPath,
-                    ambientColor: showAmbient
+                    ambientColor: showAmbient,
+                    uiImage: cachedCoverImage
                 )
 
                 ListeningWidgetCard(
                     entry: listeningEntry,
-                    family: .systemMedium
+                    family: .systemMedium,
+                    uiImage: cachedListeningCoverImage
                 )
             }
             .allowsHitTesting(false)
@@ -295,10 +306,14 @@ struct WidgetSettingsView: View {
     private func refreshSnapshot() {
         snapshot = WidgetSnapshotStore.read()
         listening = WidgetListeningStore.read()
-        cachedCoverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
-        cachedListeningCoverPath = WidgetCoverCache.cachedCoverPath(matching: listening?.coverImageURL)
+        let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
+        let listeningPath = WidgetCoverCache.cachedCoverPath(matching: listening?.coverImageURL)
+        cachedCoverPath = coverPath
+        cachedListeningCoverPath = listeningPath
+        cachedCoverImage = coverPath.flatMap(UIImage.init(contentsOfFile:))
+        cachedListeningCoverImage = listeningPath.flatMap(UIImage.init(contentsOfFile:))
         showAmbient = CoverAmbientColor
-            .uiColor(fromCoverAt: cachedCoverPath)
+            .uiColor(fromCoverAt: coverPath)
             .flatMap(WidgetAmbientRGB.init)
     }
 }

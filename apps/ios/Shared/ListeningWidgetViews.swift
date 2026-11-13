@@ -21,19 +21,20 @@ struct ListeningEntry: TimelineEntry {
 struct ListeningWidgetCard: View {
     let entry: ListeningEntry
     let family: WidgetFamily
+    var uiImage: UIImage? = nil
 
     var body: some View {
         Group {
             switch family {
             case .systemSmall:
-                SmallListeningView(entry: entry)
+                SmallListeningView(entry: entry, uiImage: uiImage)
             default:
-                MediumListeningView(entry: entry)
+                MediumListeningView(entry: entry, uiImage: uiImage)
             }
         }
         .widgetTile(family: family) {
             if entry.snapshot?.discTitle != nil {
-                PosterBackground(coverImagePath: entry.coverImagePath, blurred: family != .systemSmall)
+                PosterBackground(coverImagePath: entry.coverImagePath, blurred: family != .systemSmall, uiImage: uiImage)
             } else {
                 CoverAmbientBloom(ambient: nil)
             }
@@ -96,13 +97,14 @@ private struct WidgetListeningCopy {
 
 struct SmallListeningView: View {
     let entry: ListeningEntry
+    var uiImage: UIImage? = nil
 
     var body: some View {
         if let snapshot = entry.snapshot {
             let copy = WidgetListeningCopy(snapshot)
             VStack(alignment: .leading, spacing: 0) {
                 if snapshot.discTitle == nil {
-                    SquareCover(path: nil, size: 34)
+                    SquareCover(path: nil, size: 34, uiImage: uiImage)
                 } else if let context = copy.context {
                     ContextLine(text: context)
                 }
@@ -123,6 +125,7 @@ struct SmallListeningView: View {
 
 struct MediumListeningView: View {
     let entry: ListeningEntry
+    var uiImage: UIImage? = nil
 
     private let coverSize: CGFloat = 108
 
@@ -141,7 +144,7 @@ struct MediumListeningView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                SquareCover(path: snapshot.discTitle == nil ? nil : entry.coverImagePath, size: coverSize)
+                SquareCover(path: snapshot.discTitle == nil ? nil : entry.coverImagePath, size: coverSize, uiImage: uiImage)
                     .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2.5)
             }
         } else {
@@ -188,11 +191,12 @@ private struct TitleBlock: View {
 struct PosterBackground: View {
     let coverImagePath: String?
     let blurred: Bool
+    var uiImage: UIImage? = nil
 
     var body: some View {
         ZStack {
             WidgetTheme.background
-            if let image = coverImagePath.flatMap(UIImage.init(contentsOfFile:)) {
+            if let image = uiImage ?? coverImagePath.flatMap(UIImage.init(contentsOfFile:)) {
                 Image(uiImage: image)
                     .resizable()
                     .bsFullColorWidgetImage()
@@ -215,14 +219,15 @@ struct PosterBackground: View {
 }
 
 /// 与迷你播放器的封面一致：静态方形、细描边；封面未就绪时是音符占位。
-struct SquareCover: View {
+fileprivate struct SquareCover: View {
     let path: String?
     let size: CGFloat
+    var uiImage: UIImage? = nil
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size > 60 ? 8 : 6, style: .continuous)
         Group {
-            if let image = path.flatMap(UIImage.init(contentsOfFile:)) {
+            if let image = uiImage ?? path.flatMap(UIImage.init(contentsOfFile:)) {
                 Image(uiImage: image)
                     .resizable()
                     .bsFullColorWidgetImage()
