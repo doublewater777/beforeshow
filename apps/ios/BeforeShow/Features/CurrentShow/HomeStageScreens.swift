@@ -95,7 +95,6 @@ struct HomeStageScreenWall: View {
         }
         .frame(width: mainSize.width, height: mainSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 2))
-        .overlay { BSLEDScanlines() }
         .id(perf.id)
         .transition(.opacity)
     }
@@ -122,7 +121,6 @@ struct HomeStageScreenWall: View {
             }
             .frame(width: size.width, height: size.height)
             .clipShape(RoundedRectangle(cornerRadius: 2))
-            .overlay { BSLEDScanlines() }
             .id(perf.id)
             .transition(.opacity)
 

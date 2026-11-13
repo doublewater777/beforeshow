@@ -65,7 +65,6 @@ struct ShowDetailStageHero: View {
             )
             .frame(width: 168, height: 224)
             .clipped()
-            .overlay { BSLEDScanlines() }
             .grayscale(isOff ? 1 : 0)
             .brightness(wallBrightness)
             .shadow(color: isLit ? colors[0].opacity(0.45) : .clear, radius: 30)

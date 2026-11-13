@@ -33,7 +33,7 @@ struct HomeHeroStage: View {
     let coverWidth: CGFloat
     var reduceMotion: Bool = false
     @State private var glowBreathing = false
-    /// Hung as the LED wall of the stage: square corners, scanlines, the stage does the glow.
+    /// Hung as the LED wall of the stage: square corners, the stage does the glow.
     var onStage = false
 
     private var coverHeight: CGFloat { coverWidth * 4.0 / 3.0 }
@@ -63,7 +63,6 @@ struct HomeHeroStage: View {
         // ShowCoverImageView 先按自身比例布局；外层改成固定 3:4 尺寸后必须再次裁切，
         // 否则图片会越过 352pt 卡片边界，让海报看起来横向错位。
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        .overlay { if onStage { BSLEDScanlines() } }
         .overlay(
             RoundedRectangle(cornerRadius: cornerRadius)
                 .stroke(Color.white.opacity(0.07), lineWidth: 1)

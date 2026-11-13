@@ -62,7 +62,6 @@ struct FootprintStageHero: View {
     private var ledWall: some View {
         let wall = FootprintCoverView(show: show, cover: cover, showsMetadata: false)
             .frame(width: 168, height: 224)
-            .overlay { BSLEDScanlines() }
             .shadow(color: colors[0].opacity(0.45), radius: 30)
             .shadow(color: colors[1].opacity(0.2), radius: 70)
         if canOpenCover {

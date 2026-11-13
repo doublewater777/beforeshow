@@ -164,20 +164,6 @@ extension BSStageScene where Lip == EmptyView {
     }
 }
 
-/// LED pitch: fine horizontal scanlines laid over a poster.
-struct BSLEDScanlines: View {
-    var body: some View {
-        Canvas { canvas, size in
-            var y: CGFloat = 0
-            while y < size.height {
-                canvas.fill(Path(CGRect(x: 0, y: y, width: size.width, height: 1)), with: .color(.black.opacity(0.28)))
-                y += 3
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
-
 /// The date line above a show's name: "2026.10.03 SAT", "— 10.04 SUN" for a show over several days.
 enum BSStageDateLine {
     static func text(
