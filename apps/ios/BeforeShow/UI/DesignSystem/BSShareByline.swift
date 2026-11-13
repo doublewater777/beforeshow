@@ -9,8 +9,14 @@ struct BSShareByline: View {
     static var appName: String { BSLocalization.text("开场前 · 分享图署名") }
 
     var body: some View {
-        HStack(spacing: 7 * scale) {
-            Capsule().fill(BSColor.brandGradient).frame(width: 16 * scale, height: 3 * scale)
+        HStack(spacing: 6 * scale) {
+            Image("AppLogo")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 16 * scale, height: 16 * scale)
+                .clipShape(RoundedRectangle(cornerRadius: 4 * scale, style: .continuous))
+                // The icon is near-black; the edge keeps it an icon on the dark cards.
+                .overlay(RoundedRectangle(cornerRadius: 4 * scale, style: .continuous).strokeBorder(.white.opacity(0.22), lineWidth: 0.5 * scale))
             Text(Self.appName)
                 .font(.system(size: 11 * scale, weight: .semibold))
                 .tracking(0.6 * scale)
