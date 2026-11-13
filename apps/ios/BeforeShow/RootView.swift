@@ -44,6 +44,9 @@ struct RootView: View {
             LegacyCompanionInviteHost(
                 isOnboardingActive: !hasFinishedSplash || !hasResolvedOnboardingRoute || isShowingOnboarding
             )
+            SharedShowImportHost(
+                isOnboardingActive: !hasFinishedSplash || !hasResolvedOnboardingRoute || isShowingOnboarding
+            )
         }
         .modifier(ListeningNotificationTabRouting(selectedTab: $selectedTab))
         .preferredColorScheme(.dark)

@@ -112,7 +112,7 @@ struct BeforeShowApp: App {
             } else {
                 RootView()
                     .onOpenURL { url in
-                        if LegacyCompanionInviteInbox.shared.receive(url) {
+                        if LegacyCompanionInviteInbox.shared.receive(url) || SharedShowInbox.shared.receive(url) {
                             return
                         } else if url.scheme == "beforeshow", url.host == "listen" || url.host == "listening" {
                             ProductAnalytics.capture(.appOpenedFrom(source: .widget, destination: "listen", feature: nil))

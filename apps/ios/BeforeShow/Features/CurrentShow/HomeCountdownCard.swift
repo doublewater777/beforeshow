@@ -132,14 +132,7 @@ struct HomeCountdownLockup: View {
     private func ticker(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> Ticker {
         let calendar = show.timingCalendar()
         let start = timeState.effectiveStartTime
-        let startLine = start.map { date -> String in
-            let formatter = DateFormatter()
-            formatter.calendar = calendar
-            formatter.timeZone = calendar.timeZone
-            formatter.locale = .current
-            formatter.setLocalizedDateFormatFromTemplate("MMMdEEEHHmm")
-            return formatter.string(from: date)
-        } ?? ""
+        let startLine = start.map { Self.startLine($0, calendar: calendar) } ?? ""
         let tint = statusColor(for: phase, timeState: timeState)
         switch phase {
         case .pre:
@@ -175,6 +168,16 @@ struct HomeCountdownLockup: View {
                 tint: BSColor.Stage.dim
             )
         }
+    }
+
+    /// The start beside the number: date, weekday and time in the show's own time zone.
+    static func startLine(_ start: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("MMMdEEEHHmm")
+        return formatter.string(from: start)
     }
 
     /// 散场后告诉用户这是第几场；序号与足迹、唱片墙一致。

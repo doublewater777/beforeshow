@@ -70,7 +70,9 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
 
     private func deliver(_ url: URL) {
         Task { @MainActor in
-            LegacyCompanionInviteInbox.shared.receive(url)
+            if !LegacyCompanionInviteInbox.shared.receive(url) {
+                SharedShowInbox.shared.receive(url)
+            }
         }
     }
 }

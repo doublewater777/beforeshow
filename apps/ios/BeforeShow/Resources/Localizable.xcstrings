@@ -7985,6 +7985,38 @@
         }
       }
     },
+    "分享这场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share this show"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享這場"
+          }
+        }
+      }
+    },
+    "扫码添加这场" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan to add this show"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃碼加入這場"
+          }
+        }
+      }
+    },
     "分享%@" : {
       "localizations" : {
         "en" : {

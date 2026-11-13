@@ -46,6 +46,13 @@ final class ShareCardBylineTests: XCTestCase {
         try assertByline(in: render(poster.environment(\.colorScheme, .dark), size: nil))
     }
 
+    func testCountdownCardCarriesByline() async throws {
+        let start = Date().addingTimeInterval(12 * 86_400)
+        let show = try Show(name: "草东没有派对 · 如常", date: start, startTime: start, city: "杭州", venueName: "杭州奥体中心体育馆")
+        let image = await CountdownShareExport.renderImage(show: show, snapshot: HomeHeroSnapshot(show: show, now: .now))
+        try assertByline(in: XCTUnwrap(image))
+    }
+
     func testTornTicketCarriesByline() throws {
         let face = FootprintTicketFace(show: try makeShow(), ordinal: 37, lights: [.orange, .pink], isExport: true)
         try assertByline(in: render(face, size: nil))

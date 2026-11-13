@@ -165,6 +165,7 @@ struct CurrentShowHomeView: View {
             }
             .containerRelativeFrame(.horizontal)
             .bsToastOverlay(toast, bottomPadding: 90)
+            .modifier(CountdownScreenshotShare(show: currentShow, isVisible: canStartHomeArrival))
             .toolbar(.hidden, for: .navigationBar)
             .bsRootBottomChrome()
             #if DEBUG
