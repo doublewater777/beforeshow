@@ -31,6 +31,18 @@ final class LiveActivityAlertTests: XCTestCase {
         XCTAssertEqual(alert.body, "Middle · 17:00 开演 · Main")
     }
 
+    /// 交接是技术边界,不是换场:有人在演时说正在演出的那一场。
+    func testHandoverAlertPrefersTheSetOnStage() {
+        var state = baseState()
+        state.currentArtistName = "Long Set"
+        state.currentStageName = "Main"
+        state.nextArtistName = "Later"
+        state.nextStartsAt = date(19)
+        let alert = LiveActivityAlertCopy.handover(state: state)
+        XCTAssertEqual(alert.title, "正在演出")
+        XCTAssertEqual(alert.body, "Long Set · Main")
+    }
+
     func testHandoverAlertFallsBackToTheCurrentSet() {
         var state = baseState()
         state.currentArtistName = "Headliner"

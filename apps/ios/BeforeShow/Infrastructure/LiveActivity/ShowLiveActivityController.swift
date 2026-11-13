@@ -124,7 +124,16 @@ actor ShowLiveActivityController {
         if request.retainedCoverSources.contains(source) {
             await MainActor.run { BeforeShowWidgetKind.reloadAllTimelines() }
         }
-        await publish(request, focusedPerformanceID: focusedPerformanceID)
+        // 下载可能跨过交接点:按现在的时间重新规划,不能用发起同步时的 now。
+        let fresh = PendingSync(
+            snapshot: request.snapshot,
+            widgetCoverSource: request.widgetCoverSource,
+            retainedCoverSources: request.retainedCoverSources,
+            now: Date(),
+            generation: request.generation,
+            widgetReloadGeneration: request.widgetReloadGeneration
+        )
+        await publish(fresh, focusedPerformanceID: focusedPerformanceID)
     }
 
     private func publish(_ request: PendingSync, focusedPerformanceID: UUID?) async {

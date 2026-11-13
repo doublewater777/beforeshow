@@ -3,7 +3,8 @@ import Foundation
 // MARK: - Live Activity Lifecycle Planner
 // 输入「现在 + 快照 + 现有活动」,输出按活动 id 的操作;controller 只负责翻译成 ActivityKit 调用。
 // - 每段一个活动;当前段在窗口内则请求/更新,窗口外 iOS 26+ 预约。
-// - 下一段同时预约好,到点由系统拉起;App 被后台唤醒时结束上一段并接上推送。
+// - 当天剩余各段同时预约好(App 被强杀后不会被唤醒补预约),到点由系统拉起;
+//   App 被后台唤醒时结束上一段并接上推送。系统激活有数秒延迟,到点仍 pending 的段先等它。
 // - 预约启动必带 alert:开场段替本地「开场前」提醒说话,后续段静音交接。
 // - pending 的 start 在预约时固定:内容变了只能结束重建,不能 update。
 // - 无现场 / 已取消 / 已过谢幕:全部结束;自然散场保留 15 分钟终态。
@@ -26,6 +27,9 @@ enum LiveActivityOperation: Equatable {
 }
 
 extension LiveActivityPlanner {
+    /// 预约段到点后系统激活的宽限期(真机实测约 3 秒)。
+    static let pendingActivationGrace: TimeInterval = 60
+
     static func operations(
         snapshot: WidgetShowSnapshot?,
         now: Date,
@@ -97,14 +101,20 @@ extension LiveActivityPlanner {
             if let live = activities(in: segment).first(where: { !$0.isPending }) {
                 claimed.insert(live.id)
                 if live.state != current.state { starts.append(.update(id: live.id, current.state)) }
+            } else if now < segment.start.addingTimeInterval(pendingActivationGrace),
+                      let due = mine.first(where: {
+                          $0.isPending && $0.segmentEnd == segment.end
+                              && $0.state == desired(at: segment.start)?.state
+                      }) {
+                claimed.insert(due.id)
             } else {
                 starts.append(.request(current.state, segmentEnd: segment.end))
             }
         } else {
             schedule(segment, isOpening: index == 0)
         }
-        if index + 1 < segments.count {
-            schedule(segments[index + 1], isOpening: false)
+        for later in segments.dropFirst(index + 1) {
+            schedule(later, isOpening: false)
         }
 
         operations += mine.filter { !claimed.contains($0.id) }.map { .end(id: $0.id) }

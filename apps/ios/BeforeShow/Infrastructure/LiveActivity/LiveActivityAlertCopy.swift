@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Live Activity Alert Copy
 // 预约启动的实时活动到点必弹 alert。开场段替本地「开场前」提醒说话,用同一套文案;
-// 分段交接时只说下一场(或正在演出的那一场)。
+// 分段交接是技术边界,不是换场:有人在演时说正在演出的那一场,否则说下一场。
 
 struct LiveActivityAlertCopy: Equatable {
     let title: String
@@ -21,18 +21,18 @@ struct LiveActivityAlertCopy: Equatable {
     }
 
     static func handover(state: ShowLiveActivityAttributes.ContentState) -> LiveActivityAlertCopy {
+        if let artist = state.currentArtistName {
+            return LiveActivityAlertCopy(
+                title: BSLocalization.text("正在演出"),
+                body: state.currentStageName.map { BSLocalization.format("%1$@ · %2$@", artist, $0) } ?? artist
+            )
+        }
         if let artist = state.nextArtistName {
             let opening = state.nextStartsAt.map { LiveActivityCopy.reminderOpening($0, calendar: state.startCalendar) }
             return LiveActivityAlertCopy(
                 title: BSLocalization.text("下一场"),
                 body: [artist, opening, state.nextStageName].compactMap { $0 }
                     .reduce(into: "") { $0 = $0.isEmpty ? $1 : BSLocalization.format("%1$@ · %2$@", $0, $1) }
-            )
-        }
-        if let artist = state.currentArtistName {
-            return LiveActivityAlertCopy(
-                title: BSLocalization.text("正在演出"),
-                body: state.currentStageName.map { BSLocalization.format("%1$@ · %2$@", artist, $0) } ?? artist
             )
         }
         return LiveActivityAlertCopy(title: state.showName, body: BSLocalization.text("已开场"))

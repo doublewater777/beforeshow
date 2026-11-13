@@ -87,6 +87,44 @@ final class LiveActivitySegmentTests: XCTestCase {
         )
     }
 
+    /// 系统拉起预约段有数秒延迟:刚到点仍 pending 时等它激活,不能结束重建。
+    func testDueSegmentStillPendingIsLeftToActivate() throws {
+        let snapshot = makeLongFestival()
+        let existing = [
+            LiveActivityExisting(id: "a", showID: showID(snapshot), segmentEnd: date(15),
+                                 isPending: false, state: try state(snapshot, at: date(14))),
+            LiveActivityExisting(id: "b", showID: showID(snapshot), segmentEnd: date(23),
+                                 isPending: true, state: try state(snapshot, at: date(15))),
+        ]
+        XCTAssertEqual(
+            LiveActivityPlanner.operations(snapshot: snapshot, now: date(15).addingTimeInterval(1),
+                                           existing: existing, coverFilename: nil),
+            [.end(id: "a")]
+        )
+        // 过了宽限期还没激活:视为失败,重建
+        let late = date(15, 2)
+        XCTAssertEqual(
+            LiveActivityPlanner.operations(snapshot: snapshot, now: late, existing: existing, coverFilename: nil),
+            [.end(id: "a"), .end(id: "b"), .request(try state(snapshot, at: late), segmentEnd: date(23))]
+        )
+    }
+
+    /// App 被强杀后不会被唤醒补预约:当天剩余各段一次排好。
+    func testEveryRemainingSegmentIsScheduled() throws {
+        let snapshot = makeLongFestival(closingHour: 29)
+        let operations = LiveActivityPlanner.operations(
+            snapshot: snapshot, now: date(8), existing: [], coverFilename: nil
+        )
+        XCTAssertEqual(operations.compactMap {
+            if case .schedule(_, let end, let start, let isOpening) = $0 { return "\(start)-\(end)-\(isOpening)" }
+            return nil
+        }, [
+            "\(date(9))-\(date(13))-true",
+            "\(date(13))-\(date(21))-false",
+            "\(date(21))-\(date(29))-false",
+        ])
+    }
+
     func testHandoverRequestsTheSegmentWhenItWasNeverScheduled() throws {
         let snapshot = makeLongFestival()
         let now = date(15, 30)
@@ -172,10 +210,10 @@ final class LiveActivitySegmentTests: XCTestCase {
         LiveActivitySegment(start: date(start), end: date(end))
     }
 
-    /// 12:00–23:00 单日音乐节(date(0) 为台北当日零点)。
-    private func makeLongFestival() -> WidgetShowSnapshot {
+    /// 12:00–23:00 单日音乐节(date(0) 为台北当日零点);closingHour 延长压轴。
+    private func makeLongFestival(closingHour: Int = 23) -> WidgetShowSnapshot {
         let stage = UUID()
-        let performances = [(12, 13, "Opener"), (17, 18, "Middle"), (22, 23, "Headliner")].map {
+        let performances = [(12, 13, "Opener"), (17, 18, "Middle"), (closingHour - 1, closingHour, "Headliner")].map {
             WidgetTimetablePerformance(
                 id: UUID(), artistName: $0.2, stageID: stage, stageName: "Main",
                 startsAt: date($0.0), endsAt: date($0.1), isInterested: false
