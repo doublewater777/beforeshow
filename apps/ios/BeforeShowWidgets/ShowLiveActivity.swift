@@ -8,6 +8,7 @@ import WidgetKit
 //
 // Live Activity 不依赖 TimelineView 唤醒。系统计时文本自行累计并在边界停止，
 // context.isStale 表示当前内容需要更新，不等同于散场。
+// 点击只回到「当前」页:演出信息已在当前页,不再叠开时刻表。
 
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -15,7 +16,7 @@ struct ShowLiveActivity: Widget {
             LiveActivityBannerView(state: context.state, isStale: context.isStale)
                 .widgetURL(BeforeShowOpenURL.make(
                     showID: context.attributes.showID,
-                    destination: context.state.hasTimetable == true || context.state.isFestivalDayActive || context.state.isReminderActive ? "timetable" : "home"
+                    destination: "home"
                 ))
         } dynamicIsland: { context in
             DynamicIsland {
@@ -66,7 +67,7 @@ struct ShowLiveActivity: Widget {
             }
             .widgetURL(BeforeShowOpenURL.make(
                 showID: context.attributes.showID,
-                destination: context.state.hasTimetable == true || context.state.isFestivalDayActive || context.state.isReminderActive ? "timetable" : "home"
+                destination: "home"
             ))
         }
     }
