@@ -79,6 +79,8 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     @ObservationIgnored private var projectedShowInputs: ListeningShowInputs?
     @ObservationIgnored private var runtimeRevision = 0
     @ObservationIgnored private var projectedRuntimeRevision = -1
+    @ObservationIgnored private var projectedShowDay: Date?
+    private(set) var lineupNow = Date()
     @ObservationIgnored private var runtimeFetchedAt: [String: Date] = [:]
     @ObservationIgnored private var matchedArtistInputs: [Int: ListeningShowInputs.ArtistIdentity] = [:]
     @ObservationIgnored private var pendingArtistMatching = false
@@ -334,7 +336,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         catalogSongs = []; catalogAlbums = []; catalogSnapshots = []; artistPresentations = [:]
         compilationDiscs = []; browseArtists = []; openingTiers = []
         familiarSongIDs = []; actualSongIDs = []; excludedArtistIDs = []
-        projectedShowInputs = nil
+        projectedShowInputs = nil; projectedShowDay = nil
         // Visible failures belong to the room the user just left. Retry work,
         // including playback-evidence persistence, continues independently.
         errorText = nil
@@ -734,21 +736,20 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         (show.timetable?.days ?? []).flatMap(\.performances).filter(\.isInterested).compactMap(\.appleMusicArtistID)
     }
 
-    private func rebuildDiscs() throws {
+    func rebuildDiscs(now: Date = Date()) throws {
         let interval = OSSignpostID(log: listeningPerformanceLog)
         os_signpost(.begin, log: listeningPerformanceLog, name: "ListeningRebuild", signpostID: interval)
         defer { os_signpost(.end, log: listeningPerformanceLog, name: "ListeningRebuild", signpostID: interval) }
         guard let show else { return }
-        let showID = show.id
+        lineupNow = now; let showID = show.id
         let previousExcludedArtistIDs = excludedArtistIDs
         excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>(
             predicate: #Predicate { $0.showID == showID && $0.isExcluded })).map(\.artistID))
-
         openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>(predicate: #Predicate { $0.showID == showID }))
         let catalogChanged = try catalogProjection.refresh(artistIDs: currentCatalogArtistIDs)
-        let inputs = ListeningShowInputs(show)
+        let inputs = ListeningShowInputs(show), showDay = show.timingCalendar().startOfDay(for: now)
         guard catalogChanged || inputs != projectedShowInputs || runtimeRevision != projectedRuntimeRevision
-                || previousExcludedArtistIDs != excludedArtistIDs else {
+                || previousExcludedArtistIDs != excludedArtistIDs || showDay != projectedShowDay else {
             try refreshEvidence()
             recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>(predicate: #Predicate { $0.showID == showID })).first
             return
@@ -807,8 +808,8 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             showID: show.id,
             coverURL: showCoverURL,
             releaseDates: releaseDates,
-            livePrograms: ListeningCompilationAssembler.livePrograms(for: show, topTracks: topTracks),
-            artistTracks: browseArtists.compactMap { $0.appleMusicArtistID.map(topTracks) }
+            livePrograms: ListeningCompilationAssembler.livePrograms(for: show, topTracks: topTracks, now: now),
+            artistTracks: ListeningShowPlaylistOrdering.artistTracks(show: show, browseArtists: browseArtists, topTracks: topTracks, now: now)
         )
         var discIDs = Set<String>()
         discs = (compilationDiscs + browseArtists.flatMap(\.albums)).filter { discIDs.insert($0.id).inserted }
@@ -816,8 +817,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         browser.reconcile(validArtistIDs: validArtistIDs)
         try refreshEvidence()
         recentListening = try context.fetch(FetchDescriptor<ShowRecentListening>(predicate: #Predicate { $0.showID == showID })).first
-        projectedShowInputs = inputs
-        projectedRuntimeRevision = runtimeRevision
+        projectedShowInputs = inputs; projectedRuntimeRevision = runtimeRevision; projectedShowDay = showDay
         LocalNotificationCenter.shared.listeningDataDidChange(in: context.container)
     }
     private func refreshEvidence() throws {

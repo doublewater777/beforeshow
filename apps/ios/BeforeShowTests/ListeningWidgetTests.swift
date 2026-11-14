@@ -510,6 +510,34 @@ final class ListeningWidgetTests: XCTestCase {
     }
 
     @MainActor
+    func testWidgetPlayStartsAtTheFirstPlayableTrack() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        for song in try context.fetch(FetchDescriptor<CatalogSong>()) {
+            song.previewURL = song.appleMusicSongID == "a1" ? "https://example.invalid/a1.m4a" : nil
+        }
+        try context.save()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: PreviewGapCatalog(),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { ListeningFixturePlayer(source: $0) }
+        )
+        defer { stopWidgetRoom(room) }
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.todayDisc())
+        XCTAssertEqual(disc.tracks.map(\.id), ["a2", "a1"])
+        XCTAssertFalse(room.trackPresentation(for: disc.tracks[0]).isPlayable)
+        XCTAssertTrue(room.trackPresentation(for: disc.tracks[1]).isPlayable)
+        XCTAssertEqual(room.discPresentation(for: disc).defaultPlayableTrackID, "a1")
+        ListeningRoomSessionStore.shared.adopt(room)
+        await ListeningIntentHandler.shared.perform(.play)
+        XCTAssertEqual(room.track?.id, "a1")
+        try await ListenTestData.settle(room) { room.isPlaying }
+        XCTAssertEqual(room.track?.id, "a1")
+    }
+
+    @MainActor
     func testColdWidgetPlayDoesNotStartWithoutMusic() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
@@ -649,6 +677,17 @@ final class ListeningWidgetTests: XCTestCase {
             hasSession: true,
             generatedAt: now
         )
+    }
+}
+
+private struct PreviewGapCatalog: ListeningMusicCatalogServicing {
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        ListeningMusicAccess(authorizationStatus: .authorized, canPlayCatalogContent: false)
+    }
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
     }
 }
 

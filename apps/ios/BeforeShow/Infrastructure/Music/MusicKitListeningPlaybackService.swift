@@ -17,6 +17,8 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     private var durationBySongID: [String: TimeInterval] = [:]
     private(set) var queuedSongIDs: [String] = []
     private var playerRevision = 0
+    /// The shared player can still be written by a load whose prepare returns after a newer one started.
+    private var loadGeneration = 0
     @ObservationIgnored private var playerObservers: [AnyCancellable] = []
     @ObservationIgnored private var focusObserver: NSObjectProtocol?
 
@@ -89,8 +91,11 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func load(_ items: [ListeningPlaybackItem], startingAt songID: String?, at time: TimeInterval) async throws {
+        loadGeneration &+= 1
+        let generation = loadGeneration
         guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
         try await fetchMissingSongs(items.map(\.songID))
+        try ensureCurrent(generation)
         // Songs the catalog no longer returns are skipped instead of failing the disc.
         let playable = items.filter { songsByID[$0.songID] != nil }
         guard let first = playable.first else {
@@ -109,15 +114,25 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         playerRevision &+= 1
         AppAudioSession.lease(.listening)
         await AppAudioSession.yieldToMusicPlayer()
-        try Task.checkCancellation()
+        try ensureCurrent(generation)
         // Warming up is not playing: Play prepares again and reports a song that truly cannot play.
         do {
             try await player.prepareToPlay()
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             Self.logger.error("prepareToPlay failed: \(error, privacy: .public)")
         }
+        try ensureCurrent(generation)
         if time > 0 {
             player.playbackTime = time
+        }
+    }
+
+    private func ensureCurrent(_ generation: Int) throws {
+        try Task.checkCancellation()
+        guard ListeningPlaybackLoadGate.canWrite(generation: generation, latest: loadGeneration) else {
+            throw CancellationError()
         }
     }
 
@@ -221,5 +236,11 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         for song in fetched {
             songsByID[song.id.rawValue] = song
         }
+    }
+}
+
+enum ListeningPlaybackLoadGate {
+    static func canWrite(generation: Int, latest: Int) -> Bool {
+        generation == latest
     }
 }

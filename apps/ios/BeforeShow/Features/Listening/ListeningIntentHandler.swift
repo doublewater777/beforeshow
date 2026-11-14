@@ -47,7 +47,7 @@ final class ListeningIntentHandler: ListeningIntentHandling {
             return
         }
         guard let disc = room.todayDisc(), room.discPresentation(for: disc).canLoad else { return }
-        room.loadDisc(disc, autoplay: true)
+        room.loadPlayableDisc(disc)
     }
 
     /// The shared player for playing from outside Listen (an artist page opened anywhere).

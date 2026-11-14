@@ -54,10 +54,11 @@ import Foundation
     }
 
     /// Back in the foreground or past midnight: the day may have turned and reminders may have moved.
-    func refreshWidgetForDay() {
+    func refreshWidgetForDay(now: Date = Date()) {
+        try? rebuildDiscs(now: now)
         if let showID = show?.id {
             widgetSync.loadReminders(showID: showID, force: true) { [weak self] in self?.syncWidgetListeningState() }
         }
-        syncWidgetListeningState()
+        syncWidgetListeningState(now: now)
     }
 }

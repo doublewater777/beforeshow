@@ -5,7 +5,8 @@ enum ListeningSurface: Hashable {
     case watch
 }
 
-/// Lineup artists in show order, each with their first set when a timetable exists.
+/// One chip per artist. The set beside the name is the performance that placed them:
+/// today's set when `now` is a show day, otherwise the earliest.
 struct ListeningVideoLineup: Equatable {
     struct Artist: Equatable, Identifiable {
         let name: String
@@ -16,20 +17,40 @@ struct ListeningVideoLineup: Equatable {
 
     let artists: [Artist]
 
-    init(_ inputs: ListeningShowInputs) {
-        var firstSet: [String: (ListeningShowInputs.Stage.Set, String)] = [:]
+    init(_ inputs: ListeningShowInputs, now: Date, calendar: Calendar) {
+        var performances: [ListeningLineupSchedule.Performance] = []
+        var index = 0
         for stage in inputs.stages {
-            for set in stage.sets where firstSet[set.name].map({ set.start < $0.0.start }) ?? true {
-                firstSet[set.name] = (set, stage.name)
+            for set in stage.sets {
+                performances.append(.init(name: set.name, day: stage.dayDate, start: set.start, timetableIndex: index))
+                index += 1
             }
         }
-        let names = inputs.artists.map(\.name)
-            + inputs.stages.flatMap(\.sets).sorted { $0.start < $1.start }.map(\.name)
-        var seen: Set<String> = []
-        artists = names
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && seen.insert($0).inserted }
-            .map { Artist(name: $0, set: firstSet[$0]?.0, stageName: firstSet[$0]?.1) }
+        artists = ListeningLineupSchedule.ordered(
+            lineup: inputs.artists.map(\.name),
+            performances: performances,
+            now: now,
+            calendar: calendar
+        ).map { entry in
+            let match = Self.displayedSet(for: entry, in: inputs, calendar: calendar)
+            return Artist(name: entry.name, set: match?.set, stageName: match?.stageName)
+        }
+    }
+
+    private static func displayedSet(
+        for entry: ListeningLineupSchedule.Entry,
+        in inputs: ListeningShowInputs,
+        calendar: Calendar
+    ) -> (set: ListeningShowInputs.Stage.Set, stageName: String)? {
+        guard let performance = entry.performance else { return nil }
+        for stage in inputs.stages where calendar.isDate(stage.dayDate, inSameDayAs: performance.day) {
+            if let set = stage.sets.first(where: {
+                $0.name.trimmingCharacters(in: .whitespacesAndNewlines) == entry.name && $0.start == performance.start
+            }) {
+                return (set, stage.name)
+            }
+        }
+        return nil
     }
 }
 

@@ -216,7 +216,7 @@ struct ListeningRoomView: View {
                         onRecovery: { room.performListeningRecovery($0) },
                         onSearch: nil
                     )
-                    ListeningVideosView(lineup: ListeningVideoLineup(ListeningShowInputs(show)))
+                    ListeningVideosView(lineup: ListeningVideoLineup(ListeningShowInputs(show), now: room.lineupNow, calendar: show.timingCalendar()))
                 }
                 .bsAdaptiveContentWidth()
             } else {

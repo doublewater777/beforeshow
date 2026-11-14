@@ -105,10 +105,7 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             return song.id.rawValue
         })
 
-        let detailedAlbums: [DetailedAlbum] = await withTaskGroup(
-            of: (Int, DetailedAlbum?).self,
-            returning: [DetailedAlbum].self
-        ) { group in
+        let detailedAlbums: [DetailedAlbum] = try await withThrowingTaskGroup(of: (Int, DetailedAlbum).self) { group in
             var results = [DetailedAlbum?](repeating: nil, count: albumSources.count)
             var iterator = albumSources.enumerated().makeIterator()
             let concurrency = 6
@@ -117,11 +114,15 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 if let (index, source) = iterator.next() {
                     group.addTask {
                         do {
+                            try Task.checkCancellation()
                             let detailed = try await source.album.with([.tracks, .artists])
                             let tracks = try await Self.allItems(from: detailed.tracks)
                             let songs = tracks.compactMap { track -> Song? in
                                 guard case let .song(song) = track else { return nil }
                                 return song
+                            }
+                            guard ListeningCatalogAlbumDetailLoad.accepts(songCount: songs.count) else {
+                                throw ListeningCatalogError.incompleteCatalog(source.album.id.rawValue)
                             }
                             return (index, DetailedAlbum(
                                 album: detailed,
@@ -129,7 +130,7 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                                 songs: songs
                             ))
                         } catch {
-                            return (index, nil)
+                            throw ListeningCatalogAlbumDetailLoad.propagate(error)
                         }
                     }
                 }
@@ -139,7 +140,12 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 enqueueNext()
             }
 
-            while let (index, detailedAlbum) = await group.next() {
+            while true {
+                if Task.isCancelled {
+                    group.cancelAll()
+                    throw CancellationError()
+                }
+                guard let (index, detailedAlbum) = try await group.next() else { break }
                 results[index] = detailedAlbum
                 enqueueNext()
             }
@@ -440,6 +446,17 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: "\n\n")
+    }
+}
+
+enum ListeningCatalogAlbumDetailLoad {
+    /// An album with no songs is still a catalog record. A failed detail load is not.
+    static func accepts(songCount: Int) -> Bool {
+        songCount >= 0
+    }
+
+    static func propagate(_ error: Error) -> Error {
+        error
     }
 }
 

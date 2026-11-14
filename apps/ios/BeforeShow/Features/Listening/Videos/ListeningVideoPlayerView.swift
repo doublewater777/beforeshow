@@ -1,6 +1,19 @@
 import SwiftUI
 import AVKit
 
+/// Failure covers a prepared player: the retry control is the screen until the next load succeeds.
+enum ListeningVideoScreenContent: Equatable {
+    case failed
+    case player
+    case loading
+
+    static func resolve(loadFailed: Bool, hasPlayer: Bool) -> Self {
+        if loadFailed { return .failed }
+        if hasPlayer { return .player }
+        return .loading
+    }
+}
+
 /// The expanded video. Dragging it down docks the video into the mini player;
 /// turning the phone sideways fills the screen with the video.
 struct ListeningVideoPlayerView: View {
@@ -32,16 +45,19 @@ struct ListeningVideoPlayerView: View {
     private var screen: some View {
         ZStack {
             Color.black
-            if let player = dock.player {
-                ListeningVideoSurface(player: player) { dock.isExpanded = true }
-            } else if dock.loadFailed {
+            switch ListeningVideoScreenContent.resolve(loadFailed: dock.loadFailed, hasPlayer: dock.player != nil) {
+            case .failed:
                 Button { dock.retry() } label: {
                     Text(ListeningCopy.text("暂时无法载入视频，点按重试"))
                         .font(BSListeningTokens.caption)
                         .foregroundStyle(BSColor.Stage.muted)
                 }
                 .buttonStyle(.plain)
-            } else {
+            case .player:
+                if let player = dock.player {
+                    ListeningVideoSurface(player: player) { dock.isExpanded = true }
+                }
+            case .loading:
                 ProgressView().tint(BSColor.Stage.muted)
             }
         }

@@ -19,7 +19,14 @@ final class ListeningVideoDock {
 
     @ObservationIgnored private let search: any ArtistVideoSearching
     @ObservationIgnored private var loadTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var loadGeneration = 0
+    /// Cleared by pause and by losing focus, so a load that returns late stays paused.
+    @ObservationIgnored private var autoplayOnLoad = false
+    /// Bumped on pause and focus loss so a `.playing` already queued cannot reclaim focus.
+    @ObservationIgnored private let playbackEpoch = PlaybackEpoch()
+    var playbackEpochValue: Int { playbackEpoch.read() }
     @ObservationIgnored private var statusObservation: AnyCancellable?
+    @ObservationIgnored private var itemObservation: AnyCancellable?
     @ObservationIgnored private var endObservation: AnyCancellable?
     @ObservationIgnored private var focusToken: NSObjectProtocol?
     /// Publishes the video to the Lock Screen and Control Center, docked or not.
@@ -35,6 +42,7 @@ final class ListeningVideoDock {
     func open(_ selection: ListeningVideoSelection) {
         isExpanded = true
         guard self.selection?.video.id != selection.video.id else { return }
+        autoplayOnLoad = true
         if self.selection == nil {
             AppAudioSession.lease(.artistVideo)
             // Music taking over closes the video so the mini player follows it; other sounds only pause.
@@ -52,16 +60,23 @@ final class ListeningVideoDock {
 
     func play(_ video: ArtistVideo) {
         guard selection?.video.id != video.id else { return }
+        autoplayOnLoad = true
         selection?.video = video
         load()
     }
 
     func pause() {
+        autoplayOnLoad = false
+        playbackEpoch.bump()
         player?.pause()
         isPlaying = false
     }
 
     func togglePlayback() {
+        if loadFailed {
+            retry()
+            return
+        }
         guard let player else {
             if hasVideo { retry() }
             return
@@ -75,12 +90,19 @@ final class ListeningVideoDock {
         }
     }
 
-    func retry() { load() }
+    func retry() {
+        autoplayOnLoad = true
+        load()
+    }
 
     /// Stops the video and gives the mini player back to the CD.
     func close() {
+        loadGeneration &+= 1
+        autoplayOnLoad = false
+        playbackEpoch.bump()
         loadTask?.cancel()
         statusObservation = nil
+        itemObservation = nil
         endObservation = nil
         player?.pause()
         player = nil
@@ -97,8 +119,11 @@ final class ListeningVideoDock {
 
     private func load() {
         guard let video = selection?.video else { return }
+        loadGeneration &+= 1
+        let generation = loadGeneration
         loadTask?.cancel()
         statusObservation = nil
+        itemObservation = nil
         endObservation = nil
         player?.pause()
         player = nil
@@ -110,31 +135,88 @@ final class ListeningVideoDock {
             do {
                 let stream = try await search.stream(for: video.bvid)
                 // A later pick or a close may land while the address is fetched.
-                guard !Task.isCancelled, selection?.video.id == video.id else { return }
+                guard ListeningVideoLoadGate.accepts(generation: generation, current: loadGeneration),
+                      !Task.isCancelled, selection?.video.id == video.id else { return }
                 let asset = AVURLAsset(url: stream.url, options: ["AVURLAssetHTTPHeaderFieldsKey": stream.headers])
                 let item = AVPlayerItem(asset: asset)
                 item.nowPlayingInfo = [MPMediaItemPropertyTitle: video.title, MPMediaItemPropertyArtist: artist ?? video.author]
                 let player = AVPlayer(playerItem: item)
+                player.automaticallyWaitsToMinimizeStalling = false
                 // With no close button, a finished video hands the mini player back to music.
                 endObservation = NotificationCenter.default.publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: item)
                     .receive(on: DispatchQueue.main)
-                    .sink { [weak self] _ in self?.close() }
-                statusObservation = player.publisher(for: \.timeControlStatus)
+                    .sink { [weak self] _ in
+                        MainActor.assumeIsolated {
+                            guard let self, ListeningVideoLoadGate.accepts(generation: generation, current: self.loadGeneration) else { return }
+                            self.close()
+                        }
+                    }
+                itemObservation = item.publisher(for: \.status)
                     .receive(on: DispatchQueue.main)
                     .sink { [weak self] status in
-                        // Resuming from any control reclaims the app's sound.
-                        if status == .playing { AppAudioSession.claimFocus(.artistVideo) }
-                        self?.isPlaying = status != .paused
+                        MainActor.assumeIsolated {
+                            guard let self, ListeningVideoLoadGate.accepts(generation: generation, current: self.loadGeneration) else { return }
+                            guard status == .failed else { return }
+                            self.markUnplayable()
+                        }
+                    }
+                let epoch = playbackEpoch
+                statusObservation = player.publisher(for: \.timeControlStatus)
+                    .map { status in (status, epoch.read()) }
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] status, emittedEpoch in
+                        MainActor.assumeIsolated {
+                            self?.consumeTimeControlStatus(
+                                status, player: player, generation: generation, emittedEpoch: emittedEpoch
+                            )
+                        }
                     }
                 self.player = player
                 publishNowPlaying(for: player, item: item, cover: video.coverURL)
+                if item.status == .failed {
+                    markUnplayable()
+                    return
+                }
+                guard ListeningVideoLoadGate.shouldStartPlayback(
+                    autoplay: autoplayOnLoad,
+                    generation: generation,
+                    current: loadGeneration,
+                    cancelled: Task.isCancelled,
+                    videoID: video.id,
+                    selectedID: selection?.video.id
+                ) else { return }
                 AppAudioSession.claimFocus(.artistVideo)
                 player.play()
                 _ = await nowPlaying?.becomeActiveIfPossible()
             } catch {
-                if !Task.isCancelled { loadFailed = true }
+                guard ListeningVideoLoadGate.accepts(generation: generation, current: loadGeneration), !Task.isCancelled else { return }
+                loadFailed = true
             }
         }
+    }
+
+    /// A `.playing` queued before pause or focus loss must not run after that pause.
+    /// Focus follows the player as it is now, so a system-player resume still claims it.
+    func consumeTimeControlStatus(
+        _ reported: AVPlayer.TimeControlStatus,
+        player: AVPlayer?,
+        generation: Int,
+        emittedEpoch: Int
+    ) {
+        guard ListeningVideoLoadGate.accepts(generation: generation, current: loadGeneration) else { return }
+        guard !loadFailed else { return }
+        guard emittedEpoch == playbackEpoch.read() else { return }
+        let actual = player?.timeControlStatus ?? .paused
+        if reported == .playing, actual == .playing {
+            AppAudioSession.claimFocus(.artistVideo)
+        }
+        isPlaying = actual != .paused
+    }
+
+    private func markUnplayable() {
+        loadFailed = true
+        isPlaying = false
+        player?.pause()
     }
 
     private func publishNowPlaying(for player: AVPlayer, item: AVPlayerItem, cover: URL?) {
@@ -159,5 +241,40 @@ final class ListeningVideoDock {
             guard let image = await ShowCoverImageCache.shared.image(from: cover) else { return }
             item.nowPlayingInfo?[MPMediaItemPropertyArtwork] = PreviewListeningPlaybackService.makeArtwork(image)
         }
+    }
+}
+
+private final class PlaybackEpoch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func bump() {
+        lock.lock()
+        value &+= 1
+        lock.unlock()
+    }
+
+    func read() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
+/// A load may return after pause, focus loss, or a newer pick. Only the current generation may change the dock.
+enum ListeningVideoLoadGate {
+    static func accepts(generation: Int, current: Int) -> Bool {
+        generation == current
+    }
+
+    static func shouldStartPlayback(
+        autoplay: Bool,
+        generation: Int,
+        current: Int,
+        cancelled: Bool,
+        videoID: String,
+        selectedID: String?
+    ) -> Bool {
+        autoplay && accepts(generation: generation, current: current) && !cancelled && videoID == selectedID
     }
 }
