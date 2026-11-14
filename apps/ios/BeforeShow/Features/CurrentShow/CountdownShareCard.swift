@@ -68,8 +68,15 @@ struct CountdownShareCard: View {
                 .background(BSColor.Stage.background)
             case .stub:
                 CountdownShareStubCard(copy: copy, timeLine: timeLine, poster: poster, link: link)
-            case .headline:
-                CountdownShareHeadlineCard(copy: copy, timeLine: timeLine, poster: poster, link: link)
+            case .invitation:
+                CountdownShareInvitationCard(
+                    copy: copy,
+                    start: snapshot.timeState.effectiveStartTime,
+                    calendar: show.timingCalendar(),
+                    city: FootprintTextNormalizer.nonEmptyTrimmed(show.city),
+                    poster: poster,
+                    link: link
+                )
             }
         }
         .frame(width: CountdownShareExport.renderSize.width, height: CountdownShareExport.renderSize.height)
@@ -80,9 +87,9 @@ struct CountdownShareCard: View {
             posterFill
             LinearGradient(
                 stops: [
-                    .init(color: .clear, location: 0.55),
-                    .init(color: .black.opacity(0.55), location: 0.82),
-                    .init(color: .black.opacity(0.88), location: 1)
+                    .init(color: .clear, location: 0.36),
+                    .init(color: .black.opacity(0.78), location: 0.66),
+                    .init(color: .black.opacity(0.96), location: 1)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -127,24 +134,7 @@ struct CountdownShareCard: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 14) {
             dashedRule
-            HStack(alignment: .center, spacing: 10) {
-                Image("AppLogo")
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(BSShareByline.appName)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text(BSLocalization.text("扫码添加这场演出"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                ShareQRCode(link: link)
-            }
+            CountdownShareSignature(link: link, ink: .white, subInk: .white.opacity(0.62), logoEdge: .white.opacity(0.22))
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
@@ -174,7 +164,26 @@ struct CountdownShareCard: View {
                     .interpolation(.high)
                     .scaledToFill()
             } else {
-                BSColor.Stage.background
+                // No poster: a lit stage rather than a black hole.
+                ZStack {
+                    LinearGradient(
+                        colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.background],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    RadialGradient(
+                        colors: [BSColor.Stage.accent.opacity(0.28), .clear],
+                        center: UnitPoint(x: 0.5, y: 0.08),
+                        startRadius: 0,
+                        endRadius: 260
+                    )
+                    RadialGradient(
+                        colors: [BSColor.Stage.glowBlue.opacity(0.18), .clear],
+                        center: UnitPoint(x: 0.9, y: 0.45),
+                        startRadius: 0,
+                        endRadius: 220
+                    )
+                }
             }
         }
         .frame(width: CountdownShareExport.posterSize.width, height: CountdownShareExport.posterSize.height)

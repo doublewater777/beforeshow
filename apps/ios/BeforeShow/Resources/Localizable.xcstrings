@@ -28127,18 +28127,18 @@
         }
       }
     },
-    "大字" : {
+    "邀你一起去看" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Headline"
+            "value" : "Come see this with me"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "大字"
+            "value" : "邀你一起去看"
           }
         }
       }
