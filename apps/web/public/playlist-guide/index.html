@@ -342,7 +342,7 @@
           shotCaption: "导出页：上方是图文教程入口，下方是复制文字和保存图片",
           exportSteps: [
             "打开一份歌单，点 <strong>导出到音乐 App</strong>。",
-            "要导入 QQ 音乐的文字导入，点 <strong>复制文字</strong>：每行一首，格式是「歌名 - 歌手」。",
+            "要用文字导入（QQ 音乐、网易云音乐），点 <strong>复制文字</strong>：每行一首，格式是「歌名 - 歌手」。",
             "要用截图导入，点 <strong>保存图片</strong>：歌单会存成白底黑字的图片，每张 15 首，歌多时会存成几张。"
           ],
           whereTitle: "能导出的歌单",
@@ -373,7 +373,7 @@
           shotCaption: "匯出頁：上方是圖文教學入口，下方是複製文字和儲存圖片",
           exportSteps: [
             "打開一份歌單，點 <strong>匯出到音樂 App</strong>。",
-            "要用 QQ 音樂的文字導入，點 <strong>複製文字</strong>：每行一首，格式是「歌名 - 歌手」。",
+            "要用文字導入（QQ 音樂、網易雲音樂），點 <strong>複製文字</strong>：每行一首，格式是「歌名 - 歌手」。",
             "要用截圖導入，點 <strong>儲存圖片</strong>：歌單會存成白底黑字的圖片，每張 15 首，歌多時會存成幾張。"
           ],
           whereTitle: "能匯出的歌單",
@@ -404,7 +404,7 @@
           shotCaption: "The export screen: the guide link at the top, Copy Text and Save Image at the bottom",
           exportSteps: [
             "Open a playlist and tap <strong>Export to Music App</strong>.",
-            "For QQ Music's text import, tap <strong>Copy Text</strong>: one song per line, as “Title - Artist”.",
+            "For text import (QQ Music, NetEase Cloud Music), tap <strong>Copy Text</strong>: one song per line, as “Title - Artist”.",
             "For screenshot import, tap <strong>Save Image</strong>: the playlist is saved as black-on-white images, 15 songs each."
           ],
           whereTitle: "Playlists you can export",
@@ -461,29 +461,29 @@
         {
           key: "netease",
           name: { "zh-Hans": "网易云音乐", "zh-Hant": "網易雲音樂", en: "NetEase Cloud Music" },
-          supports: ["image", "link"],
+          supports: ["image", "text", "link"],
           path: {
-            "zh-Hans": ["我的", "歌单旁的 ···", "导入外部歌单", "上传歌单截图"],
-            "zh-Hant": ["我的", "歌單旁的 ···", "導入外部歌單", "上傳歌單截圖"],
-            en: ["Me", "··· next to Playlists", "Import External Playlist", "Upload screenshots"]
+            "zh-Hans": ["我的", "歌单旁的 ···", "导入外部歌单", "粘贴文字 或 上传歌单截图"],
+            "zh-Hant": ["我的", "歌單旁的 ···", "導入外部歌單", "貼上文字 或 上傳歌單截圖"],
+            en: ["Me", "··· next to Playlists", "Import External Playlist", "Paste text or upload screenshots"]
           },
           steps: {
             "zh-Hans": [
-              "在 BeforeShow 点 <strong>保存图片</strong>。",
+              "在 BeforeShow 点 <strong>复制文字</strong>，或点 <strong>保存图片</strong>。",
               "打开网易云音乐，进入 <strong>我的</strong>，点歌单旁的 <strong>···</strong>，选 <strong>导入外部歌单</strong>；也可以在某个自建歌单的菜单里选 <strong>截图导入歌单</strong>。",
-              "选 <strong>上传歌单截图</strong>，一次选上刚保存的全部图片，点 <strong>下一步</strong>。",
+              "用文字：把复制的歌单粘贴进去。用图片：选 <strong>上传歌单截图</strong>，一次选上刚保存的全部图片，点 <strong>下一步</strong>。",
               "选择要导入到的歌单，等待识别完成后检查结果。"
             ],
             "zh-Hant": [
-              "在 BeforeShow 點 <strong>儲存圖片</strong>。",
+              "在 BeforeShow 點 <strong>複製文字</strong>，或點 <strong>儲存圖片</strong>。",
               "打開網易雲音樂，進入 <strong>我的</strong>，點歌單旁的 <strong>···</strong>，選 <strong>導入外部歌單</strong>；也可以在某個自建歌單的選單裡選 <strong>截圖導入歌單</strong>。",
-              "選 <strong>上傳歌單截圖</strong>，一次選上剛儲存的全部圖片，點 <strong>下一步</strong>。",
+              "用文字：把複製的歌單貼上。用圖片：選 <strong>上傳歌單截圖</strong>，一次選上剛儲存的全部圖片，點 <strong>下一步</strong>。",
               "選擇要導入到的歌單，等辨識完成後檢查結果。"
             ],
             en: [
-              "In BeforeShow, tap <strong>Save Image</strong>.",
+              "In BeforeShow, tap <strong>Copy Text</strong> or <strong>Save Image</strong>.",
               "Open NetEase Cloud Music, go to <strong>Me</strong>, tap <strong>···</strong> next to your playlists and choose <strong>Import External Playlist</strong> — or pick <strong>Import from Screenshot</strong> in one of your playlists' menu.",
-              "Choose <strong>Upload screenshots</strong>, select all the saved images at once and tap <strong>Next</strong>.",
+              "Text: paste the copied playlist. Images: choose <strong>Upload screenshots</strong>, select all the saved images at once and tap <strong>Next</strong>.",
               "Pick the playlist to import into and check the result once recognition finishes."
             ]
           }

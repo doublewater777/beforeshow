@@ -28511,18 +28511,18 @@
         }
       }
     },
-    "QQ 音乐用文字或截图，网易云音乐用截图，汽水音乐用歌单链接导入。" : {
+    "QQ 音乐和网易云音乐可用文字或截图导入，汽水音乐用歌单链接导入。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "QQ Music takes text or screenshots, NetEase Cloud Music screenshots, Soda Music a playlist link."
+            "value" : "QQ Music and NetEase Cloud Music take text or screenshots; Soda Music takes a playlist link."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "QQ 音樂用文字或截圖，網易雲音樂用截圖，汽水音樂用歌單連結導入。"
+            "value" : "QQ 音樂和網易雲音樂可用文字或截圖導入，汽水音樂用歌單連結導入。"
           }
         }
       }

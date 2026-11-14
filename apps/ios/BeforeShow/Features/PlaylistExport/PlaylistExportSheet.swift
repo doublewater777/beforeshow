@@ -23,7 +23,7 @@ struct PlaylistExportSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Button { guidePage = BSInAppBrowserPage(url: Self.guideURL) } label: {
                         HStack(spacing: 6) {
-                            Text(BSLocalization.text("QQ 音乐用文字或截图，网易云音乐用截图，汽水音乐用歌单链接导入。"))
+                            Text(BSLocalization.text("QQ 音乐和网易云音乐可用文字或截图导入，汽水音乐用歌单链接导入。"))
                                 .foregroundStyle(BSColor.Stage.muted)
                                 .multilineTextAlignment(.leading)
                             Spacer(minLength: 4)
