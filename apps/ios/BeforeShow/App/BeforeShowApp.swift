@@ -14,7 +14,7 @@ struct BeforeShowApp: App {
     @State private var lastLocalMediaMaintenanceAt: Date?
     @State private var isLocalMediaMaintenanceRunning = false
 
-    private let modelContainer: ModelContainer
+    @State private var persistence: PersistenceStartup
 
     private static var isRunningHostedUnitTests: Bool {
         let environment = ProcessInfo.processInfo.environment
@@ -35,25 +35,16 @@ struct BeforeShowApp: App {
 
         let isRunningHostedUnitTests = Self.isRunningHostedUnitTests
 
-        do {
-            modelContainer = try ModelContainerFactory.make(
-                isStoredInMemoryOnly: isRunningHostedUnitTests
-            )
-        } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
-        }
-
-        MainActor.assumeIsolated {
-            ListeningIntentHandler.shared.configure(with: modelContainer)
-            LocalNotificationCenter.shared.configure(with: modelContainer)
-        }
-
+        let startup = PersistenceStartup.live()
+        _persistence = State(initialValue: startup)
         if !isRunningHostedUnitTests {
-            // Run development-store repairs exactly once before RootView can read state.
-            MainActor.assumeIsolated {
-                AppPersistenceMigrationRunner.run(in: modelContainer.mainContext)
-                synchronizeFreeShowCapacity(in: modelContainer.mainContext)
-                syncLiveActivitiesOnLaunch(in: modelContainer.mainContext)
+            // Scheduled Live Activities can launch the process without a scene.
+            // Open the store before returning so suspension cannot arrive while
+            // SQLite still holds its lock.
+            do {
+                try startup.start()
+            } catch {
+                fatalError("Failed to create ModelContainer: \(error)")
             }
 
             let posthogAPIKey = Bundle.main.object(forInfoDictionaryKey: "PostHogAPIKey") as? String ?? ""
@@ -108,23 +99,12 @@ struct BeforeShowApp: App {
 
     var body: some Scene {
         WindowGroup {
+            Group {
             if Self.isRunningHostedUnitTests {
                 Color.clear
-            } else {
+            } else if let modelContainer = persistence.container {
                 RootView()
-                    .onOpenURL { url in
-                        if LegacyCompanionInviteInbox.shared.receive(url) || SharedShowInbox.shared.receive(url) {
-                            return
-                        } else if url.scheme == "beforeshow", url.host == "listen" || url.host == "listening" {
-                            ProductAnalytics.capture(.appOpenedFrom(source: .widget, destination: "listen", feature: nil))
-                            NotificationDeepLinkRouter.shared.route(to: NotificationDeepLink(showID: UUID(), destination: .listen))
-                        } else if let deepLink = NotificationDeepLink(url: url) {
-                            ProductAnalytics.capture(.appOpenedFrom(
-                                source: .liveActivity, destination: deepLink.destination.rawValue, feature: nil
-                            ))
-                            NotificationDeepLinkRouter.shared.route(to: deepLink)
-                        }
-                    }
+                    .modelContainer(modelContainer)
                     .task {
                         await Task.yield()
                         synchronizeFreeShowCapacity(
@@ -174,8 +154,39 @@ struct BeforeShowApp: App {
                             )
                         }
                     }
+            } else if persistence.needsRetry {
+                Button("重试") { startPersistence() }
+                    .task { startPersistence() }
+            } else {
+                ProgressView()
+            }
+            }
+            .onOpenURL { url in
+                if LegacyCompanionInviteInbox.shared.receive(url) || SharedShowInbox.shared.receive(url) {
+                    return
+                } else if url.scheme == "beforeshow", url.host == "listen" || url.host == "listening" {
+                    ProductAnalytics.capture(.appOpenedFrom(source: .widget, destination: "listen", feature: nil))
+                    NotificationDeepLinkRouter.shared.route(to: NotificationDeepLink(showID: UUID(), destination: .listen))
+                } else if let deepLink = NotificationDeepLink(url: url) {
+                    ProductAnalytics.capture(.appOpenedFrom(
+                        source: .liveActivity, destination: deepLink.destination.rawValue, feature: nil
+                    ))
+                    NotificationDeepLinkRouter.shared.route(to: deepLink)
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active, !Self.isRunningHostedUnitTests else { return }
+                startPersistence()
             }
         }
-        .modelContainer(modelContainer)
+    }
+
+    @MainActor
+    private func startPersistence() {
+        do {
+            try persistence.start()
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
+        }
     }
 }
