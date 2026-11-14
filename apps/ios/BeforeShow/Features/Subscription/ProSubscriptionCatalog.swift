@@ -84,7 +84,7 @@ enum ProSubscriptionCatalog {
     static let yearlyDiscountProductID = "com.doublewaterapps.beforeshow.pro.yearly.discount"
     static let lifetimeDiscountProductID = "com.doublewaterapps.beforeshow.pro.lifetime.discount"
 
-    /// Pro 权益：与现场数量、时刻表识别额度、听歌样式、足迹星空、海报样式、回忆册 PDF、App 图标的实际门禁保持一致。
+    /// Pro 权益：与现场数量、时刻表识别额度、听歌样式、足迹星空、海报样式、回忆册 PDF、歌单导出、App 图标的实际门禁保持一致。
     static let proBenefitCopy = [
         "无限添加现场",
         "不限次时刻表智能识别",
@@ -92,6 +92,7 @@ enum ProSubscriptionCatalog {
         "解锁足迹星空全部音阶与形状",
         "解锁全部分享海报样式",
         "回忆册导出 PDF",
+        "现场歌单导出到音乐 App",
         "更换 App 图标"
     ]
 

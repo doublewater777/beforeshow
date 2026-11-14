@@ -20,6 +20,7 @@ struct ListeningDiscDetailView: View {
     @State private var tone: Color?
     @State private var isEditorialExpanded = false
     @State private var showsNavigationTitle = false
+    @State private var isExporting = false
 
     private let isMultiArtist: Bool
     private let metadataSummary: String
@@ -176,6 +177,7 @@ struct ListeningDiscDetailView: View {
         .presentationDetents([.large])
         .listeningPlaybackFailureAlert(room)
         .presentationDragIndicator(.visible)
+        .playlistExport(isPresented: $isExporting) { disc.tracks.map { PlaylistExport.Song(title: $0.title, artistName: $0.artistName) } }
     }
 
     @ViewBuilder
@@ -542,6 +544,15 @@ struct ListeningDiscDetailView: View {
                     .foregroundStyle(BSColor.Stage.dim)
             }
 
+            if case .compilation = disc.origin {
+                Button { isExporting = true } label: {
+                    Label(BSLocalization.text("导出到音乐 App"), systemImage: "square.and.arrow.up")
+                        .font(BSListeningTokens.caption.weight(.semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .padding(.top, BSSpacing.xs)
+                }
+                .buttonStyle(.plain)
+            }
             if let url = disc.appleMusicURL {
                 Link(destination: url) {
                     HStack(spacing: BSSpacing.xs) {

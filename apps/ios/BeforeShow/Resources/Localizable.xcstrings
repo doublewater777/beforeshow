@@ -28335,70 +28335,6 @@
         }
       }
     },
-    "全部海报样式" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All poster styles"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部海報樣式"
-          }
-        }
-      }
-    },
-    "现场与年度海报" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show and year posters"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現場與年度海報"
-          }
-        }
-      }
-    },
-    "回忆册 PDF" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Memory Book PDF"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "回憶冊 PDF"
-          }
-        }
-      }
-    },
-    "整本导出，可打印" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export the whole book to print"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "整本匯出，可列印"
-          }
-        }
-      }
-    },
     "黑白、鎏金" : {
       "localizations" : {
         "en" : {
@@ -28411,6 +28347,182 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "黑白、鎏金"
+          }
+        }
+      }
+    },
+    "导出到音乐 App" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export to Music App"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出到音樂 App"
+          }
+        }
+      }
+    },
+    "复制文字" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Text"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製文字"
+          }
+        }
+      }
+    },
+    "保存 %lld 张图片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save %lld Images"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存 %lld 張圖片"
+          }
+        }
+      }
+    },
+    "已复制 %lld 首" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied %lld songs"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已複製 %lld 首"
+          }
+        }
+      }
+    },
+    "全部海报与回忆册" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Posters & Memory Book"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部海報與回憶冊"
+          }
+        }
+      }
+    },
+    "海报样式、整本 PDF" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poster styles, full PDF"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "海報樣式、整本 PDF"
+          }
+        }
+      }
+    },
+    "歌单导入音乐 App" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setlist to Music Apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌單導入音樂 App"
+          }
+        }
+      }
+    },
+    "网易云、QQ 音乐、汽水" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NetEase, QQ Music, Soda"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網易雲、QQ 音樂、汽水"
+          }
+        }
+      }
+    },
+    "现场歌单导出到音乐 App" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export setlists to music apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現場歌單匯出到音樂 App"
+          }
+        }
+      }
+    },
+    "图文教程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guide"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖文教學"
+          }
+        }
+      }
+    },
+    "QQ 音乐用文字或截图，网易云音乐用截图，汽水音乐用歌单链接导入。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QQ Music takes text or screenshots, NetEase Cloud Music screenshots, Soda Music a playlist link."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QQ 音樂用文字或截圖，網易雲音樂用截圖，汽水音樂用歌單連結導入。"
           }
         }
       }

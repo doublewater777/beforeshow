@@ -11,6 +11,7 @@ struct FootprintSetlistView: View {
     @State private var selectedID: String?
     @State private var isTaped = false
     @State private var detailTarget: FootprintDetailDestination?
+    @State private var isExporting = false
 
     static let handwriting = Font.custom("Noteworthy-Bold", size: 22)
 
@@ -42,7 +43,13 @@ struct FootprintSetlistView: View {
                     subtitle: BSLocalization.format("%1$lld 首 · 来自 %2$lld 场", songs.count, Set(songs.flatMap(\.showIDs)).count)
                 )
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { isExporting = true } label: { Image(systemName: "square.and.arrow.up") }
+                    .disabled(rows.isEmpty)
+                    .accessibilityLabel(BSLocalization.text("导出到音乐 App"))
+            }
         }
+        .playlistExport(isPresented: $isExporting) { rows.map { PlaylistExport.Song(title: $0.title, artistName: $0.artistName) } }
         .navigationDestination(item: $detailTarget) { FootprintDetailView(show: $0.show, archive: archive) }
         .sensoryFeedback(.selection, trigger: selectedID)
         .task {

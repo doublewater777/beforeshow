@@ -141,8 +141,8 @@ struct ProPaywallBenefitCard: View {
         Benefit(icon: "sparkles", title: BSLocalization.text("时刻表智能识别"), detail: BSLocalization.text("截图识别排期，不限次数")),
         Benefit(icon: "opticaldisc", title: BSLocalization.text("「挑一张」全部样式"), detail: BSLocalization.text("3D 唱片柜、旋转木马等")),
         Benefit(icon: "music.note", title: BSLocalization.text("星空音阶与星图"), detail: BSLocalization.text("4 种音阶，4 个星座")),
-        Benefit(icon: "photo.on.rectangle", title: BSLocalization.text("全部海报样式"), detail: BSLocalization.text("现场与年度海报")),
-        Benefit(icon: "book.closed", title: BSLocalization.text("回忆册 PDF"), detail: BSLocalization.text("整本导出，可打印")),
+        Benefit(icon: "photo.on.rectangle", title: BSLocalization.text("全部海报与回忆册"), detail: BSLocalization.text("海报样式、整本 PDF")),
+        Benefit(icon: "music.note.list", title: BSLocalization.text("歌单导入音乐 App"), detail: BSLocalization.text("网易云、QQ 音乐、汽水")),
         Benefit(icon: "app.badge", title: BSLocalization.text("更换 App 图标"), detail: BSLocalization.text("黑白、鎏金")),
     ]
 

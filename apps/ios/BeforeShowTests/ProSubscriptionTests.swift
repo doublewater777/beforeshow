@@ -641,6 +641,7 @@ final class ProSubscriptionTests: XCTestCase {
             "无限添加现场",
             "解锁全部分享海报样式",
             "回忆册导出 PDF",
+            "现场歌单导出到音乐 App",
             "更换 App 图标",
             "一次买断，永久有效",
             "基础 5 场 · 每月容量 +1",

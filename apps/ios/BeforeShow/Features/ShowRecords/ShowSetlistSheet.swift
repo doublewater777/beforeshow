@@ -21,6 +21,7 @@ struct ShowSetlistSheet: View {
     @State private var saveFailed = false
     @State private var playFeedback = false
     @State private var debugPhase: HomeShowPhase? = nil
+    @State private var isExporting = false
 
     struct SetlistSongItem: Identifiable, Hashable {
         let id: UUID
@@ -81,6 +82,9 @@ struct ShowSetlistSheet: View {
                 VStack(spacing: 16) {
                     if isBefore, !items.isEmpty {
                         playInListenButton
+                    }
+                    if !isLive, !displayRows.isEmpty {
+                        exportButton
                     }
                     songList
                     if saveFailed {
@@ -145,6 +149,9 @@ struct ShowSetlistSheet: View {
                 appendSongs(songs)
             }
         }
+        .playlistExport(isPresented: $isExporting) {
+            displayRows.map { PlaylistExport.Song(title: $0.title, artistName: $0.artistName) }
+        }
         .onChange(of: selectedScreenshot) { _, item in
             guard let item else { return }
             selectedScreenshot = nil
@@ -161,6 +168,14 @@ struct ShowSetlistSheet: View {
                 .lineLimit(1)
         }
         .buttonStyle(BSPrimaryButtonStyle())
+    }
+
+    private var exportButton: some View {
+        Button { isExporting = true } label: {
+            Label(BSLocalization.text("导出到音乐 App"), systemImage: "square.and.arrow.up")
+                .lineLimit(1)
+        }
+        .buttonStyle(BSSecondaryButtonStyle())
     }
 
     // MARK: - Song List

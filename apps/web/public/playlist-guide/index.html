@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>把现场歌单导入音乐 App — 开场前 BeforeShow</title>
+    <meta
+      name="description"
+      content="把开场前 BeforeShow 里的现场歌单导出为图片或文字，再导入 QQ 音乐、网易云音乐和汽水音乐的图文教程。"
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://beforeshow.doublewaterapps.com/playlist-guide/" />
+    <link rel="icon" href="/app-icon.png" type="image/png" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #050508;
+        --surface: rgba(245, 241, 233, 0.06);
+        --surface-strong: rgba(245, 241, 233, 0.09);
+        --border: rgba(245, 241, 233, 0.12);
+        --text: #f5f1e9;
+        --text-soft: #aaa5af;
+        --text-faint: #85808c;
+        --accent: #84bfff;
+        --accent-warm: #ffb36b;
+        --ok: #8fd6a3;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          radial-gradient(ellipse 70% 45% at 50% 0%, rgba(255, 179, 107, 0.12), transparent 70%),
+          var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+        line-height: 1.8;
+      }
+
+      a { color: inherit; text-decoration: none; }
+      button { font: inherit; }
+
+      .wrap {
+        width: min(760px, 100%);
+        margin: 0 auto;
+        padding: 48px 20px 88px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 42px;
+      }
+
+      .back { color: var(--text-soft); font-size: 14px; }
+      .back:hover, .back:focus-visible { color: var(--accent); }
+
+      .lang-switch {
+        display: flex;
+        gap: 4px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+      }
+
+      .lang-switch button {
+        padding: 4px 12px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-soft);
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .lang-switch button.active { background: rgba(132, 191, 255, 0.16); color: var(--accent); }
+
+      h1 {
+        max-width: 620px;
+        margin: 0;
+        font-size: clamp(34px, 7vw, 54px);
+        line-height: 1.1;
+        letter-spacing: -0.04em;
+      }
+
+      .lede { max-width: 620px; margin: 20px 0 0; color: var(--text-soft); font-size: 17px; }
+
+      .methods {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin: 36px 0 8px;
+      }
+
+      .method {
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: var(--surface);
+      }
+
+      .method strong { display: block; font-size: 15px; margin-bottom: 8px; }
+
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+      .chip {
+        padding: 1px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        border: 1px solid var(--border);
+        color: var(--text-faint);
+      }
+
+      .chip.ok { border-color: rgba(143, 214, 163, 0.4); color: var(--ok); background: rgba(143, 214, 163, 0.08); }
+
+      h2 {
+        margin: 54px 0 6px;
+        font-size: 24px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+
+      .step-label {
+        display: inline-block;
+        margin-top: 54px;
+        color: var(--accent-warm);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+      }
+
+      .step-label + h2 { margin-top: 4px; }
+
+      .section-note { margin: 0 0 18px; color: var(--text-soft); font-size: 14px; }
+
+      .export {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 28px;
+        align-items: start;
+        margin-top: 18px;
+      }
+
+      .phone {
+        margin: 0;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 34px;
+        background: #111;
+      }
+
+      .phone img { display: block; width: 100%; height: auto; border-radius: 27px; }
+
+      .phone figcaption { padding: 8px 6px 2px; color: var(--text-faint); font-size: 12px; text-align: center; }
+
+      .export ol, .platform ol {
+        margin: 0;
+        padding-left: 22px;
+        color: var(--text-soft);
+        font-size: 15px;
+      }
+
+      .export li, .platform li { padding-left: 4px; margin: 8px 0; }
+      .export li strong, .platform li strong { color: var(--text); }
+
+      .where { margin-top: 18px; }
+      .where span { display: block; color: var(--text); font-size: 14px; margin-bottom: 6px; }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin: 18px 0 16px;
+        flex-wrap: wrap;
+      }
+
+      .tabs button {
+        padding: 8px 18px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text-soft);
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .tabs button.active {
+        border-color: rgba(255, 179, 107, 0.5);
+        background: rgba(255, 179, 107, 0.12);
+        color: var(--accent-warm);
+      }
+
+      .platform {
+        padding: 22px;
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        background: var(--surface);
+      }
+
+      .path {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 4px;
+        margin: 0 0 18px;
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.35);
+      }
+
+      .path b {
+        padding: 4px 12px;
+        border-radius: 10px;
+        background: var(--surface-strong);
+        border: 1px solid var(--border);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .path b.goal { border-color: rgba(255, 179, 107, 0.5); color: var(--accent-warm); }
+      .path i { color: var(--text-faint); font-style: normal; font-size: 13px; padding: 0 2px; }
+
+      .notice {
+        margin-top: 42px;
+        padding: 20px;
+        border: 1px solid rgba(255, 179, 107, 0.28);
+        border-radius: 20px;
+        background: rgba(255, 179, 107, 0.07);
+      }
+
+      .notice strong { display: block; margin-bottom: 6px; color: var(--accent-warm); }
+      .notice ul { margin: 0; padding-left: 20px; color: var(--text-soft); font-size: 14px; }
+      .notice li { margin: 4px 0; }
+
+      .updated { margin-top: 14px; color: var(--text-faint); font-size: 12px; }
+
+      .footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 20px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        color: var(--text-faint);
+        font-size: 13px;
+      }
+
+      .footer-link { color: var(--accent); }
+
+      @media (max-width: 600px) {
+        .wrap { padding-top: 32px; }
+        .topbar { margin-bottom: 34px; }
+        .methods { grid-template-columns: 1fr; }
+        .export { grid-template-columns: 1fr; }
+        .phone { max-width: 280px; margin: 0 auto; }
+        .platform { padding: 18px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="topbar">
+        <a class="back" data-i18n="back" href="/">← 返回首页</a>
+        <nav class="lang-switch" aria-label="Language">
+          <button type="button" data-set-lang="zh-Hans">简体</button>
+          <button type="button" data-set-lang="zh-Hant">繁體</button>
+          <button type="button" data-set-lang="en">EN</button>
+        </nav>
+      </div>
+
+      <h1 data-i18n="title">把现场歌单导入音乐 App</h1>
+      <p class="lede" data-i18n="lede"></p>
+
+      <section class="methods" aria-label="Methods" id="methods"></section>
+
+      <span class="step-label" data-i18n="step1Label"></span>
+      <h2 data-i18n="step1Title"></h2>
+      <div class="export">
+        <figure class="phone">
+          <img src="/playlist-guide/export-sheet.jpg" width="720" height="1565" alt="" data-i18n-alt="shotAlt" />
+          <figcaption data-i18n="shotCaption"></figcaption>
+        </figure>
+        <div>
+          <ol id="exportSteps"></ol>
+          <div class="where">
+            <span data-i18n="whereTitle"></span>
+            <div class="chips" id="whereChips"></div>
+          </div>
+        </div>
+      </div>
+
+      <span class="step-label" data-i18n="step2Label"></span>
+      <h2 data-i18n="step2Title"></h2>
+      <p class="section-note" data-i18n="step2Note"></p>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <article class="platform" id="platform">
+        <div class="path" id="path"></div>
+        <ol id="platformSteps"></ol>
+      </article>
+
+      <aside class="notice">
+        <strong data-i18n="noticeTitle"></strong>
+        <ul id="notice"></ul>
+        <p class="updated" data-i18n="updated"></p>
+      </aside>
+
+      <footer class="footer">
+        <span data-i18n="copyright"></span>
+        <a class="footer-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026041359号-2</a>
+        <a class="footer-link" href="/privacy" data-i18n="privacyLink"></a>
+        <a class="footer-link" href="/terms" data-i18n="termsLink"></a>
+        <a class="footer-link" href="/" data-i18n="homeLink"></a>
+      </footer>
+    </main>
+
+    <script>
+      var LANG = (function () {
+        var params = new URLSearchParams(location.search);
+        if (["zh-Hans", "zh-Hant", "en"].indexOf(params.get("lang")) !== -1) return params.get("lang");
+        try {
+          var saved = localStorage.getItem("bs-lang");
+          if (["zh-Hans", "zh-Hant", "en"].indexOf(saved) !== -1) return saved;
+        } catch (e) {}
+        var nav = (navigator.language || "").toLowerCase();
+        if (nav.indexOf("zh") !== -1 && (nav.indexOf("hant") !== -1 || nav.indexOf("tw") !== -1 || nav.indexOf("hk") !== -1)) return "zh-Hant";
+        if (nav.indexOf("en") !== -1) return "en";
+        return "zh-Hans";
+      })();
+
+      var copy = {
+        "zh-Hans": {
+          back: "← 返回首页",
+          title: "把现场歌单导入音乐 App",
+          lede: "在 BeforeShow 里把歌单导出成图片或文字，再用音乐 App 的「导入外部歌单」功能导入，就能在 QQ 音乐、网易云音乐或汽水音乐里接着听。导出需要 BeforeShow Pro。",
+          step1Label: "第 1 步",
+          step1Title: "在 BeforeShow 里导出",
+          shotAlt: "BeforeShow 的导出到音乐 App 页面",
+          shotCaption: "导出页：上方是图文教程入口，下方是复制文字和保存图片",
+          exportSteps: [
+            "打开一份歌单，点 <strong>导出到音乐 App</strong>。",
+            "要导入 QQ 音乐的文字导入，点 <strong>复制文字</strong>：每行一首，格式是「歌名 - 歌手」。",
+            "要用截图导入，点 <strong>保存图片</strong>：歌单会存成白底黑字的图片，每张 15 首，歌多时会存成几张。"
+          ],
+          whereTitle: "能导出的歌单",
+          where: ["现场听到了（散场后）", "预习歌单（开场前）", "「听」里的本场歌单", "足迹 · 听过的歌"],
+          step2Label: "第 2 步",
+          step2Title: "导入你的音乐 App",
+          step2Note: "选择你常用的音乐 App。入口名称会随 App 版本变化，找不到时在「我的」页面里找「导入外部歌单」。",
+          supports: { image: "截图导入", text: "文字导入", link: "链接导入" },
+          noticeTitle: "导入后对一下",
+          notice: [
+            "音乐 App 按歌名和歌手自动匹配，翻唱、现场版或没有版权的歌可能匹配到别的版本或缺失，导入后对照 BeforeShow 的歌单补齐。",
+            "截图导入时一次选上全部图片；网易云音乐据说单次最多 9 张，超出时分两次导入。",
+            "已经在目标歌单里的歌，通常不会重复导入。"
+          ],
+          updated: "本教程整理于 2026 年 11 月，按各音乐 App 当时公开的导入方式编写。",
+          copyright: "© 2026 开场前 BeforeShow",
+          privacyLink: "隐私政策",
+          termsLink: "用户协议",
+          homeLink: "返回首页"
+        },
+        "zh-Hant": {
+          back: "← 返回首頁",
+          title: "把現場歌單導入音樂 App",
+          lede: "在 BeforeShow 裡把歌單匯出成圖片或文字，再用音樂 App 的「導入外部歌單」功能導入，就能在 QQ 音樂、網易雲音樂或汽水音樂裡接著聽。匯出需要 BeforeShow Pro。",
+          step1Label: "第 1 步",
+          step1Title: "在 BeforeShow 裡匯出",
+          shotAlt: "BeforeShow 的匯出到音樂 App 頁面",
+          shotCaption: "匯出頁：上方是圖文教學入口，下方是複製文字和儲存圖片",
+          exportSteps: [
+            "打開一份歌單，點 <strong>匯出到音樂 App</strong>。",
+            "要用 QQ 音樂的文字導入，點 <strong>複製文字</strong>：每行一首，格式是「歌名 - 歌手」。",
+            "要用截圖導入，點 <strong>儲存圖片</strong>：歌單會存成白底黑字的圖片，每張 15 首，歌多時會存成幾張。"
+          ],
+          whereTitle: "能匯出的歌單",
+          where: ["現場聽到了（散場後）", "預習歌單（開場前）", "「聽」裡的本場歌單", "足跡 · 聽過的歌"],
+          step2Label: "第 2 步",
+          step2Title: "導入你的音樂 App",
+          step2Note: "選擇你常用的音樂 App。入口名稱會隨 App 版本變化，找不到時在「我的」頁面裡找「導入外部歌單」。",
+          supports: { image: "截圖導入", text: "文字導入", link: "連結導入" },
+          noticeTitle: "導入後對一下",
+          notice: [
+            "音樂 App 依歌名和歌手自動配對，翻唱、現場版或沒有版權的歌可能配對到別的版本或缺失，導入後對照 BeforeShow 的歌單補齊。",
+            "截圖導入時一次選上全部圖片；網易雲音樂據說單次最多 9 張，超出時分兩次導入。",
+            "已經在目標歌單裡的歌，通常不會重複導入。"
+          ],
+          updated: "本教學整理於 2026 年 11 月，依各音樂 App 當時公開的導入方式編寫。",
+          copyright: "© 2026 開場前 BeforeShow",
+          privacyLink: "隱私政策",
+          termsLink: "使用者條款",
+          homeLink: "返回首頁"
+        },
+        en: {
+          back: "← Back to home",
+          title: "Import a Setlist into a Music App",
+          lede: "Export a playlist from BeforeShow as images or text, then bring it into QQ Music, NetEase Cloud Music or Soda Music with their Import External Playlist feature. Exporting needs BeforeShow Pro.",
+          step1Label: "STEP 1",
+          step1Title: "Export from BeforeShow",
+          shotAlt: "BeforeShow's Export to Music App screen",
+          shotCaption: "The export screen: the guide link at the top, Copy Text and Save Image at the bottom",
+          exportSteps: [
+            "Open a playlist and tap <strong>Export to Music App</strong>.",
+            "For QQ Music's text import, tap <strong>Copy Text</strong>: one song per line, as “Title - Artist”.",
+            "For screenshot import, tap <strong>Save Image</strong>: the playlist is saved as black-on-white images, 15 songs each."
+          ],
+          whereTitle: "Playlists you can export",
+          where: ["Heard Live (after the show)", "Preview playlist (before the show)", "This show's discs in Listen", "Footprints · Songs Heard"],
+          step2Label: "STEP 2",
+          step2Title: "Import into your music app",
+          step2Note: "Pick the app you use. Menu names change between versions; if you can't find it, look for Import External Playlist on the Me page.",
+          supports: { image: "Screenshot", text: "Text", link: "Link" },
+          noticeTitle: "Check after importing",
+          notice: [
+            "Music apps match by title and artist. Covers, live versions or songs without a license may match a different version or go missing, so compare with your BeforeShow playlist afterwards.",
+            "Select all the images in one go; NetEase Cloud Music reportedly takes up to 9 per import, so split larger lists.",
+            "Songs already in the target playlist usually aren't added twice."
+          ],
+          updated: "Written in November 2026 from each app's publicly described import options at the time.",
+          copyright: "© 2026 BeforeShow",
+          privacyLink: "Privacy Policy",
+          termsLink: "Terms of Service",
+          homeLink: "Back to home"
+        }
+      };
+
+      var apps = [
+        {
+          key: "qq",
+          name: { "zh-Hans": "QQ 音乐", "zh-Hant": "QQ 音樂", en: "QQ Music" },
+          supports: ["image", "text", "link"],
+          path: {
+            "zh-Hans": ["我的", "更多", "导入外部歌单", "链接/文字导入 或 图片导入"],
+            "zh-Hant": ["我的", "更多", "導入外部歌單", "連結/文字導入 或 圖片導入"],
+            en: ["Me", "More", "Import External Playlist", "Link/Text or Image"]
+          },
+          steps: {
+            "zh-Hans": [
+              "在 BeforeShow 点 <strong>复制文字</strong>，或点 <strong>保存图片</strong>。",
+              "打开 QQ 音乐，进入 <strong>我的</strong>，点 <strong>更多</strong>（或自建歌单旁的菜单），选 <strong>导入外部歌单</strong>。",
+              "用文字：选 <strong>链接/文字导入</strong>，把复制的歌单粘贴进去。用图片：选 <strong>图片导入</strong>，上传刚保存的歌单图片。",
+              "点 <strong>一键导入</strong>，在右上角的导入列表里查看结果。"
+            ],
+            "zh-Hant": [
+              "在 BeforeShow 點 <strong>複製文字</strong>，或點 <strong>儲存圖片</strong>。",
+              "打開 QQ 音樂，進入 <strong>我的</strong>，點 <strong>更多</strong>（或自建歌單旁的選單），選 <strong>導入外部歌單</strong>。",
+              "用文字：選 <strong>連結/文字導入</strong>，把複製的歌單貼上。用圖片：選 <strong>圖片導入</strong>，上傳剛儲存的歌單圖片。",
+              "點 <strong>一鍵導入</strong>，在右上角的導入列表裡查看結果。"
+            ],
+            en: [
+              "In BeforeShow, tap <strong>Copy Text</strong> or <strong>Save Image</strong>.",
+              "Open QQ Music, go to <strong>Me</strong> → <strong>More</strong> (or the menu next to your playlists) → <strong>Import External Playlist</strong>.",
+              "Text: choose <strong>Link/Text Import</strong> and paste. Images: choose <strong>Image Import</strong> and upload the saved images.",
+              "Tap <strong>Import</strong> and check the result in the import list at the top right."
+            ]
+          }
+        },
+        {
+          key: "netease",
+          name: { "zh-Hans": "网易云音乐", "zh-Hant": "網易雲音樂", en: "NetEase Cloud Music" },
+          supports: ["image", "link"],
+          path: {
+            "zh-Hans": ["我的", "歌单旁的 ···", "导入外部歌单", "上传歌单截图"],
+            "zh-Hant": ["我的", "歌單旁的 ···", "導入外部歌單", "上傳歌單截圖"],
+            en: ["Me", "··· next to Playlists", "Import External Playlist", "Upload screenshots"]
+          },
+          steps: {
+            "zh-Hans": [
+              "在 BeforeShow 点 <strong>保存图片</strong>。",
+              "打开网易云音乐，进入 <strong>我的</strong>，点歌单旁的 <strong>···</strong>，选 <strong>导入外部歌单</strong>；也可以在某个自建歌单的菜单里选 <strong>截图导入歌单</strong>。",
+              "选 <strong>上传歌单截图</strong>，一次选上刚保存的全部图片，点 <strong>下一步</strong>。",
+              "选择要导入到的歌单，等待识别完成后检查结果。"
+            ],
+            "zh-Hant": [
+              "在 BeforeShow 點 <strong>儲存圖片</strong>。",
+              "打開網易雲音樂，進入 <strong>我的</strong>，點歌單旁的 <strong>···</strong>，選 <strong>導入外部歌單</strong>；也可以在某個自建歌單的選單裡選 <strong>截圖導入歌單</strong>。",
+              "選 <strong>上傳歌單截圖</strong>，一次選上剛儲存的全部圖片，點 <strong>下一步</strong>。",
+              "選擇要導入到的歌單，等辨識完成後檢查結果。"
+            ],
+            en: [
+              "In BeforeShow, tap <strong>Save Image</strong>.",
+              "Open NetEase Cloud Music, go to <strong>Me</strong>, tap <strong>···</strong> next to your playlists and choose <strong>Import External Playlist</strong> — or pick <strong>Import from Screenshot</strong> in one of your playlists' menu.",
+              "Choose <strong>Upload screenshots</strong>, select all the saved images at once and tap <strong>Next</strong>.",
+              "Pick the playlist to import into and check the result once recognition finishes."
+            ]
+          }
+        },
+        {
+          key: "soda",
+          name: { "zh-Hans": "汽水音乐", "zh-Hant": "汽水音樂", en: "Soda Music" },
+          supports: ["link"],
+          path: {
+            "zh-Hans": ["先导入 QQ 音乐或网易云音乐", "分享歌单链接", "汽水音乐 · 我的 · 歌单 · +", "导入外部歌单"],
+            "zh-Hant": ["先導入 QQ 音樂或網易雲音樂", "分享歌單連結", "汽水音樂 · 我的 · 歌單 · +", "導入外部歌單"],
+            en: ["Import into QQ Music or NetEase first", "Share the playlist link", "Soda Music · Me · Playlists · +", "Import External Playlist"]
+          },
+          steps: {
+            "zh-Hans": [
+              "汽水音乐只能导入其他平台的歌单链接，所以先按 <strong>QQ 音乐</strong> 或 <strong>网易云音乐</strong> 的步骤导入一次。",
+              "在那个 App 里把导入好的歌单设为 <strong>公开</strong>，点 <strong>分享</strong> → <strong>复制链接</strong>（要复制歌单链接，不是单曲链接）。",
+              "打开汽水音乐，进入 <strong>我的</strong> → <strong>歌单</strong>，点右上角 <strong>+</strong>，选 <strong>导入外部歌单</strong>。",
+              "粘贴链接开始导入，完成后检查结果。"
+            ],
+            "zh-Hant": [
+              "汽水音樂只能導入其他平台的歌單連結，所以先依 <strong>QQ 音樂</strong> 或 <strong>網易雲音樂</strong> 的步驟導入一次。",
+              "在那個 App 裡把導入好的歌單設為 <strong>公開</strong>，點 <strong>分享</strong> → <strong>複製連結</strong>（要複製歌單連結，不是單曲連結）。",
+              "打開汽水音樂，進入 <strong>我的</strong> → <strong>歌單</strong>，點右上角 <strong>+</strong>，選 <strong>導入外部歌單</strong>。",
+              "貼上連結開始導入，完成後檢查結果。"
+            ],
+            en: [
+              "Soda Music only imports playlist links from other apps, so first import into <strong>QQ Music</strong> or <strong>NetEase Cloud Music</strong>.",
+              "There, make the imported playlist <strong>public</strong>, then <strong>Share</strong> → <strong>Copy Link</strong> (the playlist's link, not a song's).",
+              "Open Soda Music, go to <strong>Me</strong> → <strong>Playlists</strong>, tap <strong>+</strong> at the top right and choose <strong>Import External Playlist</strong>.",
+              "Paste the link to import, then check the result."
+            ]
+          }
+        }
+      ];
+
+      var current = apps[0];
+
+      function list(el, items, html) {
+        el.innerHTML = "";
+        items.forEach(function (item) {
+          var li = document.createElement("li");
+          if (html) li.innerHTML = item; else li.textContent = item;
+          el.appendChild(li);
+        });
+      }
+
+      function chip(text, ok) {
+        var span = document.createElement("span");
+        span.className = ok ? "chip ok" : "chip";
+        span.textContent = text;
+        return span;
+      }
+
+      function renderMethods() {
+        var t = copy[LANG];
+        var box = document.getElementById("methods");
+        box.innerHTML = "";
+        apps.forEach(function (app) {
+          var card = document.createElement("div");
+          card.className = "method";
+          var name = document.createElement("strong");
+          name.textContent = app.name[LANG];
+          var chips = document.createElement("div");
+          chips.className = "chips";
+          ["image", "text", "link"].forEach(function (kind) {
+            var ok = app.supports.indexOf(kind) !== -1;
+            chips.appendChild(chip((ok ? "✓ " : "— ") + t.supports[kind], ok));
+          });
+          card.appendChild(name);
+          card.appendChild(chips);
+          box.appendChild(card);
+        });
+      }
+
+      function renderPlatform() {
+        var tabs = document.getElementById("tabs");
+        tabs.innerHTML = "";
+        apps.forEach(function (app) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.setAttribute("role", "tab");
+          btn.setAttribute("aria-selected", app === current ? "true" : "false");
+          btn.className = app === current ? "active" : "";
+          btn.textContent = app.name[LANG];
+          btn.addEventListener("click", function () { current = app; renderPlatform(); });
+          tabs.appendChild(btn);
+        });
+        var path = document.getElementById("path");
+        path.innerHTML = "";
+        var parts = current.path[LANG];
+        parts.forEach(function (part, i) {
+          var b = document.createElement("b");
+          b.textContent = part;
+          if (i === parts.length - 1) b.className = "goal";
+          path.appendChild(b);
+          if (i < parts.length - 1) {
+            var arrow = document.createElement("i");
+            arrow.textContent = "→";
+            path.appendChild(arrow);
+          }
+        });
+        list(document.getElementById("platformSteps"), current.steps[LANG], true);
+      }
+
+      function render() {
+        var t = copy[LANG];
+        document.querySelectorAll("[data-i18n]").forEach(function (el) {
+          var key = el.getAttribute("data-i18n");
+          if (typeof t[key] === "string") el.textContent = t[key];
+        });
+        document.querySelectorAll("[data-i18n-alt]").forEach(function (el) {
+          el.setAttribute("alt", t[el.getAttribute("data-i18n-alt")]);
+        });
+        document.title = t.title + " — " + (LANG === "en" ? "BeforeShow" : "开场前 BeforeShow");
+        document.documentElement.lang = LANG === "en" ? "en" : LANG === "zh-Hant" ? "zh-Hant" : "zh-Hans";
+        document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+          btn.classList.toggle("active", btn.getAttribute("data-set-lang") === LANG);
+        });
+        list(document.getElementById("exportSteps"), t.exportSteps, true);
+        var where = document.getElementById("whereChips");
+        where.innerHTML = "";
+        t.where.forEach(function (w) { where.appendChild(chip(w, false)); });
+        list(document.getElementById("notice"), t.notice, false);
+        renderMethods();
+        renderPlatform();
+      }
+
+      document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          LANG = btn.getAttribute("data-set-lang");
+          try { localStorage.setItem("bs-lang", LANG); } catch (e) {}
+          render();
+        });
+      });
+
+      render();
+    </script>
+  </body>
+</html>
