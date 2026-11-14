@@ -23,6 +23,7 @@ struct ShowDetailView: View {
     @Namespace private var coverTransition
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
+    @State private var isShowingShowShare = false
     @State private var memoryCreate: MemoryCreateSourceOption?
     /// Moves on each minute so the stage turns LIVE, and later ends, while the page stays open.
     @State private var now = Date()
@@ -59,6 +60,7 @@ struct ShowDetailView: View {
     private var isCurrentShow: Bool {
         session.isCurrent(show, among: shows, manualSelection: selections.first)
     }
+
 
     var body: some View {
         GeometryReader { proxy in
@@ -127,6 +129,9 @@ struct ShowDetailView: View {
             if !isDeleting {
                 ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button(BSLocalization.text("分享这场"), systemImage: "square.and.arrow.up") {
+                        isShowingShowShare = true
+                    }
                     Button(BSLocalization.text("编辑"), systemImage: "square.and.pencil") {
                         presentedSheet = .editor
                     }
@@ -152,6 +157,9 @@ struct ShowDetailView: View {
                     .accessibilityLabel(BSLocalization.text("更多操作"))
                 }
             }
+        }
+        .sheet(isPresented: $isShowingShowShare) {
+            ShowSharePreviewSheet(show: show)
         }
         .bsSheetOrCover(item: $presentedSheet, isCover: { $0 == .asset(.timetable) }) { sheet in
             switch sheet {

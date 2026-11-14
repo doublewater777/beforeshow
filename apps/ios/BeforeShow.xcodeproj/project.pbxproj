@@ -517,7 +517,6 @@
 		ADE497FDF12D5BB142A89AC4 /* ListeningArtworkTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = C024C6AA9AB8BC2011A3BB7A /* ListeningArtworkTone.swift */; };
 		ADEC1B7392E23B05B86AE1B9 /* ShowCompanions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149D692A237729538CBB7F99 /* ShowCompanions.swift */; };
 		AE4A22F03B32D72314038DF9 /* LegacyCompanionInvite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25439710BFE33AFD9500E729 /* LegacyCompanionInvite.swift */; };
-		AEDABAC0712457CB585CB2F1 /* CountdownScreenshotShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E0DFE3D53A7ABD62A2E9448 /* CountdownScreenshotShare.swift */; };
 		AFBE4EAB2A593D0FA387CE33 /* ListeningWidgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A05FF048A656A3A3B2BAC4C /* ListeningWidgetTests.swift */; };
 		B0D5D34A140C9E5641B13ECD /* MemoryContactSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C212A2D051A7B17BA839D9 /* MemoryContactSheet.swift */; };
 		B123773D822D0D8880607E9D /* FootprintStarSongTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1943D91049E452CA3622C186 /* FootprintStarSongTests.swift */; };
@@ -902,7 +901,6 @@
 		2AED59D80D0A5BC356BF8C77 /* CurrentShowHomeArrivalLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowHomeArrivalLifecycleTests.swift; sourceTree = "<group>"; };
 		2C4D6FC5594D83118D2C7B25 /* ListenTestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenTestData.swift; sourceTree = "<group>"; };
 		2CAFD895E014AE959125BDDE /* ShowAssetSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowAssetSheet.swift; sourceTree = "<group>"; };
-		2E0DFE3D53A7ABD62A2E9448 /* CountdownScreenshotShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownScreenshotShare.swift; sourceTree = "<group>"; };
 		2E4B1D353DFD8EFD06D3253E /* FootprintBackstagePassView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBackstagePassView.swift; sourceTree = "<group>"; };
 		2E610BD4DFFFCAD72D81DCBA /* ShowOpeningFamiliarityBaseline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowOpeningFamiliarityBaseline.swift; sourceTree = "<group>"; };
 		2E95DB6956D2E8382F0D0789 /* footprint-tear.caf */ = {isa = PBXFileReference; path = "footprint-tear.caf"; sourceTree = "<group>"; };
@@ -2033,7 +2031,6 @@
 		9BE9F4B8DA22FBDFB66ADFE8 /* CurrentShow */ = {
 			isa = PBXGroup;
 			children = (
-				2E0DFE3D53A7ABD62A2E9448 /* CountdownScreenshotShare.swift */,
 				89165DE6A3D6DF4E06C08B36 /* CountdownShareCard.swift */,
 				09C22EEC49C172D1DD771DE7 /* CurrentShowEmptyStateView.swift */,
 				DE4F15B170B1C7EC5AD85E18 /* CurrentShowEndConfirmationSheet.swift */,
@@ -2979,7 +2976,6 @@
 				97093D91AA08B21571043597 /* CompanionPairFootprintView.swift in Sources */,
 				867369ABADDDE06254BD3BF3 /* CompanionQuickActionPresentation.swift in Sources */,
 				C0EF7C195C7A2606AA408165 /* CountdownPresentation.swift in Sources */,
-				AEDABAC0712457CB585CB2F1 /* CountdownScreenshotShare.swift in Sources */,
 				20437F294044120D0D7729E3 /* CountdownShareCard.swift in Sources */,
 				35C1C9018D8C7A68D99725EB /* CountdownWidgetViews.swift in Sources */,
 				32B649F4B9B6E273712514DA /* CoverAmbientColor.swift in Sources */,
@@ -3715,7 +3711,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 85;
+				CURRENT_PROJECT_VERSION = 86;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;
@@ -3780,7 +3776,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 85;
+				CURRENT_PROJECT_VERSION = 86;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;

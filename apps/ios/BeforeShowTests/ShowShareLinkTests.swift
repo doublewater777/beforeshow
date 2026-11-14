@@ -97,4 +97,12 @@ final class ShowShareLinkTests: XCTestCase {
             XCTAssertNil(ShowShareLink.draft(from: url), token)
         }
     }
+
+    func testNameLongerThanTheCodeAllowsIsCutInsteadOfDropped() throws {
+        let start = Date(timeIntervalSince1970: 1_900_000_000)
+        let name = String(repeating: "场", count: ShowShareLink.nameLimit + 40)
+        let show = try Show(name: name, date: start, startTime: start)
+        let draft = try XCTUnwrap(ShowShareLink.draft(from: ShowShareLink.url(for: show)))
+        XCTAssertEqual(draft.name, String(name.prefix(ShowShareLink.nameLimit)))
+    }
 }

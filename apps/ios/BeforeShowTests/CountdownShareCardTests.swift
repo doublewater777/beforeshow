@@ -2,29 +2,19 @@ import CoreImage
 import XCTest
 @testable import BeforeShow
 
-/// 倒计时分享卡：开场前在「当前」截图时浮出；卡上的码扫出来就是这场现场，聊天软件压缩过也能扫。
+/// 现场分享卡：详情里分享出去的海报。开场前和开场中可以发，散场后不行；码扫出来就是这场现场。
 @MainActor
 final class CountdownShareCardTests: XCTestCase {
-    func testOnlyBeforeDoors() throws {
+    func testAvailableUntilTheShowIsOver() throws {
         let start = Date(timeIntervalSince1970: 1_900_000_000)
         let show = try Show(name: "A", date: start, startTime: start)
         XCTAssertTrue(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(-5 * 86_400))))
         XCTAssertTrue(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(-3_600))))
-        XCTAssertFalse(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(600))))
-        XCTAssertFalse(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(2 * 86_400))))
+        XCTAssertTrue(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(600))), "Still on during the show")
+        XCTAssertTrue(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(2 * 86_400))), "Ended shows still share")
 
         show.markCanceled()
-        XCTAssertFalse(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(-5 * 86_400))))
-    }
-
-    func testScreenshotOffersTheCardOnlyWhenTheCountdownIsOnScreen() throws {
-        let start = Date(timeIntervalSince1970: 1_900_000_000)
-        let show = try Show(name: "A", date: start, startTime: start)
-        let before = start.addingTimeInterval(-5 * 86_400)
-        XCTAssertTrue(CountdownScreenshotShare.offers(show, isVisible: true, now: before))
-        XCTAssertFalse(CountdownScreenshotShare.offers(show, isVisible: false, now: before), "A sheet or another tab is on screen")
-        XCTAssertFalse(CountdownScreenshotShare.offers(nil, isVisible: true, now: before))
-        XCTAssertFalse(CountdownScreenshotShare.offers(show, isVisible: true, now: start.addingTimeInterval(600)))
+        XCTAssertTrue(CountdownShareExport.isAvailable(HomeHeroSnapshot(show: show, now: start.addingTimeInterval(-5 * 86_400))))
     }
 
     func testCodeOnTheCardAddsTheShow() async throws {
@@ -41,8 +31,13 @@ final class CountdownShareCardTests: XCTestCase {
         )
         let rendered = await CountdownShareExport.renderImage(show: show, snapshot: HomeHeroSnapshot(show: show, now: .now))
         let card = try XCTUnwrap(rendered)
-        XCTAssertEqual(card.cgImage?.width, 1_080)
-        XCTAssertEqual(card.cgImage?.height, 1_920)
+        XCTAssertEqual(card.cgImage?.width, Int(CountdownShareExport.renderSize.width * CountdownShareExport.renderScale))
+        XCTAssertEqual(card.cgImage?.height, Int(CountdownShareExport.renderSize.height * CountdownShareExport.renderScale))
+        XCTAssertEqual(
+            CountdownShareExport.posterSize.height / CountdownShareExport.posterSize.width,
+            4.0 / 3.0,
+            accuracy: 0.001
+        )
 
         // Chat apps resend pictures smaller and as JPEG.
         for (width, quality) in [(1_080.0, 1.0), (720.0, 0.6)] {

@@ -2,21 +2,24 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
-/// The countdown sent before the show, and the share sheet it goes out through.
+/// The show sent from 现场详情, and the share sheet it goes out through.
 enum CountdownShareExport {
-    static let renderSize = CGSize(width: 360, height: 640)
+    static let posterSize = CGSize(width: 360, height: 480)
+    static let footerHeight: CGFloat = 156
+    static let renderSize = CGSize(width: posterSize.width, height: posterSize.height + footerHeight)
     static let renderScale: CGFloat = 3
 
-    /// Only before doors, and only once there is a start to count down to.
+    /// The detail button is always there, including after the show has ended.
     static func isAvailable(_ snapshot: HomeHeroSnapshot) -> Bool {
-        snapshot.phase == .pre && snapshot.timeState.effectiveStartTime != nil
+        _ = snapshot
+        return true
     }
 
     /// Draws the card and opens the share sheet; false when either fails.
     @MainActor
     static func share(show: Show, snapshot: HomeHeroSnapshot) async -> Bool {
         guard let data = await renderImage(show: show, snapshot: snapshot)?.pngData() else { return false }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("BeforeShow-countdown-\(UUID().uuidString).png")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("BeforeShow-show-\(UUID().uuidString).png")
         guard (try? data.write(to: url, options: .atomic)) != nil else { return false }
         guard SystemPNGSharePresenter.present(url: url) else {
             try? FileManager.default.removeItem(at: url)
@@ -27,14 +30,17 @@ enum CountdownShareExport {
 
     @MainActor
     static func renderImage(show: Show, snapshot: HomeHeroSnapshot) async -> UIImage? {
-        // The poster is loaded before drawing so it lands on the first frame, and lights the stage as on 当前.
-        var lights = BSStageLights.fallback
-        if let url = ShowCoverReference.url(show.coverImageURL),
-           let poster = await ShowCoverImageCache.shared.image(from: url) {
-            lights = await BSStageLights.sampled(from: poster)
+        // A poster this app has already saved. Missing covers stay a plain card; sharing does not wait on the network.
+        let poster = ShowCoverReference.url(show.coverImageURL).flatMap {
+            ShowCoverImageCache.shared.persistedImage(for: $0)
         }
-        let card = CountdownShareCard(show: show, snapshot: snapshot, lights: lights.map(\.color), link: ShowShareLink.url(for: show))
-            .frame(width: renderSize.width, height: renderSize.height)
+        let card = CountdownShareCard(
+            show: show,
+            snapshot: snapshot,
+            poster: poster,
+            link: ShowShareLink.url(for: show)
+        )
+        .frame(width: renderSize.width, height: renderSize.height)
         let renderer = ImageRenderer(content: card)
         renderer.proposedSize = ProposedViewSize(renderSize)
         renderer.scale = renderScale
@@ -42,112 +48,140 @@ enum CountdownShareExport {
     }
 }
 
-/// The 当前 stage as a picture: the poster lit on stage, how long until doors, the show, and a code that adds the
-/// show to the app of whoever scans it.
+/// The shared picture: a 3:4 poster, then the time, place and code underneath.
 struct CountdownShareCard: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
-    let lights: [Color]
+    let poster: UIImage?
     let link: URL
 
-    private static let size = CountdownShareExport.renderSize
-    private static let margin: CGFloat = 28
-    private static let stageHeight: CGFloat = 420
-    private static let coverWidth: CGFloat = 204
-
     var body: some View {
-        ZStack(alignment: .top) {
-            BSColor.Stage.background
-            BSStageScene(colors: lights, lighting: .show(energy: energy), powered: true, height: Self.stageHeight) {
-                HomeHeroStage(show: show, snapshot: snapshot, coverWidth: Self.coverWidth, reduceMotion: true, onStage: true)
-                    // The larger poster keeps its foot where the one on 当前 stands, just above the crowd.
-                    .offset(y: -18)
-            }
-            // Pinned to the foot: a long name lifts the countdown further over the crowd instead of off the card.
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer(minLength: 0)
-                countdown
-                LinearGradient(colors: [BSColor.Stage.accent.opacity(0.9), BSColor.Stage.accent.opacity(0.15), .clear], startPoint: .leading, endPoint: .trailing)
-                    .frame(height: 1)
-                    .padding(.vertical, 12)
-                identity
-            }
-            .padding(.horizontal, Self.margin)
-            .padding(.bottom, 24)
+        VStack(spacing: 0) {
+            posterBlock
+            footer
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(width: CountdownShareExport.renderSize.width, height: CountdownShareExport.renderSize.height)
+        .background(BSColor.Stage.background)
+    }
+
+    private var posterBlock: some View {
+        ZStack(alignment: .bottomLeading) {
+            posterFill
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.55),
+                    .init(color: .black.opacity(0.55), location: 0.82),
+                    .init(color: .black.opacity(0.88), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            VStack(alignment: .leading, spacing: 0) {
+                if !timeLine.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(timeLine)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.42), in: Capsule())
+                }
+                Text(copy.title)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .padding(.top, 12)
+                if let venue = copy.venueSummary {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(venue)
+                            .font(.system(size: 13, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white.opacity(0.86))
+                    .padding(.top, 8)
+                }
+            }
+            .padding(20)
+        }
+        .frame(width: CountdownShareExport.posterSize.width, height: CountdownShareExport.posterSize.height)
         .clipped()
     }
 
-    private var energy: Double {
-        HomeStageEnergy.energy(phase: .pre, start: start, now: snapshot.now, calendar: show.timingCalendar())
-    }
-
-    private var start: Date { snapshot.timeState.effectiveStartTime ?? show.startTime }
-
-    private var days: Int? {
-        ShowCountdownRule.dayCount(
-            remainingSeconds: max(0, Int(start.timeIntervalSince(snapshot.now))),
-            dayDistance: snapshot.timeState.dayDistance
-        )
-    }
-
-    private var countdown: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 12) {
-            // A picture outlives the hour, so the day of the show reads as today rather than hours and minutes.
-            Text(days.map { String(format: "%02d", $0) } ?? BSLocalization.text("今天"))
-                .font(BSFont.Editorial.serif(days == nil ? 64 : 96))
-                .tracking(days == nil ? 0 : -3)
-                .monospacedDigit()
-                .foregroundStyle(BSColor.Stage.heroIvory)
-                .shadow(color: BSColor.Stage.heroIvory.opacity(0.45), radius: 22)
-                .lineLimit(1)
-                .padding(.vertical, days == nil ? -8 : -14)
-            VStack(alignment: .leading, spacing: 4) {
-                if days != nil {
-                    Text(BSLocalization.text("天后"))
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(BSColor.Stage.foreground)
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            dashedRule
+            HStack(alignment: .center, spacing: 10) {
+                Image("AppLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(BSShareByline.appName)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(BSLocalization.text("扫码添加这场演出"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
                 }
-                Text(HomeCountdownLockup.startLine(start, calendar: show.timingCalendar()))
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .lineLimit(2)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var identity: some View {
-        let copy = ShowIdentityCopy(name: show.name, venueName: show.venueName, city: show.city)
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(copy.title)
-                .font(BSFont.Editorial.serif(24))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-                .fixedSize(horizontal: false, vertical: true)
-            // Where it is at the top of the code, what the code does and whose app it opens at its foot.
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    if let venue = copy.venueSummary {
-                        Text(venue)
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(BSColor.Stage.muted)
-                            .lineLimit(2)
-                    }
-                    Spacer(minLength: 12)
-                    Text(BSLocalization.text("扫码添加这场"))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.foreground)
-                    BSShareByline()
-                        .padding(.top, 10)
-                }
-                .frame(height: ShareQRCode.side)
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
                 ShareQRCode(link: link)
             }
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 16)
+        .frame(width: CountdownShareExport.posterSize.width, height: CountdownShareExport.footerHeight, alignment: .top)
+        .background(BSColor.Stage.background)
+    }
+
+    private var copy: ShowIdentityCopy {
+        ShowIdentityCopy(
+            name: ShowShareLink.sharedName(show.name),
+            venueName: show.venueName,
+            city: show.city
+        )
+    }
+
+    private var timeLine: String {
+        guard let start = snapshot.timeState.effectiveStartTime else { return "" }
+        return HomeCountdownLockup.startLine(start, calendar: show.timingCalendar())
+    }
+
+    private var posterFill: some View {
+        Group {
+            if let poster {
+                Image(uiImage: poster)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+            } else {
+                BSColor.Stage.background
+            }
+        }
+        .frame(width: CountdownShareExport.posterSize.width, height: CountdownShareExport.posterSize.height)
+        .clipped()
+    }
+
+    private var dashedRule: some View {
+        Canvas { context, size in
+            var path = Path()
+            path.move(to: .zero)
+            path.addLine(to: CGPoint(x: size.width, y: 0))
+            context.stroke(
+                path,
+                with: .color(.white.opacity(0.38)),
+                style: StrokeStyle(lineWidth: 1, dash: [3, 4])
+            )
+        }
+        .frame(height: 1)
     }
 }
 
@@ -183,5 +217,144 @@ private struct ShareQRCode: View {
         filter.correctionLevel = "L"
         guard let modules = filter.outputImage?.applyingFilter("CIColorInvert").applyingFilter("CIMaskToAlpha") else { return nil }
         return CIContext().createCGImage(modules, from: modules.extent)
+    }
+}
+
+/// Preview before the system share sheet. Saving and sharing are choices on this page.
+struct ShowSharePreviewSheet: View {
+    let show: Show
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var poster: UIImage?
+    @State private var toast: BSToastPayload?
+    @State private var isSaving = false
+    @State private var isSharing = false
+
+    private var isBusy: Bool { isSaving || isSharing }
+
+    private var snapshot: HomeHeroSnapshot {
+        HomeHeroSnapshot(show: show, now: Date())
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                CountdownShareCard(
+                    show: show,
+                    snapshot: snapshot,
+                    poster: poster,
+                    link: ShowShareLink.url(for: show)
+                )
+                .aspectRatio(
+                    CountdownShareExport.renderSize.width / CountdownShareExport.renderSize.height,
+                    contentMode: .fit
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
+                .padding(.horizontal, 22)
+                .padding(.top, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                HStack(spacing: 9) {
+                    exportButton(title: BSLocalization.text("保存图片"), isLoading: isSaving, isPrimary: false) {
+                        Task { await saveToPhotos() }
+                    }
+                    exportButton(title: BSLocalization.text("分享"), isLoading: isSharing, isPrimary: true) {
+                        Task { await shareImage() }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+            }
+            .background(BSColor.Stage.background.ignoresSafeArea())
+            .navigationTitle(BSLocalization.text("分享这场"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { BSChromeToolbarCloseButton { dismiss() } }
+            .bsToastOverlay(toast, bottomPadding: 24)
+        }
+        .tint(BSColor.Stage.foreground)
+        .interactiveDismissDisabled(isBusy)
+        .onAppear { loadPoster() }
+    }
+
+    private func loadPoster() {
+        poster = ShowCoverReference.url(show.coverImageURL).flatMap {
+            ShowCoverImageCache.shared.persistedImage(for: $0)
+        }
+    }
+
+    private func exportButton(
+        title: String,
+        isLoading: Bool,
+        isPrimary: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        let label = HStack(spacing: BSSpacing.sm) {
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(isPrimary ? BSColor.Stage.background : BSColor.Stage.foreground)
+            }
+            Text(title)
+        }
+        .frame(maxWidth: .infinity)
+
+        return Group {
+            if isPrimary {
+                Button(action: action) { label }
+                    .buttonStyle(BSPrimaryButtonStyle())
+            } else {
+                Button(action: action) { label }
+                    .buttonStyle(BSSecondaryButtonStyle())
+            }
+        }
+        .disabled(isBusy)
+    }
+
+    @MainActor
+    private func saveToPhotos() async {
+        guard !isBusy else { return }
+        isSaving = true
+        defer { isSaving = false }
+        guard let image = await CountdownShareExport.renderImage(show: show, snapshot: snapshot) else {
+            presentFailure(BSLocalization.text("分享图片生成失败，请重试"))
+            return
+        }
+        do {
+            try await FootprintPhotoLibrary.save(image)
+            let payload = BSToastPayload(tone: .success, message: BSLocalization.text("已保存到相册"))
+            toast = payload
+        } catch {
+            presentFailure(BSLocalization.text("保存失败，请检查相册权限"))
+        }
+    }
+
+    @MainActor
+    private func shareImage() async {
+        guard !isBusy else { return }
+        isSharing = true
+        defer { isSharing = false }
+        guard let data = await CountdownShareExport.renderImage(show: show, snapshot: snapshot)?.pngData() else {
+            presentFailure(BSLocalization.text("分享图片生成失败，请重试"))
+            return
+        }
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShow-show-\(UUID().uuidString).png")
+        do {
+            try data.write(to: file, options: .atomic)
+        } catch {
+            presentFailure(BSLocalization.text("分享图片生成失败，请重试"))
+            return
+        }
+        guard SystemPNGSharePresenter.present(items: [file, ShowShareLink.url(for: show)], cleanup: file) else {
+            try? FileManager.default.removeItem(at: file)
+            presentFailure(BSLocalization.text("系统分享面板暂时无法打开"))
+            return
+        }
+    }
+
+    private func presentFailure(_ message: String) {
+        toast = BSToastPayload(tone: .failure, message: message)
     }
 }

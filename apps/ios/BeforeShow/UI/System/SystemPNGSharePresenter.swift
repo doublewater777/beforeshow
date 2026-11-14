@@ -12,6 +12,13 @@ enum SystemPNGSharePresenter {
         present(items: items, completion: nil)
     }
 
+    /// Shares the items, then deletes the rendered file once the panel closes.
+    static func present(items: [Any], cleanup file: URL) -> Bool {
+        present(items: items) { _, _, _, _ in
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
+
     private static func present(
         items: [Any],
         completion: UIActivityViewController.CompletionWithItemsHandler?

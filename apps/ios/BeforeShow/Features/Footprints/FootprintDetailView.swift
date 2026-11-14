@@ -44,6 +44,7 @@ struct FootprintDetailView: View {
     @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var toast: BSToastPayload?
+    @State private var isShowingShowShare = false
     @State private var coverViewer: FootprintCoverViewer?
     @Namespace private var coverTransition
 
@@ -224,6 +225,9 @@ struct FootprintDetailView: View {
             if !isDeleting {
                 ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button(BSLocalization.text("分享这场"), systemImage: "square.and.arrow.up") {
+                        isShowingShowShare = true
+                    }
                     Button(BSLocalization.text("编辑现场"), systemImage: "square.and.pencil") {
                         isShowingEditor = true
                     }
@@ -287,6 +291,9 @@ struct FootprintDetailView: View {
                 materials: shareMaterials,
                 onClose: { isShowingShareComposer = false }
             )
+        }
+        .sheet(isPresented: $isShowingShowShare) {
+            ShowSharePreviewSheet(show: show)
         }
         .sheet(isPresented: $isShowingDispersalShare) {
             DispersalCeremonyShareSheet(
@@ -395,6 +402,7 @@ struct FootprintDetailView: View {
         }
         return rows
     }
+
 
     private func openShare() {
         switch shareRoute {

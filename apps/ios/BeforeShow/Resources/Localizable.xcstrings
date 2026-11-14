@@ -8017,6 +8017,22 @@
         }
       }
     },
+    "扫码添加这场演出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan to add this show"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃碼加入這場演出"
+          }
+        }
+      }
+    },
     "扫码添加这场" : {
       "localizations" : {
         "en" : {
@@ -8061,6 +8077,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享卡片"
+          }
+        }
+      }
+    },
+    "分享链接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share link"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享連結"
           }
         }
       }

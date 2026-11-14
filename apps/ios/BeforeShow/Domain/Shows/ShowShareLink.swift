@@ -8,6 +8,12 @@ enum ShowShareLink {
     static let scheme = "beforeshow"
     /// A cover address longer than this stays out of the link, so the code printed from it stays easy to scan.
     static let coverLimit = 200
+    /// Same ceiling `draft(from:)` enforces. Longer names are cut, not rejected, so the code still adds the show.
+    static let nameLimit = 200
+
+    static func sharedName(_ name: String) -> String {
+        String(name.prefix(nameLimit))
+    }
 
     private struct Payload: Codable {
         var v = 1
@@ -38,7 +44,7 @@ enum ShowShareLink {
             ? show.startTime
             : CurrentShowTimeState.effectiveStartTime(timing: show.declaredTimingFields, calendar: calendar)
         let payload = Payload(
-            n: show.name,
+            n: sharedName(show.name),
             d: seconds(postponed ?? show.date),
             t: seconds(start),
             e: postponed == nil ? show.endDate.map(seconds) : nil,
