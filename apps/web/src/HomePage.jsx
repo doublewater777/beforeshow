@@ -4,17 +4,17 @@ const APP_STORE_URL = "https://apps.apple.com/cn/app/id6780078298";
 const coreFeatures = [
   {
     id: "listen",
-    kicker: "拟物唱机与合辑预习",
-    title: "开场前，先把歌听熟",
-    desc: "按这一场的专场或音乐节阵容自动整理热门曲目，放进拟物黑胶与 CD 唱机里。跨页面常驻迷你播放器无缝串联每个界面，看时刻表、查天气时音乐不断流。走进现场时，每一首都已经熟悉。",
+    kicker: "阵容海报与听看预习",
+    title: "开场前，先把歌听熟，把现场看透",
+    desc: "按这一场的演出阵容自动编排海报式名录，搭配独创「帮我挑一张」3D 唱片柜与流动动效挑选心仪专辑；智能匹配 Apple Music 热门试听曲与本场专属歌单。更支持一键切换「看」现场实况视频，提前感受舞美与气氛。",
     bullets: [
-      "拟物 CD / 黑胶唱盘逼真光影与旋转微光",
-      "智能匹配演出阵容 Apple Music 热门试听曲",
-      "无需跳转第三方，应用内畅听高品质原声片段",
-      "跨页面悬浮迷你播放器，随时切歌与控制",
+      "音乐节海报式层级排布（头牌、主力与完整阵容），点击直达艺人专页",
+      "「帮我挑一张」：3D 唱片柜、一屏一张、正面唱片架、旋转木马、冲天抛洒与飘羽等百变动效",
+      "智能匹配 Apple Music 阵容热门代表作试听曲，本场专属歌单聚合",
+      "看 · 舞台现场视频：智能联动参演艺人 Bilibili 演出与巡演舞台实况",
+      "Liquid Glass 流体磨砂胶囊底栏，常驻迷你播放器无感跨页切歌",
     ],
-    screen: "/screens/listen.jpg",
-    alt: "开场前「听」页：拟物 CD 唱机与按阵容整理的热门合辑",
+    mockup: "listen",
   },
   {
     id: "timetable",
@@ -22,7 +22,7 @@ const coreFeatures = [
     title: "多舞台时刻表，不错过每一场精彩",
     desc: "长图海报一键 OCR 智能解析，自动生成多舞台演出时刻表。支持多舞台横屏展开大画幅沉浸浏览，彻底消除边缘遮挡与黑边；演出时间冲突直观高亮，一键标星最期待的乐队并在登台前送达轻提醒。",
     bullets: [
-      "海报与排期长图截图一键 OCR 智能解析",
+      "海报与排期长图截图一键 OCR 智能解析与原图画中画比对",
       "多舞台多时段横屏排期矩阵，画幅开阔无遮挡",
       "跨舞台演出重叠冲突智能高亮，轻松规划赶场",
       "想看乐队一键标星，开演前专属提醒准时送达",
@@ -51,11 +51,11 @@ const coreFeatures = [
     title: "散场后，收进足迹",
     desc: "散场专属仪式感：三段式记录“开场前、进行中、散场后”的现场随拍照片、实体票根与真实感想。去过的场次、城市足迹地图、场馆分布与看演艺人自动沉淀，回头看看，这就是你的现场生活。",
     bullets: [
-      "“开场前 · 进行中 · 散场后”三段式现场回忆碎片",
-      "散场仪式烟花与离场打卡，为今晚画上句点",
-      "足迹全景归档：累计场次、城市地图与场馆分布统计",
-      "现场乐迷专属成就里程碑与趣味徽章",
-      "复古黑胶与 Live Pass 票根质感分享长图生成",
+      "“开场前 · 进行中 · 散场后”三段式现场回忆碎片与胶卷印样",
+      "散场仪式烟花与离场打卡，为今晚画上圆满句点",
+      "现场实况 Setlist 歌单、周边谷子柜与演出开销手账收录",
+      "足迹全景归档：累计场次、城市地图、星空音阶与场馆分布",
+      "现场门票票根与 Backstage Pass 后台通行证质感长图生成",
     ],
     screen: "/screens/footprints.jpg",
     alt: "开场前「足迹」页：现场场次、轨迹与艺人统计",
@@ -80,22 +80,27 @@ const featureCategories = [
       },
       {
         title: "精准现场倒计时",
-        desc: "按天、时、分、秒多层级高精度倒数，舞台微光质感卡片，静静守护每一次期待。",
+        desc: "按天、时、分三段式高精度倒数，舞台微光质感卡片，支持生成倒计时海报卡片分享同伴。",
         icon: "timer",
       },
       {
-        title: "现场天气预报",
-        desc: "提前 7 天与当天实时天气预报，降雨概率、体感温度一目了然，雨天晴天早做准备。",
+        title: "现场模式 (Live Mode)",
+        desc: "演出当天自动切换至现场模式，实时脉冲提醒当前登台乐队与下一场演出，不错过高光瞬间。",
+        icon: "sparkles",
+      },
+      {
+        title: "现场天气胶囊与贴士",
+        desc: "现场降水概率、体感温度与风速一目了然，附带防雨防晒出行贴士，雨天晴天早做准备。",
         icon: "cloud-sun",
       },
       {
-        title: "现场同行搭子",
-        desc: "记录每场演出一起看的朋友与搭子，沉淀属于彼此的共同看演回忆与历史。",
+        title: "同行搭子与同看纪念册",
+        desc: "基于 CloudKit 私有协同邀请看演搭子，沉淀共同观演足迹，生成专属双人同看纪念册。",
         icon: "users",
       },
       {
-        title: "现场资产存留",
-        desc: "集中收纳门票截图、纸质票照片、排期图片与重要注意事项备忘，入场不手忙脚乱。",
+        title: "现场资产凭据收纳",
+        desc: "集中收纳电子门票截图、纸质票照片、入场二维码与身份证件备忘，弱网断网离线秒开。",
         icon: "folder",
       },
     ],
@@ -110,9 +115,14 @@ const featureCategories = [
         icon: "table",
       },
       {
+        title: "原图画中画比对校验",
+        desc: "支持在排期矩阵旁悬浮画中画对照原图，快速校对无差错。",
+        icon: "layout",
+      },
+      {
         title: "多舞台横屏排期矩阵",
         desc: "横屏大画幅沉浸展开，消除边缘遮挡与黑边，纵览全天多舞台演出流向。",
-        icon: "layout",
+        icon: "grid",
       },
       {
         title: "演出冲突智能预警",
@@ -130,39 +140,44 @@ const featureCategories = [
         icon: "share",
       },
       {
-        title: "手动排期精细微调",
+        title: "手动排期自由增改",
         desc: "支持按舞台自由新增、编辑演出时段与阵容名单，灵活应对临时调整。",
         icon: "edit",
       },
     ],
   },
   {
-    category: "拟物音乐与阵容合辑",
-    tagline: "开场前，先把歌听熟",
+    category: "现场音乐与舞台实况",
+    tagline: "海报阵容一览，3D 挑唱片、听热曲与看现场视频",
     items: [
       {
-        title: "拟物黑胶与 CD 唱机",
-        desc: "细腻质感实体唱盘设计，支持旋转光影与触控切歌，带来仪式感满满的听觉前奏。",
-        icon: "disc",
+        title: "「帮我挑一张」3D 唱片柜",
+        desc: "独创 3D 唱片柜陈列与抽出视效，更支持一屏一张、正面唱片架、旋转木马、冲天抛洒与飘羽等 6 种立体动效挑片体验。",
+        icon: "layers",
       },
       {
-        title: "阵容热门合辑预习",
-        desc: "自动检索参演音乐人，智能生成 Apple Music 热门试听合辑，提前熟悉每一首歌。",
+        title: "音乐节海报式阵容排版",
+        desc: "像音乐节海报一样分级排布头牌（Headliners）、主力与全阵容名单，视觉层次分明，点击音乐人即可深入探索。",
+        icon: "layout",
+      },
+      {
+        title: "本场歌单与原声试听",
+        desc: "聚合整场演出阵容精选热曲与代表作专辑，免跳转第三方应用直接试听高品质原声片段。",
         icon: "music",
       },
       {
-        title: "免跳转 30 秒高品质试听",
-        desc: "无需开通外部会员或跳转第三方应用，在 App 内即刻播放热门代表作原声片段。",
-        icon: "play-circle",
+        title: "看 · 舞台现场实况视频",
+        desc: "智能收纳参演音乐人的 Bilibili 现场 Live 与巡演舞台实况视频，开场前提前感受舞美与现场燥热氛围。",
+        icon: "video",
       },
       {
-        title: "跨页面常驻迷你播放器",
-        desc: "悬浮迷你播放器常驻底部，查排期、看天气、翻足迹时音乐不断流，随时随地切歌。",
+        title: "流体磨砂底栏与迷你播放器",
+        desc: "Liquid Glass 流体玻璃胶囊底栏居中常驻迷你播放器，查排期、看天气、翻足迹时音乐不断流，无感跨页操控。",
         icon: "radio",
       },
       {
-        title: "音乐人一键直达",
-        desc: "一键跳转 Apple Music 艺人主页与专辑，深度探索更多现场曲目。",
+        title: "艺人专页与 Apple Music 直达",
+        desc: "深度连接 Apple Music 音乐人专页与专辑发行时间线，一键唤起完整流媒体畅听整张专辑与现场歌单。",
         icon: "external-link",
       },
     ],
@@ -178,7 +193,7 @@ const featureCategories = [
       },
       {
         title: "现场生命周期三段切换",
-        desc: "自动在“快开始了”、“正在演出”与“散场次日”状态无感流转接力。",
+        desc: "自动在“即将开场倒计时”、“正在演出当前台”与“散场次日”状态无感流转接力。",
         icon: "repeat",
       },
       {
@@ -200,31 +215,56 @@ const featureCategories = [
   },
   {
     category: "散场仪式与生活足迹",
-    tagline: "散场后，收进足迹",
+    tagline: "散场后，收进足迹：手账、星空与回忆书",
     items: [
       {
-        title: "散场仪式打卡",
-        desc: "散场专属烟花与离场打卡动效，用一次温柔的交互为今晚的演出画上句号。",
+        title: "散场仪式烟花打卡",
+        desc: "散场专属烟花与离场打卡动效，用一次温柔的交互为今晚的演出画上圆满句号。",
         icon: "sparkles",
       },
       {
         title: "三段式现场回忆碎片",
-        desc: "按“开场前、进行中、散场后”记录现场随拍照片、入场票根与真实感想。",
+        desc: "按「开场前、进行中、散场后」记录现场随拍照片、票根与真实感想，支持胶卷印样 Contact Sheet 网格排版。",
         icon: "camera",
       },
       {
+        title: "现场实况 Setlist 歌单",
+        desc: "散场后记录当晚真实演出歌单，支持在 App 内播放回味现场每一首曲目的感动。",
+        icon: "music",
+      },
+      {
+        title: "现场周边谷子柜收纳",
+        desc: "现场购买的演出限定周边、乐队 T 恤、毛巾、唱片拍照入柜，留存实体收藏。",
+        icon: "folder",
+      },
+      {
+        title: "演出开销账单手账",
+        desc: "门票、交通出行、酒店住宿与现场周边开销流水手账，清晰记录每一次奔赴现场的花销。",
+        icon: "dollar-sign",
+      },
+      {
         title: "现场足迹全景图鉴",
-        desc: "自动统计累计看演场次、去过的城市足迹、打卡场馆与观演艺人总览。",
+        desc: "自动统计累计看演场次、去过的城市足迹、打卡场馆分布与观演艺人总览排行榜。",
         icon: "map-pin",
       },
       {
         title: "乐迷里程碑与成就徽章",
-        desc: "专为现场乐迷设计的趣味打卡成就体系，记录你的每一个现场里程碑。",
+        desc: "专为现场乐迷设计的趣味打卡成就体系，自动点亮看演场次、打卡城市与特色场馆徽章墙。",
         icon: "award",
       },
       {
-        title: "Live Pass 票根分享卡",
-        desc: "一键生成复古黑胶与演出门票票根风格的个人分享长图，定格美好夜晚。",
+        title: "「你的星空」音阶与星图",
+        desc: "每一次看演都化作夜空中的一颗星，支持大调、小调、布鲁斯等音阶交互发声弹奏，星星还可排成星座。",
+        icon: "star",
+      },
+      {
+        title: "现场回忆翻页书",
+        desc: "像翻阅实体画册一样回顾历场演出的照片、门票与随记，让每一场奔赴都有迹可循。",
+        icon: "book-open",
+      },
+      {
+        title: "票根与 Backstage Pass 长图",
+        desc: "一键生成复古演出门票票根、后台工作证（Backstage Pass）风格的精美长图，随心分享朋友圈。",
         icon: "file-text",
       },
     ],
@@ -315,6 +355,74 @@ function Phone({ src, alt, eager = false }) {
   return (
     <div className="phone">
       <img src={src} alt={alt} width="720" height="1565" loading={eager ? "eager" : "lazy"} />
+    </div>
+  );
+}
+
+function ListenMockup() {
+  return (
+    <div className="listen-mockup" aria-hidden="true">
+      {/* 顶部 Surface 切换 */}
+      <div className="listen-surface-bar">
+        <span className="listen-surface-tab active">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          听 · 阵容海报
+        </span>
+        <span className="listen-surface-tab">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          看 · 舞台实况
+        </span>
+      </div>
+
+      {/* 音乐节阵容海报 */}
+      <div className="listen-poster-card">
+        <div className="poster-show-tag">FESTIVAL LINEUP BILL</div>
+        <div className="poster-show-title">星云音乐节 2026 · NEBULA</div>
+        <div className="poster-divider" />
+        <div className="poster-headliners">万能青年旅店 · 草东没有派对</div>
+        <div className="poster-second">重塑雕像的权利 · 新裤子 · 落日飞车</div>
+        <div className="poster-rest">惘闻 · 康姆士 · 回春丹 · 声音碎片 · 蛙池</div>
+      </div>
+
+      {/* 帮我挑一张 - 3D 唱片柜与流动动效 */}
+      <div className="listen-pick-section">
+        <div className="pick-section-head">
+          <span className="pick-section-title">帮我挑一张</span>
+          <span className="pick-section-count">12 张唱片</span>
+        </div>
+        <div className="listen-pick-card">
+          <div className="pick-cover-3d">
+            <div className="pick-cover-spine" />
+            <div className="pick-cover-art">
+              <span>冀西南</span>
+              <span>林路行</span>
+            </div>
+          </div>
+          <div className="pick-info">
+            <span className="pick-artist">万能青年旅店</span>
+            <span className="pick-album">冀西南林路行</span>
+            <span className="pick-meta">10 首热门原声试听</span>
+          </div>
+          <div className="pick-style-tag">3D 唱片柜</div>
+        </div>
+      </div>
+
+      {/* 底部 Liquid Glass 磨砂迷你播放器 */}
+      <div className="listen-bottom-bar">
+        <span className="nav-tab-mini">✦ 当前</span>
+        <div className="liquid-glass-player">
+          <div className="player-track-art">♫</div>
+          <div className="player-track-info">
+            <span className="player-track-title">山雀</span>
+            <span className="player-track-artist">万能青年旅店</span>
+          </div>
+          <div className="player-controls">
+            <span className="player-btn">❚❚</span>
+            <span className="player-btn">⏭</span>
+          </div>
+        </div>
+        <span className="nav-tab-mini">⚐ 足迹</span>
+      </div>
     </div>
   );
 }
@@ -541,6 +649,30 @@ function FeatureIcon({ name }) {
           <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
       );
+    case "video":
+      return (
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        </svg>
+      );
+    case "layers":
+      return (
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+        </svg>
+      );
+    case "dollar-sign":
+      return (
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      );
+    case "book-open":
+      return (
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+      );
     case "shield-check":
       return (
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -619,6 +751,8 @@ export default function HomePage() {
               <div className="feature-visual">
                 {feature.mockup === "timetable" ? (
                   <TimetableMockup />
+                ) : feature.mockup === "listen" ? (
+                  <ListenMockup />
                 ) : (
                   <Phone src={feature.screen} alt={feature.alt} />
                 )}
