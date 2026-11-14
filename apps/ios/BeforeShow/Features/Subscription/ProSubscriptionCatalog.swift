@@ -89,6 +89,14 @@ enum ProSubscriptionCatalog {
     static let yearlyDiscountProductID = "com.doublewaterapps.beforeshow.pro.yearly.discount"
     static let lifetimeDiscountProductID = "com.doublewaterapps.beforeshow.pro.lifetime.discount"
 
+    /// Pro 权益：与现场数量、时刻表识别额度、听歌样式、足迹星空的实际门禁保持一致。
+    static let proBenefitCopy = [
+        "无限添加现场",
+        "不限次时刻表智能识别",
+        "解锁全部听歌样式",
+        "解锁足迹星空全部音阶与形状"
+    ]
+
     /// 标准在售方案：年度 / 终身。
     static let standardPlans: [ProSubscriptionPlan] = [.yearly, .lifetime]
     /// 挽回优惠方案：仅在挽留弹窗与长按图标入口展示。
@@ -102,36 +110,28 @@ enum ProSubscriptionCatalog {
             plan: .yearly,
             displayName: BSLocalization.text("BeforeShow Pro 年度"),
             priceText: BSLocalization.text("$4.99/年"),
-            benefitCopy: [
-                "无限添加现场"
-            ]
+            benefitCopy: ProSubscriptionCatalog.proBenefitCopy
         ),
         ProSubscriptionProduct(
             id: lifetimeProductID,
             plan: .lifetime,
             displayName: BSLocalization.text("BeforeShow Pro 终身"),
             priceText: BSLocalization.text("$8.99"),
-            benefitCopy: [
-                "无限添加现场"
-            ]
+            benefitCopy: ProSubscriptionCatalog.proBenefitCopy
         ),
         ProSubscriptionProduct(
             id: yearlyDiscountProductID,
             plan: .yearlyDiscount,
             displayName: BSLocalization.text("BeforeShow Pro 特惠年度"),
             priceText: BSLocalization.text("$3.99/年"),
-            benefitCopy: [
-                "无限添加现场"
-            ]
+            benefitCopy: ProSubscriptionCatalog.proBenefitCopy
         ),
         ProSubscriptionProduct(
             id: lifetimeDiscountProductID,
             plan: .lifetimeDiscount,
             displayName: BSLocalization.text("BeforeShow Pro 特惠终身"),
             priceText: BSLocalization.text("$6.99"),
-            benefitCopy: [
-                "无限添加现场"
-            ]
+            benefitCopy: ProSubscriptionCatalog.proBenefitCopy
         )
     ]
 }

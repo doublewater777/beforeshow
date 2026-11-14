@@ -27886,6 +27886,54 @@
           }
         }
       }
+    },
+    "不限次时刻表智能识别" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlimited timetable recognition"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不限次時刻表智能識別"
+          }
+        }
+      }
+    },
+    "解锁全部听歌样式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock all listening styles"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖全部聽歌樣式"
+          }
+        }
+      }
+    },
+    "解锁足迹星空全部音阶与形状" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock all Footprints sky scales and shapes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖足跡星空全部音階與形狀"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

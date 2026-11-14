@@ -96,15 +96,19 @@ Created with these fields:
   - Lifetime win-back: `¥38`
   - Yearly subscription auto-renews at the displayed annual price unless canceled. No free trial.
 - Free allowance:
-  - Base capacity: save 5 self-added `现场`.
-  - After the base, free capacity can grow by 1 per local calendar month; unused monthly growth does not roll over.
-  - A new user can therefore save up to 6 self-added `现场` in the first month.
+  - Save up to 15 self-added `现场` (flat capacity, no monthly growth; see ADR 0046).
   - Deleting a self-added `现场` frees capacity. Invitation-only companion `现场` do not consume free capacity.
+  - Timetable smart recognition: 2 lifetime free recognitions; failures do not consume quota. Self-import, manual edit, and original image saving are always free.
+  - Listening styles: `一屏一张` and `正面唱片架` are free; the other styles allow 3 free trial opens.
+  - Footprints sky: pentatonic scale and free shape are free.
 - Pro unlocks:
   - Unlimited saved `现场`.
+  - Unlimited timetable smart recognition.
+  - All listening styles.
+  - All Footprints sky scales and shapes.
 - Expired Pro behavior:
   - Existing saved shows and manual edits remain accessible.
-  - The user returns to the free monthly capacity-growth rule; expiration does not force deletion of existing shows.
+  - The user returns to the 15-show free capacity; expiration does not force deletion of existing shows, but adding more requires staying below 15 or renewing Pro.
 - Copy guardrail: do not mention ads, ad removal, VIP community, account sync, or unlimited AI.
 
 ## Privacy And Data Review Notes
