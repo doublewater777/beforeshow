@@ -55,6 +55,7 @@ struct TimetableMatrixLayout: Equatable {
     let end: Date
     /// Vertical scale; the share image uses a tighter one than the app.
     let pointsPerMinute: CGFloat
+    let bottomInset: CGFloat
     let cards: [Card]
     let hours: [HourMark]
     let activity: [Activity]
@@ -62,7 +63,7 @@ struct TimetableMatrixLayout: Equatable {
     let nowY: CGFloat?
 
     var laneHeight: CGFloat { y(for: end) + 14 }
-    var contentHeight: CGFloat { y(for: end) + Self.bottomInset }
+    var contentHeight: CGFloat { y(for: end) + bottomInset }
     var midnightY: CGFloat? { hours.first(where: \.isMidnight)?.y }
 
     func y(for date: Date) -> CGFloat {
@@ -76,7 +77,7 @@ struct TimetableMatrixLayout: Equatable {
 
     /// `emptyDayStart` anchors a day with no sets yet (a freshly added day), so its
     /// axis shows that day rather than whatever time it is now.
-    init(stages: [Stage], now: Date, calendar: Calendar, pointsPerMinute: CGFloat = Self.pointsPerMinute, emptyDayStart: Date? = nil) {
+    init(stages: [Stage], now: Date, calendar: Calendar, pointsPerMinute: CGFloat = Self.pointsPerMinute, bottomInset: CGFloat = Self.bottomInset, emptyDayStart: Date? = nil) {
         let all = stages.flatMap(\.performances)
         let earliest = all.map(\.startsAt).min() ?? emptyDayStart ?? now
         // The axis opens on the half hour before the first set rather than the full hour,
@@ -88,6 +89,7 @@ struct TimetableMatrixLayout: Equatable {
         self.start = start
         self.end = end
         self.pointsPerMinute = pointsPerMinute
+        self.bottomInset = bottomInset
 
         let ppm = pointsPerMinute
         func y(_ date: Date) -> CGFloat { Self.topInset + CGFloat(date.timeIntervalSince(start) / 60) * ppm }

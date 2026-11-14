@@ -78,6 +78,7 @@ struct TimetableStageMatrixView: View {
         let isSingleStage = stages.count == 1
         let addStageWidth = isSingleStage ? 0 : Self.addStageWidth
         let performances = Dictionary(uniqueKeysWithValues: stages.flatMap(\.performances).map { ($0.id, $0) })
+        let isLandscape = verticalSizeClass == .compact
         let layout = TimetableMatrixLayout(
             stages: stages.map { stage in
                 .init(id: stage.id, name: stage.name, performances: stage.performances.map {
@@ -86,7 +87,10 @@ struct TimetableStageMatrixView: View {
             },
             now: now,
             calendar: calendar,
-            pointsPerMinute: isSingleStage ? TimetableStyle.matrixSingleStagePointsPerMinute : TimetableMatrixLayout.pointsPerMinute,
+            pointsPerMinute: isSingleStage
+                ? TimetableStyle.matrixSingleStagePointsPerMinute
+                : (isLandscape ? TimetableStyle.matrixLandscapePointsPerMinute : TimetableMatrixLayout.pointsPerMinute),
+            bottomInset: isLandscape ? 40 : TimetableMatrixLayout.bottomInset,
             emptyDayStart: calendar.date(bySettingHour: 14, minute: 0, second: 0, of: day.date)
         )
 
@@ -149,7 +153,8 @@ struct TimetableStageMatrixView: View {
 
     private func scrollToNow(_ layout: TimetableMatrixLayout, viewport: CGFloat, animated: Bool = false) {
         guard let nowY = layout.nowY else { position.scrollTo(y: 0); return }
-        position.scrollTo(y: max(0, nowY - viewport * 0.35), animated: animated)
+        let factor: CGFloat = verticalSizeClass == .compact ? 0.28 : 0.35
+        position.scrollTo(y: max(0, nowY - viewport * factor), animated: animated)
     }
 
     // MARK: - Timeline Grid

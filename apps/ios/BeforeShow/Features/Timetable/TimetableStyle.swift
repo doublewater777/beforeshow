@@ -38,6 +38,8 @@ enum TimetableStyle {
     static let matrixRenderBuffer: CGFloat = 180
     /// One stage leaves the whole width to a single column of row cards, so time can run tighter.
     static let matrixSingleStagePointsPerMinute: CGFloat = 1.7
+    /// Landscape expands stage columns; a slightly tighter vertical scale lets more sets fit on screen.
+    static let matrixLandscapePointsPerMinute: CGFloat = 1.6
     enum MatrixCard {
         static let narrowWidth: CGFloat = 155
         /// Lanes at least this wide lay a set out as one row: avatar, name and time, then actions.
@@ -84,7 +86,10 @@ struct TimetableDaySwitcher: View {
 
     let items: [Item]
     @Binding var selection: UUID
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Namespace private var indicator
+
+    private var isLandscape: Bool { verticalSizeClass == .compact }
 
     var body: some View {
         if items.count <= 2 {
@@ -117,7 +122,7 @@ struct TimetableDaySwitcher: View {
                     withAnimation(TimetableStyle.pressSpring) { selection = item.id }
                 } label: {
                     Group {
-                        if compact {
+                        if compact && !isLandscape {
                             VStack(spacing: 1) {
                                 Text(item.label).font(.system(size: 13, weight: .bold))
                                 HStack(spacing: 3) {
@@ -130,14 +135,14 @@ struct TimetableDaySwitcher: View {
                             .frame(minWidth: 54)
                             .frame(height: 40)
                         } else {
-                            HStack(spacing: 5) {
-                                Text(item.label).font(.system(size: 14, weight: .bold))
-                                Text(item.date).font(TimetableStyle.mono(13))
+                            HStack(spacing: isLandscape ? 4 : 5) {
+                                Text(item.label).font(.system(size: isLandscape ? 12.5 : 14, weight: .bold))
+                                Text(item.date).font(TimetableStyle.mono(isLandscape ? 11.5 : 13))
                                 if item.isToday { todayDot }
                                 if item.issueCount > 0 { issueBadge(item.issueCount) }
                             }
-                            .padding(.horizontal, 14)
-                            .frame(height: 38)
+                            .padding(.horizontal, isLandscape ? 10 : 14)
+                            .frame(height: isLandscape ? 30 : 38)
                         }
                     }
                     .lineLimit(1)
@@ -156,7 +161,7 @@ struct TimetableDaySwitcher: View {
                 .id(item.id)
             }
         }
-        .padding(3)
+        .padding(isLandscape ? 2 : 3)
         .background(Capsule().fill(Color.white.opacity(0.08)))
         .overlay(Capsule().stroke(Color.white.opacity(0.06), lineWidth: 1))
     }

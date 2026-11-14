@@ -14,6 +14,7 @@ struct TimetableExperienceView: View {
     let allowsSharing: Bool
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var wantOnly: Bool
     @State private var isSharing = false
     @State private var canReturnToNow = false
@@ -22,6 +23,8 @@ struct TimetableExperienceView: View {
     @State private var addingSlot: AddSlot?
     @State private var reconcileTask: Task<Void, Never>?
     @Namespace private var dockIndicator
+
+    private var isLandscape: Bool { verticalSizeClass == .compact }
 
     init(
         timetable: Timetable,
@@ -88,7 +91,48 @@ struct TimetableExperienceView: View {
                 TimetableDateConfirmationNotice(timetable: timetable, show: show, onManage: onManage)
             }
         }
-        .overlay(alignment: .bottom) { dock }
+        .overlay(alignment: .bottom) {
+            if !isLandscape {
+                dock
+            }
+        }
+        .toolbar {
+            if isLandscape {
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    if canReturnToNow {
+                        Button {
+                            returnToNowRequest += 1
+                        } label: {
+                            Image(systemName: "scope")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TimetableStyle.foreground)
+                                .frame(width: 28, height: 28)
+                                .background(Color.white.opacity(0.08), in: Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                        }
+                        .buttonStyle(TimetablePressStyle())
+                        .accessibilityLabel(BSLocalization.text("回到现在"))
+                    }
+
+                    if allowsSharing {
+                        Button {
+                            isSharing = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TimetableStyle.foreground)
+                                .frame(width: 28, height: 28)
+                                .background(Color.white.opacity(0.08), in: Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                        }
+                        .buttonStyle(TimetablePressStyle())
+                        .accessibilityLabel(BSLocalization.text("分享"))
+                    }
+
+                    landscapeFilter
+                }
+            }
+        }
         .sheet(item: $inspectingPerformance) { perf in
             if let day = currentDay {
                 TimetablePerformanceInspectorSheet(
@@ -198,13 +242,40 @@ struct TimetableExperienceView: View {
         .sensoryFeedback(.selection, trigger: wantOnly)
     }
 
-    private func dockOption<Label: View>(isOn: Bool, tint: Color, @ViewBuilder label: () -> Label) -> some View {
+    private var landscapeFilter: some View {
+        HStack(spacing: 0) {
+            dockOption(isOn: !wantOnly, tint: Color.white.opacity(0.12), height: 28) {
+                Text(BSLocalization.text("全部"))
+                    .foregroundStyle(wantOnly ? TimetableStyle.muted : TimetableStyle.foreground)
+            }
+            .frame(width: 44)
+            .onTapGesture { setWantOnly(false) }
+
+            dockOption(isOn: wantOnly, tint: TimetableStyle.mine, height: 28) {
+                HStack(spacing: 4) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(wantOnly ? TimetableStyle.background : TimetableStyle.mine)
+                    Text(BSLocalization.text("想看"))
+                    Text("\(interestedCount)").font(TimetableStyle.mono(11, weight: .semibold))
+                }
+                .foregroundStyle(wantOnly ? TimetableStyle.background : TimetableStyle.muted)
+            }
+            .frame(width: 72)
+            .onTapGesture { setWantOnly(true) }
+        }
+        .font(.system(size: 11.5, weight: .bold))
+        .padding(2)
+        .bsGlass(clear: true, in: Capsule())
+    }
+
+    private func dockOption<Label: View>(isOn: Bool, tint: Color, height: CGFloat = 44, @ViewBuilder label: () -> Label) -> some View {
         label()
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: height)
             .background {
                 if isOn {
-                    Capsule().fill(tint).matchedGeometryEffect(id: "dock", in: dockIndicator)
+                    Capsule().fill(tint).matchedGeometryEffect(id: height == 44 ? "dock" : "dockLandscape", in: dockIndicator)
                 }
             }
             .contentShape(Capsule())
