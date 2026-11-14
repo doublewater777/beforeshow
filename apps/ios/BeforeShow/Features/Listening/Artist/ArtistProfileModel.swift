@@ -46,6 +46,7 @@ final class ArtistProfileModel {
     let reference: ArtistReference
     private(set) var status: Status = .loading
     private(set) var releases: [ListeningDisc] = []
+    private(set) var playlists: [ListeningDisc] = []
     private(set) var artworkURL: URL?
     private(set) var genres: [String] = []
 
@@ -72,7 +73,7 @@ final class ArtistProfileModel {
         let projection = projection ?? ListeningCatalogProjection(context: context, catalogStore: store)
         self.store = store
         self.projection = projection
-        if releases.isEmpty { status = .loading }
+        if releases.isEmpty && playlists.isEmpty { status = .loading }
         do {
             _ = try await store.loadArtistCatalog(artistID: artistID)
             try projection.refresh(artistIDs: [artistID])
@@ -80,13 +81,36 @@ final class ArtistProfileModel {
                 status = .failed
                 return
             }
-            releases = ListeningArtistReleases.newestFirst(artist.albums)
-            artworkURL = reference.avatarURL ?? artist.artworkURL
-            genres = artist.genres
+            applyArtistPresentation(artist)
             status = .ready
+
+            do {
+                let playlistPayload = try await service.fetchFeaturedPlaylists(artistID: artistID, fetchedAt: Date())
+                if !playlistPayload.playlists.isEmpty {
+                    let persisted = try await store.persistFeaturedPlaylists(playlistPayload)
+                    if persisted {
+                        try projection.refresh(artistIDs: [artistID])
+                        if let updatedArtist = projection.artists[artistID] {
+                            applyArtistPresentation(updatedArtist)
+                        }
+                    }
+                }
+            } catch {
+                // Browse-only failures never fail the profile view.
+            }
         } catch {
-            if releases.isEmpty { status = .failed }
+            if releases.isEmpty && playlists.isEmpty { status = .failed }
         }
+    }
+
+    private func applyArtistPresentation(_ artist: ListeningArtistPresentation) {
+        releases = ListeningArtistReleases.newestFirst(artist.albums)
+        playlists = artist.albums.filter {
+            if case .featuredPlaylist = $0.origin { return true }
+            return false
+        }
+        artworkURL = reference.avatarURL ?? artist.artworkURL
+        genres = artist.genres
     }
 
     func requestAccess(in context: ModelContext) async {

@@ -19,7 +19,7 @@ options:
   xcodeVersion: "27.0"
 settings:
   base:
-    CURRENT_PROJECT_VERSION: 83
+    CURRENT_PROJECT_VERSION: 84
     MARKETING_VERSION: 1.1.3
     SWIFT_VERSION: 6.0
     DEVELOPMENT_LANGUAGE: zh-Hans

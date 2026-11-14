@@ -178,6 +178,7 @@
 		3899A74D7AF4ACCC0B222427 /* TimetableReviewIssues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F52A258E2746FD67AABDBCB /* TimetableReviewIssues.swift */; };
 		39101B2A8D6FA5C68CE5240D /* ShowDraftFieldComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72B3587927F28D0941257C9 /* ShowDraftFieldComponents.swift */; };
 		39365E423FF8FEEB1D8AF364 /* FootprintTiltMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2632DBE94C3807F7BD5DB4FA /* FootprintTiltMotion.swift */; };
+		3A15C09DD5F961AF62787956 /* ArtistProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76E5697E49368E688F74215 /* ArtistProfileTests.swift */; };
 		3A6EF1D449ED6155CDD11A33 /* BSStageScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A989EAB740E584258668E4 /* BSStageScene.swift */; };
 		3AB129443F4930384FB311C9 /* ListeningPickStyleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A14999E93590E497D726A4B /* ListeningPickStyleSheet.swift */; };
 		3B8A851901B49084E347E259 /* ListeningLocalDataCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10ABB29AB0D2A14A08D678FF /* ListeningLocalDataCleaner.swift */; };
@@ -1419,6 +1420,7 @@
 		E72B3587927F28D0941257C9 /* ShowDraftFieldComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftFieldComponents.swift; sourceTree = "<group>"; };
 		E76681B1E9917E1AA3124BB6 /* FootprintNumberSongTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintNumberSongTests.swift; sourceTree = "<group>"; };
 		E768B9E9A6E19FC2E2551A79 /* FootprintDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDashboardView.swift; sourceTree = "<group>"; };
+		E76E5697E49368E688F74215 /* ArtistProfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistProfileTests.swift; sourceTree = "<group>"; };
 		E78DDB62CDA874D20BE6AAB2 /* LiveModeStateEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveModeStateEngine.swift; sourceTree = "<group>"; };
 		E7B0083AC91EA910A8275CE7 /* FootprintVenueMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintVenueMap.swift; sourceTree = "<group>"; };
 		E7B05D91927D09CA95E75A26 /* ShowWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowWeatherService.swift; sourceTree = "<group>"; };
@@ -2171,6 +2173,7 @@
 				B40ADB400165868D3BD720F1 /* ArchitectureModuleTests.swift */,
 				F85EDD69877A8E16FCE6C4EC /* ArtistAlbumArtworkResolverTests.swift */,
 				DE9DCAD60264282DE91F49A4 /* ArtistAvatarResolverTests.swift */,
+				E76E5697E49368E688F74215 /* ArtistProfileTests.swift */,
 				DFDB001AD89D32CEDC33E72F /* BeforeShowCloudClientTests.swift */,
 				AFFF1678EB5E850E1F661849 /* BilibiliVideoSearchTests.swift */,
 				795CC893B2997F86400C83CB /* BSDateFormatTests.swift */,
@@ -3415,6 +3418,7 @@
 				8240F9A3E6F5796938081D84 /* ArchitectureModuleTests.swift in Sources */,
 				93E7C63640764374C96BDDA9 /* ArtistAlbumArtworkResolverTests.swift in Sources */,
 				640AE18C750DA949AF43EFAA /* ArtistAvatarResolverTests.swift in Sources */,
+				3A15C09DD5F961AF62787956 /* ArtistProfileTests.swift in Sources */,
 				E25B387A27DFD016DDBFFD93 /* BSDateFormatTests.swift in Sources */,
 				F2837777F9FB8CF6A023FA86 /* BSWideLayoutTests.swift in Sources */,
 				EB86A04317E0AACC2246AD8F /* BeforeShowCloudClientTests.swift in Sources */,
@@ -3687,7 +3691,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 83;
+				CURRENT_PROJECT_VERSION = 84;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;
@@ -3752,7 +3756,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 83;
+				CURRENT_PROJECT_VERSION = 84;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;

@@ -114,9 +114,10 @@ struct ArtistProfileView: View {
             let featured = ListeningArtistReleases.featured(model.releases)
             let rest = model.releases.filter { $0.id != featured?.id }
             if let featured { latest(featured) }
+            shelf(BSLocalization.text("精选歌单"), model.playlists)
             shelf(ListeningDiscPickFilter.albums.title, rest.filter(ListeningDiscPickFilter.albums.includes))
             shelf(ListeningDiscPickFilter.singlesAndEPs.title, rest.filter(ListeningDiscPickFilter.singlesAndEPs.includes))
-            if model.releases.isEmpty {
+            if model.releases.isEmpty && model.playlists.isEmpty {
                 note(BSLocalization.text("暂时没有找到可翻的唱片"))
             }
         }
