@@ -316,6 +316,10 @@ const reminders = [
 // ── 常见问题解答 ──────────────────────────────────────────────
 const faqs = [
   {
+    q: "免费版可以添加多少场现场？",
+    a: "免费版包含 15 场现场保存容量与 2 次时刻表智能识别，删除场次即可释放容量。升级 Pro 可解锁无限场次保存、不限次排期识别及全部「挑一张」立体动效。",
+  },
+  {
     q: "支持哪些平台的购票链接导入？",
     a: "支持大麦、秀动、猫眼等主流票务平台的演出分享链接。在 App 内点击添加现场并粘贴链接，即可自动解析演出时间、场馆、城市及艺人阵容信息。",
   },
@@ -717,7 +721,7 @@ export default function HomePage() {
             <p className="hero-sub">首页只围着下一场：海报、实时倒计时、排期时刻表、演出天气与同行搭子都在一屏里，陪你慢慢靠近这一场。</p>
             <div className="hero-actions">
               <AppStoreButton />
-              <span className="hero-note">iOS 17+ · 支持灵动岛与全尺寸小组件 · 前 5 场免费保存</span>
+              <span className="hero-note">iOS 17+ · 支持灵动岛与全尺寸小组件 · 免费支持 15 场现场保存</span>
             </div>
           </div>
           <div className="hero-visual">
