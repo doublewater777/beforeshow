@@ -64,76 +64,53 @@ struct HomeStageScreenWall: View {
     }
 
     private var mainScreen: some View {
-        let perf = screens.main.performance
-        return ZStack(alignment: .bottomLeading) {
-            HomeStageArtistImage(url: url(for: perf), name: perf.artistName)
-            switch screens.main {
-            case .live:
-                LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
-                label("● LIVE · \(perf.stageName)", color: BSColor.Stage.live, size: 10)
-                    .padding(9)
-            case .next:
-                Color.black.opacity(0.62)
-                VStack(spacing: 6) {
-                    Text(verbatim: "NEXT")
-                        .font(.system(size: 13, weight: .regular, design: .monospaced))
-                        .tracking(5)
-                        .foregroundStyle(BSColor.Stage.accent)
-                    Text(perf.artistName)
-                        .font(.system(size: 19, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.7)
-                    Text(clock(perf.startsAt))
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(BSColor.Stage.muted)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(width: mainSize.width, height: mainSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: 2))
-        .id(perf.id)
-        .transition(.opacity)
+        screen(screens.main, size: mainSize, compact: false)
     }
 
     @ViewBuilder
     private func side(_ screen: HomeStageScreens.Screen?) -> some View {
         let size = CGSize(width: 58, height: 96)
         if let screen {
-            let perf = screen.performance
-            let content = ZStack(alignment: .bottomLeading) {
-                HomeStageArtistImage(url: url(for: perf), name: perf.artistName)
-                LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .center, endPoint: .bottom)
-                VStack(alignment: .leading, spacing: 2) {
-                    switch screen {
-                    case .live: label("● \(perf.stageName)", color: BSColor.Stage.live, size: 7)
-                    case .next: label("NEXT \(clock(perf.startsAt))", color: BSColor.Stage.accent, size: 7)
-                    }
-                    Text(perf.artistName)
-                        .font(.system(size: 8.5, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                }
-                .padding(5)
-            }
-            .frame(width: size.width, height: size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 2))
-            .id(perf.id)
-            .transition(.opacity)
-
             if case .live = screen {
-                Button { onFocus(perf.id) } label: { content }
+                Button { onFocus(screen.performance.id) } label: { self.screen(screen, size: size, compact: true) }
                     .buttonStyle(.plain)
                     .accessibilityHint(BSLocalization.text("设为主现场"))
             } else {
-                content
+                self.screen(screen, size: size, compact: true)
             }
         } else {
             Color.clear.frame(width: size.width, height: size.height)
         }
+    }
+
+    /// A 3:4 screen: the square artist photo uncropped on top, a caption strip under it.
+    private func screen(_ screen: HomeStageScreens.Screen, size: CGSize, compact: Bool) -> some View {
+        let perf = screen.performance
+        return VStack(alignment: .leading, spacing: 0) {
+            HomeStageArtistImage(url: url(for: perf), name: perf.artistName)
+                .frame(width: size.width, height: size.width)
+            VStack(alignment: .leading, spacing: compact ? 2 : 3) {
+                switch screen {
+                case .live:
+                    label(compact ? "● \(perf.stageName)" : "● LIVE · \(perf.stageName)", color: BSColor.Stage.live, size: compact ? 7 : 10)
+                case .next:
+                    label(compact ? "NEXT \(clock(perf.startsAt))" : "NEXT · \(clock(perf.startsAt))", color: BSColor.Stage.accent, size: compact ? 7 : 10)
+                }
+                Text(perf.artistName)
+                    .font(.system(size: compact ? 8.5 : 15, weight: compact ? .bold : .heavy))
+                    .foregroundStyle(.white)
+                    .lineLimit(compact ? 2 : 1)
+                    .minimumScaleFactor(0.7)
+            }
+            .padding(.horizontal, compact ? 4 : 9)
+            .padding(.top, compact ? 4 : 7)
+            Spacer(minLength: 0)
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .background(Color.black)
+        .clipShape(RoundedRectangle(cornerRadius: 2))
+        .id(perf.id)
+        .transition(.opacity)
     }
 
     private func label(_ text: String, color: Color, size: CGFloat) -> some View {
