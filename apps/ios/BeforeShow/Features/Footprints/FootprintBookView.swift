@@ -13,6 +13,7 @@ struct FootprintBookView: View {
     @State private var index: Int
     @State private var isExporting = false
     @State private var isShowingPaywall = false
+    @State private var isShowingContents = false
     @State private var toast: BSToastPayload?
 
     init(book: FootprintBook, archive: FootprintArchiveSnapshot, covers: [UUID: FootprintCover]) {
@@ -32,6 +33,11 @@ struct FootprintBookView: View {
         .sensoryFeedback(.selection, trigger: index)
         .bsToastOverlay(toast, bottomPadding: 36)
         .sheet(isPresented: $isShowingPaywall) { ProPaywallView() }
+        .sheet(isPresented: $isShowingContents) {
+            FootprintBookContentsSheet(book: book, currentIndex: index) { target in
+                index = min(max(0, target), book.pages.count - 1)
+            }
+        }
     }
 
     private func page(at pageIndex: Int) -> some View {
@@ -45,7 +51,8 @@ struct FootprintBookView: View {
                 number: book.pageNumber(at: pageIndex),
                 isLast: pageIndex == book.pages.count - 1,
                 go: { target in index = min(max(0, target), book.pages.count - 1) },
-                close: { dismiss() }
+                close: { dismiss() },
+                openContents: book.pages[pageIndex] == .contents ? nil : { isShowingContents = true }
             ),
             export: FootprintBookLeafAccessory(
                 symbol: "arrow.down.doc",
@@ -119,6 +126,8 @@ struct FootprintBookTurner {
     let isLast: Bool
     let go: (Int) -> Void
     let close: () -> Void
+    /// Opens the contents over the page to jump anywhere; nil on the contents page itself.
+    var openContents: (() -> Void)?
 
     func previous() { go(index - 1) }
     func next() { go(index + 1) }
@@ -162,6 +171,9 @@ struct FootprintBookLeaf<Content: View>: View {
                 Spacer(minLength: 0)
                 if let accessory {
                     FootprintBookAccessoryButton(accessory: accessory, tint: ink)
+                }
+                if let openContents = turner.openContents {
+                    chromeButton("list.bullet", label: BSLocalization.text("目录"), action: openContents)
                 }
                 chromeButton("xmark", label: BSLocalization.text("合上"), action: turner.close)
             }

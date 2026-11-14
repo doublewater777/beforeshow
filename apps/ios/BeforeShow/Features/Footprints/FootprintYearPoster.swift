@@ -24,6 +24,29 @@ enum FootprintYearPosterLayout {
     static let scale: CGFloat = 3
 }
 
+/// How many columns give `count` cells of one aspect (width / height) the largest size inside an area,
+/// with `rowExtra` of each row's height taken up by something other than the cell.
+struct FootprintYearPosterGrid {
+    let columns: Int
+    let rows: Int
+    let cell: CGSize
+
+    init(count: Int, in area: CGSize, aspect: CGFloat, gap: CGFloat, rowExtra: CGFloat = 0) {
+        let count = max(count, 1)
+        var best = (columns: 1, rows: count, width: CGFloat(0))
+        for columns in 1...count {
+            let rows = (count + columns - 1) / columns
+            let byWidth = (area.width - gap * CGFloat(columns - 1)) / CGFloat(columns)
+            let byHeight = ((area.height - gap * CGFloat(rows - 1)) / CGFloat(rows) - rowExtra) * aspect
+            let width = min(byWidth, byHeight)
+            if width > best.width { best = (columns, rows, width) }
+        }
+        columns = best.columns
+        rows = best.rows
+        cell = CGSize(width: best.width, height: best.width / aspect)
+    }
+}
+
 /// The posters of a year, decoded before the poster is drawn so the renderer never waits on a load.
 @MainActor
 enum FootprintYearPosterArtwork {
@@ -77,7 +100,12 @@ struct FootprintYearPoster: View {
         return count + " · " + FootprintBookText.duration(minutes: recap.durationMinutes)
     }
 
-    private var rows: [FootprintBookRecapText.Row] { Array(FootprintBookRecapText.rows(recap).prefix(3)) }
+    private var rows: [FootprintBookRecapText.Row] { FootprintBookRecapText.rows(recap) }
+
+    /// The shows cut into lines of `size`, in order.
+    private func lines(of size: Int) -> [[Show]] {
+        stride(from: 0, to: recap.shows.count, by: max(size, 1)).map { Array(recap.shows[$0..<min($0 + size, recap.shows.count)]) }
+    }
 
     // MARK: Film
 
@@ -94,8 +122,8 @@ struct FootprintYearPoster: View {
                 .padding(.top, 6)
             Text(summary)
                 .font(.system(size: 15, weight: .semibold, design: .serif))
-            filmStrip
-                .padding(.top, 20)
+            filmStrips
+                .padding(.top, 18)
                 .padding(.horizontal, -24)
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(rows, id: \.label) { row in
@@ -110,8 +138,8 @@ struct FootprintYearPoster: View {
                     }
                 }
             }
-            .padding(.top, 18)
-            Spacer(minLength: 0)
+            .padding(.top, 16)
+            .padding(.bottom, 14)
             BSShareByline(tone: Color(white: 0.5))
         }
         .foregroundStyle(FootprintRoomPalette.chapterInk)
@@ -120,26 +148,44 @@ struct FootprintYearPoster: View {
         .background(FootprintRoomPalette.chapterPaper)
     }
 
-    private var filmStrip: some View {
-        ZStack {
-            Color(white: 0.02)
-            VStack {
-                sprockets
-                Spacer(minLength: 0)
-                sprockets
-            }
-            .padding(.vertical, 5)
-            HStack(spacing: 6) {
-                ForEach(recap.shows.suffix(5), id: \.id) { show in
-                    cover(show)
-                        .frame(width: 58, height: 76)
-                        .clipped()
+    /// Every show of the year as a frame, on as many strips as it takes.
+    private var filmStrips: some View {
+        GeometryReader { proxy in
+            let edge: CGFloat = 14
+            let grid = FootprintYearPosterGrid(
+                count: recap.shows.count,
+                in: CGSize(width: proxy.size.width - 48, height: proxy.size.height),
+                aspect: 3 / 4,
+                gap: 4,
+                rowExtra: edge * 2
+            )
+            // A few shows stay the size of frames rather than filling the page.
+            let frame = CGSize(width: min(grid.cell.width, 72), height: min(grid.cell.width, 72) * 4 / 3)
+            VStack(spacing: 4) {
+                ForEach(Array(lines(of: grid.columns).enumerated()), id: \.offset) { _, line in
+                    ZStack {
+                        Color(white: 0.02)
+                        VStack {
+                            sprockets
+                            Spacer(minLength: 0)
+                            sprockets
+                        }
+                        .padding(.vertical, 4)
+                        HStack(spacing: 4) {
+                            ForEach(line, id: \.id) { show in
+                                cover(show, named: frame.width >= 44)
+                                    .frame(width: frame.width, height: frame.height)
+                                    .clipped()
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                    }
+                    .frame(height: frame.height + edge * 2)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(height: 104)
     }
 
     private var sprockets: some View {
@@ -170,24 +216,11 @@ struct FootprintYearPoster: View {
                 .foregroundStyle(FootprintRoomPalette.inkMuted)
                 .padding(.top, 4)
             perforation.padding(.vertical, 14)
-            VStack(alignment: .leading, spacing: 7) {
-                ForEach(recap.shows.suffix(9), id: \.id) { show in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(FootprintBookText.monthDay(show.effectiveDate, calendar: show.timingCalendar()))
-                            .font(.system(size: 11).monospacedDigit())
-                            .foregroundStyle(FootprintRoomPalette.inkMuted)
-                            .frame(width: 58, alignment: .leading)
-                        Text(FootprintBookText.act(of: show))
-                            .font(.system(size: 13, weight: .semibold, design: .serif))
-                            .lineLimit(1)
-                    }
-                }
-            }
-            Spacer(minLength: 8)
-            perforation.padding(.bottom, 12)
+            ticketList
+            perforation.padding(.vertical, 12)
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 5) {
-                    ForEach(rows.prefix(2), id: \.label) { row in
+                    ForEach(rows, id: \.label) { row in
                         Text(row.label + "  " + row.value)
                             .font(.system(size: 11, weight: .medium))
                             .lineLimit(1)
@@ -203,6 +236,47 @@ struct FootprintYearPoster: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(FootprintRoomPalette.paper)
+    }
+
+    /// Every show of the year, in up to three columns, set as large as the space allows.
+    private var ticketList: some View {
+        GeometryReader { proxy in
+            let spacing: CGFloat = 4
+            let count = recap.shows.count
+            let lineHeight = { (columns: Int) -> CGFloat in
+                let rows = CGFloat((count + columns - 1) / max(columns, 1))
+                return min(20, (proxy.size.height - spacing * (rows - 1)) / max(rows, 1))
+            }
+            let columns = (1...3).first { lineHeight($0) >= 15 } ?? 3
+            let size = min(13, lineHeight(columns) * 0.72)
+            let perColumn = (count + columns - 1) / columns
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(Array(lines(of: perColumn).enumerated()), id: \.offset) { _, column in
+                    VStack(alignment: .leading, spacing: spacing) {
+                        ForEach(column, id: \.id) { show in
+                            HStack(alignment: .firstTextBaseline, spacing: columns == 1 ? 10 : 6) {
+                                Text(columns == 1 ? FootprintBookText.monthDay(show.effectiveDate, calendar: show.timingCalendar()) : Self.shortDate(show))
+                                    .font(.system(size: size - 2).monospacedDigit())
+                                    .foregroundStyle(FootprintRoomPalette.inkMuted)
+                                    .fixedSize()
+                                    .frame(width: columns == 1 ? 58 : nil, alignment: .leading)
+                                Text(FootprintBookText.act(of: show))
+                                    .font(.system(size: size, weight: .semibold, design: .serif))
+                                    .lineLimit(1)
+                            }
+                            .frame(height: lineHeight(columns))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    /// "05.12": the month and day in the width of a narrow column.
+    private static func shortDate(_ show: Show) -> String {
+        let parts = show.timingCalendar().dateComponents([.month, .day], from: show.effectiveDate)
+        return String(format: "%02d.%02d", parts.month ?? 0, parts.day ?? 0)
     }
 
     private var perforation: some View {
@@ -230,24 +304,22 @@ struct FootprintYearPoster: View {
     // MARK: Wall
 
     private var wall: some View {
-        // Only as many posters as fill the grid: nine, four, two or one.
-        let (count, columns) = recap.shows.count >= 9 ? (9, 3) : recap.shows.count >= 4 ? (4, 2) : (min(recap.shows.count, 2), 1)
-        let shows = Array(recap.shows.suffix(count))
-        let rows = max(count / columns, 1)
+        // Every poster of the year; a short last row stretches to the edge so the wall has no holes.
+        let size = FootprintYearPosterLayout.size
         let gap: CGFloat = 2
-        let width = (FootprintYearPosterLayout.size.width - gap * CGFloat(columns - 1)) / CGFloat(columns)
-        let height = (FootprintYearPosterLayout.size.height - gap * CGFloat(rows - 1)) / CGFloat(rows)
+        let grid = FootprintYearPosterGrid(count: recap.shows.count, in: size, aspect: 3 / 4, gap: gap)
+        let height = (size.height - gap * CGFloat(grid.rows - 1)) / CGFloat(grid.rows)
         return ZStack(alignment: .bottomLeading) {
             VStack(spacing: gap) {
-                ForEach(0..<rows, id: \.self) { row in
+                ForEach(Array(lines(of: grid.columns).enumerated()), id: \.offset) { _, line in
+                    let width = (size.width - gap * CGFloat(line.count - 1)) / CGFloat(line.count)
                     HStack(spacing: gap) {
-                        ForEach(shows.indices.filter { $0 / columns == row }, id: \.self) { index in
-                            cover(shows[index])
+                        ForEach(line, id: \.id) { show in
+                            cover(show)
                                 .frame(width: width, height: height)
                                 .clipped()
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             LinearGradient(
@@ -272,7 +344,7 @@ struct FootprintYearPoster: View {
     // MARK: Covers
 
     @ViewBuilder
-    private func cover(_ show: Show) -> some View {
+    private func cover(_ show: Show, named: Bool = true) -> some View {
         if let image = artwork[show.id] {
             Image(uiImage: image)
                 .resizable()
@@ -281,12 +353,14 @@ struct FootprintYearPoster: View {
         } else {
             ZStack {
                 FootprintRoomPalette.bookCloth
-                Text(FootprintBookText.act(of: show))
-                    .font(.system(size: 11, weight: .semibold, design: .serif))
-                    .foregroundStyle(FootprintRoomPalette.foil)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .padding(6)
+                if named {
+                    Text(FootprintBookText.act(of: show))
+                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .foregroundStyle(FootprintRoomPalette.foil)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .padding(6)
+                }
             }
         }
     }

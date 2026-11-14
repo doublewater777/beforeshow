@@ -8,8 +8,6 @@ struct FootprintBookRecapPage: View {
     let covers: [UUID: FootprintCover]
     let turner: FootprintBookTurner
 
-    @State private var isSharing = false
-
     private var recap: FootprintBookRecap { FootprintBookRecap(book: book, chapter: chapter) }
 
     var body: some View {
@@ -17,13 +15,7 @@ struct FootprintBookRecapPage: View {
         FootprintBookLeaf(
             stock: .paper,
             label: BSLocalization.format("第 %1$lld 章 · %2$@", chapter.number, String(chapter.year)),
-            turner: turner,
-            accessory: FootprintBookLeafAccessory(
-                symbol: "square.and.arrow.up",
-                label: BSLocalization.text("分享这一年"),
-                isBusy: false,
-                action: { isSharing = true }
-            )
+            turner: turner
         ) {
             VStack(alignment: .leading, spacing: 0) {
                 FootprintBookHeading(latin: "The Year", title: BSLocalization.text("这一年"), size: 44)
@@ -59,9 +51,6 @@ struct FootprintBookRecapPage: View {
                         .bookRise(2)
                 }
             }
-        }
-        .sheet(isPresented: $isSharing) {
-            FootprintYearShareSheet(recap: recap, covers: covers)
         }
     }
 
