@@ -166,10 +166,15 @@ enum FootprintStagePolicy {
     }
 
     static func nextUpcoming(_ shows: [Show], archived: [Show], now: Date) -> Show? {
+        upcoming(shows, archived: archived, now: now).first
+    }
+
+    /// Dated shows still to come, soonest first.
+    static func upcoming(_ shows: [Show], archived: [Show], now: Date) -> [Show] {
         let archivedIDs = Set(archived.map(\.id))
         return shows
             .filter { isDated($0) && !archivedIDs.contains($0.id) && $0.effectiveDate >= now }
-            .min { $0.effectiveDate < $1.effectiveDate }
+            .sorted { $0.effectiveDate < $1.effectiveDate }
     }
 
     /// Still going ahead on a known date: not cancelled, and not postponed with no new date,

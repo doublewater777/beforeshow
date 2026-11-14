@@ -13,6 +13,7 @@ struct ProPaywallPlanSelectionView: View {
                 planCard(plan)
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.top, 8)
     }
 
@@ -23,13 +24,13 @@ struct ProPaywallPlanSelectionView: View {
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 Text(ProPaywallCopy.planName(plan))
-                    .font(.system(size: 12))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(BSColor.Stage.muted)
-                    .padding(.bottom, 9)
+                    .padding(.bottom, 4)
 
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(priceAmount(plan))
-                        .font(.system(size: 21, weight: .semibold))
+                        .font(.system(size: 19, weight: .semibold))
                         .kerning(-0.4)
                         .foregroundStyle(BSColor.Stage.foreground)
                         .minimumScaleFactor(0.7)
@@ -42,14 +43,14 @@ struct ProPaywallPlanSelectionView: View {
                 Text(ProPaywallCopy.planNote(plan, product: product(plan)))
                     .font(.system(size: 10.5))
                     .foregroundStyle(BSColor.Stage.dim)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .padding(.top, 3)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 13)
-            .padding(.vertical, 15)
-            .frame(minHeight: 109, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.vertical, 11)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
             .background(
                 isSelected
                     ? AnyShapeStyle(LinearGradient(

@@ -43,6 +43,17 @@ struct SettingsView: View {
                 }
                 .listRowBackground(BSColor.Stage.surface)
 
+                NavigationLink {
+                    AppIconSettingsView()
+                } label: {
+                    BSSettingsRow(
+                        icon: "app.badge.fill",
+                        tint: BSColor.Stage.accent,
+                        title: BSLocalization.text("App 图标")
+                    )
+                }
+                .listRowBackground(BSColor.Stage.surface)
+
                 NotificationSettingsRow()
                     .listRowBackground(BSColor.Stage.surface)
 

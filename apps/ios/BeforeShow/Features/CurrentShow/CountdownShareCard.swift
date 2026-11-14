@@ -29,7 +29,7 @@ enum CountdownShareExport {
     }
 
     @MainActor
-    static func renderImage(show: Show, snapshot: HomeHeroSnapshot) async -> UIImage? {
+    static func renderImage(show: Show, snapshot: HomeHeroSnapshot, style: CountdownShareCardStyle = .classic) async -> UIImage? {
         // A poster this app has already saved. Missing covers stay a plain card; sharing does not wait on the network.
         let poster = ShowCoverReference.url(show.coverImageURL).flatMap {
             ShowCoverImageCache.shared.persistedImage(for: $0)
@@ -38,7 +38,8 @@ enum CountdownShareExport {
             show: show,
             snapshot: snapshot,
             poster: poster,
-            link: ShowShareLink.url(for: show)
+            link: ShowShareLink.url(for: show),
+            style: style
         )
         .frame(width: renderSize.width, height: renderSize.height)
         let renderer = ImageRenderer(content: card)
@@ -54,14 +55,24 @@ struct CountdownShareCard: View {
     let snapshot: HomeHeroSnapshot
     let poster: UIImage?
     let link: URL
+    var style: CountdownShareCardStyle = .classic
 
     var body: some View {
-        VStack(spacing: 0) {
-            posterBlock
-            footer
+        Group {
+            switch style {
+            case .classic:
+                VStack(spacing: 0) {
+                    posterBlock
+                    footer
+                }
+                .background(BSColor.Stage.background)
+            case .stub:
+                CountdownShareStubCard(copy: copy, timeLine: timeLine, poster: poster, link: link)
+            case .headline:
+                CountdownShareHeadlineCard(copy: copy, timeLine: timeLine, poster: poster, link: link)
+            }
         }
         .frame(width: CountdownShareExport.renderSize.width, height: CountdownShareExport.renderSize.height)
-        .background(BSColor.Stage.background)
     }
 
     private var posterBlock: some View {
@@ -186,7 +197,7 @@ struct CountdownShareCard: View {
 }
 
 /// Dark ink on a light tile, whatever the card's colours: scanners read that one way round.
-private struct ShareQRCode: View {
+struct ShareQRCode: View {
     let link: URL
 
     private static let code: CGFloat = 92
@@ -225,7 +236,10 @@ struct ShowSharePreviewSheet: View {
     let show: Show
 
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @State private var poster: UIImage?
+    @State private var style: CountdownShareCardStyle = .classic
+    @State private var isShowingPaywall = false
     @State private var toast: BSToastPayload?
     @State private var isSaving = false
     @State private var isSharing = false
@@ -243,7 +257,8 @@ struct ShowSharePreviewSheet: View {
                     show: show,
                     snapshot: snapshot,
                     poster: poster,
-                    link: ShowShareLink.url(for: show)
+                    link: ShowShareLink.url(for: show),
+                    style: style
                 )
                 .aspectRatio(
                     CountdownShareExport.renderSize.width / CountdownShareExport.renderSize.height,
@@ -254,6 +269,14 @@ struct ShowSharePreviewSheet: View {
                 .padding(.horizontal, 22)
                 .padding(.top, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                BSSharePosterStylePicker(
+                    selection: $style,
+                    isProActive: ProEntitlementStorage.decode(entitlementRawValue).isProActive
+                ) {
+                    isShowingPaywall = true
+                }
+                .padding(.top, 12)
 
                 HStack(spacing: 9) {
                     exportButton(title: BSLocalization.text("保存图片"), isLoading: isSaving, isPrimary: false) {
@@ -275,6 +298,7 @@ struct ShowSharePreviewSheet: View {
         }
         .tint(BSColor.Stage.foreground)
         .interactiveDismissDisabled(isBusy)
+        .sheet(isPresented: $isShowingPaywall) { ProPaywallView() }
         .onAppear { loadPoster() }
     }
 
@@ -317,7 +341,7 @@ struct ShowSharePreviewSheet: View {
         guard !isBusy else { return }
         isSaving = true
         defer { isSaving = false }
-        guard let image = await CountdownShareExport.renderImage(show: show, snapshot: snapshot) else {
+        guard let image = await CountdownShareExport.renderImage(show: show, snapshot: snapshot, style: style) else {
             presentFailure(BSLocalization.text("分享图片生成失败，请重试"))
             return
         }
@@ -335,7 +359,7 @@ struct ShowSharePreviewSheet: View {
         guard !isBusy else { return }
         isSharing = true
         defer { isSharing = false }
-        guard let data = await CountdownShareExport.renderImage(show: show, snapshot: snapshot)?.pngData() else {
+        guard let data = await CountdownShareExport.renderImage(show: show, snapshot: snapshot, style: style)?.pngData() else {
             presentFailure(BSLocalization.text("分享图片生成失败，请重试"))
             return
         }

@@ -43,45 +43,35 @@ struct ProPaywallView: View {
         ZStack(alignment: .topTrailing) {
             background
 
+            VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: BSSpacing.md) {
                     hero
 
                     if entitlement.isProActive {
                         activeCard
+                        if let message {
+                            noteText(message)
+                        }
+                        linksRow
                     } else {
                         if case .expired = entitlement {
                             noteText(BSLocalization.text("Pro 已过期，已有本地内容仍可查看和编辑。"))
                         }
                         benefitCard
-                        planCards
-                        ctaButton
-                        if productsLoadFailed {
-                            Button {
-                                Task {
-                                    await loadProducts()
-                                }
-                            } label: {
-                                Text(BSLocalization.text("重试"))
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(BSColor.Stage.accent)
-                            }
-                        }
-                        ctaNote
                     }
-
-                    if let message {
-                        noteText(message)
-                    }
-
-                    linksRow
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, showsCloseButton ? 8 : BSSpacing.lg)
-                .padding(.bottom, 26)
+                .padding(.bottom, 20)
                 .bsAdaptiveContentWidth()
             }
             .scrollIndicators(.hidden)
+
+            if !entitlement.isProActive {
+                purchaseBar
+            }
+            }
 
             if showsCloseButton {
                 BSChromeIconButton(
@@ -160,6 +150,38 @@ struct ProPaywallView: View {
 
     // MARK: - CTA 与说明
 
+    /// Plans, the buy button and the small print, pinned to the bottom so the button is always in view.
+    private var purchaseBar: some View {
+        VStack(spacing: 10) {
+            if let message {
+                noteText(message)
+            }
+            planCards
+            ctaButton
+            if productsLoadFailed {
+                Button {
+                    Task {
+                        await loadProducts()
+                    }
+                } label: {
+                    Text(BSLocalization.text("重试"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(BSColor.Stage.accent)
+                }
+            }
+            ctaNote
+            linksRow
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
+        .bsAdaptiveContentWidth()
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .top) {
+            Rectangle().fill(BSColor.Stage.border).frame(height: 1)
+        }
+    }
+
     private var ctaButton: some View {
         Button {
             Task {
@@ -179,10 +201,10 @@ struct ProPaywallView: View {
     }
 
     private var ctaTitle: String {
-        guard let product = product(for: selectedPlan), product.isAvailable else {
+        guard product(for: selectedPlan)?.isAvailable == true else {
             return BSLocalization.text("价格暂不可用")
         }
-        return ProPaywallCopy.ctaTitle(selectedPlan, product: product, price: ctaPrice(for: selectedPlan))
+        return ProPaywallCopy.ctaTitle(selectedPlan, price: ctaPrice(for: selectedPlan))
     }
 
     /// CTA 上的紧凑价格：金额 + 紧凑周期（/年；买断档不带周期）。
@@ -198,11 +220,7 @@ struct ProPaywallView: View {
     }
 
     private var ctaNoteText: String {
-        ProPaywallCopy.ctaNote(
-            selectedPlan,
-            product: product(for: selectedPlan),
-            priceAmount: priceAmount(for: selectedPlan)
-        )
+        ProPaywallCopy.ctaNote(selectedPlan)
     }
 
     private var ctaNote: some View {

@@ -15,11 +15,11 @@ final class FootprintBookTests: XCTestCase {
         let third = try show("泡泡岛", date(2023, 10, 2), city: "嘉兴")
         let next = try show("橘子湾", date(2026, 11, 6), city: "福州")
 
-        let book = FootprintBook(archived: [third, first, second], next: next)
+        let book = FootprintBook(archived: [third, first, second], upcoming: [next])
 
         XCTAssertEqual(book.pages, [
             .cover, .contents, .prologue,
-            .chapter(year: 2021), .show(first.id), .show(second.id),
+            .chapter(year: 2021), .recap(year: 2021), .show(first.id), .show(second.id),
             .chapter(year: 2023), .show(third.id),
             .afterword
         ])
@@ -36,7 +36,7 @@ final class FootprintBookTests: XCTestCase {
             try show("B", date(2022, 4, 1), city: "杭州"),
             try show("C", date(2022, 6, 1), city: "上海"),
             try show("D", date(2022, 9, 1), city: "南京")
-        ], next: nil)
+        ], upcoming: [])
 
         let year2022 = try XCTUnwrap(book.chapter(year: 2022))
         XCTAssertEqual(book.newCities(in: year2022), ["上海", "南京"])
@@ -44,11 +44,11 @@ final class FootprintBookTests: XCTestCase {
     }
 
     func testMissedMonthsOnlyWhenTheGapsAreTheException() throws {
-        let steady = FootprintBook(archived: try [3, 4, 6, 7].map { try show("S\($0)", date(2024, $0, 10), city: nil) }, next: nil)
+        let steady = FootprintBook(archived: try [3, 4, 6, 7].map { try show("S\($0)", date(2024, $0, 10), city: nil) }, upcoming: [])
         let steadyChapter = try XCTUnwrap(steady.chapters.first)
         XCTAssertEqual(FootprintBook.missedMonths(of: steadyChapter)?.missed, [5])
 
-        let sparse = FootprintBook(archived: try [7, 11].map { try show("P\($0)", date(2021, $0, 10), city: nil) }, next: nil)
+        let sparse = FootprintBook(archived: try [7, 11].map { try show("P\($0)", date(2021, $0, 10), city: nil) }, upcoming: [])
         XCTAssertNil(FootprintBook.missedMonths(of: try XCTUnwrap(sparse.chapters.first)), "two shows months apart are not a pattern")
     }
 
@@ -80,7 +80,7 @@ final class FootprintBookTests: XCTestCase {
             )
         }
         let earlier = try show("First", date(2022, 5, 1), city: "杭州")
-        let book = FootprintBook(archived: shows + [earlier], next: nil)
+        let book = FootprintBook(archived: shows + [earlier], upcoming: [])
         let chapter = try XCTUnwrap(book.chapter(year: 2023))
 
         XCTAssertEqual(FootprintBookText.chapterLines(book: book, chapter: chapter).count, 1)
@@ -95,6 +95,51 @@ final class FootprintBookTests: XCTestCase {
         XCTAssertEqual(FootprintStagePolicy.nextUpcoming([undated, dated], archived: [], now: now)?.id, dated.id)
         XCTAssertFalse(FootprintStagePolicy.isDated(undated), "the city map's next stop uses the same rule")
         XCTAssertTrue(FootprintStagePolicy.isDated(dated))
+    }
+
+    func testAYearOfOneShowHasNoRecapPage() throws {
+        let book = FootprintBook(archived: [try show("A", date(2024, 3, 1), city: nil)], upcoming: [])
+        XCTAssertFalse(book.pages.contains(.recap(year: 2024)))
+    }
+
+    func testRecapNamesWhatRepeatedAndWhatIsStillToComeThatYear() throws {
+        func slot(_ name: String, _ month: Int, venue: String, artists: [String], with: [String]) throws -> Show {
+            let day = date(2026, month, 10)
+            let value = try Show(
+                name: name, date: day, startTime: day.addingTimeInterval(20 * 3600), timeZoneIdentifier: "Asia/Shanghai",
+                city: "杭州", venueName: venue, artists: artists.map { ArtistSlot(name: $0) }
+            )
+            with.forEach { _ = value.addCompanion($0) }
+            return value
+        }
+        let shows = [
+            try slot("一", 2, venue: "MAO", artists: ["落日飞车"], with: ["小林"]),
+            try slot("二", 5, venue: "MAO", artists: ["落日飞车", "草东"], with: ["小林", "阿北"]),
+            try slot("三", 9, venue: "体育馆", artists: ["草东"], with: ["阿北"])
+        ]
+        let laterThisYear = try show("跨年", date(2026, 12, 31), city: nil)
+        let nextYear = try show("新年", date(2027, 1, 5), city: nil)
+        let book = FootprintBook(archived: shows, upcoming: [nextYear, laterThisYear])
+        let recap = FootprintBookRecap(book: book, chapter: try XCTUnwrap(book.chapter(year: 2026)))
+
+        XCTAssertEqual(recap.topVenue, .init(name: "MAO", count: 2))
+        XCTAssertNil(recap.topArtist, "two artists tie, so neither is the most seen")
+        XCTAssertNil(recap.topCompanion)
+        XCTAssertEqual(recap.cityCount, 1)
+        XCTAssertEqual(recap.upcomingCount, 1)
+        XCTAssertEqual(recap.first?.name, "一")
+        XCTAssertEqual(recap.last?.name, "三")
+        XCTAssertEqual(book.next?.id, laterThisYear.id, "the soonest upcoming show is the next page")
+    }
+
+    func testDecemberOpensOnThisYearsChapter() throws {
+        let book = FootprintBook(archived: [
+            try show("A", date(2025, 3, 1), city: nil),
+            try show("B", date(2026, 3, 1), city: nil)
+        ], upcoming: [])
+        XCTAssertEqual(book.openingIndex(now: date(2026, 12, 2), calendar: calendar), book.index(of: .chapter(year: 2026)))
+        XCTAssertEqual(book.openingIndex(now: date(2026, 11, 30), calendar: calendar), 0)
+        XCTAssertEqual(book.openingIndex(now: date(2027, 12, 2), calendar: calendar), 0, "no chapter for that year yet")
     }
 
     // MARK: Helpers

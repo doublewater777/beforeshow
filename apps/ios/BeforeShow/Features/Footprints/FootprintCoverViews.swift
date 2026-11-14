@@ -85,7 +85,7 @@ private struct FootprintCoverLocalImage<Fallback: View>: View {
 }
 
 /// User photos decoded once, at screen size and off the main thread, so covers coming back into view show at once.
-private enum FootprintLocalCoverCache {
+enum FootprintLocalCoverCache {
     nonisolated(unsafe) private static let cache: NSCache<NSURL, UIImage> = {
         let cache = NSCache<NSURL, UIImage>()
         cache.totalCostLimit = 120 * 1024 * 1024

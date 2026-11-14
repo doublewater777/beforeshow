@@ -54,7 +54,6 @@ enum ProPaywallCopy {
     static func planNote(_ plan: ProSubscriptionPlan, product: ProSubscriptionProduct?) -> String {
         switch plan {
         case .yearly:
-            if let trial = product?.trialText { return trial }
             guard let perMonth = product?.perMonthEquivalentText else { return "" }
             return BSLocalization.format("约 %@ / 月", perMonth)
         case .lifetime: return BSLocalization.text("一次买断，永久有效")
@@ -62,16 +61,9 @@ enum ProPaywallCopy {
         }
     }
 
-    static func ctaTitle(
-        _ plan: ProSubscriptionPlan,
-        product: ProSubscriptionProduct,
-        price: String
-    ) -> String {
+    static func ctaTitle(_ plan: ProSubscriptionPlan, price: String) -> String {
         switch plan {
         case .yearly:
-            if let trial = product.trialText {
-                return BSLocalization.format("开始%@", trial)
-            }
             return BSLocalization.format("订阅年度 Pro · %@", price)
         case .lifetime:
             return BSLocalization.format("买断终身 Pro · %@", price)
@@ -80,16 +72,9 @@ enum ProPaywallCopy {
         }
     }
 
-    static func ctaNote(
-        _ plan: ProSubscriptionPlan,
-        product: ProSubscriptionProduct?,
-        priceAmount: String
-    ) -> String {
+    static func ctaNote(_ plan: ProSubscriptionPlan) -> String {
         if plan.isLifetime {
             return BSLocalization.text("一次性购买，永久有效。不升级 Pro，已有现场也仍可查看和编辑。")
-        }
-        if plan == .yearly, let trial = product?.trialText {
-            return BSLocalization.format("%@，之后按 %@/年 自动续订，可随时取消。", trial, priceAmount)
         }
         return BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。")
     }

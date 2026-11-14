@@ -639,6 +639,9 @@ final class ProSubscriptionTests: XCTestCase {
             "价格暂不可用",
             "推荐",
             "无限添加现场",
+            "解锁全部分享海报样式",
+            "回忆册导出 PDF",
+            "更换 App 图标",
             "一次买断，永久有效",
             "基础 5 场 · 每月容量 +1",
             "免费 15 场容量",
@@ -878,52 +881,13 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(RevenueCatProSubscriptionStore.proEntitlementIDs.contains("pro"))
     }
 
-    func testFreeTrialTextOnlyCoversDayBasedFreeTrials() {
+    func testYearlyPlanShowsNormalPurchaseCopy() {
         XCTAssertEqual(
-            RevenueCatProSubscriptionStore.freeTrialText(periodUnit: .day, value: 3),
-            BSLocalization.format("免费试用 %lld 天", 3)
-        )
-        XCTAssertNil(RevenueCatProSubscriptionStore.freeTrialText(periodUnit: .week, value: 1))
-        XCTAssertNil(RevenueCatProSubscriptionStore.freeTrialText(periodUnit: .month, value: 1))
-    }
-
-    func testEligibleYearlyPlanShowsTrialTermsInPurchaseCopy() {
-        let product = ProSubscriptionProduct(
-            id: ProSubscriptionCatalog.yearlyProductID,
-            plan: .yearly,
-            displayName: "BeforeShow Pro Yearly",
-            priceText: "¥68",
-            benefitCopy: [],
-            isAvailable: true,
-            trialText: BSLocalization.format("免费试用 %lld 天", 3)
-        )
-
-        XCTAssertEqual(
-            ProPaywallCopy.ctaTitle(.yearly, product: product, price: "¥68/年"),
-            BSLocalization.format("开始%@", product.trialText!)
-        )
-        XCTAssertEqual(
-            ProPaywallCopy.ctaNote(.yearly, product: product, priceAmount: "¥68"),
-            BSLocalization.format("%@，之后按 %@/年 自动续订，可随时取消。", product.trialText!, "¥68")
-        )
-    }
-
-    func testIneligibleYearlyPlanShowsNormalPurchaseCopy() {
-        let product = ProSubscriptionProduct(
-            id: ProSubscriptionCatalog.yearlyProductID,
-            plan: .yearly,
-            displayName: "BeforeShow Pro Yearly",
-            priceText: "¥68",
-            benefitCopy: [],
-            isAvailable: true
-        )
-
-        XCTAssertEqual(
-            ProPaywallCopy.ctaTitle(.yearly, product: product, price: "¥68/年"),
+            ProPaywallCopy.ctaTitle(.yearly, price: "¥68/年"),
             BSLocalization.format("订阅年度 Pro · %@", "¥68/年")
         )
         XCTAssertEqual(
-            ProPaywallCopy.ctaNote(.yearly, product: product, priceAmount: "¥68"),
+            ProPaywallCopy.ctaNote(.yearly),
             BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。")
         )
     }

@@ -27,8 +27,6 @@ struct ProSubscriptionProduct: Equatable {
     let isAvailable: Bool
     /// 年度方案按月折算的文案（如「约 $0.42 / 月」），仅当 store 提供真实价格时有值。
     let perMonthEquivalentText: String?
-    /// 免费试用文案（如「3 天免费试用」），仅当 store 提供零价 intro offer 且用户有试用资格时有值。
-    let trialText: String?
     /// 真实交易金额，仅 store 返回时有值。catalog 参考价不填，避免把占位价当营收上报。
     let priceAmount: Decimal?
     /// 金额的 ISO 4217 货币代码（如 `USD` / `CNY`），仅 store 返回时有值。
@@ -42,7 +40,6 @@ struct ProSubscriptionProduct: Equatable {
         benefitCopy: [String],
         isAvailable: Bool = false,
         perMonthEquivalentText: String? = nil,
-        trialText: String? = nil,
         priceAmount: Decimal? = nil,
         priceCurrency: String? = nil
     ) {
@@ -53,7 +50,6 @@ struct ProSubscriptionProduct: Equatable {
         self.benefitCopy = benefitCopy
         self.isAvailable = isAvailable
         self.perMonthEquivalentText = perMonthEquivalentText
-        self.trialText = trialText
         self.priceAmount = priceAmount
         self.priceCurrency = priceCurrency
     }
@@ -67,7 +63,6 @@ struct ProSubscriptionProduct: Equatable {
             benefitCopy: benefitCopy,
             isAvailable: available,
             perMonthEquivalentText: perMonthEquivalentText,
-            trialText: trialText,
             priceAmount: priceAmount,
             priceCurrency: priceCurrency
         )
@@ -89,12 +84,15 @@ enum ProSubscriptionCatalog {
     static let yearlyDiscountProductID = "com.doublewaterapps.beforeshow.pro.yearly.discount"
     static let lifetimeDiscountProductID = "com.doublewaterapps.beforeshow.pro.lifetime.discount"
 
-    /// Pro 权益：与现场数量、时刻表识别额度、听歌样式、足迹星空的实际门禁保持一致。
+    /// Pro 权益：与现场数量、时刻表识别额度、听歌样式、足迹星空、海报样式、回忆册 PDF、App 图标的实际门禁保持一致。
     static let proBenefitCopy = [
         "无限添加现场",
         "不限次时刻表智能识别",
         "解锁全部听歌样式",
-        "解锁足迹星空全部音阶与形状"
+        "解锁足迹星空全部音阶与形状",
+        "解锁全部分享海报样式",
+        "回忆册导出 PDF",
+        "更换 App 图标"
     ]
 
     /// 标准在售方案：年度 / 终身。

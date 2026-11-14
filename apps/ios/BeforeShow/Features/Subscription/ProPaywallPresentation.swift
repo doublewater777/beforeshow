@@ -50,8 +50,8 @@ struct ProPaywallHero: View {
                 }
                 .frame(width: 67, height: 67)
             }
-            .frame(height: 150)
-            .padding(.bottom, 18)
+            .frame(height: 104, alignment: .bottom)
+            .padding(.bottom, 12)
 
             Text("BEFORESHOW PRO")
                 .font(.system(size: 10.5, weight: .bold))
@@ -60,7 +60,7 @@ struct ProPaywallHero: View {
                 .padding(.bottom, 9)
 
             Text(BSLocalization.text("把下一场，\n也留下来"))
-                .font(.system(size: 29, weight: .bold))
+                .font(.system(size: 26, weight: .bold))
                 .kerning(-0.7)
                 .lineSpacing(5)
                 .multilineTextAlignment(.center)
@@ -76,7 +76,7 @@ struct ProPaywallHero: View {
                 .padding(.top, 11)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, showsCloseButton ? 34 : BSSpacing.md)
+        .padding(.top, showsCloseButton ? 20 : BSSpacing.md)
         .onAppear { beamsSwaying = true }
     }
 
@@ -123,66 +123,88 @@ struct ProPaywallHero: View {
     }
 }
 
+/// Everything Pro unlocks at a glance: the headline benefit across the top, the rest as a grid of tiles.
 struct ProPaywallBenefitCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            benefitRow(
-                icon: "infinity",
-                title: BSLocalization.text("无限添加现场"),
-                subtitle: BSLocalization.text("突破免费版 15 场上限，未来的每一场都可以继续进入「当前」并留进「足迹」。")
-            )
-            Divider().overlay(BSColor.Stage.border)
-            benefitRow(
-                icon: "opticaldisc",
-                title: BSLocalization.text("「挑一张」全部样式"),
-                subtitle: BSLocalization.text("在「听」里换 3D 唱片柜、旋转木马、冲天抛洒或飘羽来挑下一张。")
-            )
-            Divider().overlay(BSColor.Stage.border)
-            benefitRow(
-                icon: "sparkles",
-                title: BSLocalization.text("时刻表智能识别"),
-                subtitle: BSLocalization.text("不限次数通过图片识别演出排期与舞台矩阵（普通用户赠送 2 次）。")
-            )
-            Divider().overlay(BSColor.Stage.border)
-            benefitRow(
-                icon: "music.note",
-                title: BSLocalization.text("星空音阶与星图"),
-                subtitle: BSLocalization.text("在「你的星空」里换大调、小调、都节音阶或布鲁斯来弹，各有音色和歌；星星还能排成北斗七星、猎户座、仙后座和天蝎座。")
-            )
-        }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BSColor.Stage.surface.opacity(0.72))
-        .clipShape(RoundedRectangle(cornerRadius: 19))
-        .overlay(
-            RoundedRectangle(cornerRadius: 19)
-                .stroke(BSColor.Stage.border, lineWidth: 1)
-        )
+    struct Benefit {
+        let icon: String
+        let title: String
+        let detail: String
     }
 
-    private func benefitRow(icon: String, title: String, subtitle: String) -> some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(BSColor.Stage.accent)
-                .frame(width: 24, height: 24)
-                .background(BSColor.Stage.accent.opacity(0.12))
-                .clipShape(Circle())
+    static let headline = Benefit(
+        icon: "infinity",
+        title: BSLocalization.text("无限添加现场"),
+        detail: BSLocalization.text("突破免费版 15 场上限，每一场都能进「当前」、留进「足迹」。")
+    )
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Text(subtitle)
-                    .font(.system(size: 11.8))
-                    .lineSpacing(2)
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+    static let others = [
+        Benefit(icon: "sparkles", title: BSLocalization.text("时刻表智能识别"), detail: BSLocalization.text("截图识别排期，不限次数")),
+        Benefit(icon: "opticaldisc", title: BSLocalization.text("「挑一张」全部样式"), detail: BSLocalization.text("3D 唱片柜、旋转木马等")),
+        Benefit(icon: "music.note", title: BSLocalization.text("星空音阶与星图"), detail: BSLocalization.text("4 种音阶，4 个星座")),
+        Benefit(icon: "photo.on.rectangle", title: BSLocalization.text("全部海报样式"), detail: BSLocalization.text("现场与年度海报")),
+        Benefit(icon: "book.closed", title: BSLocalization.text("回忆册 PDF"), detail: BSLocalization.text("整本导出，可打印")),
+        Benefit(icon: "app.badge", title: BSLocalization.text("更换 App 图标"), detail: BSLocalization.text("黑白、鎏金")),
+    ]
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                icon(Self.headline.icon, size: 34)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Self.headline.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                    Text(Self.headline.detail)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(tileBackground(highlighted: true))
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(Self.others, id: \.title) { benefit in
+                    VStack(alignment: .leading, spacing: 8) {
+                        icon(benefit.icon, size: 26)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(benefit.title)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(BSColor.Stage.foreground)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Text(benefit.detail)
+                                .font(.system(size: 11))
+                                .foregroundStyle(BSColor.Stage.muted)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(tileBackground(highlighted: false))
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func icon(_ name: String, size: CGFloat) -> some View {
+        Image(systemName: name)
+            .font(.system(size: size * 0.46, weight: .bold))
+            .foregroundStyle(BSColor.Stage.accent)
+            .frame(width: size, height: size)
+            .background(BSColor.Stage.accent.opacity(0.12))
+            .clipShape(Circle())
+    }
+
+    private func tileBackground(highlighted: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(highlighted ? BSColor.Stage.accent.opacity(0.07) : BSColor.Stage.surface.opacity(0.72))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(highlighted ? BSColor.Stage.accent.opacity(0.25) : BSColor.Stage.border, lineWidth: 1)
+            )
     }
 }
 

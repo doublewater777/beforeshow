@@ -9,6 +9,8 @@ struct FootprintBook {
         case contents
         case prologue
         case chapter(year: Int)
+        /// The year looked back on, after its opening page; only for a year with more than one show.
+        case recap(year: Int)
         case show(UUID)
         case afterword
     }
@@ -24,10 +26,12 @@ struct FootprintBook {
     let shows: [Show]
     let chapters: [Chapter]
     let pages: [Page]
+    /// Shows still to come, soonest first.
+    let upcoming: [Show]
     /// The next show you have a ticket for, the page the book leaves open.
-    let next: Show?
+    var next: Show? { upcoming.first }
 
-    init(archived: [Show], next: Show?) {
+    init(archived: [Show], upcoming: [Show]) {
         let ordered = FootprintArchiveRankingBuilder.chronological(archived)
         shows = ordered
         var byYear: [(year: Int, shows: [Show])] = []
@@ -41,9 +45,19 @@ struct FootprintBook {
         }
         chapters = byYear.enumerated().map { Chapter(number: $0.offset + 1, year: $0.element.year, shows: $0.element.shows) }
         pages = [.cover, .contents, .prologue]
-            + chapters.flatMap { [Page.chapter(year: $0.year)] + $0.shows.map { Page.show($0.id) } }
+            + chapters.flatMap { chapter in
+                [Page.chapter(year: chapter.year)]
+                    + (chapter.shows.count > 1 ? [Page.recap(year: chapter.year)] : [])
+                    + chapter.shows.map { Page.show($0.id) }
+            }
             + [.afterword]
-        self.next = next
+        self.upcoming = upcoming.sorted { $0.effectiveDate < $1.effectiveDate }
+    }
+
+    /// December opens the book on this year's chapter, the year in review; otherwise on the cover.
+    func openingIndex(now: Date, calendar: Calendar) -> Int {
+        guard calendar.component(.month, from: now) == 12 else { return 0 }
+        return index(of: .chapter(year: calendar.component(.year, from: now))) ?? 0
     }
 
     func index(of page: Page) -> Int? { pages.firstIndex(of: page) }

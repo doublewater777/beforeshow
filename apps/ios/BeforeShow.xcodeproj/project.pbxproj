@@ -65,6 +65,7 @@
 		133F940CCDCA5C74C0E61248 /* ListeningTodayDiscTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F56BBB67EE50A54869C62F3 /* ListeningTodayDiscTests.swift */; };
 		139793E7F8784E714606B08D /* WidgetTimelinePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1A165A2C555CC97C803683 /* WidgetTimelinePlanner.swift */; };
 		13D29C70C1CFEA2731DE9B28 /* BSPlatformCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE6268009CCBE8150076F83 /* BSPlatformCompatibility.swift */; };
+		13DBB357A3620752757DAB33 /* FootprintYearPoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAFC88DE2B296B42463DDFEE /* FootprintYearPoster.swift */; };
 		144AC13E807C61EAA44EA068 /* FootprintVenueArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2912C8E43F44D329789FDB1F /* FootprintVenueArchiveView.swift */; };
 		1459A409E99F835654160982 /* ListeningPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AEFCB51FA0B9D3109CEBDEF /* ListeningPlayback.swift */; };
 		1497D5E6FD063D2A8CBF72DF /* FeatureRecommendationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 794C0DAA2C860CBB93E68FB9 /* FeatureRecommendationTests.swift */; };
@@ -106,6 +107,7 @@
 		1CCEE7E6C10F8033BAFD1E1A /* ListeningLineupPoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C647A55DFB874421183EE8F /* ListeningLineupPoster.swift */; };
 		1DEFCA814A6C61389603CA54 /* TimetableArtistAvatarStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE708F2A0405BF9FFBB132E /* TimetableArtistAvatarStoreTests.swift */; };
 		1E161799DBFACC95F8D9AC5E /* FootprintMerchCabinetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F28B611961C0B86B0A3697F /* FootprintMerchCabinetView.swift */; };
+		1E38321B6B4DBA1DB9D3E81D /* CountdownShareCardStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFF21B09B07FFF485672C09 /* CountdownShareCardStyles.swift */; };
 		1EE0C6E89C05F557AED6BE3C /* ShowAssetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA13A5CFB1C1A5308E678FB /* ShowAssetTests.swift */; };
 		1F0E1A54749C9110DBE3FDA8 /* ListeningFeatureRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF2E303C65A490FEAD719A5 /* ListeningFeatureRootView.swift */; };
 		1F77E82713194DFFFA8EA590 /* ListeningDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0BFFD543497340D9559D4 /* ListeningDeletionTests.swift */; };
@@ -163,6 +165,7 @@
 		32B649F4B9B6E273712514DA /* CoverAmbientColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D87D73BEDFED2B10860DBE /* CoverAmbientColor.swift */; };
 		32CA75F87F89C3EBEB394F55 /* TimetablePerformanceInspectorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3858942B559D1FD467BDCA7 /* TimetablePerformanceInspectorSheet.swift */; };
 		32F38F7D644669137B2140A5 /* ShowAssetSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAFD895E014AE959125BDDE /* ShowAssetSheet.swift */; };
+		3337A6B0C5E8895CB19F2C75 /* FootprintBookRecapPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2FC0F5BB2601B036D0C1DEC /* FootprintBookRecapPage.swift */; };
 		33940C996643B57246B99B3B /* ProEntitlement.swift in Sources */ = {isa = PBXBuildFile; fileRef = F183C29A92FD2E5A0843FD34 /* ProEntitlement.swift */; };
 		33CDAEA428AAA8FC2505AE85 /* FootprintMoreArchives.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AFD89967306914342492CD4 /* FootprintMoreArchives.swift */; };
 		343976B8CA553A435C73EF2F /* DebugSampleShowSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C44BEEF212FB83909D3F65D1 /* DebugSampleShowSeeder.swift */; };
@@ -178,6 +181,7 @@
 		383DAF98FB1D49FF4162654E /* ListeningPickShelfCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4660E617D9DB4E624E75C9A6 /* ListeningPickShelfCase.swift */; };
 		385523546B3DDF1DF1EBBB7A /* SongPreviewLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45DF5AB53204C9A457854D35 /* SongPreviewLookup.swift */; };
 		3899A74D7AF4ACCC0B222427 /* TimetableReviewIssues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F52A258E2746FD67AABDBCB /* TimetableReviewIssues.swift */; };
+		38CC0FEAECB564B6652202D1 /* FootprintYearShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BA338439FCCBC0501C4229A /* FootprintYearShareSheet.swift */; };
 		39101B2A8D6FA5C68CE5240D /* ShowDraftFieldComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72B3587927F28D0941257C9 /* ShowDraftFieldComponents.swift */; };
 		39365E423FF8FEEB1D8AF364 /* FootprintTiltMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2632DBE94C3807F7BD5DB4FA /* FootprintTiltMotion.swift */; };
 		3A15C09DD5F961AF62787956 /* ArtistProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76E5697E49368E688F74215 /* ArtistProfileTests.swift */; };
@@ -249,6 +253,7 @@
 		513154460B5AD8CDDDFBE842 /* ListeningDiscCover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A63E4DCC9DD1D52BAEA1548 /* ListeningDiscCover.swift */; };
 		5143BD5E0C8A48CFA153AFE6 /* CurrentShowHomeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FFC9A699A0E04219416B930 /* CurrentShowHomeHeader.swift */; };
 		533310E9200C427492469C30 /* TimetablePersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32270415ABEA26969CCF07D /* TimetablePersistenceTests.swift */; };
+		5353B854D5BD50C0932ACD2B /* BSSharePosterStylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E06BC742EBA11B4827CB2 /* BSSharePosterStylePicker.swift */; };
 		5380E13778B9724E04689A75 /* ShowIdentityCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116F9EC6DB6402F23F1778C5 /* ShowIdentityCopy.swift */; };
 		5475C5AB6C6D934448F8DAD8 /* TimetableOCRRecognitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA5F729DAD66AE7078844F /* TimetableOCRRecognitionTests.swift */; };
 		54BB77D0C9FDCABCCEEDF84F /* AppLifecycleMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEAB366E85A80812507B5453 /* AppLifecycleMaintenance.swift */; };
@@ -386,6 +391,7 @@
 		7D9F02B0098AFBB477FD676F /* CountdownWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E8DBA947478A51EC250F1AD /* CountdownWidgetViews.swift */; };
 		7DFC3AC1065B84A03683ADDE /* MerchCutout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8980C09516C1D716A2CAE3D /* MerchCutout.swift */; };
 		7E0D424946C8DD16CE7DB85A /* SharedShowImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDFA8F399A4899DF572C860 /* SharedShowImport.swift */; };
+		7E687C29B643C8E64AA35EF8 /* FootprintBookPDFExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 627F2EFE228243824C994D2B /* FootprintBookPDFExport.swift */; };
 		7E850A90F90D05FC37678191 /* TimetableStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9AB57B74C4AECE8BD96FC3 /* TimetableStyle.swift */; };
 		7EC5EE529D859AA967BDD675 /* HomeHeroPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6771BBFDDF8F146A5BB772CC /* HomeHeroPresentation.swift */; };
 		7EC655A2C74B1621B6684455 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 00FDCE6B347956E040FD20C2 /* Localizable.xcstrings */; };
@@ -611,6 +617,7 @@
 		D29FEE28C662EC7D31B57F9C /* ListeningArtistMatchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597E5DC599F33BBBDC8BF4F2 /* ListeningArtistMatchSheet.swift */; };
 		D2AA6FA0E62C44137CD9F2C3 /* BSEditorialFontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F50898A9C188417868E34F /* BSEditorialFontLoader.swift */; };
 		D2EB3B9B9C37F558509B062A /* ListeningPickFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD86213D4DAE3EF526CF540D /* ListeningPickFlight.swift */; };
+		D3210118FF1E5B07D3EE5CA2 /* FootprintBookRecap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 245AB931D73AF6B05B42851B /* FootprintBookRecap.swift */; };
 		D357D3C374C50703D70D94A3 /* TimetableManageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D92CC4E93C36A137C1FE07 /* TimetableManageView.swift */; };
 		D36C54C34AC9D6166C9CDAD5 /* FootprintBookText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312F1A7A5FFB05D9B4BB9BBC /* FootprintBookText.swift */; };
 		D4E469DDEE4B8D71C4B7872B /* ListeningRoomLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F990474B2216E8FB6002F19 /* ListeningRoomLifecycleTests.swift */; };
@@ -673,6 +680,7 @@
 		E604632BD1EFEDCC9270E0BA /* ScheduledNotificationRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15EAC9B6473733DFD55331A /* ScheduledNotificationRequest.swift */; };
 		E614E3EDD378DBA8A4FF3EC7 /* ShowDraftPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BEB3E873030FDF3495C0D87 /* ShowDraftPresentationSupport.swift */; };
 		E646242A4D39AB3EF2D6CF62 /* HomeLiveModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B62A0DBDBA8C327C3446A2F3 /* HomeLiveModeView.swift */; };
+		E67D90E5EE9E75B701977E5E /* AppIconSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9307A9D2CAA5F2D9821B6B5C /* AppIconSettingsView.swift */; };
 		E6DABBF0C49B56CB4602C3C0 /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4A78B82F018B3CC4289403D /* OnboardingTests.swift */; };
 		E746F0E8E592F7AE15C15A0B /* CountdownWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACF97DF4FB82150D04E8ED3 /* CountdownWidget.swift */; };
 		E77493FB1EA986582E9FA706 /* FootprintSearchFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDF8AFDAC95CE22FF4F4B64 /* FootprintSearchFlowTests.swift */; };
@@ -879,6 +887,7 @@
 		239648979CB22E2A33DD72DF /* LiveActivityNotificationHandover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityNotificationHandover.swift; sourceTree = "<group>"; };
 		23C3DE6E4201A7D66E0D05D3 /* ListeningBrowseState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningBrowseState.swift; sourceTree = "<group>"; };
 		243E63AB79C5AB3DA235FB8E /* Timetable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Timetable.swift; sourceTree = "<group>"; };
+		245AB931D73AF6B05B42851B /* FootprintBookRecap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookRecap.swift; sourceTree = "<group>"; };
 		249DA2554DF5BC4EE6EB1397 /* ExternalMapApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalMapApps.swift; sourceTree = "<group>"; };
 		24B44876194A3936F7DB7ADA /* FootprintLedgerArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintLedgerArchive.swift; sourceTree = "<group>"; };
 		250A110A5390FBFD9CACB5C1 /* ListeningArtistAutoMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningArtistAutoMatcherTests.swift; sourceTree = "<group>"; };
@@ -899,6 +908,7 @@
 		2ACF97DF4FB82150D04E8ED3 /* CountdownWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidget.swift; sourceTree = "<group>"; };
 		2AE26C2626EFC664DF38900D /* ListeningRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningRepository.swift; sourceTree = "<group>"; };
 		2AED59D80D0A5BC356BF8C77 /* CurrentShowHomeArrivalLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowHomeArrivalLifecycleTests.swift; sourceTree = "<group>"; };
+		2BA338439FCCBC0501C4229A /* FootprintYearShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintYearShareSheet.swift; sourceTree = "<group>"; };
 		2C4D6FC5594D83118D2C7B25 /* ListenTestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenTestData.swift; sourceTree = "<group>"; };
 		2CAFD895E014AE959125BDDE /* ShowAssetSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowAssetSheet.swift; sourceTree = "<group>"; };
 		2E4B1D353DFD8EFD06D3253E /* FootprintBackstagePassView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBackstagePassView.swift; sourceTree = "<group>"; };
@@ -1022,6 +1032,7 @@
 		592FC3FE627DEF914C6E09D6 /* ShowDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftTests.swift; sourceTree = "<group>"; };
 		597E5DC599F33BBBDC8BF4F2 /* ListeningArtistMatchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningArtistMatchSheet.swift; sourceTree = "<group>"; };
 		5A25CF298412D145B2E394A8 /* LiveModeFocusStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveModeFocusStore.swift; sourceTree = "<group>"; };
+		5A5E06BC742EBA11B4827CB2 /* BSSharePosterStylePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSSharePosterStylePicker.swift; sourceTree = "<group>"; };
 		5A95AD3A3E7A7107A68C7EF4 /* FootprintCandleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintCandleView.swift; sourceTree = "<group>"; };
 		5A9B3B197C2813907F8130A0 /* BSStagePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSStagePresentation.swift; sourceTree = "<group>"; };
 		5AEFCB51FA0B9D3109CEBDEF /* ListeningPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningPlayback.swift; sourceTree = "<group>"; };
@@ -1047,6 +1058,7 @@
 		60D5A43567FFF060CA50B52A /* TimetableRecognitionQuota.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableRecognitionQuota.swift; sourceTree = "<group>"; };
 		61868C6306EB9FA313C9DE8C /* TimetableAIImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableAIImportView.swift; sourceTree = "<group>"; };
 		624D7A7F9CD38403E3EF8361 /* MusicKitListeningPlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitListeningPlaybackService.swift; sourceTree = "<group>"; };
+		627F2EFE228243824C994D2B /* FootprintBookPDFExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookPDFExport.swift; sourceTree = "<group>"; };
 		62846E0D0C1C249BC825759A /* ShowUnlockRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowUnlockRow.swift; sourceTree = "<group>"; };
 		62A1AB9DB3DABF8B73F1EB1A /* LiveActivityPushCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPushCoordinatorTests.swift; sourceTree = "<group>"; };
 		62C049F63AB646AD21C0F75C /* TimetableStageMatrixView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableStageMatrixView.swift; sourceTree = "<group>"; };
@@ -1185,6 +1197,7 @@
 		91C7C70D8A4FF38179DA5CB9 /* MemoryFragmentMediaStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryFragmentMediaStore.swift; sourceTree = "<group>"; };
 		921D23A27473F26969BB142A /* WidgetShowSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShowSnapshot.swift; sourceTree = "<group>"; };
 		92B49B02AB2A0C247B39DB4B /* ListeningArtistCandidateRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningArtistCandidateRow.swift; sourceTree = "<group>"; };
+		9307A9D2CAA5F2D9821B6B5C /* AppIconSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconSettingsView.swift; sourceTree = "<group>"; };
 		93461C62DBE725E2DEEA196F /* FootprintYearArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintYearArchiveView.swift; sourceTree = "<group>"; };
 		93756E7EEFF577D4B2A54093 /* ShowLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowLiveActivity.swift; sourceTree = "<group>"; };
 		9409023A9D31EC41B67224CC /* ListeningCompilationAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningCompilationAssembler.swift; sourceTree = "<group>"; };
@@ -1262,6 +1275,7 @@
 		AC9E42EA63F6D51C6A9B174A /* DynamicCoverRetirementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverRetirementTests.swift; sourceTree = "<group>"; };
 		ACDFA8F399A4899DF572C860 /* SharedShowImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedShowImport.swift; sourceTree = "<group>"; };
 		ACEEF6333F80FD8A56842718 /* MemoryContactGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryContactGrid.swift; sourceTree = "<group>"; };
+		ACFF21B09B07FFF485672C09 /* CountdownShareCardStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownShareCardStyles.swift; sourceTree = "<group>"; };
 		AD570A7D598A729AEF39D7EF /* CurrentShowRecordList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowRecordList.swift; sourceTree = "<group>"; };
 		ADB5EC61C9E264AD89D9C65A /* ListeningVideoDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningVideoDock.swift; sourceTree = "<group>"; };
 		AE1084432CC8FD00F6D037B4 /* TimetableInspectorArtistHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableInspectorArtistHeader.swift; sourceTree = "<group>"; };
@@ -1413,6 +1427,7 @@
 		E13D4E95416C067EB6390687 /* HomeStageHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStageHero.swift; sourceTree = "<group>"; };
 		E2026C9092566F2E26901BD5 /* ShowSpendingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowSpendingSheet.swift; sourceTree = "<group>"; };
 		E2F175B82E34124EFD7D9C9B /* Listening.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Listening.xcstrings; sourceTree = "<group>"; };
+		E2FC0F5BB2601B036D0C1DEC /* FootprintBookRecapPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookRecapPage.swift; sourceTree = "<group>"; };
 		E32B427ADD9121475A4FEE8E /* ListeningLiveProgramAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningLiveProgramAssembler.swift; sourceTree = "<group>"; };
 		E34E5B9E39C9BD619A3A2208 /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
 		E3579A72CB30A5394056D930 /* FootprintArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintArchiveTests.swift; sourceTree = "<group>"; };
@@ -1443,6 +1458,7 @@
 		EA9813064BA9172B0046C02A /* MemoryFragment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryFragment.swift; sourceTree = "<group>"; };
 		EACFD386918A609A7EFFC39F /* AppAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAudioSession.swift; sourceTree = "<group>"; };
 		EAFA3F00A0A65B874D9E157A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		EAFC88DE2B296B42463DDFEE /* FootprintYearPoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintYearPoster.swift; sourceTree = "<group>"; };
 		EB7334C72BD3BCF80D90BE2E /* ShowCoverLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowCoverLifecycleTests.swift; sourceTree = "<group>"; };
 		EBA47D20900C04DFB928258E /* ListeningDiscDetailHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningDiscDetailHero.swift; sourceTree = "<group>"; };
 		EC51C168E097912289A41CB0 /* FootprintCityMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintCityMapView.swift; sourceTree = "<group>"; };
@@ -1841,6 +1857,7 @@
 			isa = PBXGroup;
 			children = (
 				AC4653047A9A281EFF73C207 /* AboutBeforeShowView.swift */,
+				9307A9D2CAA5F2D9821B6B5C /* AppIconSettingsView.swift */,
 				7BDAF7E81BCC10942CDBBD12 /* AppVersionInformation.swift */,
 				5D0D23100D1C2229B69A5580 /* FeedbackShakeSupport.swift */,
 				D49C643CA0131E56A92C4EB7 /* FeedbackView.swift */,
@@ -2032,6 +2049,7 @@
 			isa = PBXGroup;
 			children = (
 				89165DE6A3D6DF4E06C08B36 /* CountdownShareCard.swift */,
+				ACFF21B09B07FFF485672C09 /* CountdownShareCardStyles.swift */,
 				09C22EEC49C172D1DD771DE7 /* CurrentShowEmptyStateView.swift */,
 				DE4F15B170B1C7EC5AD85E18 /* CurrentShowEndConfirmationSheet.swift */,
 				078588CFEB87081EEA5CE6DC /* CurrentShowEndPolicy.swift */,
@@ -2355,6 +2373,7 @@
 				BAE6268009CCBE8150076F83 /* BSPlatformCompatibility.swift */,
 				90A846BCE54C5A0455083020 /* BSRootEmptyState.swift */,
 				081F34500A10753307924BC0 /* BSShareByline.swift */,
+				5A5E06BC742EBA11B4827CB2 /* BSSharePosterStylePicker.swift */,
 				D4EA9AC3D688CEAA2F9B08EF /* BSShowCoverComponents.swift */,
 				7EFEB517691F2E8944D88F5D /* BSStageChoreography.swift */,
 				8B12E7B441ABD1237EEAAAF4 /* BSStageLights.swift */,
@@ -2473,6 +2492,9 @@
 				0B33712EE69BA3173B06F63A /* FootprintBadgeWallView.swift */,
 				6FE63506613B0B0C26881F8A /* FootprintBook.swift */,
 				1A5AF77F308C6755615D4A79 /* FootprintBookPages.swift */,
+				627F2EFE228243824C994D2B /* FootprintBookPDFExport.swift */,
+				245AB931D73AF6B05B42851B /* FootprintBookRecap.swift */,
+				E2FC0F5BB2601B036D0C1DEC /* FootprintBookRecapPage.swift */,
 				329A5C1526A399106BE79FC0 /* FootprintBookShowPage.swift */,
 				312F1A7A5FFB05D9B4BB9BBC /* FootprintBookText.swift */,
 				96B98C98143D7E8CE0053F9F /* FootprintBookView.swift */,
@@ -2533,6 +2555,8 @@
 				2912C8E43F44D329789FDB1F /* FootprintVenueArchiveView.swift */,
 				E7B0083AC91EA910A8275CE7 /* FootprintVenueMap.swift */,
 				93461C62DBE725E2DEEA196F /* FootprintYearArchiveView.swift */,
+				EAFC88DE2B296B42463DDFEE /* FootprintYearPoster.swift */,
+				2BA338439FCCBC0501C4229A /* FootprintYearShareSheet.swift */,
 				1F02CDFE367B46961D63F480 /* FootprintYearsView.swift */,
 			);
 			path = Footprints;
@@ -2915,6 +2939,7 @@
 				112F99923C1490836B23FC49 /* AnalyticsEvent.swift in Sources */,
 				C3EDA05DA4378B3A036FA9F5 /* AnalyticsInstallID.swift in Sources */,
 				BDCD37C4B47E46BC1A5B215E /* AppAudioSession.swift in Sources */,
+				E67D90E5EE9E75B701977E5E /* AppIconSettingsView.swift in Sources */,
 				4E8B340FEE279EA93A35875F /* AppInterfaceOrientation.swift in Sources */,
 				54BB77D0C9FDCABCCEEDF84F /* AppLifecycleMaintenance.swift in Sources */,
 				07B1F339FC61072AEBA2FAB2 /* AppPersistenceReconciliation.swift in Sources */,
@@ -2950,6 +2975,7 @@
 				443E61A0D84046ED3F37A55C /* BSRootEmptyState.swift in Sources */,
 				4F9BD821BE67BABB24EC720D /* BSScrollObservation.swift in Sources */,
 				730D9495621909BFA5F06345 /* BSShareByline.swift in Sources */,
+				5353B854D5BD50C0932ACD2B /* BSSharePosterStylePicker.swift in Sources */,
 				D7511BE28EE5035990A361AD /* BSShowCoverComponents.swift in Sources */,
 				0414E255F94B7E6FE74B7AF3 /* BSStageChoreography.swift in Sources */,
 				15812FBBA83A0E6509FE79DE /* BSStageLights.swift in Sources */,
@@ -2977,6 +3003,7 @@
 				867369ABADDDE06254BD3BF3 /* CompanionQuickActionPresentation.swift in Sources */,
 				C0EF7C195C7A2606AA408165 /* CountdownPresentation.swift in Sources */,
 				20437F294044120D0D7729E3 /* CountdownShareCard.swift in Sources */,
+				1E38321B6B4DBA1DB9D3E81D /* CountdownShareCardStyles.swift in Sources */,
 				35C1C9018D8C7A68D99725EB /* CountdownWidgetViews.swift in Sources */,
 				32B649F4B9B6E273712514DA /* CoverAmbientColor.swift in Sources */,
 				F1BC3587386F1BEC25F892AB /* CurrentShowEmptyStateView.swift in Sources */,
@@ -3036,7 +3063,10 @@
 				6BA630AA5055C4B784DA1020 /* FootprintBadgeWallView.swift in Sources */,
 				1748135EB48F8DB0989728BA /* FootprintBadges.swift in Sources */,
 				20A25F90C3B6D7D25433F648 /* FootprintBook.swift in Sources */,
+				7E687C29B643C8E64AA35EF8 /* FootprintBookPDFExport.swift in Sources */,
 				D2027709DC361F4B56002574 /* FootprintBookPages.swift in Sources */,
+				D3210118FF1E5B07D3EE5CA2 /* FootprintBookRecap.swift in Sources */,
+				3337A6B0C5E8895CB19F2C75 /* FootprintBookRecapPage.swift in Sources */,
 				C49AE1FCEE2F2C2A8406F457 /* FootprintBookShowPage.swift in Sources */,
 				D36C54C34AC9D6166C9CDAD5 /* FootprintBookText.swift in Sources */,
 				DFCAB1EAE6B07BE5FFB658FE /* FootprintBookView.swift in Sources */,
@@ -3096,6 +3126,8 @@
 				144AC13E807C61EAA44EA068 /* FootprintVenueArchiveView.swift in Sources */,
 				C288F2FA9EC974B631AF2939 /* FootprintVenueMap.swift in Sources */,
 				BC35FE8EAD2F7DD7B4183757 /* FootprintYearArchiveView.swift in Sources */,
+				13DBB357A3620752757DAB33 /* FootprintYearPoster.swift in Sources */,
+				38CC0FEAECB564B6652202D1 /* FootprintYearShareSheet.swift in Sources */,
 				1562E06B5BBE97DB03C0C8CE /* FootprintYearsView.swift in Sources */,
 				EDE34C99FF42E3E5801C4577 /* FootprintsView.swift in Sources */,
 				AC2101E8AC8E236A70DCBA9D /* FreeShowCapacityCoordinator.swift in Sources */,
@@ -3868,6 +3900,7 @@
 		88FA85BCB0A40C1D8543447F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconMono AppIconGold";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeforeShow/BeforeShow.Debug.entitlements;
@@ -3928,6 +3961,7 @@
 		C7AC604CA902FE217FF73C62 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconMono AppIconGold";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeforeShow/BeforeShow.entitlements;

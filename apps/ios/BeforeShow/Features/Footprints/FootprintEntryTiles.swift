@@ -42,7 +42,7 @@ struct FootprintEntryTiles: View {
         }
         .fullScreenCover(isPresented: $isReadingBook) {
             FootprintBookView(
-                book: FootprintBook(archived: archive.shows, next: FootprintStagePolicy.nextUpcoming(allShows, archived: archive.shows, now: Date())),
+                book: FootprintBook(archived: archive.shows, upcoming: FootprintStagePolicy.upcoming(allShows, archived: archive.shows, now: Date())),
                 archive: archive,
                 covers: covers
             )

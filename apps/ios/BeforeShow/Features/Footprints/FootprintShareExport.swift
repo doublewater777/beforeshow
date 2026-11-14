@@ -8,9 +8,17 @@ enum FootprintCoverExportWarmup {
     static func warm(covers: [UUID: FootprintCover]) async {
         await withTaskGroup(of: Void.self) { group in
             for cover in covers.values {
-                guard case let .remote(url) = cover.source else { continue }
-                group.addTask {
-                    _ = await ShowCoverImageCache.shared.image(from: url)
+                switch cover.source {
+                case let .remote(url):
+                    group.addTask {
+                        _ = await ShowCoverImageCache.shared.image(from: url)
+                    }
+                case let .local(url):
+                    group.addTask {
+                        _ = await FootprintLocalCoverCache.image(at: url)
+                    }
+                case .archive:
+                    break
                 }
             }
         }
