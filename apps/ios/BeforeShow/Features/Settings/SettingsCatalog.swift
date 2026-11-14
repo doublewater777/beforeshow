@@ -5,6 +5,7 @@ enum SettingsEntry: String, CaseIterable, Equatable {
     case privacyAndLocalData = "隐私与本地数据"
     case feedback = "意见反馈"
     case rateApp = "评价此应用"
+    case checkUpdate = "检查更新"
     case about = "关于开场前"
 
     var displayTitle: String { BSLocalization.text(key: rawValue) }

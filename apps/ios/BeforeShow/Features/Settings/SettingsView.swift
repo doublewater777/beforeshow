@@ -122,6 +122,9 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .listRowBackground(BSColor.Stage.surface)
 
+                SettingsUpdateCheckRow()
+                    .listRowBackground(BSColor.Stage.surface)
+
                 NavigationLink {
                     AboutBeforeShowView()
                 } label: {
