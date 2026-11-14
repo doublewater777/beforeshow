@@ -41,6 +41,35 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertEqual(activity.peakMonth?.showCount, 1)
     }
 
+    func testYearActivityTotalsDurationPerYearUsingShowDurationRules() throws {
+        let january = try makeShow("一月现场", year: 2026, month: 1, durationHours: 2)
+        let march = try makeShow("三月现场", year: 2026, month: 3, durationHours: 3)
+        let lastYear = try makeShow("去年现场", year: 2025, month: 6, durationHours: 4)
+        january.markEnded(at: date(2026, 1, 10, 22))
+        march.markEnded(at: date(2026, 3, 10, 23))
+        lastYear.markEnded(at: date(2025, 6, 10, 24))
+        let noEnd = try Show(name: "没有结束时间", date: date(2026, 5, 10), startTime: date(2026, 5, 10, 20),
+                             timeZoneIdentifier: calendar.timeZone.identifier)
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [january, march, lastYear, noEnd],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(archive.yearActivity(for: 2026)?.totalShows, 3)
+        XCTAssertEqual(archive.yearActivity(for: 2026)?.totalDurationMinutes, 300)
+        XCTAssertEqual(archive.yearActivity(for: 2025)?.totalDurationMinutes, 240)
+        XCTAssertEqual(archive.allYearActivities.reduce(0) { $0 + $1.totalDurationMinutes }, archive.totalDurationMinutes)
+    }
+
+    func testYearsSummaryAppendsAggregateDurationOnlyWhenRecorded() {
+        XCTAssertEqual(FootprintYearsView.summaryText(showCount: 3, durationMinutes: 0), "3 场")
+        XCTAssertEqual(FootprintYearsView.summaryText(showCount: 1, durationMinutes: 45), "1 场 · 45 分钟")
+        XCTAssertEqual(FootprintYearsView.summaryText(showCount: 2, durationMinutes: 5 * 60 + 20), "2 场 · 5 小时")
+        XCTAssertEqual(FootprintYearsView.summaryText(showCount: 9, durationMinutes: 110 * 60), "9 场 · 4 天 14 小时")
+    }
+
     func testArchiveItemsExposeContextAndChronologicalShowIDs() throws {
         let latest = try makeShow("最近一场", year: 2026, month: 6, durationHours: 2, artist: "A", venue: "场馆一")
         let first = try makeShow("最早一场", year: 2024, month: 6, durationHours: 2, artist: "A", venue: "场馆二")

@@ -26,6 +26,7 @@ struct FootprintYearActivity: Identifiable, Equatable {
 
     var id: Int { year }
     var totalShows: Int { months.reduce(0) { $0 + $1.showCount } }
+    var totalDurationMinutes: Int { months.reduce(0) { $0 + $1.durationMinutes } }
 
     var peakMonth: FootprintMonthActivity? {
         months

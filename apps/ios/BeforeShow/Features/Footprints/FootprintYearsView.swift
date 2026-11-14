@@ -6,6 +6,25 @@ import SwiftUI
 struct FootprintYearsView: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
+    /// Each year's line under the header, worked out once rather than every walking frame.
+    private let yearSummaries: [Int: String]
+
+    init(archive: FootprintArchiveSnapshot, covers: [UUID: FootprintCover]) {
+        self.archive = archive
+        self.covers = covers
+        yearSummaries = Dictionary(uniqueKeysWithValues: archive.allYearActivities.map {
+            ($0.year, Self.summaryText(showCount: $0.totalShows, durationMinutes: $0.totalDurationMinutes))
+        })
+    }
+
+    static func summaryText(showCount: Int, durationMinutes: Int) -> String {
+        let count = BSLocalization.format("%lld 场", showCount)
+        guard durationMinutes > 0 else { return count }
+        let duration = durationMinutes < 60
+            ? ShowDurationFormatter.single(totalMinutes: durationMinutes)
+            : ShowDurationFormatter.aggregate(totalMinutes: durationMinutes)
+        return "\(count) · \(duration)"
+    }
 
     /// How far down the corridor you stand, in covers. Fractional while walking.
     @State private var resting: Double = 0
@@ -139,15 +158,15 @@ struct FootprintYearsView: View {
     /// The year of the cover you're standing by.
     private func header(position: Double) -> some View {
         let year = currentShow(at: position).map { $0.timingCalendar().component(.year, from: $0.effectiveDate) }
-        let count = archive.years.first { $0.year == year }?.shows.count
+        let summary = year.flatMap { yearSummaries[$0] }
         return VStack(alignment: .leading, spacing: 2) {
             if let year {
                 Text(verbatim: String(year))
                     .font(.system(size: 44, weight: .regular, design: .serif))
                     .foregroundStyle(BSColor.Stage.foreground)
                     .contentTransition(.numericText(value: Double(year)))
-                if let count {
-                    Text(BSLocalization.format("%lld 场", count))
+                if let summary {
+                    Text(summary)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(BSColor.Stage.foreground.opacity(0.7))
                 }
