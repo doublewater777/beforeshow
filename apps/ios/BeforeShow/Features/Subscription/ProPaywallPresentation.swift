@@ -23,60 +23,65 @@ struct ProPaywallBackground: View {
 
 struct ProPaywallHero: View {
     let showsCloseButton: Bool
+    /// Off on short screens: the beams and the sparkle give way so everything still fits.
+    var showsBeams = true
 
     @State private var beamsSwaying = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .bottom) {
-                heroBeams
+            if showsBeams {
+                ZStack(alignment: .bottom) {
+                    heroBeams
 
-                ZStack {
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [BSColor.Stage.accent.opacity(0.18), .clear],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: 52
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [BSColor.Stage.accent.opacity(0.18), .clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: 40
+                                )
                             )
-                        )
-                        .frame(width: 104, height: 104)
-                        .blur(radius: 4)
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 34, weight: .medium))
-                        .foregroundStyle(BSColor.Stage.accent)
-                }
-                .frame(width: 67, height: 67)
+                            .frame(width: 80, height: 80)
+                            .blur(radius: 4)
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(BSColor.Stage.accent)
+                    }
+                    .frame(width: 52, height: 52)
             }
-            .frame(height: 104, alignment: .bottom)
-            .padding(.bottom, 12)
+            .frame(height: 84, alignment: .bottom)
+            .padding(.bottom, 8)
+            }
 
             Text("BEFORESHOW PRO")
                 .font(.system(size: 10.5, weight: .bold))
                 .tracking(1.7)
                 .foregroundStyle(BSColor.Stage.accent)
-                .padding(.bottom, 9)
+                .padding(.bottom, 7)
 
             Text(BSLocalization.text("把下一场，\n也留下来"))
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: 24, weight: .bold))
                 .kerning(-0.7)
-                .lineSpacing(5)
+                .lineSpacing(3)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(BSColor.Stage.foreground)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(ProPaywallCopy.summary)
-                .font(.system(size: 13))
-                .lineSpacing(4)
+                .font(.system(size: 12.5))
+                .lineSpacing(3)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(BSColor.Stage.muted)
                 .frame(maxWidth: 310)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 11)
+                .padding(.top, 8)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, showsCloseButton ? 20 : BSSpacing.md)
+        .padding(.top, showsCloseButton ? 12 : 0)
         .onAppear { beamsSwaying = true }
     }
 
@@ -107,7 +112,7 @@ struct ProPaywallHero: View {
                     endPoint: .top
                 )
             )
-            .frame(width: topWidth, height: 190)
+            .frame(width: topWidth, height: 150)
             .rotationEffect(
                 .degrees(rotation + (beamsSwaying ? sway : 0)),
                 anchor: .bottom
@@ -123,7 +128,7 @@ struct ProPaywallHero: View {
     }
 }
 
-/// Everything Pro unlocks at a glance: the headline benefit across the top, the rest as a grid of tiles.
+/// Everything Pro unlocks in one card: the headline benefit on top, the rest as a quiet two-column list.
 struct ProPaywallBenefitCard: View {
     struct Benefit {
         let icon: String
@@ -134,7 +139,7 @@ struct ProPaywallBenefitCard: View {
     static let headline = Benefit(
         icon: "infinity",
         title: BSLocalization.text("无限添加现场"),
-        detail: BSLocalization.text("突破免费版 15 场上限，每一场都能进「当前」、留进「足迹」。")
+        detail: BSLocalization.text("不再受免费版 15 场限制，每一场都留进足迹")
     )
 
     static let others = [
@@ -147,10 +152,15 @@ struct ProPaywallBenefitCard: View {
     ]
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                icon(Self.headline.icon, size: 34)
-                VStack(alignment: .leading, spacing: 3) {
+                Image(systemName: Self.headline.icon)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(BSColor.Stage.accent)
+                    .frame(width: 34, height: 34)
+                    .background(BSColor.Stage.accent.opacity(0.12))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
                     Text(Self.headline.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(BSColor.Stage.foreground)
@@ -161,50 +171,54 @@ struct ProPaywallBenefitCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(14)
-            .background(tileBackground(highlighted: true))
+            .padding(.bottom, 14)
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                ForEach(Self.others, id: \.title) { benefit in
-                    VStack(alignment: .leading, spacing: 8) {
-                        icon(benefit.icon, size: 26)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(benefit.title)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(BSColor.Stage.foreground)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                            Text(benefit.detail)
-                                .font(.system(size: 11))
-                                .foregroundStyle(BSColor.Stage.muted)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
+            Rectangle()
+                .fill(BSColor.Stage.border)
+                .frame(height: 1)
+                .padding(.bottom, 14)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
+                ForEach(0..<(Self.others.count + 1) / 2, id: \.self) { row in
+                    GridRow {
+                        ForEach(Self.others[row * 2..<min(row * 2 + 2, Self.others.count)], id: \.title) { benefit in
+                            item(benefit)
                         }
                     }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(tileBackground(highlighted: false))
                 }
             }
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(BSColor.Stage.surface.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(BSColor.Stage.accent.opacity(0.18), lineWidth: 1)
+                )
+        )
     }
 
-    private func icon(_ name: String, size: CGFloat) -> some View {
-        Image(systemName: name)
-            .font(.system(size: size * 0.46, weight: .bold))
-            .foregroundStyle(BSColor.Stage.accent)
-            .frame(width: size, height: size)
-            .background(BSColor.Stage.accent.opacity(0.12))
-            .clipShape(Circle())
-    }
-
-    private func tileBackground(highlighted: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 16)
-            .fill(highlighted ? BSColor.Stage.accent.opacity(0.07) : BSColor.Stage.surface.opacity(0.72))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(highlighted ? BSColor.Stage.accent.opacity(0.25) : BSColor.Stage.border, lineWidth: 1)
-            )
+    private func item(_ benefit: Benefit) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: benefit.icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.accent)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(benefit.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text(benefit.detail)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -250,7 +264,7 @@ struct ProPaywallLinksRow: View {
     let onTerms: () -> Void
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 22) {
             Spacer(minLength: 0)
             linkButton(BSLocalization.text("恢复购买"), action: onRestore)
             linkButton(BSLocalization.text("兑换码"), action: onRedeemCode)

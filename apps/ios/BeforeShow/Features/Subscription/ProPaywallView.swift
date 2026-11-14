@@ -43,34 +43,17 @@ struct ProPaywallView: View {
         ZStack(alignment: .topTrailing) {
             background
 
+            // One screen, no scrolling: on shorter phones the hero drops its light beams first.
             VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: BSSpacing.md) {
-                    hero
-
-                    if entitlement.isProActive {
-                        activeCard
-                        if let message {
-                            noteText(message)
-                        }
-                        linksRow
-                    } else {
-                        if case .expired = entitlement {
-                            noteText(BSLocalization.text("Pro 已过期，已有本地内容仍可查看和编辑。"))
-                        }
-                        benefitCard
-                    }
+                ViewThatFits(in: .vertical) {
+                    content(showsBeams: true)
+                    content(showsBeams: false)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, showsCloseButton ? 8 : BSSpacing.lg)
-                .padding(.bottom, 20)
-                .bsAdaptiveContentWidth()
-            }
-            .scrollIndicators(.hidden)
+                .frame(maxHeight: .infinity)
 
-            if !entitlement.isProActive {
-                purchaseBar
-            }
+                if !entitlement.isProActive {
+                    purchaseBar
+                }
             }
 
             if showsCloseButton {
@@ -130,8 +113,32 @@ struct ProPaywallView: View {
         ProPaywallBackground()
     }
 
-    private var hero: some View {
-        ProPaywallHero(showsCloseButton: showsCloseButton)
+    private func content(showsBeams: Bool) -> some View {
+        // Leftover height goes into the gaps, so taller phones breathe instead of leaving a hole above the plans.
+        VStack(spacing: 0) {
+            ProPaywallHero(showsCloseButton: showsCloseButton, showsBeams: showsBeams)
+            Spacer(minLength: 16)
+
+            VStack(spacing: 12) {
+                if entitlement.isProActive {
+                    activeCard
+                    if let message {
+                        noteText(message)
+                    }
+                    linksRow
+                } else {
+                    if case .expired = entitlement {
+                        noteText(BSLocalization.text("Pro 已过期，已有本地内容仍可查看和编辑。"))
+                    }
+                    benefitCard
+                }
+            }
+            Spacer(minLength: 16)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, showsCloseButton ? 8 : BSSpacing.md)
+        .padding(.bottom, 14)
+        .bsAdaptiveContentWidth()
     }
 
     private var benefitCard: some View {
@@ -150,9 +157,9 @@ struct ProPaywallView: View {
 
     // MARK: - CTA 与说明
 
-    /// Plans, the buy button and the small print, pinned to the bottom so the button is always in view.
+    /// Plans, the buy button and the small print, at the bottom within thumb reach.
     private var purchaseBar: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             if let message {
                 noteText(message)
             }
@@ -171,15 +178,13 @@ struct ProPaywallView: View {
             }
             ctaNote
             linksRow
+                .padding(.top, 4)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 4)
+        .padding(.top, 6)
+        .padding(.bottom, 14)
         .bsAdaptiveContentWidth()
         .frame(maxWidth: .infinity)
-        .overlay(alignment: .top) {
-            Rectangle().fill(BSColor.Stage.border).frame(height: 1)
-        }
     }
 
     private var ctaButton: some View {
@@ -219,19 +224,23 @@ struct ProPaywallView: View {
         }
     }
 
-    private var ctaNoteText: String {
-        ProPaywallCopy.ctaNote(selectedPlan)
-    }
-
+    /// Every plan's note is laid out and only the selected one shows, so switching plans never changes the
+    /// bar's height and nothing above it jumps.
     private var ctaNote: some View {
-        Text(ctaNoteText)
-            .font(.system(size: 10.5))
-            .lineSpacing(3)
-            .multilineTextAlignment(.center)
-            .foregroundStyle(BSColor.Stage.dim)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 7)
-            .fixedSize(horizontal: false, vertical: true)
+        ZStack(alignment: .top) {
+            ForEach(ProSubscriptionCatalog.standardPlans, id: \.self) { plan in
+                Text(ProPaywallCopy.ctaNote(plan))
+                    .font(.system(size: 10.5))
+                    .lineSpacing(3)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(BSColor.Stage.dim)
+                    .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .opacity(plan == selectedPlan ? 1 : 0)
+                    .accessibilityHidden(plan != selectedPlan)
+            }
+        }
+        .padding(.horizontal, 7)
     }
 
     private var activeCard: some View {

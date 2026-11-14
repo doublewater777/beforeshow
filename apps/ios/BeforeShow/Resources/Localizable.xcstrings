@@ -28271,18 +28271,18 @@
         }
       }
     },
-    "突破免费版 15 场上限，每一场都能进「当前」、留进「足迹」。" : {
+    "不再受免费版 15 场限制，每一场都留进足迹" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Go past the free 15-show limit; every show gets into Now and stays in Footprints."
+            "value" : "No 15-show cap. Every show stays in Footprints."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "突破免費版 15 場上限，每一場都能進「當前」、留進「足跡」。"
+            "value" : "不再受免費版 15 場限制，每一場都留進足跡"
           }
         }
       }
