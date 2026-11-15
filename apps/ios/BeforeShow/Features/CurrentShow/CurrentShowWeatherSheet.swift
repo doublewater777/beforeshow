@@ -106,11 +106,24 @@ struct CurrentShowWeatherSheet: View {
         }
         .presentationDetents([.fraction(0.88), .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground { CurrentShowWeatherSky(tone: shownWeather?.tone, condition: shownWeather?.condition) }
+        .presentationBackground {
+            CurrentShowWeatherSky(tone: shownWeather?.tone, condition: shownWeather?.condition, isNight: isNight)
+        }
         .preferredColorScheme(.dark)
     }
 
     private var isMultiDay: Bool { days.count > 1 }
+
+    /// Whether the moment the big number shows is after dark at the venue.
+    private var isNight: Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = eventTimeZone
+        return ShowWeatherAtmospherePolicy.isNight(
+            shownWeather?.forecastTime ?? showWindow.start,
+            sunset: shownWeather?.sunsetTime,
+            calendar: calendar
+        )
+    }
 
     /// The selected day's forecast once the days are in, the forecast the sheet opened with until then.
     private var shownWeather: ShowWeatherDTO? {

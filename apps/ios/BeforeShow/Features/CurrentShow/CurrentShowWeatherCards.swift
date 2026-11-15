@@ -4,6 +4,7 @@ import SwiftUI
 struct CurrentShowWeatherSky: View {
     let tone: WeatherAtmosphereTone?
     let condition: ShowWeatherCondition?
+    let isNight: Bool
 
     var body: some View {
         LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
@@ -16,15 +17,21 @@ struct CurrentShowWeatherSky: View {
         case .sunsetGold:
             [Color(red: 0.29, green: 0.26, blue: 0.58), Color(red: 0.78, green: 0.45, blue: 0.36)]
         case .rainBlue:
-            [Color(red: 0.16, green: 0.33, blue: 0.52), Color(red: 0.11, green: 0.22, blue: 0.38)]
+            isNight
+                ? [Color(red: 0.08, green: 0.15, blue: 0.27), Color(red: 0.12, green: 0.20, blue: 0.33)]
+                : [Color(red: 0.16, green: 0.33, blue: 0.52), Color(red: 0.11, green: 0.22, blue: 0.38)]
         case .coldNightIndigo:
             [Color(red: 0.11, green: 0.13, blue: 0.40), Color(red: 0.27, green: 0.19, blue: 0.50)]
         case .neutral, nil:
-            switch condition {
-            case .clear, .partlyCloudy, .sunset:
+            switch (condition, isNight) {
+            case (.clear, false), (.partlyCloudy, false), (.sunset, false):
                 [Color(red: 0.16, green: 0.42, blue: 0.80), Color(red: 0.36, green: 0.62, blue: 0.90)]
-            default:
+            case (.clear, true), (.partlyCloudy, true), (.sunset, true):
+                [Color(red: 0.05, green: 0.09, blue: 0.26), Color(red: 0.15, green: 0.22, blue: 0.46)]
+            case (_, false):
                 [Color(red: 0.22, green: 0.35, blue: 0.56), Color(red: 0.30, green: 0.36, blue: 0.58)]
+            case (_, true):
+                [Color(red: 0.12, green: 0.16, blue: 0.29), Color(red: 0.20, green: 0.23, blue: 0.37)]
             }
         }
     }

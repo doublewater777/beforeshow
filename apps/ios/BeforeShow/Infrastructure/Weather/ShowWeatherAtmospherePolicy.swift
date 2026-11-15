@@ -8,7 +8,8 @@ struct ShowWeatherAtmospherePolicy: Sendable {
         condition: ShowWeatherCondition,
         now: Date = Date(),
         sunsetTime: Date? = nil,
-        temperatureCelsius: Int = 22
+        temperatureCelsius: Int = 22,
+        calendar: Calendar = .current
     ) -> WeatherAtmosphereTone {
         switch condition {
         case .rain, .heavyRain:
@@ -24,14 +25,23 @@ struct ShowWeatherAtmospherePolicy: Sendable {
                     return .sunsetGold
                 }
             }
-            let hour = Calendar.current.component(.hour, from: now)
-            if (hour >= 19 || hour < 6) && temperatureCelsius <= 16 {
+            if Self.isNight(now, sunset: sunsetTime, calendar: calendar) && temperatureCelsius <= 16 {
                 return .coldNightIndigo
             }
             return .neutral
         case .cloudy, .windy:
             return .neutral
         }
+    }
+
+    /// Night on the venue's clock: from half an hour after sunset (19:00 when sunset is unknown) until 06:00.
+    static func isNight(_ time: Date, sunset: Date?, calendar: Calendar) -> Bool {
+        let hour = calendar.component(.hour, from: time)
+        if hour < 6 { return true }
+        if let sunset, calendar.isDate(sunset, inSameDayAs: time) {
+            return time >= sunset.addingTimeInterval(30 * 60)
+        }
+        return hour >= 19
     }
 
     func weatherCalendar(timing: ShowTimingFields, locationTimeZone: TimeZone?, fallback: Calendar) throws -> Calendar {
@@ -274,7 +284,8 @@ struct ShowWeatherAtmospherePolicy: Sendable {
             condition: condition,
             now: toneNow,
             sunsetTime: dayForecast.sunsetTime,
-            temperatureCelsius: temperature
+            temperatureCelsius: temperature,
+            calendar: calendar
         )
 
         let dispersalHour = hourlyForecasts.filter { abs($0.date.timeIntervalSince(showEndTime)) <= 1800 }.min(by: {

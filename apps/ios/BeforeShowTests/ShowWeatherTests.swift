@@ -27,6 +27,26 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertEqual(tone, .sunsetGold)
     }
 
+    func testNightIsReadOnTheVenueClock() {
+        var shanghai = Calendar(identifier: .gregorian)
+        shanghai.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let at = { (hour: Int, minute: Int) in
+            shanghai.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: hour, minute: minute))!
+        }
+        let sunset = at(17, 25)
+        XCTAssertFalse(ShowWeatherAtmospherePolicy.isNight(at(17, 50), sunset: sunset, calendar: shanghai), "dusk is not night yet")
+        XCTAssertTrue(ShowWeatherAtmospherePolicy.isNight(at(18, 0), sunset: sunset, calendar: shanghai))
+        XCTAssertTrue(ShowWeatherAtmospherePolicy.isNight(at(2, 0), sunset: sunset, calendar: shanghai))
+        XCTAssertFalse(ShowWeatherAtmospherePolicy.isNight(at(14, 0), sunset: sunset, calendar: shanghai))
+        XCTAssertTrue(ShowWeatherAtmospherePolicy.isNight(at(20, 0), sunset: nil, calendar: shanghai), "no sunset: 19:00 on")
+
+        var losAngeles = Calendar(identifier: .gregorian)
+        losAngeles.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        XCTAssertEqual(policy.resolveTone(condition: .clear, now: at(21, 0), temperatureCelsius: 12, calendar: shanghai), .coldNightIndigo)
+        XCTAssertEqual(policy.resolveTone(condition: .clear, now: at(14, 0), temperatureCelsius: 12, calendar: losAngeles), .coldNightIndigo,
+                       "14:00 in Shanghai is night in Los Angeles")
+    }
+
     func testColdNightResolvesColdNightIndigoTone() {
         let tone = policy.resolveTone(condition: .coldNight)
         XCTAssertEqual(tone, .coldNightIndigo)
