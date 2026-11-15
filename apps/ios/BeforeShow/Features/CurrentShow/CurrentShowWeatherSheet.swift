@@ -531,9 +531,8 @@ struct CurrentShowWeatherSheet: View {
         errorMessage = nil
         do {
             let fetched = try await LiveShowWeatherService.shared.fetchWeatherDays(for: show)
-            let relevant = ShowWeatherDays.relevantIndex(of: fetched, now: Date())
-            days = fetched
-            selectedDay = relevant
+            days = ShowWeatherDays.remaining(fetched, now: Date())
+            selectedDay = 0
             if fetched.allSatisfy({ $0.weather == nil }) {
                 throw ShowWeatherError.forecastUnavailable
             }

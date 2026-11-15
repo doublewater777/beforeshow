@@ -58,6 +58,16 @@ final class ShowWeatherDaysTests: XCTestCase {
         XCTAssertEqual(ShowWeatherDays.relevantIndex(of: days, now: date(2026, 11, 7, 18)), 1)
     }
 
+    func testPastDaysDropOnceTheNextDayArrives() {
+        let days = [6, 7, 8].enumerated().map { offset, day in
+            ShowWeatherDay(index: offset + 1, date: date(2026, 11, day), weather: nil, timeZone: calendar.timeZone,
+                           start: date(2026, 11, day, 14), end: date(2026, 11, day, 23))
+        }
+        XCTAssertEqual(ShowWeatherDays.remaining(days, now: date(2026, 11, 5, 9)).map(\.index), [1, 2, 3])
+        XCTAssertEqual(ShowWeatherDays.remaining(days, now: date(2026, 11, 7, 10)).map(\.index), [2, 3], "Day 1 is gone on Day 2")
+        XCTAssertEqual(ShowWeatherDays.remaining(days, now: date(2026, 11, 10)).map(\.index), [3], "after it ends: the last day")
+    }
+
     func testTheShowBandFollowsTheShowsOwnTimesEvenWhenSunsetTakesTheLabel() {
         let hours = (12...23).map { date(2026, 11, 6, $0) }
         let band = ShowWeatherDays.showBand(hours: hours, start: date(2026, 11, 6, 15), end: date(2026, 11, 6, 17, 30))

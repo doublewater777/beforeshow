@@ -95,6 +95,11 @@ enum ShowWeatherDays {
         return relevantIndex(of: days.map(\.date), now: now, calendar: calendar)
     }
 
+    /// The days still worth showing: from today on, or just the last day once it has all passed.
+    static func remaining(_ days: [ShowWeatherDay], now: Date) -> [ShowWeatherDay] {
+        Array(days.dropFirst(relevantIndex(of: days, now: now)))
+    }
+
     /// The day to open on: today while the show runs, otherwise the next day still to come,
     /// and the last day once it has all passed.
     static func relevantIndex(of dates: [Date], now: Date, calendar: Calendar) -> Int {
