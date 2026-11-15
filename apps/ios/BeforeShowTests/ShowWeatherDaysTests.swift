@@ -74,6 +74,17 @@ final class ShowWeatherDaysTests: XCTestCase {
         XCTAssertEqual(band, 3...5, "15:00 to 17:30 covers the 15, 16 and 17 o'clock hours, not the rest of the night")
     }
 
+    func testTheHeadlineTemperatureSaysWhetherItIsNowOrDoors() {
+        let start = date(2026, 11, 6, 20)
+        XCTAssertEqual(ShowWeatherDays.anchor(forecastTime: date(2026, 11, 6, 17), now: date(2026, 11, 6, 16, 40), showStart: start), .now)
+        XCTAssertEqual(ShowWeatherDays.anchor(forecastTime: date(2026, 11, 6, 20), now: date(2026, 11, 6, 15), showStart: start), .showStart,
+                       "hours before doors the number is the 20:00 hour, not now")
+        XCTAssertEqual(ShowWeatherDays.anchor(forecastTime: date(2026, 11, 6, 20), now: date(2026, 11, 6, 19, 50), showStart: start), .now,
+                       "at doors, now wins")
+        XCTAssertEqual(ShowWeatherDays.anchor(forecastTime: date(2026, 11, 6, 17), now: date(2026, 11, 6, 19), showStart: start), .hour,
+                       "a forecast read hours ago is neither now nor doors")
+    }
+
     func testOneChecklistForTheTripSaysWhichDaysNeedWhat() {
         let rain = ShowWeatherPackingItemDTO(id: "rainwear", emoji: "🧥", title: "雨具", subtitle: "可能有降水")
         let water = ShowWeatherPackingItemDTO(id: "water_bottle", emoji: "💧", title: "及时补水", subtitle: "确认场馆规定")

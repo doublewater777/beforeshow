@@ -582,6 +582,22 @@
         }
       }
     },
+    "降水" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Precipitation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "降水"
+          }
+        }
+      }
+    },
     "，已经 %lld 年多没回去了" : {
       "localizations" : {
         "en" : {
@@ -1151,22 +1167,6 @@
         }
       }
     },
-    "%@ 预报" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ forecast"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 預報"
-          }
-        }
-      }
-    },
     "%@-%@ · 每日 %@" : {
       "localizations" : {
         "en" : {
@@ -1485,22 +1485,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · %2$lld 頁"
-          }
-        }
-      }
-    },
-    "%1$@ · 体感 %2$lld°" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · Feels like %2$lld°"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · 體感 %2$lld°"
           }
         }
       }
@@ -7745,6 +7729,22 @@
         }
       }
     },
+    "最高 %1$lld° 最低 %2$lld°" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "H:%1$lld° L:%2$lld°"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高 %1$lld° 最低 %2$lld°"
+          }
+        }
+      }
+    },
     "写一句" : {
       "localizations" : {
         "en" : {
@@ -12914,6 +12914,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開場"
+          }
+        }
+      }
+    },
+    "开场 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show starts %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開場 %@"
           }
         }
       }
@@ -19137,22 +19153,6 @@
         }
       }
     },
-    "演出时段降水" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rain during show"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "演出時段降水"
-          }
-        }
-      }
-    },
     "演出流程、阵容安排或时间图片" : {
       "localizations" : {
         "en" : {
@@ -21526,18 +21526,18 @@
         }
       }
     },
-    "紫外线指数" : {
+    "紫外线" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "UV index"
+            "value" : "UV"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "紫外線指數"
+            "value" : "紫外線"
           }
         }
       }

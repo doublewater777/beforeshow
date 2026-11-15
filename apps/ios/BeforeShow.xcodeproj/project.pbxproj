@@ -125,6 +125,7 @@
 		232FBFDC3D07878D3051F652 /* CatalogAlbum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4436D919A6B6F4E0185D67F9 /* CatalogAlbum.swift */; };
 		2333189FBA65F10B0E38B892 /* ListeningShowLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B40307197FB63E23967B651 /* ListeningShowLifecycleCoordinator.swift */; };
 		23A0C265D9993104C43F2C5F /* ShowIdentityCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116F9EC6DB6402F23F1778C5 /* ShowIdentityCopy.swift */; };
+		24A1A84F555D6CD5ED932913 /* CurrentShowWeatherCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF2C0E71D509DC720F1B1C4 /* CurrentShowWeatherCards.swift */; };
 		24BA02BE9BD92725212251DC /* BSArtistComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039CE96399510890BB2FB9D3 /* BSArtistComponents.swift */; };
 		24E41BB84970DD17C372DFF0 /* LiveActivityPlanSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD7AEFD5011B5D896C58599 /* LiveActivityPlanSecretStore.swift */; };
 		24F624468E2E025CE9132CFF /* TimetableImportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE793C6B8631DA2D5DA9D5D6 /* TimetableImportViews.swift */; };
@@ -1283,6 +1284,7 @@
 		ACFF21B09B07FFF485672C09 /* CountdownShareCardStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownShareCardStyles.swift; sourceTree = "<group>"; };
 		AD570A7D598A729AEF39D7EF /* CurrentShowRecordList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowRecordList.swift; sourceTree = "<group>"; };
 		ADB5EC61C9E264AD89D9C65A /* ListeningVideoDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningVideoDock.swift; sourceTree = "<group>"; };
+		ADF2C0E71D509DC720F1B1C4 /* CurrentShowWeatherCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowWeatherCards.swift; sourceTree = "<group>"; };
 		AE1084432CC8FD00F6D037B4 /* TimetableInspectorArtistHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableInspectorArtistHeader.swift; sourceTree = "<group>"; };
 		AE8091E7223860F3892A8ECF /* BSListeningActionStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSListeningActionStyle.swift; sourceTree = "<group>"; };
 		AE88AA3B2E3D32607D5D374F /* CurrentShowTimelineSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowTimelineSchedule.swift; sourceTree = "<group>"; };
@@ -2088,6 +2090,7 @@
 				44C2E4E0581733EB3FD032AB /* CurrentShowSession.swift */,
 				AE88AA3B2E3D32607D5D374F /* CurrentShowTimelineSchedule.swift */,
 				D89869254BC5DF646F9ADD46 /* CurrentShowWeatherCapsule.swift */,
+				ADF2C0E71D509DC720F1B1C4 /* CurrentShowWeatherCards.swift */,
 				A3FD0EF6E2EF2B08E7A1D509 /* CurrentShowWeatherSheet.swift */,
 				5B51D1A6FD02E111BD1FFEE1 /* DispersalCeremony.swift */,
 				3550DE7A98698B0C5F5B3B4C /* DispersalCeremonyShareCard.swift */,
@@ -3049,6 +3052,7 @@
 				194DC2CFE086968B6F011C25 /* CurrentShowTimeState.swift in Sources */,
 				BF62CD77519FC5AF891D812F /* CurrentShowTimelineSchedule.swift in Sources */,
 				930CC1B226077ED6046C0237 /* CurrentShowWeatherCapsule.swift in Sources */,
+				24A1A84F555D6CD5ED932913 /* CurrentShowWeatherCards.swift in Sources */,
 				D76544DEF4BC8542FD0B8769 /* CurrentShowWeatherSheet.swift in Sources */,
 				343976B8CA553A435C73EF2F /* DebugSampleShowSeeder.swift in Sources */,
 				7270B09F5EABA588967ABA3B /* DispersalCeremony.swift in Sources */,

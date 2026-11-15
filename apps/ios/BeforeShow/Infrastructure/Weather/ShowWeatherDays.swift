@@ -83,6 +83,15 @@ enum ShowWeatherDays {
         return max(0, band.lowerBound - 2)
     }
 
+    /// Which moment the headline temperature is: the hour nearest now, the hour of doors, or some other hour.
+    enum Anchor: Equatable { case now, showStart, hour }
+
+    static func anchor(forecastTime: Date, now: Date, showStart: Date) -> Anchor {
+        if abs(forecastTime.timeIntervalSince(now)) <= 1800 { return .now }
+        if abs(forecastTime.timeIntervalSince(showStart)) <= 1800 { return .showStart }
+        return .hour
+    }
+
     /// The column holding `now`, or nil when the strip is another day.
     static func currentIndex(hours: [Date], now: Date) -> Int? {
         hours.firstIndex { $0 <= now && now < $0.addingTimeInterval(3600) }

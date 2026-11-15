@@ -50,22 +50,28 @@ struct CurrentShowWeatherSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 26) {
+                VStack(spacing: 10) {
                     if isMultiDay {
-                        dayStrip
+                        CurrentShowWeatherDayChips(days: days, selected: $selectedDay)
                     }
                     if let weather = shownWeather {
-                        summary(weather)
-                        timeline(weather)
-                        metrics(weather)
+                        CurrentShowWeatherHero(place: venueOrCityText, weather: weather, anchor: anchorText(weather))
+                        CurrentShowWeatherHourlyCard(
+                            weather: weather,
+                            summary: headline(weather),
+                            showStart: showWindow.start,
+                            showEnd: showWindow.end,
+                            timeZone: eventTimeZone
+                        )
+                        CurrentShowWeatherMetricsRow(metrics: metrics(weather))
                         checklist
                         attributionFooter
                     } else if isMultiDay {
                         Text(BSLocalization.text("这一天的预报还没出，通常提前 10 天发布"))
-                            .font(.system(size: 14))
-                            .foregroundStyle(BSColor.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 24)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.8))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 48)
                         if !packingItems.isEmpty { checklist }
                         attributionFooter
                     } else if isLoading {
@@ -76,14 +82,12 @@ struct CurrentShowWeatherSheet: View {
                         loadingPlaceholder
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
-            .background(alignment: .top) { toneWash }
-            .background(BSColor.surface.ignoresSafeArea())
             .navigationTitle(BSLocalization.text("现场天气"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 BSChromeToolbarCloseButton(
                     accessibilityLabel: BSLocalization.text("关闭"),
@@ -102,7 +106,7 @@ struct CurrentShowWeatherSheet: View {
         }
         .presentationDetents([.fraction(0.88), .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(BSColor.surface)
+        .presentationBackground { CurrentShowWeatherSky(tone: shownWeather?.tone, condition: shownWeather?.condition) }
         .preferredColorScheme(.dark)
     }
 
@@ -117,239 +121,51 @@ struct CurrentShowWeatherSheet: View {
         days.isEmpty ? weather?.packingList ?? [] : ShowWeatherDays.packingList(for: days)
     }
 
-    // MARK: - Days
-
-    /// One card per day of a multi-day show; the summary below follows the selected day.
-    private var dayStrip: some View {
-        let fits = days.count <= 4
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { selectedDay = offset }
-                    } label: {
-                        dayCard(day, isSelected: offset == selectedDay)
-                            .frame(width: fits ? nil : 84)
-                            .frame(maxWidth: fits ? .infinity : nil)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .containerRelativeFrame(.horizontal) { width, _ in fits ? width : max(width, CGFloat(days.count) * 92) }
-        }
-        .scrollDisabled(fits)
-        .sensoryFeedback(.selection, trigger: selectedDay)
-    }
-
-    private func dayCard(_ day: ShowWeatherDay, isSelected: Bool) -> some View {
-        let tint = day.weather?.tone.primaryTint ?? BSColor.textSecondary
-        return VStack(spacing: 5) {
-            Text(verbatim: "Day \(day.index)")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(isSelected ? BSColor.textPrimary : BSColor.textSecondary)
-            Text(dayLabel(day.date))
-                .font(.system(size: 11).monospacedDigit())
-                .foregroundStyle(BSColor.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Image(systemName: day.weather?.condition.systemSymbolName ?? "ellipsis")
-                .symbolRenderingMode(.multicolor)
-                .font(.system(size: 18))
-                .foregroundStyle(BSColor.textSecondary)
-                .frame(height: 22)
-            Text(day.weather.map { "\($0.highCelsius)° / \($0.lowCelsius)°" } ?? "—")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(day.weather == nil ? BSColor.textSecondary : BSColor.textPrimary)
-        }
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isSelected ? tint.opacity(0.16) : Color.white.opacity(0.05))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(isSelected ? tint.opacity(0.5) : Color.white.opacity(0.08), lineWidth: isSelected ? 1 : 0.5))
-        )
-        .opacity(day.weather == nil && !isSelected ? 0.6 : 1)
-    }
-
-    private func dayLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = eventTimeZone
-        formatter.setLocalizedDateFormatFromTemplate("EEE")
-        let weekday = formatter.string(from: date)
-        formatter.dateFormat = "MM.dd"
-        return "\(weekday) \(formatter.string(from: date))"
-    }
-
-    /// The evening's weather tints the top of the sheet, the way it tints the 当前 page.
-    @ViewBuilder
-    private var toneWash: some View {
-        if let weather = shownWeather, weather.tone != .neutral {
-            LinearGradient(colors: [weather.tone.primaryTint.opacity(0.16), .clear], startPoint: .top, endPoint: .bottom)
-                .frame(height: 320)
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-        }
-    }
-
-    // MARK: - Summary
-
-    private func summary(_ weather: ShowWeatherDTO) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(venueOrCityText, systemImage: "mappin")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(BSColor.textSecondary)
-                .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Text(verbatim: "\(weather.temperatureCelsius)°")
-                    .font(.system(size: 64, weight: .light, design: .rounded))
-                    .foregroundStyle(BSColor.textPrimary)
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(weather.conditionDescription, systemImage: weather.condition.systemSymbolName)
-                        .symbolRenderingMode(.hierarchical)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(BSColor.textPrimary)
-                    Text(weather.forecastTime.map { BSLocalization.format("%@ 预报", formatHour($0)) } ?? BSLocalization.text("当天最高气温"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(BSColor.textSecondary)
-                }
-            }
-            Text(headline(weather))
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(BSColor.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// One sentence: will it rain while you're there, and how cold it will feel.
-    private func headline(_ weather: ShowWeatherDTO) -> String {
-        let chance = weather.showPeriodPrecipitationProbability ?? weather.precipitationProbability
-        let rain: String
-        switch chance {
-        case 0.4...: rain = BSLocalization.text("演出时段可能下雨")
-        case 0.2..<0.4: rain = BSLocalization.text("演出时段有零星降水可能")
-        default: rain = BSLocalization.text("演出时段大概率不下雨")
-        }
-        return BSLocalization.format("%1$@ · 体感 %2$lld°", rain, Int64(weather.feelsLikeCelsius))
-    }
+    // MARK: - Sections
 
     private var venueOrCityText: String {
-        if let venueName = venueName, !venueName.isEmpty {
-            if let city = city, !city.isEmpty {
-                return "\(venueName) · \(city)"
-            }
-            return venueName
-        }
-        return city ?? BSLocalization.text("现场天气")
+        let parts = [venueName, city].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? BSLocalization.text("现场天气") : parts.joined(separator: " · ")
     }
 
-    // MARK: - Show timeline
-
-    /// The hours around the show in one strip, the show itself marked as a band from 开场 to 散场.
-    private func timeline(_ weather: ShowWeatherDTO) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionTitle(BSLocalization.text("演出时段"))
-            if weather.hourly.isEmpty {
-                Text(BSLocalization.text("暂无演出时段预报"))
-                    .font(.system(size: 13))
-                    .foregroundStyle(BSColor.textSecondary)
-            } else {
-                let band = ShowWeatherDays.showBand(hours: weather.hourly.map(\.time), start: showWindow.start, end: showWindow.end)
-                    ?? 0...(weather.hourly.count - 1)
-                let fits = weather.hourly.count <= 7
-                let hours = weather.hourly.map(\.time)
-                let now = Date()
-                let current = ShowWeatherDays.currentIndex(hours: hours, now: now)
-                // The whole day is there to scroll back to; it opens on now at the venue, otherwise just before doors.
-                let lead = weather.hourly[ShowWeatherDays.leadIndex(hours: hours, band: band, now: now)].id
-                ScrollViewReader { reader in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 0) {
-                            ForEach(Array(weather.hourly.enumerated()), id: \.element.id) { index, hour in
-                                hourColumn(hour, inShow: band.contains(index), isNow: index == current, weather: weather)
-                                    .frame(width: fits ? nil : 56)
-                                    .frame(maxWidth: fits ? .infinity : nil)
-                                    .id(hour.id)
-                            }
-                        }
-                        .padding(.vertical, 10)
-                        .background(alignment: .leading) { bandBackground(band, count: weather.hourly.count, tint: weather.tone.primaryTint, fits: fits) }
-                        .containerRelativeFrame(.horizontal) { width, _ in fits ? width : max(width, CGFloat(weather.hourly.count) * 56) }
-                    }
-                    .scrollDisabled(fits)
-                    .onAppear { if !fits { reader.scrollTo(lead, anchor: .leading) } }
-                    .onChange(of: lead) { _, newLead in
-                        if !fits { reader.scrollTo(newLead, anchor: .leading) }
-                    }
-                }
-            }
+    /// Which moment the big number is, in the timeline's own words.
+    private func anchorText(_ weather: ShowWeatherDTO) -> String {
+        guard let time = weather.forecastTime else { return BSLocalization.text("当天最高气温") }
+        switch ShowWeatherDays.anchor(forecastTime: time, now: Date(), showStart: showWindow.start) {
+        case .now: return BSLocalization.text("现在")
+        case .showStart: return BSLocalization.format("开场 %@", formatHour(showWindow.start))
+        case .hour: return formatHour(time)
         }
     }
 
-    private func hourColumn(_ hour: ShowWeatherHourlyDTO, inShow: Bool, isNow: Bool, weather: ShowWeatherDTO) -> some View {
-        VStack(spacing: 8) {
-            Text(hour.milestoneLabel ?? (isNow ? BSLocalization.text("现在") : " "))
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(weather.tone.primaryTint)
-                .lineLimit(1)
-                .fixedSize()
-            Text(formatHour(hour.time))
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(inShow ? BSColor.textPrimary : BSColor.textSecondary)
-            Image(systemName: hour.condition.systemSymbolName)
-                .symbolRenderingMode(.multicolor)
-                .font(.system(size: 18))
-                .frame(height: 22)
-            Text(verbatim: "\(hour.temperatureCelsius)°")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(inShow ? BSColor.textPrimary : BSColor.textSecondary)
+    /// One sentence: will it rain while you're there.
+    private func headline(_ weather: ShowWeatherDTO) -> String {
+        switch weather.showPeriodPrecipitationProbability ?? weather.precipitationProbability {
+        case 0.4...: return BSLocalization.text("演出时段可能下雨")
+        case 0.2..<0.4: return BSLocalization.text("演出时段有零星降水可能")
+        default: return BSLocalization.text("演出时段大概率不下雨")
         }
     }
 
-    private func bandBackground(_ band: ClosedRange<Int>, count: Int, tint: Color, fits: Bool) -> some View {
-        GeometryReader { proxy in
-            let column = fits ? proxy.size.width / CGFloat(max(count, 1)) : 56
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(tint.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(tint.opacity(0.25), lineWidth: 0.5))
-                .frame(width: column * CGFloat(band.count))
-                .offset(x: column * CGFloat(band.lowerBound))
-        }
-    }
-
-    // MARK: - Key numbers
-
-    private func metrics(_ weather: ShowWeatherDTO) -> some View {
-        var items: [(String, String)] = [
-            (BSLocalization.text("演出时段降水"), "\(Int(((weather.showPeriodPrecipitationProbability ?? weather.precipitationProbability) * 100).rounded()))%"),
-            (BSLocalization.text("体感"), "\(weather.feelsLikeCelsius)°")
+    private func metrics(_ weather: ShowWeatherDTO) -> [CurrentShowWeatherMetricsRow.Metric] {
+        let rain = Int(((weather.showPeriodPrecipitationProbability ?? weather.precipitationProbability) * 100).rounded())
+        // "东北 3 m/s": the speed is the number, the direction its footnote.
+        let wind = weather.windDescription.split(separator: " ", maxSplits: 1).map(String.init)
+        // UV only matters for a show in daylight; when it does, it takes sunset's place.
+        let light: CurrentShowWeatherMetricsRow.Metric = weather.uvIndex >= 3
+            ? .init(title: BSLocalization.text("紫外线"), systemImage: "sun.max.fill", tint: BSColor.Accent.warm,
+                    value: "\(weather.uvIndex)", footnote: anchorText(weather))
+            : .init(title: BSLocalization.text("日落"), systemImage: "sunset.fill", tint: BSColor.Accent.warm,
+                    value: weather.sunsetTime.map(formatHour) ?? "--:--", footnote: nil)
+        return [
+            .init(title: BSLocalization.text("降水"), systemImage: "umbrella.fill", tint: BSColor.Accent.info,
+                  value: "\(rain)%", footnote: BSLocalization.text("演出时段")),
+            .init(title: BSLocalization.text("体感"), systemImage: "thermometer.medium", tint: BSColor.Accent.danger,
+                  value: "\(weather.feelsLikeCelsius)°", footnote: anchorText(weather)),
+            light,
+            .init(title: BSLocalization.text("风速"), systemImage: "wind", tint: BSColor.Accent.prepare,
+                  value: wind.count == 2 ? wind[1] : weather.windDescription, footnote: wind.count == 2 ? wind[0] : nil)
         ]
-        // UV only matters for a show in daylight; when it does, it takes sunset's place, never wind's.
-        if weather.uvIndex >= 3 {
-            items.append((BSLocalization.text("紫外线指数"), "\(weather.uvIndex)"))
-        } else if weather.sunsetTime != nil {
-            items.append((BSLocalization.text("日落"), sunsetTimeString(weather)))
-        }
-        items.append((BSLocalization.text("风速"), weather.windDescription))
-        return HStack(alignment: .top, spacing: 8) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.0)
-                        .font(.system(size: 11))
-                        .foregroundStyle(BSColor.textSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Text(item.1)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(BSColor.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.vertical, 14)
-        .overlay(alignment: .top) { Rectangle().fill(BSColor.border).frame(height: 0.5) }
-        .overlay(alignment: .bottom) { Rectangle().fill(BSColor.border).frame(height: 0.5) }
     }
 
     // MARK: - Packing checklist
@@ -357,21 +173,20 @@ struct CurrentShowWeatherSheet: View {
     /// What to pack: for a multi-day show, one list for the whole trip.
     private var checklist: some View {
         let items = packingItems
-        return VStack(alignment: .leading, spacing: 10) {
-            sectionTitle(isMultiDay ? BSLocalization.text("这几天记得带") : BSLocalization.text("出门前记得带"))
+        return CurrentShowWeatherCard {
+            CurrentShowWeatherCardLabel(
+                title: isMultiDay ? BSLocalization.text("这几天记得带") : BSLocalization.text("出门前记得带"),
+                systemImage: "checklist"
+            )
+        } content: {
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     packingItemRow(item)
                     if index < items.count - 1 {
-                        Rectangle().fill(BSColor.border).frame(height: 0.5).padding(.leading, 58)
+                        Rectangle().fill(Color.white.opacity(0.12)).frame(height: 0.5).padding(.leading, 40)
                     }
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(BSColor.surfaceElevated)
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(BSColor.borderProminent, lineWidth: 0.5))
-            )
         }
     }
 
@@ -382,26 +197,24 @@ struct CurrentShowWeatherSheet: View {
         } label: {
             HStack(spacing: 12) {
                 packingIcon(item)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.07)))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.white.opacity(0.1)))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(isPacked ? BSColor.textSecondary : BSColor.textPrimary)
-                        .strikethrough(isPacked, color: BSColor.textSecondary)
+                        .foregroundStyle(isPacked ? Color.white.opacity(0.6) : Color.white)
+                        .strikethrough(isPacked, color: Color.white.opacity(0.6))
                     Text(item.subtitle)
                         .font(.system(size: 12))
-                        .foregroundStyle(BSColor.textSecondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(Color.white.opacity(0.7))
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: isPacked ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isPacked ? BSColor.textPrimary : BSColor.textSecondary.opacity(0.6))
+                    .foregroundStyle(isPacked ? Color.white : Color.white.opacity(0.4))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -413,7 +226,7 @@ struct CurrentShowWeatherSheet: View {
         if let symbol = Self.packingSymbols[item.id] {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(BSColor.textPrimary)
+                .foregroundStyle(Color.white)
         } else {
             Text(item.emoji).font(.system(size: 16))
         }
@@ -428,24 +241,11 @@ struct CurrentShowWeatherSheet: View {
         "wipes": "hands.and.sparkles.fill"
     ]
 
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(BSColor.textPrimary.opacity(0.85))
-    }
-
     private func formatHour(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.timeZone = eventTimeZone
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
-    }
-
-    private func sunsetTimeString(_ weather: ShowWeatherDTO) -> String {
-        guard let sunset = weather.sunsetTime else {
-            return "--:--"
-        }
-        return formatHour(sunset)
     }
 
     private var attributionFooter: some View {
@@ -469,7 +269,8 @@ struct CurrentShowWeatherSheet: View {
             )
         }
         .font(.system(size: 11))
-        .foregroundStyle(BSColor.textSecondary)
+        .foregroundStyle(Color.white.opacity(0.6))
+        .padding(.horizontal, 4)
         .padding(.vertical, 8)
     }
 
