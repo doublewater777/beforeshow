@@ -30,6 +30,7 @@ struct ArtistProfileView: View {
         }
         .ignoresSafeArea(edges: .top)
         .bsStageNavigationChrome()
+        .navigationBarTitleDisplayMode(.inline)
         .background(BSColor.Stage.background.ignoresSafeArea())
         .foregroundStyle(BSColor.Stage.foreground)
         .task(id: reference) {
