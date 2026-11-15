@@ -13,7 +13,6 @@ struct HomeStageHero: View {
     var livePhase: LiveModePhase? = nil
     var timetable: Timetable? = nil
     var avatars: TimetableArtistAvatarStore? = nil
-    var onOpenTimetable: () -> Void = {}
     var onFocus: (UUID) -> Void = { _ in }
 
     @State private var lights = BSStageLights.fallback
@@ -23,11 +22,11 @@ struct HomeStageHero: View {
         BSStageScene(colors: lights.map(\.color), lighting: lighting, powered: powered, height: 336 + topExtension) {
             if let screens, let timetable, let avatars {
                 HomeStageScreenWall(
+                    show: show,
                     screens: screens,
                     timetable: timetable,
                     avatars: avatars,
                     mainSize: CGSize(width: Self.coverWidth, height: Self.coverWidth * 4 / 3),
-                    onOpenTimetable: onOpenTimetable,
                     onFocus: onFocus
                 )
             } else {

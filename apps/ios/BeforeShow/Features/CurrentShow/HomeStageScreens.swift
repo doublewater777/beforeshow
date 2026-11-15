@@ -41,11 +41,11 @@ struct HomeStageScreens: Equatable {
 
 /// The stage's centre screen with its side screens.
 struct HomeStageScreenWall: View {
+    let show: Show
     let screens: HomeStageScreens
     let timetable: Timetable
     let avatars: TimetableArtistAvatarStore
     let mainSize: CGSize
-    let onOpenTimetable: () -> Void
     let onFocus: (UUID) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -53,11 +53,7 @@ struct HomeStageScreenWall: View {
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             side(screens.left)
-            Button(action: onOpenTimetable) {
-                mainScreen
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint(BSLocalization.text("完整时刻表"))
+            artistLink(screens.main.performance) { mainScreen }
             side(screens.right)
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: screens)
@@ -76,11 +72,21 @@ struct HomeStageScreenWall: View {
                     .buttonStyle(.plain)
                     .accessibilityHint(BSLocalization.text("设为主现场"))
             } else {
-                self.screen(screen, size: size, compact: true)
+                artistLink(screen.performance) { self.screen(screen, size: size, compact: true) }
             }
         } else {
             Color.clear.frame(width: size.width, height: size.height)
         }
+    }
+
+    private func artistLink<Label: View>(_ perf: LivePerformanceSnapshot, @ViewBuilder label: () -> Label) -> some View {
+        NavigationLink {
+            ArtistProfileView(
+                reference: HomeLiveArtistReferenceBuilder.make(for: perf, in: timetable, avatarURL: url(for: perf)),
+                show: show
+            )
+        } label: { label() }
+        .buttonStyle(.plain)
     }
 
     /// A 3:4 screen: the square artist photo uncropped on top, a caption strip under it.

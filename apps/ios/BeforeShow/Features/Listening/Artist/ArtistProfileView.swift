@@ -29,7 +29,7 @@ struct ArtistProfileView: View {
             .padding(.bottom, BSSpacing.xl)
         }
         .ignoresSafeArea(edges: .top)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .bsStageNavigationChrome()
         .background(BSColor.Stage.background.ignoresSafeArea())
         .foregroundStyle(BSColor.Stage.foreground)
         .task(id: reference) {
@@ -69,17 +69,22 @@ struct ArtistProfileView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if !model.releases.isEmpty, let room { shuffleButton(room) }
+                // Laid out from the first frame so the name doesn't reflow when releases arrive.
+                let canShuffle = !model.releases.isEmpty && room != nil
+                shuffleButton
+                    .opacity(canShuffle ? 1 : 0)
+                    .disabled(!canShuffle)
+                    .animation(.easeOut(duration: 0.2), value: canShuffle)
             }
             .padding(.horizontal, BSSpacing.roomy)
         }
         .frame(height: ListeningOverviewStyle.artistHeroHeight)
     }
 
-    private func shuffleButton(_ room: ListeningRoomCoordinator) -> some View {
-        let isOn = room.isShuffling(reference.id)
+    private var shuffleButton: some View {
+        let isOn = room?.isShuffling(reference.id) ?? false
         return Button {
-            room.shuffleDiscography(of: reference.id, discs: model.releases)
+            room?.shuffleDiscography(of: reference.id, discs: model.releases)
         } label: {
             Label(BSLocalization.text(isOn ? "换一张" : "随机播放"), systemImage: isOn ? "waveform" : "shuffle")
                 .font(ListeningOverviewStyle.buttonLabel)
@@ -150,19 +155,20 @@ struct ArtistProfileView: View {
                 Text(disc.title).font(ListeningOverviewStyle.serif(24)).lineLimit(2)
                 Text(ListeningReleaseMeta.yearAndTrackCount(disc))
                     .font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.muted)
-                if let room {
-                    Button { room.play(disc) } label: {
-                        Label(BSLocalization.text("播放"), systemImage: room.isOnDeckAndPlaying(disc) ? "waveform" : "play.fill")
-                            .font(ListeningOverviewStyle.buttonLabel)
-                            .foregroundStyle(BSColor.Stage.background)
-                            .padding(.horizontal, BSSpacing.md)
-                            .frame(height: ListeningOverviewStyle.pillHeight)
-                            .background(Capsule().fill(BSColor.Stage.foreground))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, BSSpacing.xs)
-                    .accessibilityIdentifier("artist.playLatest")
+                Button { room?.play(disc) } label: {
+                    Label(BSLocalization.text("播放"), systemImage: room?.isOnDeckAndPlaying(disc) == true ? "waveform" : "play.fill")
+                        .font(ListeningOverviewStyle.buttonLabel)
+                        .foregroundStyle(BSColor.Stage.background)
+                        .padding(.horizontal, BSSpacing.md)
+                        .frame(height: ListeningOverviewStyle.pillHeight)
+                        .background(Capsule().fill(BSColor.Stage.foreground))
                 }
+                .buttonStyle(.plain)
+                .padding(.top, BSSpacing.xs)
+                .opacity(room == nil ? 0 : 1)
+                .disabled(room == nil)
+                .animation(.easeOut(duration: 0.2), value: room == nil)
+                .accessibilityIdentifier("artist.playLatest")
             }
         }
         .padding(.horizontal, BSSpacing.roomy)

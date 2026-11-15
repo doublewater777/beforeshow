@@ -338,7 +338,6 @@ struct CurrentShowManagementSection: View {
             livePhase: liveState?.phase,
             timetable: liveTimetable,
             avatars: avatars,
-            onOpenTimetable: { presentedSheet = .asset(.timetable) },
             onFocus: { focusedPerformanceID = $0.uuidString }
         )
         let allActions = CurrentShowQuickAction.deduplicated(
