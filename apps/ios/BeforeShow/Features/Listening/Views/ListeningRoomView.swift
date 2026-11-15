@@ -59,7 +59,7 @@ struct ListenRootView: View {
     var body: some View {
         ZStack {
             if let room, let show, room.show?.id == show.id {
-                ListeningRoomView(room: room, show: show)
+                ListeningRoomView(room: room, show: show, isActive: isActive)
                     .id(show.id)
             } else if show == nil {
                 ListeningEmptyView(
@@ -196,8 +196,10 @@ struct ListenRootView: View {
 struct ListeningRoomView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
+    var isActive: Bool = true
     @State private var matchingSlotIndex: Int?
     @State private var matchingArtistName: String = ""
+    @State private var shouldResumePlaybackAfterMatch = false
     @State private var isSearching = false
     @State private var overviewSheet: ListeningOverviewSheet?
     @State private var pickFeedStart: ListeningPickFeedStart?
@@ -255,7 +257,7 @@ struct ListeningRoomView: View {
                 case let .artist(id):
                     NavigationStack {
                         if let artist = room.browseArtists.first(where: { $0.id == id }) {
-                            ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show)
+                            ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show, room: room)
                                 .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
                         }
                     }
@@ -279,7 +281,19 @@ struct ListeningRoomView: View {
             set: { if !$0 { matchingSlotIndex = nil } }
         )) {
             if let slot = matchingSlotIndex {
-                ListeningArtistMatchSheet(room: room, slotIndex: slot, query: matchingArtistName)
+                ListeningArtistMatchSheet(
+                    room: room,
+                    slotIndex: slot,
+                    query: matchingArtistName,
+                    analyticsSource: shouldResumePlaybackAfterMatch ? .currentHome : .listenTab,
+                    onMatchSuccess: { artist in
+                        guard shouldResumePlaybackAfterMatch else { return }
+                        let artistID = artist.id
+                        Task { @MainActor in
+                            await resumeAfterHomeMatch(artistID: artistID)
+                        }
+                    }
+                )
             }
         }
         .alert(
@@ -294,6 +308,18 @@ struct ListeningRoomView: View {
             Text(room.errorText ?? "")
         }
         .listeningPlaybackFailureAlert(room)
+        .onChange(of: isActive, initial: true) { _, active in
+            if active { presentPendingArtistMatchIfPossible() }
+        }
+        .onChange(of: matchingSlotIndex) { _, slotIndex in
+            if slotIndex == nil { presentPendingArtistMatchIfPossible() }
+        }
+        .onChange(of: session.pendingArtistMatchRequest, initial: true) { _, _ in
+            presentPendingArtistMatchIfPossible()
+        }
+        .onChange(of: room.browseArtists.map(\.slotIndex), initial: true) { _, _ in
+            presentPendingArtistMatchIfPossible()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .listeningOpenPickDisc)) { _ in
             openPickFeed()
         }
@@ -308,6 +334,37 @@ struct ListeningRoomView: View {
     private func matchArtist(_ artist: ListeningBrowseArtist) {
         matchingSlotIndex = artist.slotIndex
         matchingArtistName = artist.name
+    }
+
+    private func presentPendingArtistMatchIfPossible() {
+        guard isActive, let request = session.pendingArtistMatchRequest, request.showID == show.id else { return }
+        guard matchingSlotIndex == nil else { return }
+        guard let artist = room.browseArtists.first(where: { $0.slotIndex == request.slotIndex }) else { return }
+        guard !artist.isConnected,
+              !artist.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            _ = session.consumeArtistMatchRequest(for: show.id)
+            return
+        }
+        guard let consumed = session.consumeArtistMatchRequest(for: show.id) else { return }
+        shouldResumePlaybackAfterMatch = consumed.resumePlaybackOnSuccess
+        matchArtist(artist)
+    }
+
+    private func resumeAfterHomeMatch(artistID: String) async {
+        let result = await ListeningHomePlaybackCoordinator.resumeAfterArtistMatch(
+            show: show,
+            room: room,
+            artistID: artistID
+        )
+        if case .needsArtistMatch(_, let slotIndex, _, _) = result {
+            session.requestArtistMatch(
+                showID: show.id,
+                slotIndex: slotIndex,
+                resumePlaybackOnSuccess: true
+            )
+            return
+        }
+        shouldResumePlaybackAfterMatch = false
     }
 
     /// An outside entry opens the feed only when nothing else is on screen, so it never replaces a sheet.

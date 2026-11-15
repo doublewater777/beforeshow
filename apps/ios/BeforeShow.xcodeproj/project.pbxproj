@@ -241,6 +241,7 @@
 		4E9D09E2004E67F208AA55F1 /* HomeLivePulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = B892168266993245CFCD5F10 /* HomeLivePulse.swift */; };
 		4ECD2A2395E3B89F0B38D8E9 /* TimetableMatrixHeadersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8845084061FF5382A85F30 /* TimetableMatrixHeadersView.swift */; };
 		4EF86C137B8EC660AAECE008 /* ArtistProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E48A7413C42E559ED14F32A /* ArtistProfileView.swift */; };
+		4F4913C7AC0C83B8ECEB2876 /* ListeningRoomCoordinator+PlaybackEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1146667815A994A0AAB60FE /* ListeningRoomCoordinator+PlaybackEvidence.swift */; };
 		4F9BD821BE67BABB24EC720D /* BSScrollObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E5497F5EE579471EACD2C61 /* BSScrollObservation.swift */; };
 		4FC6793534AAED9E04D78856 /* ListeningPickFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA8C1FC1630D47446175FE0 /* ListeningPickFeedView.swift */; };
 		4FCC342FC69EAAACBCB6A623 /* ListeningVideoDockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E38C898FBF96C2FAEFB9D3 /* ListeningVideoDockTests.swift */; };
@@ -1472,6 +1473,7 @@
 		EE03060FAB5DB6072F932BC6 /* ProFeatureGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProFeatureGate.swift; sourceTree = "<group>"; };
 		F09F2C121EEEC6E73C2B5CFE /* WinbackCopyVariantTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinbackCopyVariantTests.swift; sourceTree = "<group>"; };
 		F0D0828056BA70804926DB3E /* BSDateFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSDateFormat.swift; sourceTree = "<group>"; };
+		F1146667815A994A0AAB60FE /* ListeningRoomCoordinator+PlaybackEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ListeningRoomCoordinator+PlaybackEvidence.swift"; sourceTree = "<group>"; };
 		F13A1B9D952484963ECEFDAC /* TimetableExperienceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableExperienceTests.swift; sourceTree = "<group>"; };
 		F183C29A92FD2E5A0843FD34 /* ProEntitlement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProEntitlement.swift; sourceTree = "<group>"; };
 		F230E93BAB2AA006202C2C0C /* FootprintDebugSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDebugSeeder.swift; sourceTree = "<group>"; };
@@ -1570,6 +1572,7 @@
 				FCC4E245A5799CFFA39B9034 /* ListeningPresentation.swift */,
 				667F6E4B29865C2C891F27EC /* ListeningRack.swift */,
 				3452566ABF8463FA25583AAF /* ListeningRoomCoordinator.swift */,
+				F1146667815A994A0AAB60FE /* ListeningRoomCoordinator+PlaybackEvidence.swift */,
 				F4722610F77A5DD3E3A90F24 /* ListeningRoomCoordinator+Widget.swift */,
 				58B47E3C3FC0A2A03BAD9270 /* ListeningRoomSessionStore.swift */,
 				B577CA002BFD43C95035F706 /* ListeningRuntimeCatalogLoader.swift */,
@@ -3227,6 +3230,7 @@
 				DA9143B0C74D0C729082F34A /* ListeningReminderSchedule.swift in Sources */,
 				9E2409905292CAB80EB32409 /* ListeningRepository.swift in Sources */,
 				FE974C313D623E02DE17A9AA /* ListeningRoomCoordinator+Overview.swift in Sources */,
+				4F4913C7AC0C83B8ECEB2876 /* ListeningRoomCoordinator+PlaybackEvidence.swift in Sources */,
 				6044593FB4F19CE8AA99041A /* ListeningRoomCoordinator+Widget.swift in Sources */,
 				9E4B3D3797060D72DB13BFD5 /* ListeningRoomCoordinator.swift in Sources */,
 				368220E22CB8C0875815CE53 /* ListeningRoomHeader.swift in Sources */,

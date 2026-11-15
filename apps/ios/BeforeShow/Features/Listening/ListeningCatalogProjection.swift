@@ -36,7 +36,7 @@ final class ListeningCatalogProjection {
         })
     }
 
-    private func invalidate() { dirty = true }
+    func invalidate() { dirty = true }
 
     func clear() {
         songs = []; albums = []; snapshots = []; artists = [:]; releaseDates = [:]; albumReleaseDates = [:]

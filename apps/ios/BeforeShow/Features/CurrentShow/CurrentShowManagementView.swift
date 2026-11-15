@@ -25,10 +25,12 @@ struct CurrentShowManagementSection: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) var modelContext
+    @Environment(\.rootTabSelection) var rootTabSelection
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State var presentedSheet: CurrentShowPresentedSheet?
+    @State var listeningPresentation = CurrentShowListeningPresentation()
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
@@ -380,10 +382,12 @@ struct CurrentShowManagementSection: View {
                             room: ListeningRoomSessionStore.shared.room,
                             action: displayedPrimaryAction
                         ),
+                        isLoading: listeningPresentation.isStarting,
+                        listenErrorMessage: listeningPresentation.errorMessage,
+                        offersOpenSettings: listeningPresentation.offersOpenSettings,
+                        onOpenMusicSettings: openMusicSettings,
                         onPrimaryAction: performPrimaryAction,
-                        onOpenRoute: embedsRouteInLocation
-                            ? { openRouteChooser() }
-                            : nil,
+                        onOpenRoute: { openRouteChooser() },
                         unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,
                         unlocksAnimateArrival: unlocksAnimateArrival,
                         onOpenRecords: { homeRoute = .recordWall },
@@ -518,10 +522,6 @@ struct CurrentShowManagementSection: View {
         }
     }
 
-    private var embedsRouteInLocation: Bool {
-        true
-    }
-
     func openRouteChooser() {
         installedMapApps = ExternalMapApp.installed
         presentedSheet = .mapChooser
@@ -575,11 +575,4 @@ struct CurrentShowManagementSection: View {
         openURL(url)
     }
 
-    private func isCurrentShowAudioActive(
-        room: ListeningRoomCoordinator?,
-        action: HomeCountdownLockup.PrimaryAction?
-    ) -> Bool {
-        guard let room, room.wantsPlayback, let action else { return false }
-        return isPlayingCurrentShowContent(action: action, in: room)
-    }
 }

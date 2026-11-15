@@ -6,6 +6,8 @@ struct ListeningArtistMatchSheet: View {
     @State var query: String
     /// 从听搜索 push 进来时沿用外层导航栈，返回键代替取消。
     var isPushed = false
+    var analyticsSource: AnalyticsEvent.ListenEntrySource = .listenTab
+    var onMatchSuccess: ((RecognizedArtist) -> Void)?
     @State private var candidates: [RecognizedArtist] = []
     @State private var selected: RecognizedArtist?
     @State private var searching = true
@@ -172,7 +174,17 @@ struct ListeningArtistMatchSheet: View {
             room.dismissError()
             await room.rematch(slotIndex: slotIndex, artist: selected)
             confirming = false
-            if room.errorText == nil { dismiss() }
+            if room.errorText == nil {
+                onMatchSuccess?(selected)
+                dismiss()
+            } else {
+                ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                    source: analyticsSource,
+                    stage: "manual_artist_match",
+                    reason: "save_failed",
+                    failedCount: 1
+                ))
+            }
         }
     }
 
@@ -189,10 +201,24 @@ struct ListeningArtistMatchSheet: View {
             debouncing = false
             let result = try await room.searchArtists(query: trimmed)
             try Task.checkCancellation()
+            if result.isEmpty {
+                ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                    source: analyticsSource,
+                    stage: "manual_artist_search",
+                    reason: "no_match",
+                    failedCount: 1
+                ))
+            }
             candidates = result
             searching = false
         } catch {
             guard !Task.isCancelled else { return }
+            ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                source: analyticsSource,
+                stage: "manual_artist_search",
+                reason: "request_failed",
+                failedCount: 1
+            ))
             debouncing = false
             searching = false
             failure = ArtistSearchFailureMessage(error: error)

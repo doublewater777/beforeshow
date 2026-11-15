@@ -10,8 +10,15 @@ import Foundation
 final class ListeningRoomSessionStore {
     static let shared = ListeningRoomSessionStore()
 
+    struct ArtistMatchRequest: Equatable {
+        let showID: UUID
+        let slotIndex: Int
+        var resumePlaybackOnSuccess = false
+    }
+
     private(set) var room: ListeningRoomCoordinator?
     private(set) var isChromePublished = false
+    private(set) var pendingArtistMatchRequest: ArtistMatchRequest?
     /// The root mini player can send Listen back to either surface or open the full player.
     var surface: ListeningSurface = .listen
     var isNowPlayingPresented = false
@@ -30,6 +37,7 @@ final class ListeningRoomSessionStore {
             self.room?.releaseShow()
             self.room = nil
             isChromePublished = false
+            clearPendingArtistMatchRequest()
             return
         }
         if self.room !== room {
@@ -52,6 +60,7 @@ final class ListeningRoomSessionStore {
         room?.releaseShow()
         room = nil
         isChromePublished = false
+        clearPendingArtistMatchRequest()
     }
 
     func clear(stoppingTransport: Bool) {
@@ -69,5 +78,26 @@ final class ListeningRoomSessionStore {
         }
         room = nil
         isChromePublished = false
+        clearPendingArtistMatchRequest()
+    }
+
+    func requestArtistMatch(showID: UUID, slotIndex: Int, resumePlaybackOnSuccess: Bool = false) {
+        pendingArtistMatchRequest = ArtistMatchRequest(
+            showID: showID,
+            slotIndex: slotIndex,
+            resumePlaybackOnSuccess: resumePlaybackOnSuccess
+        )
+    }
+
+    /// Leaves a request in place when it belongs to a different show, so a
+    /// stale room cannot drop a home-initiated match handoff.
+    func consumeArtistMatchRequest(for showID: UUID) -> ArtistMatchRequest? {
+        guard let request = pendingArtistMatchRequest, request.showID == showID else { return nil }
+        pendingArtistMatchRequest = nil
+        return request
+    }
+
+    func clearPendingArtistMatchRequest() {
+        pendingArtistMatchRequest = nil
     }
 }

@@ -70,6 +70,8 @@ xcuserdata/
 _worker.bundle
 
 # Agent, verifier, and local experiment state
+.alma/
+.alma-snapshots/
 .claude/
 .codex/
 .codegraph/

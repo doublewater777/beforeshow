@@ -123,3 +123,297 @@ struct ListeningWidgetPlaybackDependencies {
         )
     }
 }
+
+@MainActor
+enum ListeningHomePlaybackResult {
+    case started
+    case needsArtistMatch(room: ListeningRoomCoordinator, slotIndex: Int, artistName: String, unmatchedCount: Int)
+    case authorizationDenied
+    case authorizationRestricted
+    case authorizationNotResolved
+    case catalogFailed
+    case noPlayableContent
+    case playbackFailed
+    case noCurrentShow
+
+    var analyticsOutcome: String {
+        switch self {
+        case .started: "started"
+        case .needsArtistMatch: "requires_artist_match"
+        case .authorizationDenied, .authorizationRestricted, .authorizationNotResolved: "blocked"
+        case .catalogFailed, .noPlayableContent, .playbackFailed, .noCurrentShow: "failed"
+        }
+    }
+
+    var analyticsReason: String? {
+        switch self {
+        case .started: nil
+        case .needsArtistMatch: "no_playable_disc_unmatched_artist"
+        case .authorizationDenied: "music_authorization_denied"
+        case .authorizationRestricted: "music_authorization_restricted"
+        case .authorizationNotResolved: "music_authorization_not_resolved"
+        case .catalogFailed: "catalog_fetch_failed"
+        case .noPlayableContent: "no_playable_content"
+        case .playbackFailed: "playback_failed"
+        case .noCurrentShow: "no_current_show"
+        }
+    }
+
+    /// Emitted as `listening_catalog_match_failed` only when matching or catalog
+    /// fetch actually prevented playback from starting.
+    var blockingCatalogFailure: (stage: String, reason: String, failedCount: Int)? {
+        switch self {
+        case .needsArtistMatch(_, _, _, let unmatchedCount):
+            (stage: "artist_identity", reason: "no_match", failedCount: unmatchedCount)
+        case .catalogFailed:
+            (stage: "catalog_fetch", reason: "request_failed", failedCount: 1)
+        default:
+            nil
+        }
+    }
+}
+
+struct ListeningHomeRecovery: Equatable {
+    var revealListenTab: Bool
+    var offersOpenSettings: Bool
+    var caption: String?
+
+    static func plan(for result: ListeningHomePlaybackResult) -> ListeningHomeRecovery {
+        switch result {
+        case .started:
+            return ListeningHomeRecovery(revealListenTab: false, offersOpenSettings: false, caption: nil)
+        case .needsArtistMatch:
+            // The Listen tab presents the existing match sheet / cabinet; no extra home caption.
+            return ListeningHomeRecovery(revealListenTab: true, offersOpenSettings: false, caption: nil)
+        case .authorizationDenied, .authorizationNotResolved:
+            return ListeningHomeRecovery(
+                revealListenTab: true,
+                offersOpenSettings: true,
+                caption: ListeningCopy.text("当前未允许访问 Apple Music。")
+            )
+        case .authorizationRestricted:
+            return ListeningHomeRecovery(
+                revealListenTab: true,
+                offersOpenSettings: false,
+                caption: ListeningCopy.text("Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。")
+            )
+        case .catalogFailed, .noPlayableContent, .noCurrentShow:
+            return ListeningHomeRecovery(
+                revealListenTab: true,
+                offersOpenSettings: false,
+                caption: ListeningCopy.text("当前没有可播放的歌曲。")
+            )
+        case .playbackFailed:
+            return ListeningHomeRecovery(
+                revealListenTab: true,
+                offersOpenSettings: false,
+                caption: ListeningCopy.text("暂时无法播放")
+            )
+        }
+    }
+}
+
+@MainActor
+enum ListeningHomePlaybackCoordinator {
+    static func start(
+        show: Show,
+        context: ModelContext,
+        dependencies: ListeningWidgetPlaybackDependencies = .production
+    ) async -> ListeningHomePlaybackResult {
+        guard show.isAttached else { return .noCurrentShow }
+        let room = ListeningChromeBootstrapper.roomForHomePlayback(
+            show: show,
+            context: context,
+            catalogService: dependencies.catalogService,
+            artistSearchService: dependencies.artistSearchService,
+            playbackFactory: dependencies.playbackFactory
+        )
+
+        let initialStatus = dependencies.catalogService.currentAuthorizationStatus()
+        ProductAnalytics.capture(.appleMusicAuthorizationStatus(status: initialStatus, source: .currentHome))
+        let authStatus: ListeningMusicAuthorizationStatus
+        if initialStatus == .notDetermined {
+            authStatus = await dependencies.catalogService.requestAuthorization()
+            ProductAnalytics.capture(.appleMusicAuthorizationStatus(status: authStatus, source: .currentHome))
+        } else {
+            authStatus = initialStatus
+        }
+
+        guard authStatus != .denied else { return .authorizationDenied }
+        guard authStatus != .restricted else { return .authorizationRestricted }
+
+        // Fast path: if authorized, populate access and start cached playable disc immediately.
+        if authStatus == .authorized {
+            if !room.accessResolved || room.access.authorizationStatus != authStatus {
+                let access = await dependencies.catalogService.currentAccess()
+                room.updateAccessFromBootstrap(access)
+            }
+            if let started = await startPlayableDisc(in: room) {
+                room.setActive(true)
+                if room.shouldReloadCatalog(for: show) || room.catalogState == .loading || room.isCatalogEnriching {
+                    Task { @MainActor in
+                        await room.load(show: show)
+                    }
+                }
+                return started
+            }
+        }
+
+        let shouldLoad = !room.accessResolved
+            || room.access.authorizationStatus != authStatus
+            || room.catalogState == .loading
+            || room.isCatalogEnriching
+            || room.shouldReloadCatalog(for: show)
+            || room.discs.isEmpty
+        if shouldLoad {
+            await room.load(show: show)
+        }
+        guard !Task.isCancelled, show.isAttached, room.show?.id == show.id else {
+            return .noCurrentShow
+        }
+        room.setActive(true)
+
+        return await resolvePlayback(in: room, show: show, captureBlockingFailure: true)
+    }
+
+    static func resumeAfterArtistMatch(
+        show: Show,
+        room: ListeningRoomCoordinator,
+        artistID: String
+    ) async -> ListeningHomePlaybackResult {
+        guard show.isAttached, room.show?.id == show.id else { return .noCurrentShow }
+
+        if let started = await startPlayableDisc(in: room) {
+            return started
+        }
+
+        await room.refreshCatalogAfterIdentityChange(artistID: artistID)
+        guard !Task.isCancelled, show.isAttached, room.show?.id == show.id else {
+            return .noCurrentShow
+        }
+
+        let result = await resolvePlayback(in: room, show: show, captureBlockingFailure: false)
+        if result.startedSuccessfully { return result }
+
+        if case .needsArtistMatch = result {
+            ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                source: .currentHome,
+                stage: "manual_artist_match",
+                reason: "no_playable_tracks",
+                failedCount: 1
+            ))
+        } else if case .catalogFailed = result {
+            ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                source: .currentHome,
+                stage: "catalog_fetch",
+                reason: "request_failed",
+                failedCount: 1
+            ))
+        } else if case .noPlayableContent = result {
+            ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                source: .currentHome,
+                stage: "manual_artist_match",
+                reason: "no_playable_tracks",
+                failedCount: 1
+            ))
+        }
+        return result
+    }
+
+    static func playableDisc(in room: ListeningRoomCoordinator) -> ListeningDisc? {
+        if let today = room.todayDisc(), room.discPresentation(for: today).canLoad {
+            return today
+        }
+        return room.discs.first { room.discPresentation(for: $0).canLoad }
+    }
+
+    private static func resolvePlayback(
+        in room: ListeningRoomCoordinator,
+        show: Show,
+        captureBlockingFailure: Bool
+    ) async -> ListeningHomePlaybackResult {
+        if let started = await startPlayableDisc(in: room) {
+            return started
+        }
+
+        switch room.access.authorizationStatus {
+        case .denied:
+            return .authorizationDenied
+        case .restricted:
+            return .authorizationRestricted
+        case .notDetermined:
+            return .authorizationNotResolved
+        case .authorized:
+            break
+        }
+
+        let unmatchedArtists = unmatchedArtists(in: room)
+        if let first = unmatchedArtists.first {
+            let result = ListeningHomePlaybackResult.needsArtistMatch(
+                room: room,
+                slotIndex: first.slotIndex,
+                artistName: first.name,
+                unmatchedCount: unmatchedArtists.count
+            )
+            if captureBlockingFailure, let failure = result.blockingCatalogFailure {
+                ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                    source: .currentHome,
+                    stage: failure.stage,
+                    reason: failure.reason,
+                    failedCount: failure.failedCount
+                ))
+            }
+            return result
+        }
+
+        if room.catalogState == .cacheFailed {
+            let result = ListeningHomePlaybackResult.catalogFailed
+            if captureBlockingFailure, let failure = result.blockingCatalogFailure {
+                ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                    source: .currentHome,
+                    stage: failure.stage,
+                    reason: failure.reason,
+                    failedCount: failure.failedCount
+                ))
+            }
+            return result
+        }
+        return .noPlayableContent
+    }
+
+    private static func startPlayableDisc(in room: ListeningRoomCoordinator) async -> ListeningHomePlaybackResult? {
+        if room.hasWidgetSession {
+            if room.playPauseAction == .play {
+                room.playPause()
+                await room.deck.settle()
+            }
+            if room.wantsPlayback, room.deck.phase != .failed {
+                room.syncWidgetListeningState()
+                return .started
+            }
+            if room.deck.phase == .failed { return .playbackFailed }
+        }
+
+        if let disc = playableDisc(in: room) {
+            room.loadPlayableDisc(disc)
+            await room.deck.settle()
+            guard room.wantsPlayback, room.deck.phase != .failed else { return .playbackFailed }
+            room.syncWidgetListeningState()
+            return .started
+        }
+        return nil
+    }
+
+    private static func unmatchedArtists(in room: ListeningRoomCoordinator) -> [ListeningBrowseArtist] {
+        room.browseArtists.filter {
+            !$0.isConnected && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+}
+
+private extension ListeningHomePlaybackResult {
+    var startedSuccessfully: Bool {
+        if case .started = self { return true }
+        return false
+    }
+}

@@ -1,8 +1,31 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 // MARK: - Current Show Management Actions
 // 快捷入口、主按钮和通知转来的落点，统一在当前现场首页里打开（ADR 0037）。
+
+@MainActor @Observable
+final class CurrentShowListeningPresentation {
+    var isStarting = false
+    var errorMessage: String?
+    var offersOpenSettings = false
+
+    /// Call from the button action before hopping to a `Task`, so a second tap
+    /// cannot enqueue another start.
+    @discardableResult
+    func beginStart() -> Bool {
+        guard !isStarting else { return false }
+        isStarting = true
+        errorMessage = nil
+        offersOpenSettings = false
+        return true
+    }
+
+    func finishStart() {
+        isStarting = false
+    }
+}
 
 extension CurrentShowManagementSection {
     /// 删除当前现场后，父视图切到下一场之前，本视图可能先带着上一帧的 show / 列表重算。
@@ -50,7 +73,8 @@ extension CurrentShowManagementSection {
         }
         switch action {
         case .listen:
-            Task { await ListeningIntentHandler.shared.perform(.play) }
+            guard listeningPresentation.beginStart() else { return }
+            Task { await startListeningFromHome() }
         case .playRecord:
             guard let record = unlockedRecord else { return }
             Task { await FootprintNumberSongPlayer.shared.start(record) }
@@ -60,6 +84,44 @@ extension CurrentShowManagementSection {
             onAddShow()
         case .fillNewDate:
             homeRoute = .editShow
+        }
+    }
+
+    @MainActor
+    func startListeningFromHome() async {
+        defer { listeningPresentation.finishStart() }
+
+        let result = await ListeningHomePlaybackCoordinator.start(show: show, context: modelContext)
+        ProductAnalytics.capture(.listenTapped(
+            source: .currentHome,
+            outcome: result.analyticsOutcome,
+            reason: result.analyticsReason
+        ))
+
+        applyHomeListeningRecovery(result)
+    }
+
+    func applyHomeListeningRecovery(_ result: ListeningHomePlaybackResult) {
+        let recovery = ListeningHomeRecovery.plan(for: result)
+        listeningPresentation.errorMessage = recovery.caption
+        listeningPresentation.offersOpenSettings = recovery.offersOpenSettings
+
+        if case .needsArtistMatch(_, let slotIndex, _, _) = result {
+            ListeningRoomSessionStore.shared.requestArtistMatch(
+                showID: show.id,
+                slotIndex: slotIndex,
+                resumePlaybackOnSuccess: true
+            )
+        }
+
+        if recovery.revealListenTab {
+            rootTabSelection?.wrappedValue = .listen
+        }
+    }
+
+    func openMusicSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
 
@@ -81,6 +143,14 @@ extension CurrentShowManagementSection {
         default:
             return false
         }
+    }
+
+    func isCurrentShowAudioActive(
+        room: ListeningRoomCoordinator?,
+        action: HomeCountdownLockup.PrimaryAction?
+    ) -> Bool {
+        guard let room, room.wantsPlayback, let action else { return false }
+        return isPlayingCurrentShowContent(action: action, in: room)
     }
 
     /// 通知转来的当前现场落点：首页真正可见时才打开，避免冲掉正在进行的编辑。

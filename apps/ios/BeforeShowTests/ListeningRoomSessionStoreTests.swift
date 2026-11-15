@@ -8,6 +8,23 @@ final class ListeningRoomSessionStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testPendingArtistMatchRequestIsScopedAndNotDroppedForAnotherShow() {
+        let session = ListeningRoomSessionStore.shared
+        let showID = UUID()
+        session.requestArtistMatch(showID: showID, slotIndex: 2, resumePlaybackOnSuccess: true)
+
+        XCTAssertEqual(session.pendingArtistMatchRequest?.showID, showID)
+        XCTAssertEqual(session.pendingArtistMatchRequest?.slotIndex, 2)
+        XCTAssertTrue(session.pendingArtistMatchRequest?.resumePlaybackOnSuccess == true)
+        XCTAssertNil(session.consumeArtistMatchRequest(for: UUID()))
+        XCTAssertEqual(session.pendingArtistMatchRequest?.showID, showID)
+
+        let consumed = session.consumeArtistMatchRequest(for: showID)
+        XCTAssertEqual(consumed?.slotIndex, 2)
+        XCTAssertTrue(consumed?.resumePlaybackOnSuccess == true)
+        XCTAssertNil(session.pendingArtistMatchRequest)
+    }
+
     func testAdoptDoesNotPublishChrome() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let room = ListeningRoomCoordinator(
