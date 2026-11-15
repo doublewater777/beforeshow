@@ -49,6 +49,7 @@ struct HomeStageScreenWall: View {
     let onFocus: (UUID) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var profile: ArtistReference?
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
@@ -57,6 +58,7 @@ struct HomeStageScreenWall: View {
             side(screens.right)
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: screens)
+        .sheet(item: $profile) { ArtistProfileSheet(reference: $0, show: show) }
     }
 
     private var mainScreen: some View {
@@ -80,11 +82,8 @@ struct HomeStageScreenWall: View {
     }
 
     private func artistLink<Label: View>(_ perf: LivePerformanceSnapshot, @ViewBuilder label: () -> Label) -> some View {
-        NavigationLink {
-            ArtistProfileView(
-                reference: HomeLiveArtistReferenceBuilder.make(for: perf, in: timetable, avatarURL: url(for: perf)),
-                show: show
-            )
+        Button {
+            profile = HomeLiveArtistReferenceBuilder.make(for: perf, in: timetable, avatarURL: url(for: perf))
         } label: { label() }
         .buttonStyle(.plain)
     }

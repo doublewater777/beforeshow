@@ -11,6 +11,7 @@ struct HomeLiveModeView: View {
 
     @AppStorage(LiveModeFocusStore.key, store: LiveModeFocusStore.defaults) private var focusedPerformanceID: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var profile: ArtistReference?
 
     private var upcoming: [LivePerformanceSnapshot] {
         state.upcomingPerformances.sorted { $0.startsAt < $1.startsAt }
@@ -55,6 +56,7 @@ struct HomeLiveModeView: View {
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.26), value: state.currentPerformances.first?.id)
+        .sheet(item: $profile) { ArtistProfileSheet(reference: $0, show: show) }
     }
 
     // MARK: - On stage
@@ -165,9 +167,7 @@ struct HomeLiveModeView: View {
         reference: ArtistReference,
         @ViewBuilder label: () -> Label
     ) -> some View {
-        NavigationLink {
-            ArtistProfileView(reference: reference, show: show)
-        } label: {
+        Button { profile = reference } label: {
             label()
         }
         .buttonStyle(.plain)
