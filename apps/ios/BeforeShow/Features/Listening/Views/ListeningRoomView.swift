@@ -298,6 +298,9 @@ struct ListeningRoomView: View {
         .onChange(of: isActive, initial: true) { _, active in
             if active { presentPendingArtistMatchIfPossible() }
         }
+        .onChange(of: matchingSlotIndex) { _, slotIndex in
+            if slotIndex == nil { presentPendingArtistMatchIfPossible() }
+        }
         .onChange(of: session.pendingArtistMatchRequest, initial: true) { _, _ in
             presentPendingArtistMatchIfPossible()
         }
@@ -321,10 +324,12 @@ struct ListeningRoomView: View {
     }
 
     private func presentPendingArtistMatchIfPossible() {
-        guard isActive,
-              matchingSlotIndex == nil,
-              let request = session.pendingArtistMatchRequest,
-              request.showID == show.id,
+        guard isActive, let request = session.pendingArtistMatchRequest else { return }
+        guard request.showID == show.id else {
+            _ = session.consumeArtistMatchRequest(for: show.id)
+            return
+        }
+        guard matchingSlotIndex == nil,
               let artist = room.browseArtists.first(where: { $0.slotIndex == request.slotIndex && !$0.isConnected }) else { return }
         _ = session.consumeArtistMatchRequest(for: show.id)
         matchArtist(artist)

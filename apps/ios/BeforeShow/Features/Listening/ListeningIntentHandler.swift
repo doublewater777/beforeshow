@@ -83,7 +83,9 @@ final class ListeningIntentHandler: ListeningIntentHandling {
             return .playbackRequested
         }
 
-        let unmatched = room.browseArtists.filter { !$0.isConnected }
+        let unmatched = room.browseArtists.filter {
+            !$0.isConnected && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
         if let first = unmatched.first {
             return .artistMatchRequired(
                 slotIndex: first.slotIndex,
