@@ -39,6 +39,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
             XCTAssertEqual(catalog.authorizationRequests, 0)
         }
     }
+
     func testHomeEntryRequestsUndeterminedAuthorizationAndStartsTodayDisc() async throws {
         let (container, show) = try ListenTestData.make()
         let catalog = HomeEntryCatalog(initial: .notDetermined, requested: .authorized, canPlay: true)

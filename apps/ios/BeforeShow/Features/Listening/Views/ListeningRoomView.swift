@@ -325,7 +325,7 @@ struct ListeningRoomView: View {
               matchingSlotIndex == nil,
               let request = session.pendingArtistMatchRequest,
               request.showID == show.id,
-              let artist = room.browseArtists.first(where: { $0.slotIndex == request.slotIndex }) else { return }
+              let artist = room.browseArtists.first(where: { $0.slotIndex == request.slotIndex && !$0.isConnected }) else { return }
         _ = session.consumeArtistMatchRequest(for: show.id)
         matchArtist(artist)
     }
