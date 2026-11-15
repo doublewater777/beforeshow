@@ -10382,6 +10382,22 @@
         }
       }
     },
+    "打开 %@ 的艺人主页" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open %@'s artist profile"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開 %@ 的藝人主頁"
+          }
+        }
+      }
+    },
     "在 Apple Music 打开" : {
       "localizations" : {
         "en" : {
