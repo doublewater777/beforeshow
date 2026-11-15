@@ -863,7 +863,8 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         disc.tracks.contains { actualSongIDs.contains($0.id) }
     }
     func isRecentDisc(_ disc: ListeningDisc) -> Bool {
-        recentListening?.discID == disc.id
+        guard let recentListening, recentListening.showID == show?.id, recentListening.discID == disc.id else { return false }
+        return disc.tracks.contains { $0.id == recentListening.songID }
     }
     private func recordPlayingIfNeeded() {
         guard deck.isPlaying, let show, let track, let disc = loadedDisc else { return }
@@ -903,13 +904,13 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
     /// Fetches one artist's full catalog without waiting on, or restarting, the show-wide load.
     func loadArtistCatalogIfNeeded(_ artistID: String) {
-        guard access.authorizationStatus == .authorized,
+        guard active, access.authorizationStatus == .authorized,
               currentCatalogArtistIDs.contains(artistID),
               artistCatalogTasks[artistID] == nil else { return }
         var snapshot = catalogSnapshots.first { $0.artistID == artistID }
         if snapshot == nil {
             catalogProjection.invalidate()
-            _ = try? catalogProjection.refresh(artistIDs: currentCatalogArtistIDs)
+            _ = try? catalogProjection.refresh(artistIDs: [artistID])
             catalogSnapshots = catalogProjection.snapshots
             snapshot = catalogSnapshots.first { $0.artistID == artistID }
         }
@@ -950,12 +951,10 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                 self.loadFeaturedPlaylistsIfNeeded(for: artistID)
             } catch {
                 guard !Task.isCancelled, generation == self.browseGeneration else { return }
-                self.artistCatalogStatus[artistID] = .failed
+                if !hadSnapshot { self.artistCatalogStatus[artistID] = .failed }
             }
         }
     }
-
-
 
     private func flushPendingArtistCatalogs() {
         guard !isLoadingShow, !isCatalogEnriching else { return }
@@ -1194,6 +1193,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         if value {
             if let show { refreshShowInputs(show) }
             if case let .artist(artistID) = browser.scope { scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID) }
+            else if pickCandidates().isEmpty { loadNextPickCatalog() }
         } else {
             cancelFeaturedPlaylistTasks()
         }
