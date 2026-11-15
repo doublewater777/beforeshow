@@ -122,4 +122,12 @@ struct ListeningPickCatalogProgress: Equatable {
         }
         return song
     }
+
+    /// Fast-syncs an artist catalog snapshot populated externally (e.g. by ArtistProfileView).
+    func syncArtistCatalogFromSnapshot(artistID: String) {
+        guard currentCatalogArtistIDs.contains(artistID) else { return }
+        artistCatalogStatus[artistID] = nil
+        catalogProjection.invalidate()
+        try? rebuildDiscs()
+    }
 }

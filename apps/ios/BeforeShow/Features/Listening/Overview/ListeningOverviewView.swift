@@ -113,7 +113,10 @@ struct ListeningOverviewView: View {
             }
             .padding(.horizontal, BSSpacing.roomy)
             // The shelf can fill in without the candidate list changing under this view; draw when the card shows empty.
-            .onAppear { if pickPreview == nil { pickPreview = drawPreview() } }
+            .onAppear {
+                if pickPreview == nil { pickPreview = drawPreview() }
+                if room.pickCandidates().isEmpty { room.loadNextPickCatalog() }
+            }
             .onChange(of: count) { if pickPreview == nil { pickPreview = drawPreview() } }
         }
     }

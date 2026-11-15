@@ -231,14 +231,36 @@ enum ListeningHomePlaybackCoordinator {
 
         let initialStatus = dependencies.catalogService.currentAuthorizationStatus()
         ProductAnalytics.capture(.appleMusicAuthorizationStatus(status: initialStatus, source: .currentHome))
+        let authStatus: ListeningMusicAuthorizationStatus
         if initialStatus == .notDetermined {
-            let requestedStatus = await dependencies.catalogService.requestAuthorization()
-            ProductAnalytics.capture(.appleMusicAuthorizationStatus(status: requestedStatus, source: .currentHome))
+            authStatus = await dependencies.catalogService.requestAuthorization()
+            ProductAnalytics.capture(.appleMusicAuthorizationStatus(status: authStatus, source: .currentHome))
+        } else {
+            authStatus = initialStatus
         }
 
-        let shouldLoad = initialStatus == .notDetermined
-            || !room.accessResolved
-            || room.access.authorizationStatus != initialStatus
+        guard authStatus != .denied else { return .authorizationDenied }
+        guard authStatus != .restricted else { return .authorizationRestricted }
+
+        // Fast path: if authorized, populate access and start cached playable disc immediately.
+        if authStatus == .authorized {
+            if !room.accessResolved || room.access.authorizationStatus != authStatus {
+                let access = await dependencies.catalogService.currentAccess()
+                room.updateAccessFromBootstrap(access)
+            }
+            if let started = await startPlayableDisc(in: room) {
+                room.setActive(true)
+                if room.shouldReloadCatalog(for: show) || room.catalogState == .loading || room.isCatalogEnriching {
+                    Task { @MainActor in
+                        await room.load(show: show)
+                    }
+                }
+                return started
+            }
+        }
+
+        let shouldLoad = !room.accessResolved
+            || room.access.authorizationStatus != authStatus
             || room.catalogState == .loading
             || room.isCatalogEnriching
             || room.shouldReloadCatalog(for: show)

@@ -63,19 +63,19 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                  hasSongs: !discs.isEmpty, loading: catalogState == .loading,
                  failed: catalogState == .cacheFailed, accessResolved: accessResolved)
     }
-    @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored let context: ModelContext
     @ObservationIgnored private let catalogService: any ListeningMusicCatalogServicing
     @ObservationIgnored private let artistSearchService: any ArtistSearchServicing
     @ObservationIgnored private let catalogStore: ListeningCatalogStore
-    @ObservationIgnored private let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
-    @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
-    @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
-    @ObservationIgnored private var evidenceFailure = ListeningEvidenceFailureOwner()
+    @ObservationIgnored let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
+    @ObservationIgnored var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
+    @ObservationIgnored var evidenceRetryTask: Task<Void, Never>?
+    @ObservationIgnored var evidenceFailure = ListeningEvidenceFailureOwner()
     @ObservationIgnored let widgetSync = ListeningWidgetSync()
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
-    @ObservationIgnored private let catalogProjection: ListeningCatalogProjection
+    @ObservationIgnored let catalogProjection: ListeningCatalogProjection
     @ObservationIgnored private var projectedShowInputs: ListeningShowInputs?
     @ObservationIgnored private var runtimeRevision = 0
     @ObservationIgnored private var projectedRuntimeRevision = -1
@@ -93,9 +93,9 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     @ObservationIgnored private var artistCatalogTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var pendingArtistCatalogIDs: Set<String> = []
     /// First full-catalog fetch per artist; absent once albums are in.
-    private(set) var artistCatalogStatus: [String: ListeningArtistCatalogStatus] = [:]
+    var artistCatalogStatus: [String: ListeningArtistCatalogStatus] = [:]
     private(set) var initialLoaded = false
-    @ObservationIgnored private var isLoadingShow = false
+    @ObservationIgnored private(set) var isLoadingShow = false
     @ObservationIgnored private var catalogIdleWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var active = true
 
@@ -210,20 +210,13 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     }
 
     var playerDisplayTrack: ListeningDiscTrack? { track }
-
     var playerDisplayTrackIndex: Int? {
         guard let disc = loadedDisc, let track else { return nil }
         return disc.tracks.firstIndex { $0.id == track.id }
     }
-
     var isPlayerDisplayPreparing: Bool { deck.phase == .preparing }
-
-    var playerDisplayTimeText: String {
-        isPlayerDisplayPreparing ? "00:00" : timeText
-    }
-
+    var playerDisplayTimeText: String { isPlayerDisplayPreparing ? "00:00" : timeText }
     var elapsed: TimeInterval { deck.time }
-
     var timeText: String {
         let time = elapsed.isFinite ? Int(max(0, min(elapsed, 86400))) : 0
         return String(format: "%02d:%02d", time / 60, time % 60)
@@ -251,7 +244,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         case .unavailable: BSLocalization.text("暂不可播放")
         }
     }
-    private var currentCatalogArtistIDs: [String] {
+    var currentCatalogArtistIDs: [String] {
         guard let show else { return [] }
         let timetableIDs = (show.timetable?.days ?? []).flatMap(\.performances).compactMap(\.appleMusicArtistID)
         return Array(Set(show.artists.compactMap(\.appleMusicArtistID) + timetableIDs))
@@ -732,6 +725,11 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         await reloadCatalog()
     }
 
+    func updateAccessFromBootstrap(_ newAccess: ListeningMusicAccess) {
+        access = newAccess
+        accessResolved = true
+    }
+
     /// Returning from Settings is an authorization boundary, not just a transport
     /// lifecycle event. Refresh silently so a permission or subscription change is
     /// reflected without showing the transient connecting state on every foreground.
@@ -865,9 +863,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         disc.tracks.contains { actualSongIDs.contains($0.id) }
     }
     func isRecentDisc(_ disc: ListeningDisc) -> Bool {
-        guard let recentListening, recentListening.showID == show?.id,
-              recentListening.discID == disc.id else { return false }
-        return disc.tracks.contains { $0.id == recentListening.songID }
+        recentListening?.discID == disc.id
     }
     private func recordPlayingIfNeeded() {
         guard deck.isPlaying, let show, let track, let disc = loadedDisc else { return }
@@ -907,18 +903,30 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
     /// Fetches one artist's full catalog without waiting on, or restarting, the show-wide load.
     func loadArtistCatalogIfNeeded(_ artistID: String) {
-        guard active, access.authorizationStatus == .authorized,
-              browseArtists.contains(where: { $0.appleMusicArtistID == artistID }),
+        guard access.authorizationStatus == .authorized,
+              currentCatalogArtistIDs.contains(artistID),
               artistCatalogTasks[artistID] == nil else { return }
-        let snapshot = catalogSnapshots.first { $0.artistID == artistID }
-        // A show-wide pass owns catalog IO; queue behind it instead of competing.
-        if isLoadingShow || isCatalogEnriching {
-            if snapshot == nil { artistCatalogStatus[artistID] = .loading }
-            pendingArtistCatalogIDs.insert(artistID)
+        var snapshot = catalogSnapshots.first { $0.artistID == artistID }
+        if snapshot == nil {
+            catalogProjection.invalidate()
+            _ = try? catalogProjection.refresh(artistIDs: currentCatalogArtistIDs)
+            catalogSnapshots = catalogProjection.snapshots
+            snapshot = catalogSnapshots.first { $0.artistID == artistID }
+        }
+        let now = Date()
+        if let snapshot, !ListeningCatalogRefreshPolicy.shouldRefresh(fetchedAt: snapshot.fetchedAt, now: now) {
+            if pickCandidates().isEmpty || artistCatalogStatus[artistID] != nil {
+                artistCatalogStatus[artistID] = nil
+                pendingArtistCatalogIDs.remove(artistID)
+                try? rebuildDiscs(now: now)
+            }
+            loadFeaturedPlaylistsIfNeeded(for: artistID)
             return
         }
-        if let snapshot, !ListeningCatalogRefreshPolicy.shouldRefresh(fetchedAt: snapshot.fetchedAt, now: Date()) {
-            loadFeaturedPlaylistsIfNeeded(for: artistID)
+        let isSingleArtist = (show?.artists.count ?? 0) <= 1
+        if !isSingleArtist && (isLoadingShow || isCatalogEnriching) {
+            if snapshot == nil { artistCatalogStatus[artistID] = .loading }
+            pendingArtistCatalogIDs.insert(artistID)
             return
         }
         let hadSnapshot = snapshot != nil
@@ -932,8 +940,8 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
             }
             do {
                 _ = try await self.catalogStore.refreshArtistCatalog(artistID: artistID)
-                guard !Task.isCancelled, generation == self.browseGeneration, showID == self.show?.id,
-                      self.currentCatalogArtistIDs.contains(artistID) else { return }
+                guard !Task.isCancelled, generation == self.browseGeneration, showID == self.show?.id else { return }
+                self.catalogProjection.invalidate()
                 self.runtimeSongs.removeValue(forKey: artistID)
                 self.runtimeFetchedAt.removeValue(forKey: artistID)
                 self.runtimeRevision += 1
@@ -941,12 +949,13 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
                 self.artistCatalogStatus[artistID] = nil
                 self.loadFeaturedPlaylistsIfNeeded(for: artistID)
             } catch {
-                guard !Task.isCancelled, generation == self.browseGeneration,
-                      self.currentCatalogArtistIDs.contains(artistID) else { return }
-                if !hadSnapshot { self.artistCatalogStatus[artistID] = .failed }
+                guard !Task.isCancelled, generation == self.browseGeneration else { return }
+                self.artistCatalogStatus[artistID] = .failed
             }
         }
     }
+
+
 
     private func flushPendingArtistCatalogs() {
         guard !isLoadingShow, !isCatalogEnriching else { return }
@@ -1152,160 +1161,39 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
     private func hasConfirmedFullPlaybackCapabilityLoss(_ access: ListeningMusicAccess) -> Bool {
         switch access.authorizationStatus {
-        case .denied, .restricted:
-            true
-        case .authorized:
-            access.catalogPlaybackAccess == .accountLimited
-        case .notDetermined:
-            false
+        case .denied, .restricted: true
+        case .authorized: access.catalogPlaybackAccess == .accountLimited
+        case .notDetermined: false
         }
     }
 
     private func endFullPlaybackSessionForCapabilityLossIfNeeded(_ access: ListeningMusicAccess) {
-        guard hasConfirmedFullPlaybackCapabilityLoss(access),
-              deck.source == .fullCatalog else { return }
+        guard hasConfirmedFullPlaybackCapabilityLoss(access), deck.source == .fullCatalog else { return }
         deck.endSession()
         persistLoadedDisc(force: true)
     }
 
-    private func refreshPlaybackEvidenceProjection() {
+    func refreshPlaybackEvidenceProjection() {
         do {
             try refreshEvidence()
             LocalNotificationCenter.shared.listeningDataDidChange(in: context.container)
-            if let show {
-                openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
-                    .filter { $0.showID == show.id }
-            }
-        } catch {
-            errorText = BSLocalization.text("保存失败，请重试")
-        }
-    }
-
-    private func playbackEvidenceCoordinatorForUse() throws -> ListeningPlaybackEvidenceCoordinator {
-        if let playbackEvidenceCoordinator {
-            return playbackEvidenceCoordinator
-        }
-        let created = try evidenceCoordinatorFactory(context)
-        playbackEvidenceCoordinator = created
-        return created
-    }
-
-    private func applyDeckEvidence(
-        _ result: ListeningPlaybackEvidenceDrainResult,
-        representDismissedAlert: Bool
-    ) {
-        if result.committedAny {
-            refreshPlaybackEvidenceProjection()
-        }
-        if result.hasFailure {
-            handlePlaybackEvidenceFailure(representDismissedAlert: representDismissedAlert)
-        }
-    }
-
-    private func applyPlaybackEvidenceDrainResult(
-        _ result: ListeningPlaybackEvidenceDrainResult
-    ) {
-        if result.committedAny {
-            refreshPlaybackEvidenceProjection()
-        }
-        if result.hasFailure {
-            handlePlaybackEvidenceFailure()
-        } else {
-            handlePlaybackEvidenceRecovery()
-        }
-    }
-
-    func dismissError() {
-        errorText = nil
-        evidenceFailure.noteGeneralDismissed()
-    }
-
-    private var playbackEvidenceFailureMessage: String {
-        BSLocalization.text("保存失败，请重试")
-    }
-
-    private func handlePlaybackEvidenceFailure(
-        representDismissedAlert: Bool = true
-    ) {
-        var generalError = errorText
-        evidenceFailure.present(
-            into: &generalError,
-            message: playbackEvidenceFailureMessage,
-            representDismissedAlert: representDismissedAlert
-        )
-        errorText = generalError
-        schedulePlaybackEvidenceRetry()
-    }
-
-    private func handlePlaybackEvidenceRecovery() {
-        var generalError = errorText
-        evidenceFailure.recover(
-            generalError: &generalError,
-            expectedMessage: playbackEvidenceFailureMessage
-        )
-        errorText = generalError
-    }
-
-    func retryPendingPlaybackEvidence() {
-        guard let playbackEvidenceCoordinator else { return }
-        do {
-            applyPlaybackEvidenceDrainResult(
-                try playbackEvidenceCoordinator.flushPending()
-            )
-        } catch {
-            handlePlaybackEvidenceFailure()
-        }
-    }
-
-    private func schedulePlaybackEvidenceRetry() {
-        guard evidenceRetryTask == nil else { return }
-        evidenceRetryTask = Task { @MainActor [weak self] in
-            defer { self?.evidenceRetryTask = nil }
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(1))
-                } catch {
-                    return
-                }
-                guard let self, let evidence = self.playbackEvidenceCoordinator else { return }
-                do {
-                    let result = try evidence.flushPending()
-                    if result.committedAny {
-                        self.refreshPlaybackEvidenceProjection()
-                    }
-                    if result.hasFailure {
-                        continue
-                    }
-                    self.handlePlaybackEvidenceRecovery()
-                    return
-                } catch {
-                    continue
-                }
-            }
-        }
+            if let show { openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>()).filter { $0.showID == show.id } }
+        } catch { errorText = BSLocalization.text("保存失败，请重试") }
     }
 
     func setForeground(_ value: Bool) {
         let wasForeground = foreground
         foreground = value
-        // Observation catches up on its own; returning from suspension is
-        // also an explicit boundary to re-read the player.
-        if value, !wasForeground {
-            deck.resynchronize()
-        }
+        if value, !wasForeground { deck.resynchronize() }
     }
     func setActive(_ value: Bool) {
         let interval = OSSignpostID(log: listeningPerformanceLog)
         if value { os_signpost(.begin, log: listeningPerformanceLog, name: "ListeningActivate", signpostID: interval) }
-        defer {
-            if value { os_signpost(.end, log: listeningPerformanceLog, name: "ListeningActivate", signpostID: interval) }
-        }
+        defer { if value { os_signpost(.end, log: listeningPerformanceLog, name: "ListeningActivate", signpostID: interval) } }
         active = value
         if value {
             if let show { refreshShowInputs(show) }
-            if case let .artist(artistID) = browser.scope {
-                scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
-            }
+            if case let .artist(artistID) = browser.scope { scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID) }
         } else {
             cancelFeaturedPlaylistTasks()
         }

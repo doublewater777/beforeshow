@@ -257,7 +257,7 @@ struct ListeningRoomView: View {
                 case let .artist(id):
                     NavigationStack {
                         if let artist = room.browseArtists.first(where: { $0.id == id }) {
-                            ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show)
+                            ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show, room: room)
                                 .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
                         }
                     }

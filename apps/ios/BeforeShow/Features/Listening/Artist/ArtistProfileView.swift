@@ -12,10 +12,11 @@ struct ArtistProfileView: View {
     @State private var model: ArtistProfileModel
     @State private var room: ListeningRoomCoordinator?
 
-    init(reference: ArtistReference, show: Show? = nil) {
+    init(reference: ArtistReference, show: Show? = nil, room: ListeningRoomCoordinator? = nil) {
         self.reference = reference
         self.show = show
         _model = State(initialValue: ArtistProfileModel(reference: reference))
+        _room = State(initialValue: room)
     }
 
     var body: some View {
@@ -33,7 +34,16 @@ struct ArtistProfileView: View {
         .foregroundStyle(BSColor.Stage.foreground)
         .task(id: reference) {
             await model.load(in: modelContext)
-            room = await ListeningIntentHandler.shared.roomForPlayback()
+            let playbackRoom: ListeningRoomCoordinator?
+            if let room {
+                playbackRoom = room
+            } else {
+                playbackRoom = await ListeningIntentHandler.shared.roomForPlayback()
+            }
+            self.room = playbackRoom
+            if let artistID = reference.appleMusicArtistID {
+                playbackRoom?.syncArtistCatalogFromSnapshot(artistID: artistID)
+            }
         }
     }
 
