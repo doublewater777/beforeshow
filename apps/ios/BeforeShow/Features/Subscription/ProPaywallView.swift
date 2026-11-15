@@ -114,14 +114,20 @@ struct ProPaywallView: View {
     }
 
     private func content(showsBeams: Bool) -> some View {
-        // The hero's beams soak up leftover height; the card stays close under the title.
+        // The hero's beams soak up leftover height, then the rest goes above them; the card stays close under the title.
         VStack(spacing: 0) {
-            ProPaywallHero(showsCloseButton: showsCloseButton, showsBeams: showsBeams)
+            Spacer(minLength: 0)
+            ProPaywallHero(
+                showsCloseButton: showsCloseButton,
+                showsBeams: showsBeams,
+                showsSummary: !entitlement.isProActive
+            )
             if !showsBeams { Spacer(minLength: 0) }
 
             VStack(spacing: 12) {
                 if entitlement.isProActive {
                     activeCard
+                    benefitCard
                     if let message {
                         noteText(message)
                     }

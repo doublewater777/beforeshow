@@ -25,6 +25,8 @@ struct ProPaywallHero: View {
     let showsCloseButton: Bool
     /// Off on short screens: the beams and the sparkle give way so everything still fits.
     var showsBeams = true
+    /// The free-tier summary only matters to someone deciding whether to buy.
+    var showsSummary = true
 
     @State private var beamsSwaying = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -32,7 +34,7 @@ struct ProPaywallHero: View {
     var body: some View {
         VStack(spacing: 0) {
             if showsBeams {
-                // The beams take whatever height is spare, so a tall phone gets longer light rather than empty gaps.
+                // The beams take spare height up to a point, so a tall phone gets longer light rather than empty gaps.
                 ZStack(alignment: .bottom) {
                     GeometryReader { proxy in
                         heroBeams(height: proxy.size.height + 66)
@@ -40,7 +42,7 @@ struct ProPaywallHero: View {
                     }
                     sparkle
                 }
-                .frame(minHeight: 84, maxHeight: .infinity, alignment: .bottom)
+                .frame(minHeight: 84, maxHeight: 300, alignment: .bottom)
                 .padding(.bottom, 8)
             }
 
@@ -58,14 +60,16 @@ struct ProPaywallHero: View {
                 .foregroundStyle(BSColor.Stage.foreground)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(ProPaywallCopy.summary)
-                .font(.system(size: 12.5))
-                .lineSpacing(3)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(BSColor.Stage.muted)
-                .frame(maxWidth: 310)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
+            if showsSummary {
+                Text(ProPaywallCopy.summary)
+                    .font(.system(size: 12.5))
+                    .lineSpacing(3)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .frame(maxWidth: 310)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, showsCloseButton ? 12 : 0)
