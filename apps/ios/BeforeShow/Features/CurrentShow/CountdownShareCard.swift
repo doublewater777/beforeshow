@@ -245,10 +245,8 @@ struct ShowSharePreviewSheet: View {
     let show: Show
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @State private var poster: UIImage?
     @State private var style: CountdownShareCardStyle = .classic
-    @State private var isShowingPaywall = false
     @State private var toast: BSToastPayload?
     @State private var isSaving = false
     @State private var isSharing = false
@@ -279,12 +277,8 @@ struct ShowSharePreviewSheet: View {
                 .padding(.top, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                BSSharePosterStylePicker(
-                    selection: $style,
-                    isProActive: ProEntitlementStorage.decode(entitlementRawValue).isProActive
-                ) {
-                    isShowingPaywall = true
-                }
+                // No look here is Pro, so nothing is ever locked.
+                BSSharePosterStylePicker(selection: $style, isProActive: true) {}
                 .padding(.top, 12)
 
                 HStack(spacing: 9) {
@@ -307,7 +301,6 @@ struct ShowSharePreviewSheet: View {
         }
         .tint(BSColor.Stage.foreground)
         .interactiveDismissDisabled(isBusy)
-        .sheet(isPresented: $isShowingPaywall) { ProPaywallView() }
         .onAppear { loadPoster() }
     }
 

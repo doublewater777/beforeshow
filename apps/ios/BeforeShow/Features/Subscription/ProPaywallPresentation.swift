@@ -32,29 +32,16 @@ struct ProPaywallHero: View {
     var body: some View {
         VStack(spacing: 0) {
             if showsBeams {
+                // The beams take whatever height is spare, so a tall phone gets longer light rather than empty gaps.
                 ZStack(alignment: .bottom) {
-                    heroBeams
-
-                    ZStack {
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [BSColor.Stage.accent.opacity(0.18), .clear],
-                                    center: .center,
-                                    startRadius: 0,
-                                    endRadius: 40
-                                )
-                            )
-                            .frame(width: 80, height: 80)
-                            .blur(radius: 4)
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundStyle(BSColor.Stage.accent)
+                    GeometryReader { proxy in
+                        heroBeams(height: proxy.size.height + 66)
+                            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottom)
                     }
-                    .frame(width: 52, height: 52)
-            }
-            .frame(height: 84, alignment: .bottom)
-            .padding(.bottom, 8)
+                    sparkle
+                }
+                .frame(minHeight: 84, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 8)
             }
 
             Text("BEFORESHOW PRO")
@@ -85,11 +72,33 @@ struct ProPaywallHero: View {
         .onAppear { beamsSwaying = true }
     }
 
-    private var heroBeams: some View {
-        ZStack(alignment: .bottom) {
-            heroBeam(color: BSColor.Stage.glowBlue, topWidth: 150, rotation: 30, sway: 3.5, period: 6.5, opacity: 0.75)
-            heroBeam(color: BSColor.Stage.accent, topWidth: 150, rotation: -30, sway: -3.0, period: 5.5, opacity: 0.70)
-            heroBeam(color: BSColor.Accent.violet, topWidth: 110, rotation: 0, sway: 2.0, period: 7.0, opacity: 0.50)
+    private var sparkle: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [BSColor.Stage.accent.opacity(0.18), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 40
+                    )
+                )
+                .frame(width: 80, height: 80)
+                .blur(radius: 4)
+            Image(systemName: "sparkle")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(BSColor.Stage.accent)
+        }
+        .frame(width: 52, height: 52)
+    }
+
+    /// Three stage lights fanning up from the sparkle; they keep their shape as they grow taller.
+    private func heroBeams(height: CGFloat) -> some View {
+        let widthScale = min(max(height / 150, 1), 1.6)
+        return ZStack(alignment: .bottom) {
+            heroBeam(color: BSColor.Stage.glowBlue, topWidth: 150 * widthScale, height: height, rotation: 30, sway: 3.5, period: 6.5, opacity: 0.75)
+            heroBeam(color: BSColor.Stage.accent, topWidth: 150 * widthScale, height: height, rotation: -30, sway: -3.0, period: 5.5, opacity: 0.70)
+            heroBeam(color: BSColor.Accent.violet, topWidth: 110 * widthScale, height: height, rotation: 0, sway: 2.0, period: 7.0, opacity: 0.50)
         }
         .blendMode(.screen)
         .allowsHitTesting(false)
@@ -99,6 +108,7 @@ struct ProPaywallHero: View {
     private func heroBeam(
         color: Color,
         topWidth: CGFloat,
+        height: CGFloat,
         rotation: Double,
         sway: Double,
         period: Double,
@@ -112,7 +122,7 @@ struct ProPaywallHero: View {
                     endPoint: .top
                 )
             )
-            .frame(width: topWidth, height: 150)
+            .frame(width: topWidth, height: height)
             .rotationEffect(
                 .degrees(rotation + (beamsSwaying ? sway : 0)),
                 anchor: .bottom
@@ -146,7 +156,7 @@ struct ProPaywallBenefitCard: View {
         Benefit(icon: "sparkles", title: BSLocalization.text("时刻表智能识别"), detail: BSLocalization.text("截图识别排期，不限次数")),
         Benefit(icon: "opticaldisc", title: BSLocalization.text("「挑一张」全部样式"), detail: BSLocalization.text("3D 唱片柜、旋转木马等")),
         Benefit(icon: "music.note", title: BSLocalization.text("星空音阶与星图"), detail: BSLocalization.text("4 种音阶，4 个星座")),
-        Benefit(icon: "photo.on.rectangle", title: BSLocalization.text("全部海报与回忆册"), detail: BSLocalization.text("海报样式、整本 PDF")),
+        Benefit(icon: "photo.on.rectangle", title: BSLocalization.text("年度海报全部样式"), detail: BSLocalization.text("票根、海报墙")),
         Benefit(icon: "music.note.list", title: BSLocalization.text("歌单导入音乐 App"), detail: BSLocalization.text("网易云、QQ 音乐、汽水")),
         Benefit(icon: "app.badge", title: BSLocalization.text("更换 App 图标"), detail: BSLocalization.text("黑白、鎏金")),
     ]

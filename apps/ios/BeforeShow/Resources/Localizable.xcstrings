@@ -28367,34 +28367,34 @@
         }
       }
     },
-    "全部海报与回忆册" : {
+    "年度海报全部样式" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "All Posters & Memory Book"
+            "value" : "All Year Poster Styles"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全部海報與回憶冊"
+            "value" : "年度海報全部樣式"
           }
         }
       }
     },
-    "海报样式、整本 PDF" : {
+    "票根、海报墙" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Poster styles, full PDF"
+            "value" : "Ticket, Poster Wall"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "海報樣式、整本 PDF"
+            "value" : "票根、海報牆"
           }
         }
       }

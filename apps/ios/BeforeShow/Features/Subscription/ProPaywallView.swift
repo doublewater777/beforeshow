@@ -114,10 +114,10 @@ struct ProPaywallView: View {
     }
 
     private func content(showsBeams: Bool) -> some View {
-        // Leftover height goes into the gaps, so taller phones breathe instead of leaving a hole above the plans.
+        // The hero's beams soak up leftover height; the card stays close under the title.
         VStack(spacing: 0) {
             ProPaywallHero(showsCloseButton: showsCloseButton, showsBeams: showsBeams)
-            Spacer(minLength: 16)
+            if !showsBeams { Spacer(minLength: 0) }
 
             VStack(spacing: 12) {
                 if entitlement.isProActive {
@@ -133,7 +133,8 @@ struct ProPaywallView: View {
                     benefitCard
                 }
             }
-            Spacer(minLength: 16)
+            .padding(.top, 24)
+            .padding(.bottom, 8)
         }
         .padding(.horizontal, 20)
         .padding(.top, showsCloseButton ? 8 : BSSpacing.md)

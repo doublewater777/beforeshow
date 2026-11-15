@@ -16,7 +16,8 @@ enum CountdownShareCardStyle: String, BSSharePosterStyle {
         }
     }
 
-    var isPro: Bool { self != .classic }
+    /// Sharing a show spreads the app, so every look is free.
+    var isPro: Bool { false }
 }
 
 /// A paper ticket: the poster filling the top, the details right under it, a torn line, and the stub with the code.
