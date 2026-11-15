@@ -392,7 +392,6 @@
 		7D9F02B0098AFBB477FD676F /* CountdownWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E8DBA947478A51EC250F1AD /* CountdownWidgetViews.swift */; };
 		7DFC3AC1065B84A03683ADDE /* MerchCutout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8980C09516C1D716A2CAE3D /* MerchCutout.swift */; };
 		7E0D424946C8DD16CE7DB85A /* SharedShowImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDFA8F399A4899DF572C860 /* SharedShowImport.swift */; };
-		7E687C29B643C8E64AA35EF8 /* FootprintBookPDFExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 627F2EFE228243824C994D2B /* FootprintBookPDFExport.swift */; };
 		7E850A90F90D05FC37678191 /* TimetableStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9AB57B74C4AECE8BD96FC3 /* TimetableStyle.swift */; };
 		7EC5EE529D859AA967BDD675 /* HomeHeroPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6771BBFDDF8F146A5BB772CC /* HomeHeroPresentation.swift */; };
 		7EC655A2C74B1621B6684455 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 00FDCE6B347956E040FD20C2 /* Localizable.xcstrings */; };
@@ -1066,7 +1065,6 @@
 		60D5A43567FFF060CA50B52A /* TimetableRecognitionQuota.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableRecognitionQuota.swift; sourceTree = "<group>"; };
 		61868C6306EB9FA313C9DE8C /* TimetableAIImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableAIImportView.swift; sourceTree = "<group>"; };
 		624D7A7F9CD38403E3EF8361 /* MusicKitListeningPlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitListeningPlaybackService.swift; sourceTree = "<group>"; };
-		627F2EFE228243824C994D2B /* FootprintBookPDFExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookPDFExport.swift; sourceTree = "<group>"; };
 		62846E0D0C1C249BC825759A /* ShowUnlockRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowUnlockRow.swift; sourceTree = "<group>"; };
 		62A1AB9DB3DABF8B73F1EB1A /* LiveActivityPushCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPushCoordinatorTests.swift; sourceTree = "<group>"; };
 		62C049F63AB646AD21C0F75C /* TimetableStageMatrixView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableStageMatrixView.swift; sourceTree = "<group>"; };
@@ -2515,7 +2513,6 @@
 				6FE63506613B0B0C26881F8A /* FootprintBook.swift */,
 				4B00291E62D054C28B5EAFA0 /* FootprintBookContentsSheet.swift */,
 				1A5AF77F308C6755615D4A79 /* FootprintBookPages.swift */,
-				627F2EFE228243824C994D2B /* FootprintBookPDFExport.swift */,
 				245AB931D73AF6B05B42851B /* FootprintBookRecap.swift */,
 				E2FC0F5BB2601B036D0C1DEC /* FootprintBookRecapPage.swift */,
 				329A5C1526A399106BE79FC0 /* FootprintBookShowPage.swift */,
@@ -3087,7 +3084,6 @@
 				1748135EB48F8DB0989728BA /* FootprintBadges.swift in Sources */,
 				20A25F90C3B6D7D25433F648 /* FootprintBook.swift in Sources */,
 				FBFD79D2CCF8A1006C6C9832 /* FootprintBookContentsSheet.swift in Sources */,
-				7E687C29B643C8E64AA35EF8 /* FootprintBookPDFExport.swift in Sources */,
 				D2027709DC361F4B56002574 /* FootprintBookPages.swift in Sources */,
 				D3210118FF1E5B07D3EE5CA2 /* FootprintBookRecap.swift in Sources */,
 				3337A6B0C5E8895CB19F2C75 /* FootprintBookRecapPage.swift in Sources */,
@@ -3771,7 +3767,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 88;
+				CURRENT_PROJECT_VERSION = 89;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;
@@ -3836,7 +3832,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 88;
+				CURRENT_PROJECT_VERSION = 89;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;

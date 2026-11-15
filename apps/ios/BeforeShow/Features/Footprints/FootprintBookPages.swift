@@ -8,19 +8,14 @@ struct FootprintBookCover: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
     let turner: FootprintBookTurner
-    let export: FootprintBookLeafAccessory?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.footprintBookPrinting) private var isPrinting
     @State private var floating = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Spacer(minLength: 0)
-                if let export {
-                    FootprintBookAccessoryButton(accessory: export, tint: Color(white: 0.6))
-                }
                 Button(action: turner.close) {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
@@ -31,7 +26,6 @@ struct FootprintBookCover: View {
                 .accessibilityLabel(BSLocalization.text("合上"))
             }
             .padding(.horizontal, 14)
-            .opacity(isPrinting ? 0 : 1)
             Spacer(minLength: 12)
             Button(action: turner.next) { volume }
                 .buttonStyle(.plain)
@@ -65,7 +59,6 @@ struct FootprintBookCover: View {
                 .frame(minHeight: BSLayout.minTouchTarget)
             }
             .buttonStyle(.plain)
-            .opacity(isPrinting ? 0 : 1)
             .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -28047,38 +28047,6 @@
         }
       }
     },
-    "导出 PDF" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export PDF"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯出 PDF"
-          }
-        }
-      }
-    },
-    "回忆册导出失败，请重试" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn't export the memory book. Try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "回憶冊匯出失敗，請重試"
-          }
-        }
-      }
-    },
     "胶片" : {
       "localizations" : {
         "en" : {
@@ -28235,22 +28203,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖全部分享海報樣式"
-          }
-        }
-      }
-    },
-    "回忆册导出 PDF" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export the memory book as PDF"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "回憶冊匯出 PDF"
           }
         }
       }

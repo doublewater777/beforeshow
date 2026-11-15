@@ -9,12 +9,8 @@ struct FootprintBookView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @State private var index: Int
-    @State private var isExporting = false
-    @State private var isShowingPaywall = false
     @State private var isShowingContents = false
-    @State private var toast: BSToastPayload?
 
     init(book: FootprintBook, archive: FootprintArchiveSnapshot, covers: [UUID: FootprintCover]) {
         self.book = book
@@ -31,8 +27,6 @@ struct FootprintBookView: View {
         .background(FootprintRoomPalette.bookRoom.ignoresSafeArea())
         .statusBarHidden()
         .sensoryFeedback(.selection, trigger: index)
-        .bsToastOverlay(toast, bottomPadding: 36)
-        .sheet(isPresented: $isShowingPaywall) { ProPaywallView() }
         .sheet(isPresented: $isShowingContents) {
             FootprintBookContentsSheet(book: book, currentIndex: index) { target in
                 index = min(max(0, target), book.pages.count - 1)
@@ -53,50 +47,23 @@ struct FootprintBookView: View {
                 go: { target in index = min(max(0, target), book.pages.count - 1) },
                 close: { dismiss() },
                 openContents: book.pages[pageIndex] == .contents ? nil : { isShowingContents = true }
-            ),
-            export: FootprintBookLeafAccessory(
-                symbol: "arrow.down.doc",
-                label: BSLocalization.text("导出 PDF"),
-                isBusy: isExporting,
-                action: { Task { await exportPDF() } }
             )
         )
     }
-
-    @MainActor
-    private func exportPDF() async {
-        guard !isExporting else { return }
-        guard ProEntitlementStorage.decode(entitlementRawValue).isProActive else {
-            isShowingPaywall = true
-            return
-        }
-        isExporting = true
-        defer { isExporting = false }
-        guard let file = await FootprintBookPDFExport.render(book: book, archive: archive, covers: covers) else {
-            toast = BSToastPayload(tone: .failure, message: BSLocalization.text("回忆册导出失败，请重试"))
-            return
-        }
-        guard SystemPNGSharePresenter.present(items: [file], cleanup: file) else {
-            try? FileManager.default.removeItem(at: file)
-            toast = BSToastPayload(tone: .failure, message: BSLocalization.text("系统分享面板暂时无法打开"))
-            return
-        }
-    }
 }
 
-/// One page of the book, whether read on screen or printed into the PDF.
+/// One page of the book.
 struct FootprintBookPageContent: View {
     let book: FootprintBook
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
     let pageIndex: Int
     let turner: FootprintBookTurner
-    let export: FootprintBookLeafAccessory?
 
     var body: some View {
         switch book.pages[pageIndex] {
         case .cover:
-            FootprintBookCover(book: book, archive: archive, covers: covers, turner: turner, export: export)
+            FootprintBookCover(book: book, archive: archive, covers: covers, turner: turner)
         case .contents:
             FootprintBookContents(book: book, turner: turner)
         case .prologue:
@@ -144,19 +111,12 @@ struct FootprintBookLeafAccessory {
     let action: () -> Void
 }
 
-extension EnvironmentValues {
-    /// The page is being drawn into the PDF: no buttons, and everything already settled.
-    @Entry var footprintBookPrinting = false
-}
-
 struct FootprintBookLeaf<Content: View>: View {
     let stock: FootprintBookStock
     let label: String
     let turner: FootprintBookTurner
     var accessory: FootprintBookLeafAccessory?
     @ViewBuilder let content: Content
-
-    @Environment(\.footprintBookPrinting) private var isPrinting
 
     private var ink: Color { stock == .paper ? FootprintRoomPalette.inkSoft : Color(white: 0.6) }
     private var faint: Color { stock == .paper ? FootprintRoomPalette.inkFaint : Color(white: 0.43) }
@@ -177,7 +137,6 @@ struct FootprintBookLeaf<Content: View>: View {
                 }
                 chromeButton("xmark", label: BSLocalization.text("合上"), action: turner.close)
             }
-            .opacity(isPrinting ? 0 : 1)
             .padding(.leading, 32)
             .padding(.trailing, 14)
             content
@@ -217,7 +176,6 @@ struct FootprintBookLeaf<Content: View>: View {
                 .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
         }
         .buttonStyle(.plain)
-        .opacity(isPrinting ? 0 : 1)
         .accessibilityLabel(label)
     }
 }
@@ -299,18 +257,8 @@ private struct FootprintBookRise: ViewModifier {
     let delay: Double
     @State private var shown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.footprintBookPrinting) private var isPrinting
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if isPrinting {
-            content
-        } else {
-            rising(content)
-        }
-    }
-
-    private func rising(_ content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
             .offset(y: shown || reduceMotion ? 0 : 12)
