@@ -216,6 +216,7 @@ struct FootprintNeonText: View {
 private struct FootprintBrickWall: View {
     var body: some View {
         Canvas { canvas, size in
+            guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
             canvas.fill(Path(CGRect(origin: .zero, size: size)), with: .color(FootprintRoomPalette.brick))
             let rowHeight: CGFloat = 24, brickWidth: CGFloat = 52
             var row = 0

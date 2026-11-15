@@ -434,6 +434,7 @@ struct FootprintBookChapterPage: View {
 
     private var sprockets: some View {
         Canvas { canvas, size in
+            guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
             var x: CGFloat = 0
             while x < size.width {
                 canvas.fill(Path(CGRect(x: x, y: 0, width: 10, height: size.height)), with: .color(FootprintRoomPalette.paper.opacity(0.18)))

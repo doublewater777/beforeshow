@@ -104,6 +104,7 @@ struct FootprintCompanionBandsView: View {
     /// Woven fabric: fine vertical threads.
     private var weave: some View {
         Canvas { canvas, size in
+            guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
             var x: CGFloat = 0
             while x < size.width {
                 canvas.fill(Path(CGRect(x: x, y: 0, width: 2, height: size.height)), with: .color(.white.opacity(0.08)))

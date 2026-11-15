@@ -88,6 +88,7 @@ struct FootprintMarqueeView: View {
     }
 
     private static func bulbPositions(in size: CGSize) -> [CGPoint] {
+        guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return [] }
         let inset: CGFloat = 9, step: CGFloat = 17
         var points: [CGPoint] = []
         var x = inset

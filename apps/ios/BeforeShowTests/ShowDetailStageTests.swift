@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import BeforeShow
 
 @MainActor
@@ -143,6 +145,37 @@ final class ShowDetailStageTests: XCTestCase {
 
         XCTAssertEqual(reunions.map(\.name), ["陈一豪 Clear", "黄子弘凡"])
         XCTAssertEqual(reunions.map(\.nth), [2, 1])
+    }
+
+    // MARK: Canvas Bounds Safety
+
+    func testContactSheetHandlesUnboundedSizeWithoutHanging() {
+        let view = MemoryContactSheet(
+            fragments: [],
+            currentPhase: .live,
+            onOpen: { _ in },
+            onOpenList: {},
+            onCreate: { _ in }
+        )
+        let controller = UIHostingController(rootView: view)
+        _ = controller.sizeThatFits(in: CGSize(width: CGFloat.infinity, height: 100))
+        _ = controller.sizeThatFits(in: CGSize(width: 0, height: 0))
+    }
+
+    func testStageSceneHandlesUnboundedSizeWithoutHanging() {
+        let view = BSStageScene(
+            colors: [.black, .black],
+            lighting: .house,
+            powered: true,
+            height: 380
+        ) {
+            Color.clear
+        } lip: {
+            Color.clear
+        }
+        let controller = UIHostingController(rootView: view)
+        _ = controller.sizeThatFits(in: CGSize(width: CGFloat.infinity, height: 380))
+        _ = controller.sizeThatFits(in: CGSize(width: 0, height: 0))
     }
 
     // MARK: Helpers

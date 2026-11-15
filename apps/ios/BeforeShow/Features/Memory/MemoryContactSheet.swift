@@ -147,6 +147,7 @@ struct MemoryContactSheet: View {
     /// Film sprocket holes.
     private var sprockets: some View {
         Canvas { canvas, size in
+            guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
             var x: CGFloat = 0
             while x < size.width {
                 canvas.fill(Path(roundedRect: CGRect(x: x, y: 0, width: 9, height: size.height), cornerRadius: 1.5),

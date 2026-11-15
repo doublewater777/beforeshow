@@ -133,6 +133,7 @@ struct BSStageScene<Wall: View, Lip: View>: View {
     private func truss(width: CGFloat) -> some View {
         ZStack(alignment: .top) {
             Canvas { canvas, size in
+                guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
                 canvas.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(white: 0.12)))
                 var x: CGFloat = -size.height
                 while x < size.width {

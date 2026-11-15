@@ -153,6 +153,7 @@ struct FootprintLedgerView: View {
 
     private var barcode: some View {
         Canvas { canvas, size in
+            guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
             var x: CGFloat = 0
             var seed: UInt64 = 7
             while x < size.width {

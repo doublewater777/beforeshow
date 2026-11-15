@@ -38,6 +38,7 @@ enum MemoryRollTimeRange {
 struct FilmSprocketsCanvas: View {
     var body: some View {
         Canvas { context, size in
+            guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
             let dotRadius: CGFloat = 1.6
             let step: CGFloat = 12.0
             let count = Int(size.width / step)

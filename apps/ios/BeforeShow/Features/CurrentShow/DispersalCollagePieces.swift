@@ -212,6 +212,7 @@ struct DispersalRuledNoteField: View {
             .frame(minHeight: Self.lineHeight * CGFloat(Self.minimumLines), alignment: .top)
             .background(alignment: .top) {
                 Canvas { context, size in
+                    guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
                     var y = Self.lineHeight
                     while y <= size.height + 0.5 {
                         context.fill(Path(CGRect(x: 0, y: y - 1, width: size.width, height: 1)), with: .color(ruleColor))

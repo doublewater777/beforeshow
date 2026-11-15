@@ -256,7 +256,7 @@ struct ShowDetailView: View {
         .onDisappear { onDetailVisibilityChange(false) }
         .task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60)))
+                try? await Task.sleep(for: .seconds(max(1, 60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60))))
                 now = Date()
             }
         }

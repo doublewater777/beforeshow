@@ -35,6 +35,7 @@ struct BSStageRig: View {
             let t = reduceMotion ? 2 : context.date.timeIntervalSinceReferenceDate
             let frame = BSStageChoreography.frame(at: t, palette: palette, energy: energy)
             Canvas { canvas, size in
+                guard size.width.isFinite, size.width > 0, size.height.isFinite, size.height > 0 else { return }
                 canvas.blendMode = .plusLighter
                 Self.drawLaser(frame.laser, in: &canvas, size: size)
                 for (index, beam) in frame.deck.enumerated() {
