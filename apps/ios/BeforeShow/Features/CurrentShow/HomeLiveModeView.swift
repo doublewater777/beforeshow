@@ -72,7 +72,7 @@ struct HomeLiveModeView: View {
                     .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(BSColor.Stage.muted)
             }
-            artistTitle(lead.artistName)
+            artistTitle(lead)
             minutesLine(Int((lead.secondsUntilEnd / 60).rounded(.up)), unit: BSLocalization.text("分钟后结束"))
             GeometryReader { geo in
                 Capsule().fill(Color.white.opacity(0.08))
@@ -109,7 +109,7 @@ struct HomeLiveModeView: View {
                     .foregroundStyle(BSColor.Stage.heroWarmGold)
                 stageChip(next, small: true)
             }
-            artistTitle(next.artistName)
+            artistTitle(next)
             let minutes = Int((next.secondsUntilStart / 60).rounded(.up))
             if minutes < 180 {
                 minutesLine(minutes, unit: BSLocalization.format("分钟后开演 · %@", clock(next.startsAt)))
@@ -120,12 +120,58 @@ struct HomeLiveModeView: View {
         setlist(Array(upcoming.dropFirst().prefix(3)))
     }
 
-    private func artistTitle(_ name: String) -> some View {
-        Text(name)
-            .font(BSFont.Editorial.serif(28))
-            .foregroundStyle(BSColor.Stage.foreground)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 10)
+    private func artistTitle(_ performance: LivePerformanceSnapshot) -> some View {
+        artistLink(reference: artistReference(for: performance)) {
+            HStack(spacing: 6) {
+                Text(performance.artistName)
+                    .font(BSFont.Editorial.serif(28))
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(BSColor.Stage.muted)
+            }
+        }
+        .padding(.top, 10)
+    }
+
+    private func artistReference(for performance: LivePerformanceSnapshot) -> ArtistReference {
+        let avatarURL = ArtistAvatarResolver.shared.displayURL(
+            performanceID: performance.id,
+            in: timetable,
+            unlinked: avatars.url(for: performance.artistName)
+        )
+        return HomeLiveArtistReferenceBuilder.make(
+            for: performance,
+            in: timetable,
+            avatarURL: avatarURL
+        )
+    }
+
+    private func artistReference(for performance: TimetablePerformance) -> ArtistReference {
+        let avatarURL = ArtistAvatarResolver.shared.displayURL(
+            performanceID: performance.id,
+            in: timetable,
+            unlinked: avatars.url(for: performance.artistName)
+        )
+        return ArtistReference(
+            name: performance.artistName,
+            appleMusicArtistID: performance.appleMusicArtistID,
+            avatarURL: avatarURL
+        )
+    }
+
+    private func artistLink<Label: View>(
+        reference: ArtistReference,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
+        NavigationLink {
+            ArtistProfileView(reference: reference, show: show)
+        } label: {
+            label()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(BSLocalization.format("打开 %@ 的艺人主页", reference.name))
     }
 
     private func minutesLine(_ value: Int?, unit: String) -> some View {
@@ -217,7 +263,8 @@ struct HomeLiveModeView: View {
     }
 
     private func tomorrowRow(_ perf: TimetablePerformance) -> some View {
-        HStack(spacing: 10) {
+        let reference = artistReference(for: perf)
+        return HStack(spacing: 10) {
             Circle()
                 .fill(perf.isInterested ? BSColor.Stage.accent : BSColor.Stage.background)
                 .overlay(Circle().strokeBorder(perf.isInterested ? .clear : Color.white.opacity(0.25), lineWidth: 1.5))
@@ -227,11 +274,16 @@ struct HomeLiveModeView: View {
                 .font(.system(size: 13, design: .monospaced))
                 .foregroundStyle(BSColor.Stage.foreground.opacity(0.8))
                 .frame(width: 46, alignment: .leading)
-            TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 32)
-            Text(perf.artistName)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .fixedSize(horizontal: false, vertical: true)
+            artistLink(reference: artistReference(for: perf)) {
+                HStack(spacing: 10) {
+                    TimetableArtistAvatar(name: perf.artistName, url: reference.avatarURL, size: 32)
+                    Text(perf.artistName)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .contentShape(Rectangle())
+            }
             Spacer(minLength: 6)
             if let stage = perf.stage {
                 HomeLiveStageChip(name: stage.name, index: stageOrder[stage.id] ?? stage.sortOrder, small: true)
@@ -341,7 +393,10 @@ struct HomeLiveModeView: View {
             Spacer(minLength: 0)
             HStack(spacing: 6) {
                 ForEach(picks.prefix(shown)) { perf in
-                    TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 34)
+                    let reference = artistReference(for: perf)
+                    artistLink(reference: reference) {
+                        TimetableArtistAvatar(name: perf.artistName, url: reference.avatarURL, size: 34)
+                    }
                 }
                 if picks.count > shown {
                     Text("+\(picks.count - shown)")
@@ -381,11 +436,7 @@ struct HomeLiveModeView: View {
         if !rows.isEmpty || !alsoLive.isEmpty {
             VStack(spacing: 0) {
                 ForEach(alsoLive) { perf in
-                    Button { focusedPerformanceID = perf.id.uuidString } label: {
-                        setlistRow(perf, isLive: true)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(BSLocalization.text("设为主现场"))
+                    setlistRow(perf, isLive: true)
                 }
                 ForEach(rows) { perf in
                     setlistRow(perf, isLive: false)
@@ -396,7 +447,8 @@ struct HomeLiveModeView: View {
     }
 
     private func setlistRow(_ perf: LivePerformanceSnapshot, isLive: Bool) -> some View {
-        HStack(spacing: 10) {
+        let reference = artistReference(for: perf)
+        return HStack(spacing: 10) {
             Group {
                 if isLive {
                     Text(verbatim: "LIVE").foregroundStyle(BSColor.Stage.live)
@@ -407,18 +459,36 @@ struct HomeLiveModeView: View {
             }
             .font(.system(size: 12.5, design: .monospaced))
             .frame(width: 44, alignment: .leading)
-            TimetableArtistAvatar(name: perf.artistName, url: ArtistAvatarResolver.shared.displayURL(performanceID: perf.id, in: timetable, unlinked: avatars.url(for: perf.artistName)), size: 28)
-            Text(perf.artistName)
-                .font(.system(size: 14.5, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.foreground)
-                .lineLimit(1)
-            if perf.isInterested {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(BSColor.Stage.accent)
+            artistLink(reference: reference) {
+                HStack(spacing: 10) {
+                    TimetableArtistAvatar(name: perf.artistName, url: reference.avatarURL, size: 28)
+                    Text(perf.artistName)
+                        .font(.system(size: 14.5, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .lineLimit(1)
+                    if perf.isInterested {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(BSColor.Stage.accent)
+                    }
+                }
+                .contentShape(Rectangle())
             }
             Spacer(minLength: 6)
             stageChip(perf, small: true)
+            if isLive {
+                Button {
+                    focusedPerformanceID = perf.id.uuidString
+                } label: {
+                    Image(systemName: "scope")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(BSLocalization.text("设为主现场"))
+            }
         }
         .padding(.vertical, 9)
         .overlay(alignment: .bottom) {
@@ -441,6 +511,25 @@ struct HomeLiveModeView: View {
     private func clock(_ date: Date) -> String {
         let parts = eventCalendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
+    }
+}
+
+@MainActor
+enum HomeLiveArtistReferenceBuilder {
+    static func make(
+        for snapshot: LivePerformanceSnapshot,
+        in timetable: Timetable,
+        avatarURL: URL?
+    ) -> ArtistReference {
+        let performance = timetable.orderedDays
+            .lazy
+            .flatMap(\.performances)
+            .first { $0.id == snapshot.id }
+        return ArtistReference(
+            name: snapshot.artistName,
+            appleMusicArtistID: performance?.appleMusicArtistID,
+            avatarURL: avatarURL
+        )
     }
 }
 
