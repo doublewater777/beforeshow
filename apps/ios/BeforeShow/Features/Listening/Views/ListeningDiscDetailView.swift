@@ -92,8 +92,7 @@ struct ListeningDiscDetailView: View {
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
                     ListeningDiscDetailHero(
-                        disc: disc, show: room.show,
-                        artistLinks: ListeningDiscArtistLinks.links(for: disc, lineup: room.show?.artists ?? []),
+                        disc: disc, room: room,
                         metadata: metadataSummary, isLoaded: isLoaded,
                         isPlaying: isLoaded && room.display.player.isPlaybackActive,
                         containsHeardSongs: room.containsHeardSongs(disc)

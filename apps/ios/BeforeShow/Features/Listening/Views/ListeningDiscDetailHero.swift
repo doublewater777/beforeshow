@@ -3,8 +3,7 @@ import SwiftUI
 /// The cover on its own, then the credits set like Now Playing: caps artist over a serif title.
 struct ListeningDiscDetailHero: View {
     let disc: ListeningDisc
-    let show: Show?
-    let artistLinks: [ListeningDiscArtistLink]
+    let room: ListeningRoomCoordinator
     let metadata: String
     let isLoaded: Bool
     let isPlaying: Bool
@@ -14,7 +13,7 @@ struct ListeningDiscDetailHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.lg) {
-            ListeningDiscCover(disc: disc, show: show)
+            ListeningDiscCover(disc: disc, show: room.show)
                 .frame(width: size, height: size)
                 .shadow(color: .black.opacity(0.55), radius: 26, y: 18)
                 .frame(maxWidth: .infinity)
@@ -22,7 +21,9 @@ struct ListeningDiscDetailHero: View {
 
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 HStack(spacing: BSSpacing.sm) {
-                    ListeningDiscArtistCredits(links: artistLinks)
+                    ListeningDiscArtistCredits(
+                        links: ListeningDiscArtistLinks.links(for: disc, lineup: room.show?.artists ?? []), room: room
+                    )
                     if isLoaded {
                         Image(systemName: "waveform")
                             .symbolEffect(.variableColor.iterative, isActive: isPlaying)

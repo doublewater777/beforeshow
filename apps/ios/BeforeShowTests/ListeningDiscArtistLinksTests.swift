@@ -61,6 +61,34 @@ final class ListeningDiscArtistLinksTests: XCTestCase {
         XCTAssertEqual(decoded.artistNames, ["Aimer"])
     }
 
+    func testLineupArtistOpensInAppProfileByAppleMusicID() {
+        let lineup = [browseArtist("Vaundy", id: "42", slot: 0), browseArtist("Aimer", id: "7", slot: 1)]
+
+        let match = ListeningDiscArtistLinks.lineupArtist(for: ListeningDiscArtistLink(name: "AIMER", artistID: "7"), in: lineup)
+
+        XCTAssertEqual(match?.slotIndex, 1)
+    }
+
+    func testUnlinkedCreditMatchesConnectedLineupArtistByName() {
+        let lineup = [browseArtist("Aimer", id: "7", slot: 0)]
+
+        XCTAssertEqual(ListeningDiscArtistLinks.lineupArtist(for: ListeningDiscArtistLink(name: "aimer", artistID: nil), in: lineup)?.id, "7")
+    }
+
+    func testOtherArtistsStayOnAppleMusic() {
+        let lineup = [browseArtist("Aimer", id: "7", slot: 0), browseArtist("Vaundy", id: nil, slot: 1)]
+
+        // Same name, different Apple Music artist.
+        XCTAssertNil(ListeningDiscArtistLinks.lineupArtist(for: ListeningDiscArtistLink(name: "Aimer", artistID: "999"), in: lineup))
+        // Lineup artist not yet connected has no in-app page.
+        XCTAssertNil(ListeningDiscArtistLinks.lineupArtist(for: ListeningDiscArtistLink(name: "Vaundy", artistID: nil), in: lineup))
+        XCTAssertNil(ListeningDiscArtistLinks.lineupArtist(for: ListeningDiscArtistLink(name: "milet", artistID: "3"), in: lineup))
+    }
+
+    private func browseArtist(_ name: String, id: String?, slot: Int) -> ListeningBrowseArtist {
+        ListeningBrowseArtist(slotIndex: slot, id: id ?? "slot-\(slot)", name: name, artworkURL: nil, appleMusicArtistID: id, albums: [])
+    }
+
     private func makeDisc(
         artistNames: [String],
         artistIDs: [String]? = nil,

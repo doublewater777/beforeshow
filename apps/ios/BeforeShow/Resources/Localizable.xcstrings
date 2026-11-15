@@ -10366,22 +10366,6 @@
         }
       }
     },
-    "在 Apple Music 中查看 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View %@ in Apple Music"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Apple Music 中查看 %@"
-          }
-        }
-      }
-    },
     "打开 %@ 的艺人主页" : {
       "localizations" : {
         "en" : {

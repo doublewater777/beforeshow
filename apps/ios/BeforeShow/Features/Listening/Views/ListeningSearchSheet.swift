@@ -16,6 +16,7 @@ struct ListeningSearchSheet: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     let results = results
+                    let artists = ListeningSearch.artists(for: query, in: room.browseArtists)
                     if ArtistNameMatching.normalized(query).isEmpty {
                         let groups = room.rackGroups
                         if groups.isEmpty {
@@ -24,10 +25,11 @@ struct ListeningSearchSheet: View {
                         } else {
                             ForEach(groups) { browseGroup($0) }
                         }
-                    } else if results.discs.isEmpty && results.tracks.isEmpty {
+                    } else if artists.isEmpty && results.discs.isEmpty && results.tracks.isEmpty {
                         message(icon: "music.note", title: BSLocalization.text("没有找到匹配的唱片或歌曲"),
                                 detail: BSLocalization.text("换个关键词试试"))
                     } else {
+                        artistSection(artists)
                         section(BSLocalization.text("唱片"), results.discs)
                         section(BSLocalization.text("歌曲"), results.tracks)
                     }
@@ -51,6 +53,9 @@ struct ListeningSearchSheet: View {
                     )
                 }
             }
+            .navigationDestination(for: ArtistReference.self) { reference in
+                ArtistProfileView(reference: reference, show: room.show, room: room)
+            }
             .navigationDestination(for: ListeningArtistConnectRoute.self) { route in
                 ListeningArtistMatchSheet(room: room, slotIndex: route.slotIndex, query: route.name, isPushed: true)
             }
@@ -67,28 +72,22 @@ struct ListeningSearchSheet: View {
 
     @ViewBuilder
     private func browseGroup(_ group: ListeningRackGroup) -> some View {
-        sectionTitle(group.name)
+        if case let .artist(id, _, true) = group.kind,
+           let artist = room.browseArtists.first(where: { $0.id == id }) {
+            NavigationLink(value: ArtistReference(browseArtist: artist, show: room.show)) {
+                sectionTitle(group.name, showsChevron: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("listening.search.browseArtist")
+        } else {
+            sectionTitle(group.name)
+        }
         if case let .artist(_, slotIndex, false) = group.kind {
             NavigationLink(value: ListeningArtistConnectRoute(slotIndex: slotIndex, name: group.name)) {
-                HStack(spacing: BSSpacing.sm) {
-                    ListeningArtistArtwork(url: group.artworkURL, name: group.name, size: 44)
-                        .frame(width: 44, height: 44)
-                        .clipShape(Circle())
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(BSLocalization.text("连接艺人"))
-                            .font(BSFont.body)
-                            .foregroundStyle(BSColor.Stage.foreground)
-                        Text(BSLocalization.text("尚未匹配 Apple Music 艺人"))
-                            .font(BSListeningTokens.caption)
-                            .foregroundStyle(BSColor.Stage.muted)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(BSListeningTokens.caption)
-                        .foregroundStyle(BSColor.Stage.dim)
-                }
-                .padding(.vertical, BSSpacing.xs)
-                .contentShape(Rectangle())
+                artistRow(artworkURL: group.artworkURL, name: group.name,
+                          title: BSLocalization.text("连接艺人"), detail: BSLocalization.text("尚未匹配 Apple Music 艺人"))
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("listening.search.connectArtist")
@@ -101,12 +100,63 @@ struct ListeningSearchSheet: View {
         }
     }
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(BSListeningTokens.caption.weight(.semibold))
-            .foregroundStyle(BSColor.Stage.muted)
-            .padding(.top, BSSpacing.lg)
-            .padding(.bottom, BSSpacing.xs)
+    private func sectionTitle(_ title: String, showsChevron: Bool = false) -> some View {
+        HStack(spacing: BSSpacing.xs) {
+            Text(title)
+            if showsChevron { Image(systemName: "chevron.right") }
+        }
+        .font(BSListeningTokens.caption.weight(.semibold))
+        .foregroundStyle(BSColor.Stage.muted)
+        .padding(.top, BSSpacing.lg)
+        .padding(.bottom, BSSpacing.xs)
+    }
+
+    @ViewBuilder
+    private func artistSection(_ artists: [ListeningBrowseArtist]) -> some View {
+        if !artists.isEmpty {
+            sectionTitle(BSLocalization.text("艺人"))
+            ForEach(artists) { artist in
+                Group {
+                    if artist.isConnected {
+                        NavigationLink(value: ArtistReference(browseArtist: artist, show: room.show)) {
+                            artistRow(artworkURL: artist.artworkURL, name: artist.name, title: artist.name, detail: nil)
+                        }
+                    } else {
+                        NavigationLink(value: ListeningArtistConnectRoute(slotIndex: artist.slotIndex, name: artist.name)) {
+                            artistRow(artworkURL: artist.artworkURL, name: artist.name, title: artist.name,
+                                      detail: BSLocalization.text("尚未匹配 Apple Music 艺人"))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("listening.search.artist")
+            }
+        }
+    }
+
+    private func artistRow(artworkURL: URL?, name: String, title: String, detail: String?) -> some View {
+        HStack(spacing: BSSpacing.sm) {
+            ListeningArtistArtwork(url: artworkURL, name: name, size: 44)
+                .frame(width: 44, height: 44)
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(BSFont.body)
+                    .foregroundStyle(BSColor.Stage.foreground)
+                    .lineLimit(1)
+                if let detail {
+                    Text(detail)
+                        .font(BSListeningTokens.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                }
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(BSListeningTokens.caption)
+                .foregroundStyle(BSColor.Stage.dim)
+        }
+        .padding(.vertical, BSSpacing.xs)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder

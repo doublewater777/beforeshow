@@ -30,4 +30,13 @@ enum ListeningSearch {
         }
         return (matchedDiscs, matchedTracks)
     }
+
+    /// Lineup artists whose name matches, once each in lineup order.
+    static func artists(for query: String, in artists: [ListeningBrowseArtist]) -> [ListeningBrowseArtist] {
+        guard !ArtistNameMatching.normalized(query).isEmpty else { return [] }
+        var seen = Set<String>()
+        return artists
+            .sorted { $0.slotIndex < $1.slotIndex }
+            .filter { ArtistNameMatching.contains($0.name, query: query) && seen.insert($0.id).inserted }
+    }
 }

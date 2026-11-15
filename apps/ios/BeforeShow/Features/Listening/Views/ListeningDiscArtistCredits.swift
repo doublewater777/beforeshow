@@ -1,14 +1,24 @@
 import MusicKit
 import SwiftUI
 
-/// The disc's credited artists, each opening its Apple Music page. Two or three names
-/// sit inline when they fit; more collapse into a menu.
+/// The disc's credited artists. Connected lineup artists open their in-app page; others open Apple Music.
+/// Two or three names sit inline when they fit; more collapse into a menu.
 struct ListeningDiscArtistCredits: View {
     let links: [ListeningDiscArtistLink]
+    let room: ListeningRoomCoordinator
 
     @Environment(\.openURL) private var openURL
+    @State private var profile: ArtistReference?
 
     var body: some View {
+        credits
+            .navigationDestination(item: $profile) { reference in
+                ArtistProfileView(reference: reference, show: room.show, room: room)
+            }
+    }
+
+    @ViewBuilder
+    private var credits: some View {
         if links.count == 1, let link = links.first {
             artistButton(link)
         } else if links.count > 1 {
@@ -44,7 +54,6 @@ struct ListeningDiscArtistCredits: View {
             .foregroundStyle(BSColor.Stage.accent)
             .lineLimit(1)
             .buttonStyle(.plain)
-            .accessibilityLabel(BSLocalization.format("在 Apple Music 中查看 %@", link.name))
     }
 
     private var artistMenu: some View {
@@ -65,6 +74,10 @@ struct ListeningDiscArtistCredits: View {
     }
 
     private func open(_ link: ListeningDiscArtistLink) {
+        if let artist = ListeningDiscArtistLinks.lineupArtist(for: link, in: room.browseArtists) {
+            profile = ArtistReference(browseArtist: artist, show: room.show)
+            return
+        }
         Task {
             let storefront = await ListeningAppleMusicStorefront.current()
             if let url = link.appleMusicURL(storefront: storefront) {

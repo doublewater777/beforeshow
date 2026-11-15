@@ -45,4 +45,15 @@ enum ListeningDiscArtistLinks {
             return ListeningDiscArtistLink(name: name, artistID: artistID?.isEmpty == false ? artistID : nil)
         }
     }
+
+    /// The connected lineup artist a credit names, whose in-app page it opens; others go to Apple Music.
+    /// A credit with its own Apple Music ID matches by ID only, so a namesake never opens the wrong page.
+    static func lineupArtist(for link: ListeningDiscArtistLink, in artists: [ListeningBrowseArtist]) -> ListeningBrowseArtist? {
+        let connected = artists.filter(\.isConnected)
+        if let artistID = link.artistID {
+            return connected.first { $0.appleMusicArtistID == artistID }
+        }
+        let name = ArtistNameMatching.normalized(link.name)
+        return connected.first { ArtistNameMatching.normalized($0.name) == name }
+    }
 }

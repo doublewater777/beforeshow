@@ -49,4 +49,17 @@ final class ListeningSearchTests: XCTestCase {
         XCTAssertEqual(results.discs.map(\.disc.id), ["a2"])
         XCTAssertEqual(results.tracks.map(\.focusTrackID), ["s4"])
     }
+
+    func testMatchesLineupArtistsOnceInSlotOrder() {
+        let artists = [
+            ListeningBrowseArtist(slotIndex: 1, id: "2", name: "草东没有派对", artworkURL: nil, appleMusicArtistID: "2", albums: []),
+            ListeningBrowseArtist(slotIndex: 0, id: "1", name: "落日飞车", artworkURL: nil, appleMusicArtistID: "1", albums: []),
+            ListeningBrowseArtist(slotIndex: 2, id: "1", name: "落日飞车", artworkURL: nil, appleMusicArtistID: "1", albums: []),
+            ListeningBrowseArtist(slotIndex: 3, id: "slot-3", name: "落日乐队", artworkURL: nil, appleMusicArtistID: nil, albums: [])
+        ]
+
+        XCTAssertEqual(ListeningSearch.artists(for: "落日", in: artists).map(\.slotIndex), [0, 3])
+        XCTAssertEqual(ListeningSearch.artists(for: "落日飛車", in: artists).map(\.id), ["1"])
+        XCTAssertTrue(ListeningSearch.artists(for: " ", in: artists).isEmpty)
+    }
 }
