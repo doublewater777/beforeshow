@@ -39,6 +39,80 @@ final class ListeningNotificationEntryTests: XCTestCase {
             XCTAssertEqual(catalog.authorizationRequests, 0)
         }
     }
+    func testHomeEntryRequestsUndeterminedAuthorizationAndStartsTodayDisc() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = HomeEntryCatalog(initial: .notDetermined, requested: .authorized, canPlay: true)
+        let player = ListeningTestPlayer(source: .fullCatalog)
+        let handler = ListeningIntentHandler.shared
+        ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        handler.playbackDependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: NotificationEntryArtistSearch(),
+            playbackFactory: { _ in player }
+        )
+        defer {
+            handler.playbackDependencies = nil
+            ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        }
+
+        let result = await handler.playFromHome(show: show, context: container.mainContext)
+        XCTAssertEqual(result, .playbackRequested)
+        XCTAssertEqual(catalog.authorizationRequests, 1)
+        let room = try XCTUnwrap(ListeningRoomSessionStore.shared.room)
+        XCTAssertEqual(room.loadedDisc?.id, room.todayDisc()?.id)
+        try await ListenTestData.settle(room) { room.isPlaying }
+    }
+
+    func testHomeEntryReturnsAuthorizationFailureInsteadOfSilentlyDoingNothing() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = HomeEntryCatalog(initial: .notDetermined, requested: .denied, canPlay: false)
+        let handler = ListeningIntentHandler.shared
+        ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        handler.playbackDependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: NotificationEntryArtistSearch(),
+            playbackFactory: { ListeningTestPlayer(source: $0) }
+        )
+        defer {
+            handler.playbackDependencies = nil
+            ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        }
+
+        let result = await handler.playFromHome(show: show, context: container.mainContext)
+        XCTAssertEqual(result, .authorizationRequired(status: .denied))
+        XCTAssertEqual(catalog.authorizationRequests, 1)
+        XCTAssertFalse(try XCTUnwrap(ListeningRoomSessionStore.shared.room).wantsPlayback)
+    }
+
+    func testHomeEntryRequestsArtistMatchingWhenTheLineupIsUnmatched() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let start = Date().addingTimeInterval(86400)
+        let show = try Show(name: "Unmatched Show", date: start, startTime: start)
+        show.artists = [ArtistSlot(name: "Unknown Artist", avatarURL: nil)]
+        container.mainContext.insert(show)
+        try container.mainContext.save()
+
+        let catalog = HomeEntryCatalog(initial: .authorized, requested: .authorized, canPlay: true)
+        let handler = ListeningIntentHandler.shared
+        ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        handler.playbackDependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: HomeEntryEmptyArtistSearch(),
+            playbackFactory: { ListeningTestPlayer(source: $0) }
+        )
+        defer {
+            handler.playbackDependencies = nil
+            ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        }
+
+        let result = await handler.playFromHome(show: show, context: container.mainContext)
+        XCTAssertEqual(
+            result,
+            .artistMatchRequired(slotIndex: 0, unmatchedCount: 1, artistCount: 1)
+        )
+        XCTAssertEqual(catalog.authorizationRequests, 0)
+    }
+
     func testResumingTheSameSongOnANewDayRefreshesTheShowsLastListeningTime() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
@@ -144,6 +218,55 @@ final class ListeningNotificationEntryTests: XCTestCase {
         XCTAssertEqual(room.browser.scope, .all)
     }
 
+}
+
+private final class HomeEntryCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var authorizationStatus: ListeningMusicAuthorizationStatus
+    private let requestedStatus: ListeningMusicAuthorizationStatus
+    private let canPlay: Bool
+    private var requestCount = 0
+
+    init(
+        initial: ListeningMusicAuthorizationStatus,
+        requested: ListeningMusicAuthorizationStatus,
+        canPlay: Bool
+    ) {
+        authorizationStatus = initial
+        requestedStatus = requested
+        self.canPlay = canPlay
+    }
+
+    var authorizationRequests: Int { lock.withLock { requestCount } }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
+        lock.withLock { authorizationStatus }
+    }
+
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+        lock.withLock {
+            requestCount += 1
+            authorizationStatus = requestedStatus
+            return authorizationStatus
+        }
+    }
+
+    func currentAccess() async -> ListeningMusicAccess {
+        lock.withLock {
+            .init(
+                authorizationStatus: authorizationStatus,
+                canPlayCatalogContent: authorizationStatus == .authorized && canPlay
+            )
+        }
+    }
+
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+}
+
+private struct HomeEntryEmptyArtistSearch: ArtistSearchServicing {
+    func searchArtists(query: String) async throws -> [RecognizedArtist] { [] }
 }
 
 private final class NotificationEntryCatalog: ListeningMusicCatalogServicing, Sendable {

@@ -8,6 +8,20 @@ final class ListeningRoomSessionStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testPendingArtistMatchRequestIsScopedAndConsumedOnce() {
+        let session = ListeningRoomSessionStore.shared
+        let showID = UUID()
+        session.requestArtistMatch(showID: showID, slotIndex: 2)
+
+        XCTAssertEqual(session.pendingArtistMatchRequest?.showID, showID)
+        XCTAssertEqual(session.consumeArtistMatchRequest(for: showID), 2)
+        XCTAssertNil(session.pendingArtistMatchRequest)
+
+        session.requestArtistMatch(showID: showID, slotIndex: 1)
+        XCTAssertNil(session.consumeArtistMatchRequest(for: UUID()))
+        XCTAssertNil(session.pendingArtistMatchRequest)
+    }
+
     func testAdoptDoesNotPublishChrome() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let room = ListeningRoomCoordinator(

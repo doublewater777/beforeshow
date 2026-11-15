@@ -98,6 +98,9 @@ SQL、查询定义与 insight ID 存在 [product-analytics-posthog.json](product
 | `show_added` | `show_id`, `method`, `lifecycle`, `is_first_show`, `is_festival` | 保存成功 |
 | `show_ended_confirmed` | `show_id` | 用户确认散场时间 |
 | `listen_playback_started` | `source`（`full` / `preview`） | 一段播放开始；切歌不重复计 |
+| `listen_action_tapped` | `source`, `outcome`, `reason` | 首页收听主按钮完成一次播放 / 暂停尝试后 |
+| `listening_authorization_status` | `source`, `status`, `stage` | 首页收听入口读取权限状态；未决定时在系统授权请求后再记录 |
+| `listening_artist_match_failed` | `source`, `unmatched_count`, `artist_count` | 首页收听无法启动且自动匹配后仍有未连接艺人 |
 | `timetable_saved` | `show_id`, `performance_count`, `is_new` | 时刻表保存成功 |
 | `memory_fragment_created` | `show_id`, `has_media`, `media_count`, `phase` | 记忆保存成功 |
 | `dispersal_ceremony_completed` | `show_id`, `has_rating`, `has_note`, `rating_value` | 散场仪式保存 |

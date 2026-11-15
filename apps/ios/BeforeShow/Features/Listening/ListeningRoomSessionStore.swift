@@ -10,8 +10,14 @@ import Foundation
 final class ListeningRoomSessionStore {
     static let shared = ListeningRoomSessionStore()
 
+    struct ArtistMatchRequest: Equatable {
+        let showID: UUID
+        let slotIndex: Int
+    }
+
     private(set) var room: ListeningRoomCoordinator?
     private(set) var isChromePublished = false
+    private(set) var pendingArtistMatchRequest: ArtistMatchRequest?
     /// The root mini player can send Listen back to either surface or open the full player.
     var surface: ListeningSurface = .listen
     var isNowPlayingPresented = false
@@ -30,12 +36,24 @@ final class ListeningRoomSessionStore {
             self.room?.releaseShow()
             self.room = nil
             isChromePublished = false
+            pendingArtistMatchRequest = nil
             return
         }
         if self.room !== room {
             isChromePublished = false
         }
         self.room = room
+    }
+
+    func requestArtistMatch(showID: UUID, slotIndex: Int) {
+        pendingArtistMatchRequest = ArtistMatchRequest(showID: showID, slotIndex: slotIndex)
+    }
+
+    func consumeArtistMatchRequest(for showID: UUID) -> Int? {
+        guard let request = pendingArtistMatchRequest else { return nil }
+        pendingArtistMatchRequest = nil
+        guard request.showID == showID else { return nil }
+        return request.slotIndex
     }
 
     func publishChrome(_ room: ListeningRoomCoordinator) {
@@ -52,6 +70,7 @@ final class ListeningRoomSessionStore {
         room?.releaseShow()
         room = nil
         isChromePublished = false
+        pendingArtistMatchRequest = nil
     }
 
     func clear(stoppingTransport: Bool) {
@@ -69,5 +88,6 @@ final class ListeningRoomSessionStore {
         }
         room = nil
         isChromePublished = false
+        pendingArtistMatchRequest = nil
     }
 }

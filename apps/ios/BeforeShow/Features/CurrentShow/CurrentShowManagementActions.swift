@@ -41,19 +41,62 @@ extension CurrentShowManagementSection {
         withAnimation(unlocksAnimateArrival ? .easeOut(duration: 0.3) : nil) { revealedUnlocks = unlocks }
     }
 
-    func performPrimaryAction(_ action: HomeCountdownLockup.PrimaryAction) {
+    @MainActor
+    func performPrimaryAction(_ action: HomeCountdownLockup.PrimaryAction) async {
         if action.playsMusic, let room = ListeningRoomSessionStore.shared.room, room.wantsPlayback {
             if isPlayingCurrentShowContent(action: action, in: room) {
                 room.playPause()
+                if action == .listen {
+                    ProductAnalytics.capture(.listenActionTapped(
+                        source: "home_primary_action",
+                        outcome: "paused",
+                        reason: nil
+                    ))
+                }
                 return
             }
         }
         switch action {
         case .listen:
-            Task { await ListeningIntentHandler.shared.perform(.play) }
+            let result = await ListeningIntentHandler.shared.playFromHome(show: show, context: modelContext)
+            switch result {
+            case .playbackRequested:
+                ProductAnalytics.capture(.listenActionTapped(
+                    source: "home_primary_action",
+                    outcome: "playback_requested",
+                    reason: nil
+                ))
+            case .authorizationRequired(let status):
+                ProductAnalytics.capture(.listenActionTapped(
+                    source: "home_primary_action",
+                    outcome: "authorization_required",
+                    reason: status.rawValue
+                ))
+                rootTabSelection?.wrappedValue = .listen
+            case .artistMatchRequired(let slotIndex, let unmatchedCount, let artistCount):
+                ProductAnalytics.capture(.listenActionTapped(
+                    source: "home_primary_action",
+                    outcome: "artist_match_required",
+                    reason: "unmatched_artists"
+                ))
+                ProductAnalytics.capture(.listeningArtistMatchFailed(
+                    source: "home_primary_action",
+                    unmatchedCount: unmatchedCount,
+                    artistCount: artistCount
+                ))
+                ListeningRoomSessionStore.shared.requestArtistMatch(showID: show.id, slotIndex: slotIndex)
+                rootTabSelection?.wrappedValue = .listen
+            case .unavailable(let reason):
+                ProductAnalytics.capture(.listenActionTapped(
+                    source: "home_primary_action",
+                    outcome: "unavailable",
+                    reason: reason
+                ))
+                rootTabSelection?.wrappedValue = .listen
+            }
         case .playRecord:
             guard let record = unlockedRecord else { return }
-            Task { await FootprintNumberSongPlayer.shared.start(record) }
+            await FootprintNumberSongPlayer.shared.start(record)
         case .route:
             openRouteChooser()
         case .addShow:

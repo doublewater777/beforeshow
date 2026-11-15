@@ -59,7 +59,7 @@ struct ListenRootView: View {
     var body: some View {
         ZStack {
             if let room, let show, room.show?.id == show.id {
-                ListeningRoomView(room: room, show: show)
+                ListeningRoomView(room: room, show: show, isActive: isActive)
                     .id(show.id)
             } else if show == nil {
                 ListeningEmptyView(
@@ -196,6 +196,7 @@ struct ListenRootView: View {
 struct ListeningRoomView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
+    let isActive: Bool
     @State private var matchingSlotIndex: Int?
     @State private var matchingArtistName: String = ""
     @State private var isSearching = false
@@ -294,6 +295,15 @@ struct ListeningRoomView: View {
             Text(room.errorText ?? "")
         }
         .listeningPlaybackFailureAlert(room)
+        .onChange(of: isActive, initial: true) { _, active in
+            if active { presentPendingArtistMatchIfPossible() }
+        }
+        .onChange(of: session.pendingArtistMatchRequest, initial: true) { _, _ in
+            presentPendingArtistMatchIfPossible()
+        }
+        .onChange(of: room.browseArtists.map(\.slotIndex), initial: true) { _, _ in
+            presentPendingArtistMatchIfPossible()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .listeningOpenPickDisc)) { _ in
             openPickFeed()
         }
@@ -308,6 +318,16 @@ struct ListeningRoomView: View {
     private func matchArtist(_ artist: ListeningBrowseArtist) {
         matchingSlotIndex = artist.slotIndex
         matchingArtistName = artist.name
+    }
+
+    private func presentPendingArtistMatchIfPossible() {
+        guard isActive,
+              matchingSlotIndex == nil,
+              let request = session.pendingArtistMatchRequest,
+              request.showID == show.id,
+              let artist = room.browseArtists.first(where: { $0.slotIndex == request.slotIndex }) else { return }
+        _ = session.consumeArtistMatchRequest(for: show.id)
+        matchArtist(artist)
     }
 
     /// An outside entry opens the feed only when nothing else is on screen, so it never replaces a sheet.

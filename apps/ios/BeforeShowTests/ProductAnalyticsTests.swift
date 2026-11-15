@@ -54,6 +54,34 @@ final class ProductAnalyticsTests: XCTestCase {
         XCTAssertEqual(listen.name, "listen_playback_started")
         XCTAssertEqual(listen.properties["source"] as? String, "full")
 
+        let listenAction = AnalyticsEvent.listenActionTapped(
+            source: "home_primary_action",
+            outcome: "authorization_required",
+            reason: "denied"
+        )
+        XCTAssertEqual(listenAction.name, "listen_action_tapped")
+        XCTAssertEqual(listenAction.properties["source"] as? String, "home_primary_action")
+        XCTAssertEqual(listenAction.properties["outcome"] as? String, "authorization_required")
+        XCTAssertEqual(listenAction.properties["reason"] as? String, "denied")
+
+        let authorization = AnalyticsEvent.listeningAuthorizationStatus(
+            source: "home_primary_action",
+            status: .authorized,
+            stage: "after_request"
+        )
+        XCTAssertEqual(authorization.name, "listening_authorization_status")
+        XCTAssertEqual(authorization.properties["status"] as? String, "authorized")
+        XCTAssertEqual(authorization.properties["stage"] as? String, "after_request")
+
+        let matchFailure = AnalyticsEvent.listeningArtistMatchFailed(
+            source: "home_primary_action",
+            unmatchedCount: 2,
+            artistCount: 3
+        )
+        XCTAssertEqual(matchFailure.name, "listening_artist_match_failed")
+        XCTAssertEqual(matchFailure.properties["unmatched_count"] as? Int, 2)
+        XCTAssertEqual(matchFailure.properties["artist_count"] as? Int, 3)
+
         let tapped = AnalyticsEvent.featureRecommendationTapped(showID: showID, feature: .timetable, surface: .notification)
         XCTAssertEqual(tapped.properties["feature"] as? String, "timetable")
         XCTAssertEqual(tapped.properties["surface"] as? String, "notification")

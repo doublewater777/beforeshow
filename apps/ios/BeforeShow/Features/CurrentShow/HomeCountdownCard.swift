@@ -7,7 +7,7 @@ struct HomeCountdownLockup: View {
     let snapshot: HomeHeroSnapshot
     var primaryAction: PrimaryAction? = nil
     var isPlaying = false
-    var onPrimaryAction: (PrimaryAction) -> Void = { _ in }
+    var onPrimaryAction: @MainActor (PrimaryAction) async -> Void = { _ in }
     var onOpenRoute: (() -> Void)? = nil
     var unlocks: ShowUnlocks? = nil
     var unlocksAnimateArrival = true
@@ -15,6 +15,7 @@ struct HomeCountdownLockup: View {
     var onOpenBadges: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isPrimaryActionLoading = false
 
     private struct Ticker {
         /// The big number; nil when the stage has words instead (ended, cancelled).
@@ -274,9 +275,20 @@ struct HomeCountdownLockup: View {
 
     private func primaryActionButton(_ action: PrimaryAction) -> some View {
         let showsPause = action.playsMusic && isPlaying
-        return Button { onPrimaryAction(action) } label: {
+        return Button {
+            guard !isPrimaryActionLoading else { return }
+            isPrimaryActionLoading = action == .listen && !showsPause
+            Task { @MainActor in
+                await onPrimaryAction(action)
+                isPrimaryActionLoading = false
+            }
+        } label: {
             HStack(spacing: 6) {
-                if action.playsMusic {
+                if isPrimaryActionLoading {
+                    ProgressView()
+                        .tint(BSColor.Stage.background)
+                        .frame(width: 16)
+                } else if action.playsMusic {
                     Image(systemName: showsPause ? "pause.fill" : "play.fill")
                         .contentTransition(.symbolEffect(.replace))
                         .frame(width: 16)
@@ -292,6 +304,7 @@ struct HomeCountdownLockup: View {
             .background(BSColor.Stage.foreground, in: Capsule())
         }
         .buttonStyle(.plain)
+        .disabled(isPrimaryActionLoading)
         .padding(.top, 16)
     }
 

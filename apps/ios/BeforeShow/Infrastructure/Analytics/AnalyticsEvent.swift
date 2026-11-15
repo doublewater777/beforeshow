@@ -29,6 +29,9 @@ enum AnalyticsEvent {
     case showAdded(showID: UUID, method: String, lifecycle: String, isFirstShow: Bool, isFestival: Bool)
     case showEndedConfirmed(showID: UUID)
     case listenPlaybackStarted(source: ListeningPlaybackSource)
+    case listenActionTapped(source: String, outcome: String, reason: String?)
+    case listeningAuthorizationStatus(source: String, status: ListeningMusicAuthorizationStatus, stage: String)
+    case listeningArtistMatchFailed(source: String, unmatchedCount: Int, artistCount: Int)
     case timetableSaved(showID: UUID, performanceCount: Int, isNew: Bool)
     case memoryFragmentCreated(showID: UUID, mediaCount: Int, phase: MemoryFragmentPhase)
     case dispersalCeremonyCompleted(showID: UUID, rating: Int?, hasNote: Bool)
@@ -63,6 +66,9 @@ enum AnalyticsEvent {
         case .showAdded: "show_added"
         case .showEndedConfirmed: "show_ended_confirmed"
         case .listenPlaybackStarted: "listen_playback_started"
+        case .listenActionTapped: "listen_action_tapped"
+        case .listeningAuthorizationStatus: "listening_authorization_status"
+        case .listeningArtistMatchFailed: "listening_artist_match_failed"
         case .timetableSaved: "timetable_saved"
         case .memoryFragmentCreated: "memory_fragment_created"
         case .dispersalCeremonyCompleted: "dispersal_ceremony_completed"
@@ -140,6 +146,14 @@ enum AnalyticsEvent {
             return ["method": method, "blocker": blocker]
         case .listenPlaybackStarted(let source):
             return ["source": source == .fullCatalog ? "full" : "preview"]
+        case .listenActionTapped(let source, let outcome, let reason):
+            var properties: [String: Any] = ["source": source, "outcome": outcome]
+            if let reason { properties["reason"] = reason }
+            return properties
+        case .listeningAuthorizationStatus(let source, let status, let stage):
+            return ["source": source, "status": status.rawValue, "stage": stage]
+        case .listeningArtistMatchFailed(let source, let unmatchedCount, let artistCount):
+            return ["source": source, "unmatched_count": unmatchedCount, "artist_count": artistCount]
         case .timetableSaved(let showID, let performanceCount, let isNew):
             return ["show_id": showID.uuidString, "performance_count": performanceCount, "is_new": isNew]
         case .memoryFragmentCreated(let showID, let mediaCount, let phase):

@@ -1,6 +1,13 @@
 import Foundation
 import SwiftData
 
+enum ListeningHomePlaybackResult: Equatable {
+    case playbackRequested
+    case authorizationRequired(status: ListeningMusicAuthorizationStatus)
+    case artistMatchRequired(slotIndex: Int, unmatchedCount: Int, artistCount: Int)
+    case unavailable(reason: String)
+}
+
 // MARK: - Listening Intent Handler
 // 在主 App 进程中执行小组件的播放或暂停。命令串行进入「听」模块，不改写快照来假装已经生效。
 
@@ -26,6 +33,74 @@ final class ListeningIntentHandler: ListeningIntentHandling {
         }
         commandChain = next
         await next.value
+    }
+
+    /// Home requests Music permission when needed and returns a concrete reason
+    /// when today's record cannot be started. Widget intents keep their existing
+    /// no-prompt behavior through perform(_:).
+    func playFromHome(show: Show, context: ModelContext) async -> ListeningHomePlaybackResult {
+        let services = playbackDependencies ?? .production
+        let room = await ListeningChromeBootstrapper.roomForWidgetPlayback(
+            show: show,
+            context: context,
+            catalogService: services.catalogService,
+            artistSearchService: services.artistSearchService,
+            playbackFactory: services.playbackFactory
+        )
+
+        await room.refreshMusicAccess()
+        let initialStatus = room.access.authorizationStatus
+        ProductAnalytics.capture(.listeningAuthorizationStatus(
+            source: "home_primary_action",
+            status: initialStatus,
+            stage: "before_request"
+        ))
+        if initialStatus == .notDetermined {
+            await room.authorize()
+            ProductAnalytics.capture(.listeningAuthorizationStatus(
+                source: "home_primary_action",
+                status: room.access.authorizationStatus,
+                stage: "after_request"
+            ))
+        }
+
+        guard room.access.authorizationStatus == .authorized else {
+            return .authorizationRequired(status: room.access.authorizationStatus)
+        }
+
+        if room.shouldReloadCatalog(for: show) {
+            await room.load(show: show)
+        }
+        guard room.show?.id == show.id else {
+            return .unavailable(reason: "show_unavailable")
+        }
+
+        if let disc = room.todayDisc(), room.discPresentation(for: disc).canLoad {
+            room.loadPlayableDisc(disc)
+            guard room.loadedDisc?.id == disc.id, room.wantsPlayback else {
+                return .unavailable(reason: "playback_not_started")
+            }
+            return .playbackRequested
+        }
+
+        let unmatched = room.browseArtists.filter { !$0.isConnected }
+        if let first = unmatched.first {
+            return .artistMatchRequired(
+                slotIndex: first.slotIndex,
+                unmatchedCount: unmatched.count,
+                artistCount: room.browseArtists.count
+            )
+        }
+
+        let reason: String
+        switch room.catalogState {
+        case .loading: reason = "catalog_loading"
+        case .ready: reason = "no_playable_disc"
+        case .unmatched: reason = "artist_unmatched"
+        case .cacheFailed: reason = "catalog_failed"
+        case .unavailable: reason = "catalog_unavailable"
+        }
+        return .unavailable(reason: reason)
     }
 
     private func apply(_ command: ListeningWidgetCommand) async {

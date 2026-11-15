@@ -90,7 +90,7 @@ enum ListeningChromeBootstrapper {
         return room
     }
 
-    /// Widget play when no seated session is in memory. Unlike `prepare`, this may
+    /// A direct play action from outside Listen when no seated session is in memory. Unlike `prepare`, this may
     /// load the current show: the user asked to hear its 「今天这张」.
     static func roomForWidgetPlayback(
         show: Show,
