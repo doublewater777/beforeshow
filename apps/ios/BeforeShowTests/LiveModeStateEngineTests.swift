@@ -344,6 +344,75 @@ final class LiveModeStateEngineTests: XCTestCase {
         XCTAssertEqual(turns, [at(2026, 10, 8, 6, 0), at(2026, 10, 9, 6, 0)])
     }
 
+    func testHomeLiveArtistReferenceUsesMatchingTimetablePerformance() throws {
+        let performanceID = UUID()
+        let startsAt = date(18, 0)
+        let endsAt = date(19, 0)
+        let performance = try TimetablePerformance(
+            id: performanceID,
+            artistName: "Slowdive",
+            startsAt: startsAt,
+            endsAt: endsAt,
+            appleMusicArtistID: "12345"
+        )
+        let stage = try TimetableStage(name: "Main Stage", performances: [performance])
+        let day = try TimetableDay(date: date(0, 0), stages: [stage])
+        let timetable = try Timetable(timeZoneIdentifier: "Asia/Shanghai", days: [day])
+        let snapshot = LivePerformanceSnapshot(
+            id: performanceID,
+            artistName: "Slowdive",
+            stageID: stage.id,
+            stageName: stage.name,
+            startsAt: startsAt,
+            endsAt: endsAt,
+            isInterested: false,
+            secondsUntilStart: 0,
+            secondsUntilEnd: 1_800
+        )
+        let avatarURL = URL(string: "https://example.com/slowdive.jpg")
+
+        let reference = HomeLiveArtistReferenceBuilder.make(
+            for: snapshot,
+            in: timetable,
+            avatarURL: avatarURL
+        )
+
+        XCTAssertEqual(reference.name, "Slowdive")
+        XCTAssertEqual(reference.appleMusicArtistID, "12345")
+        XCTAssertEqual(reference.avatarURL, avatarURL)
+    }
+
+    func testHomeLiveArtistReferenceDoesNotMatchAnotherPerformanceByName() throws {
+        let linked = try TimetablePerformance(
+            artistName: "Slowdive",
+            startsAt: date(18, 0),
+            endsAt: date(19, 0),
+            appleMusicArtistID: "12345"
+        )
+        let stage = try TimetableStage(name: "Main Stage", performances: [linked])
+        let day = try TimetableDay(date: date(0, 0), stages: [stage])
+        let timetable = try Timetable(timeZoneIdentifier: "Asia/Shanghai", days: [day])
+        let snapshot = LivePerformanceSnapshot(
+            id: UUID(),
+            artistName: "Slowdive",
+            stageID: stage.id,
+            stageName: stage.name,
+            startsAt: date(18, 0),
+            endsAt: date(19, 0),
+            isInterested: false,
+            secondsUntilStart: 0,
+            secondsUntilEnd: 1_800
+        )
+
+        let reference = HomeLiveArtistReferenceBuilder.make(
+            for: snapshot,
+            in: timetable,
+            avatarURL: nil
+        )
+
+        XCTAssertNil(reference.appleMusicArtistID)
+    }
+
     private var shanghai: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
