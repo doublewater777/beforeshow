@@ -34,7 +34,6 @@ struct FootprintDetailView: View {
     @Query private var assets: [ShowAsset]
     @State private var memoryTarget: FootprintMemoryTarget?
     @State private var showingAssetKind: ShowAssetKind?
-    @State private var isShowingShareComposer = false
     @State private var isShowingDispersalShare = false
     @State private var isShowingCeremonyEditor = false
     @State private var isShowingEditor = false
@@ -100,47 +99,6 @@ struct FootprintDetailView: View {
         let timeState = CurrentShowTimeState(show: show, calendar: calendar)
         guard let minutes = ShowDurationFormatter.minutes(for: show, timeState: timeState) else { return nil }
         return ShowDurationFormatter.single(totalMinutes: minutes)
-    }
-
-    private var shareRoute: FootprintDetailShareRoute {
-        FootprintDetailShareRoute.resolve(
-            hasShareMaterials: !shareMaterials.isEmpty,
-            rating: show.rating,
-            note: show.closingNote
-        )
-    }
-
-    private var shareMaterials: [FootprintShareMaterial] {
-        var sources = fragments.flatMap { fragment -> [FootprintShareSource] in
-            let mediaSources = fragment.orderedMediaItems.map { item in
-                FootprintShareSource(
-                    id: item.id,
-                    kind: item.kind == .photo ? .photo : .videoCover,
-                    recordedAt: item.createdAt,
-                    imageURL: MemoryMediaLocation.applicationSupport().url(
-                        for: item.thumbnailRelativePath ?? item.relativePath
-                    )
-                )
-            }
-            guard mediaSources.isEmpty else { return mediaSources }
-            return [FootprintShareSource(
-                id: fragment.id,
-                kind: .text,
-                recordedAt: fragment.createdAt,
-                imageURL: nil
-            )]
-        }
-        if let location = try? ShowAssetMediaLocation.applicationSupport() {
-            sources += assets.map { asset in
-                FootprintShareSource(
-                    id: asset.id,
-                    kind: asset.kind == .ticket ? .ticket : .timetable,
-                    recordedAt: asset.createdAt,
-                    imageURL: location.rootDirectory.appendingPathComponent(asset.relativePath)
-                )
-            }
-        }
-        return FootprintShareMaterialBuilder.make(from: sources)
     }
 
     var body: some View {
@@ -231,11 +189,6 @@ struct FootprintDetailView: View {
                     Button(BSLocalization.text("编辑现场"), systemImage: "square.and.pencil") {
                         isShowingEditor = true
                     }
-                    if shareRoute != .none {
-                        Button(BSLocalization.text("分享现场"), systemImage: "square.and.arrow.up") {
-                            openShare()
-                        }
-                    }
                     Button(BSLocalization.text("删除现场"), systemImage: "trash", role: .destructive) {
                         isShowingDeleteConfirmation = true
                     }
@@ -283,14 +236,6 @@ struct FootprintDetailView: View {
             ) { draft in
                 try await apply(draft)
             }
-        }
-        .fullScreenCover(isPresented: $isShowingShareComposer) {
-            FootprintShareComposerView(
-                show: show,
-                identity: identity,
-                materials: shareMaterials,
-                onClose: { isShowingShareComposer = false }
-            )
         }
         .sheet(isPresented: $isShowingShowShare) {
             ShowSharePreviewSheet(show: show)
@@ -404,17 +349,6 @@ struct FootprintDetailView: View {
     }
 
 
-    private func openShare() {
-        switch shareRoute {
-        case .composer:
-            isShowingShareComposer = true
-        case .dispersalCard:
-            isShowingDispersalShare = true
-        case .none:
-            break
-        }
-    }
-
     @MainActor
     private func apply(_ draft: ShowDraft) async throws {
         let didSync = try await ShowMutationCoordinator.applyDraft(
@@ -482,7 +416,6 @@ struct FootprintDetailView: View {
         memoryTarget = nil
         coverViewer = nil
         showingAssetKind = nil
-        isShowingShareComposer = false
         isShowingDispersalShare = false
         isShowingCeremonyEditor = false
         isShowingEditor = false

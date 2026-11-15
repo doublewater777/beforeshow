@@ -4,10 +4,14 @@ import UIKit
 
 /// The show sent from 现场详情, and the share sheet it goes out through.
 enum CountdownShareExport {
-    static let posterSize = CGSize(width: 360, height: 480)
-    static let footerHeight: CGFloat = 156
-    static let renderSize = CGSize(width: posterSize.width, height: posterSize.height + footerHeight)
+    /// 票根 and 邀请 are this size; 海报 keeps the width and grows with its poster.
+    static let renderSize = CGSize(width: 360, height: 636)
     static let renderScale: CGFloat = 3
+
+    static func renderSize(style: CountdownShareCardStyle, poster: UIImage?) -> CGSize {
+        guard style == .classic else { return renderSize }
+        return CGSize(width: renderSize.width, height: CountdownSharePosterLayout.height(poster: poster))
+    }
 
     /// The detail button is always there, including after the show has ended.
     static func isAvailable(_ snapshot: HomeHeroSnapshot) -> Bool {
@@ -34,6 +38,7 @@ enum CountdownShareExport {
         let poster = ShowCoverReference.url(show.coverImageURL).flatMap {
             ShowCoverImageCache.shared.persistedImage(for: $0)
         }
+        let size = renderSize(style: style, poster: poster)
         let card = CountdownShareCard(
             show: show,
             snapshot: snapshot,
@@ -41,15 +46,37 @@ enum CountdownShareExport {
             link: ShowShareLink.url(for: show),
             style: style
         )
-        .frame(width: renderSize.width, height: renderSize.height)
+        .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: card)
-        renderer.proposedSize = ProposedViewSize(renderSize)
+        renderer.proposedSize = ProposedViewSize(size)
         renderer.scale = renderScale
         return renderer.uiImage
     }
 }
 
-/// The shared picture: a 3:4 poster, then the time, place and code underneath.
+/// 海报: the whole poster as wide as the rule under it, then the words and the code side by side.
+enum CountdownSharePosterLayout {
+    static let margin: CGFloat = 20
+    static let contentWidth = CountdownShareExport.renderSize.width - margin * 2
+    static let ruleGap: CGFloat = 16
+    static let infoHeight: CGFloat = 128
+    /// Very wide or very long images still keep the card a sane shape.
+    static let aspectRange: ClosedRange<CGFloat> = 0.5...1.6
+    static let missingPosterAspect: CGFloat = 4.0 / 3.0
+
+    static func posterHeight(poster: UIImage?) -> CGFloat {
+        guard let poster, poster.size.width > 0, poster.size.height > 0 else {
+            return (contentWidth * missingPosterAspect).rounded()
+        }
+        let aspect = min(max(poster.size.height / poster.size.width, aspectRange.lowerBound), aspectRange.upperBound)
+        return (contentWidth * aspect).rounded()
+    }
+
+    static func height(poster: UIImage?) -> CGFloat {
+        margin + posterHeight(poster: poster) + ruleGap + 1 + ruleGap + infoHeight + margin
+    }
+}
+
 struct CountdownShareCard: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
@@ -58,14 +85,11 @@ struct CountdownShareCard: View {
     var style: CountdownShareCardStyle = .classic
 
     var body: some View {
+        let size = CountdownShareExport.renderSize(style: style, poster: poster)
         Group {
             switch style {
             case .classic:
-                VStack(spacing: 0) {
-                    posterBlock
-                    footer
-                }
-                .background(BSColor.Stage.background)
+                posterCard
             case .stub:
                 CountdownShareStubCard(copy: copy, timeLine: timeLine, poster: poster, link: link)
             case .invitation:
@@ -79,68 +103,113 @@ struct CountdownShareCard: View {
                 )
             }
         }
-        .frame(width: CountdownShareExport.renderSize.width, height: CountdownShareExport.renderSize.height)
+        .frame(width: size.width, height: size.height)
     }
 
-    private var posterBlock: some View {
-        ZStack(alignment: .bottomLeading) {
-            posterFill
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.36),
-                    .init(color: .black.opacity(0.78), location: 0.66),
-                    .init(color: .black.opacity(0.96), location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            VStack(alignment: .leading, spacing: 0) {
-                if !timeLine.isEmpty {
-                    HStack(spacing: 6) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(timeLine)
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.42), in: Capsule())
-                }
-                Text(copy.title)
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.75)
-                    .padding(.top, 12)
-                if let venue = copy.venueSummary {
-                    HStack(spacing: 4) {
-                        Image(systemName: "mappin")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(venue)
-                            .font(.system(size: 13, weight: .medium))
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(.white.opacity(0.86))
-                    .padding(.top, 8)
-                }
-            }
-            .padding(20)
+    private var posterCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            posterImage
+                .frame(
+                    width: CountdownSharePosterLayout.contentWidth,
+                    height: CountdownSharePosterLayout.posterHeight(poster: poster)
+                )
+            dashedRule
+                .padding(.vertical, CountdownSharePosterLayout.ruleGap)
+            info
+                .frame(height: CountdownSharePosterLayout.infoHeight)
         }
-        .frame(width: CountdownShareExport.posterSize.width, height: CountdownShareExport.posterSize.height)
+        .padding(CountdownSharePosterLayout.margin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background { backdrop }
         .clipped()
     }
 
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            dashedRule
-            CountdownShareSignature(link: link, ink: .white, subInk: .white.opacity(0.62), logoEdge: .white.opacity(0.22))
+    @ViewBuilder
+    private var posterImage: some View {
+        if let poster {
+            Image(uiImage: poster)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .shadow(color: .black.opacity(0.4), radius: 14, y: 6)
+        } else {
+            // No poster: a lit stage rather than a black hole.
+            ZStack {
+                LinearGradient(
+                    colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.background],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                RadialGradient(
+                    colors: [BSColor.Stage.accent.opacity(0.28), .clear],
+                    center: UnitPoint(x: 0.5, y: 0.08),
+                    startRadius: 0,
+                    endRadius: 260
+                )
+                RadialGradient(
+                    colors: [BSColor.Stage.glowBlue.opacity(0.18), .clear],
+                    center: UnitPoint(x: 0.9, y: 0.45),
+                    startRadius: 0,
+                    endRadius: 220
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 16)
-        .frame(width: CountdownShareExport.posterSize.width, height: CountdownShareExport.footerHeight, alignment: .top)
-        .background(BSColor.Stage.background)
+    }
+
+    private var info: some View {
+        HStack(alignment: .bottom, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(copy.title)
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                if !timeLine.isEmpty {
+                    HStack(spacing: 5) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(timeLine)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white.opacity(0.72))
+                }
+                if let venue = copy.venueSummary {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(venue)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white.opacity(0.72))
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 7) {
+                    Image("AppLogo")
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 22, height: 22)
+                        .clipShape(RoundedRectangle(cornerRadius: 5.5, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5.5, style: .continuous)
+                                .strokeBorder(.white.opacity(0.22), lineWidth: 0.5)
+                        )
+                    Text(BSShareByline.appName)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(BSLocalization.text("扫码添加这场演出"))
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            ShareQRCode(link: link)
+        }
     }
 
     private var copy: ShowIdentityCopy {
@@ -156,38 +225,30 @@ struct CountdownShareCard: View {
         return HomeCountdownLockup.startLine(start, calendar: show.timingCalendar())
     }
 
-    private var posterFill: some View {
-        Group {
-            if let poster {
+    @ViewBuilder
+    private var backdrop: some View {
+        if let poster {
+            ZStack {
+                BSColor.Stage.background
                 Image(uiImage: poster)
                     .resizable()
-                    .interpolation(.high)
                     .scaledToFill()
-            } else {
-                // No poster: a lit stage rather than a black hole.
-                ZStack {
-                    LinearGradient(
-                        colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.background],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    RadialGradient(
-                        colors: [BSColor.Stage.accent.opacity(0.28), .clear],
-                        center: UnitPoint(x: 0.5, y: 0.08),
-                        startRadius: 0,
-                        endRadius: 260
-                    )
-                    RadialGradient(
-                        colors: [BSColor.Stage.glowBlue.opacity(0.18), .clear],
-                        center: UnitPoint(x: 0.9, y: 0.45),
-                        startRadius: 0,
-                        endRadius: 220
-                    )
-                }
+                    .blur(radius: 50)
+                    .scaleEffect(1.3)
+                    .opacity(0.8)
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.35), location: 0),
+                        .init(color: .black.opacity(0.55), location: 0.55),
+                        .init(color: BSColor.Stage.background, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             }
+        } else {
+            BSColor.Stage.background
         }
-        .frame(width: CountdownShareExport.posterSize.width, height: CountdownShareExport.posterSize.height)
-        .clipped()
     }
 
     private var dashedRule: some View {
@@ -201,7 +262,7 @@ struct CountdownShareCard: View {
                 style: StrokeStyle(lineWidth: 1, dash: [3, 4])
             )
         }
-        .frame(height: 1)
+        .frame(width: CountdownSharePosterLayout.contentWidth, height: 1)
     }
 }
 
@@ -260,22 +321,19 @@ struct ShowSharePreviewSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                CountdownShareCard(
-                    show: show,
-                    snapshot: snapshot,
-                    poster: poster,
-                    link: ShowShareLink.url(for: show),
-                    style: style
-                )
-                .aspectRatio(
-                    CountdownShareExport.renderSize.width / CountdownShareExport.renderSize.height,
-                    contentMode: .fit
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
-                .padding(.horizontal, 22)
-                .padding(.top, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                GeometryReader { proxy in
+                    CountdownShareCard(
+                        show: show,
+                        snapshot: snapshot,
+                        poster: poster,
+                        link: ShowShareLink.url(for: show),
+                        style: style
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .scaleEffect(previewScale(in: proxy.size))
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
+                }
 
                 // No look here is Pro, so nothing is ever locked.
                 BSSharePosterStylePicker(selection: $style, isProActive: true) {}
@@ -302,6 +360,12 @@ struct ShowSharePreviewSheet: View {
         .tint(BSColor.Stage.foreground)
         .interactiveDismissDisabled(isBusy)
         .onAppear { loadPoster() }
+    }
+
+    /// Fitted above the controls with room around it, never edge to edge.
+    private func previewScale(in available: CGSize) -> CGFloat {
+        let size = CountdownShareExport.renderSize(style: style, poster: poster)
+        return max(0.1, min((available.width - 112) / size.width, (available.height - 28) / size.height))
     }
 
     private func loadPoster() {

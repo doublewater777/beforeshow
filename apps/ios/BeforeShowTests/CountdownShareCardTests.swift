@@ -31,13 +31,11 @@ final class CountdownShareCardTests: XCTestCase {
         )
         let rendered = await CountdownShareExport.renderImage(show: show, snapshot: HomeHeroSnapshot(show: show, now: .now))
         let card = try XCTUnwrap(rendered)
-        XCTAssertEqual(card.cgImage?.width, Int(CountdownShareExport.renderSize.width * CountdownShareExport.renderScale))
-        XCTAssertEqual(card.cgImage?.height, Int(CountdownShareExport.renderSize.height * CountdownShareExport.renderScale))
-        XCTAssertEqual(
-            CountdownShareExport.posterSize.height / CountdownShareExport.posterSize.width,
-            4.0 / 3.0,
-            accuracy: 0.001
-        )
+        // The cover may already be saved on this device; the card is sized by whatever poster it drew.
+        let poster = ShowCoverReference.url(show.coverImageURL).flatMap { ShowCoverImageCache.shared.persistedImage(for: $0) }
+        let size = CountdownShareExport.renderSize(style: .classic, poster: poster)
+        XCTAssertEqual(card.cgImage?.width, Int(size.width * CountdownShareExport.renderScale))
+        XCTAssertEqual(card.cgImage?.height, Int(size.height * CountdownShareExport.renderScale))
 
         // Chat apps resend pictures smaller and as JPEG.
         for (width, quality) in [(1_080.0, 1.0), (720.0, 0.6)] {
@@ -47,6 +45,19 @@ final class CountdownShareCardTests: XCTestCase {
             XCTAssertEqual(draft.startTime, Date(timeIntervalSince1970: start.timeIntervalSince1970.rounded()))
             XCTAssertEqual(draft.coverImageURL, show.coverImageURL)
         }
+    }
+
+    func testPosterCardKeepsTheWholePosterAtRuleWidth() {
+        let tall = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 300)).image { _ in }
+        let width = CountdownSharePosterLayout.contentWidth
+        XCTAssertEqual(CountdownSharePosterLayout.posterHeight(poster: tall), width * 1.5)
+        XCTAssertEqual(
+            CountdownShareExport.renderSize(style: .classic, poster: tall).height,
+            CountdownSharePosterLayout.height(poster: tall)
+        )
+        let scroll = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 500)).image { _ in }
+        XCTAssertEqual(CountdownSharePosterLayout.posterHeight(poster: scroll), width * 1.6, "Long images are capped")
+        XCTAssertEqual(CountdownShareExport.renderSize(style: .stub, poster: tall), CountdownShareExport.renderSize)
     }
 
     private func recompressed(_ image: UIImage, width: CGFloat, quality: CGFloat) throws -> CGImage {

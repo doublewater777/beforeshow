@@ -25,12 +25,6 @@ final class ShareCardBylineTests: XCTestCase {
         try assertByline(in: image)
     }
 
-    func testMemoryCardCarriesByline() throws {
-        let show = try makeShow()
-        let card = FootprintMemoryShareCard(show: show, identity: identity(show), materials: [], images: [:])
-        try assertByline(in: render(card, size: CGSize(width: 360, height: 640)))
-    }
-
     func testFootprintPageExportCarriesByline() throws {
         let page = FootprintPageExportView(title: "这些年", kicker: "") { Color.clear.frame(height: 200) }
         try assertByline(in: render(page, size: CGSize(width: FootprintPageExportLayout.width, height: 360)))

@@ -38,7 +38,6 @@
 		0CBE0AAADE4578AE40A2E7E6 /* MerchEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C815A4842BC6CE6239B619 /* MerchEditSheet.swift */; };
 		0D5A69046ACE0019B9D6B1D1 /* ListeningPickShelfStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 692EEA600427A543D26196BC /* ListeningPickShelfStage.swift */; };
 		0D620DE4A31883352BF3F1FF /* FootprintConstellationLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABBB47081BDB27EA7C36FA7C /* FootprintConstellationLayout.swift */; };
-		0E31F23304E46C4BB01022A2 /* FootprintMemoryShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */; };
 		0E8D9CD478249BDDD5631AFD /* TimetablePullToClose.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CD5586CC0960656C74465A /* TimetablePullToClose.swift */; };
 		0ED24CE2E39BB617C12086AB /* MemoryFragment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9813064BA9172B0046C02A /* MemoryFragment.swift */; };
 		0EDB1BF1E819EB995F0E3882 /* ListeningPlaybackLoadGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64E1A7C9F232FB643AD32B25 /* ListeningPlaybackLoadGateTests.swift */; };
@@ -738,7 +737,6 @@
 		FC29B1F730B29CE5D93F4C26 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F1D94C4E8C461548B6A0F6 /* WidgetTheme.swift */; };
 		FC410FB701957EC662EFC4C6 /* ListeningShowInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCE0BFBE2C40D8DABD4ED43F /* ListeningShowInputs.swift */; };
 		FC42F1B457462193BCD6E732 /* FeatureRecommendationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A22857BD87D1AB10BABC869 /* FeatureRecommendationRecord.swift */; };
-		FC52728180AC91DC9B8D76E0 /* FootprintShareComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3287BAA3EF70D7C728E6FBBC /* FootprintShareComposerView.swift */; };
 		FC78E4E2F48A2B6BE9C4929B /* OnDeviceShowScreenshotRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E669B2248490FA50E2E5A846 /* OnDeviceShowScreenshotRecognizer.swift */; };
 		FD166A27F617EE43D146A449 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508DB68B83B2097DF18FB49D /* SplashView.swift */; };
 		FD1DE9F768A2FEFEED55449E /* ShowLinkParsingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D105DBF871126A59F70A572 /* ShowLinkParsingService.swift */; };
@@ -929,7 +927,6 @@
 		318F2DFD4B015810680EC5C6 /* ShowUnlockRevealTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowUnlockRevealTests.swift; sourceTree = "<group>"; };
 		32004AD9B8171BCEDFE79A67 /* DynamicCoverRetirement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverRetirement.swift; sourceTree = "<group>"; };
 		32685B5FE628899D1656FA73 /* FootprintBadgesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBadgesTests.swift; sourceTree = "<group>"; };
-		3287BAA3EF70D7C728E6FBBC /* FootprintShareComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintShareComposerView.swift; sourceTree = "<group>"; };
 		3294E18C9F4F6F982A7F913D /* FootprintStarKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintStarKeys.swift; sourceTree = "<group>"; };
 		329A5C1526A399106BE79FC0 /* FootprintBookShowPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookShowPage.swift; sourceTree = "<group>"; };
 		32B569A549FCF50194429025 /* FootprintYearsWalkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintYearsWalkTests.swift; sourceTree = "<group>"; };
@@ -1327,7 +1324,6 @@
 		BAE6268009CCBE8150076F83 /* BSPlatformCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSPlatformCompatibility.swift; sourceTree = "<group>"; };
 		BB97A17F176C8AA3D12BDB9A /* ShowModuleGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowModuleGrid.swift; sourceTree = "<group>"; };
 		BBE5A6337B5F5EF3B81B4F64 /* LocalCompanionMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCompanionMigration.swift; sourceTree = "<group>"; };
-		BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintMemoryShareCard.swift; sourceTree = "<group>"; };
 		BC13DFE54D5FD8BFEB4572F3 /* FootprintBookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintBookTests.swift; sourceTree = "<group>"; };
 		BCBB6761F83BFF352A4DD6AC /* AppAudioSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAudioSessionTests.swift; sourceTree = "<group>"; };
 		BCE0BFBE2C40D8DABD4ED43F /* ListeningShowInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningShowInputs.swift; sourceTree = "<group>"; };
@@ -2541,7 +2537,6 @@
 				EC57261ADB488991B2F21290 /* FootprintLedgerView.swift */,
 				117B6C6649A1660DDBB0033F /* FootprintMarqueeRecord.swift */,
 				968E30E2322C66F383BE993E /* FootprintMarqueeView.swift */,
-				BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */,
 				0F28B611961C0B86B0A3697F /* FootprintMerchCabinetView.swift */,
 				045EB3EB7620A9ED4FBB0CB7 /* FootprintMoreArchiveChrome.swift */,
 				5AFD89967306914342492CD4 /* FootprintMoreArchives.swift */,
@@ -2558,7 +2553,6 @@
 				583DF44ADD924F3F8071D664 /* FootprintSearchSheet.swift */,
 				F2602477A19C8C89F3860E00 /* FootprintSetlistView.swift */,
 				46B914672382EBB3B23E88BC /* FootprintShareActionSheet.swift */,
-				3287BAA3EF70D7C728E6FBBC /* FootprintShareComposerView.swift */,
 				0B5B2697611600BD7155E4AE /* FootprintShareExport.swift */,
 				C2235B25F3FCF58E6599E56E /* FootprintSkyMenu.swift */,
 				80F0E070A8647A91868E5193 /* FootprintSkyShape.swift */,
@@ -3113,7 +3107,6 @@
 				8A77A58CFA13762779268511 /* FootprintLedgerView.swift in Sources */,
 				A1A4CCBE3D1F696B749D7F70 /* FootprintMarqueeRecord.swift in Sources */,
 				AA093E23946D7FD0CA628715 /* FootprintMarqueeView.swift in Sources */,
-				0E31F23304E46C4BB01022A2 /* FootprintMemoryShareCard.swift in Sources */,
 				1E161799DBFACC95F8D9AC5E /* FootprintMerchCabinetView.swift in Sources */,
 				F10FD107E6DC0DFDE3F3AF39 /* FootprintMoreArchiveChrome.swift in Sources */,
 				225B335667814163B28EABBF /* FootprintMoreArchiveTiles.swift in Sources */,
@@ -3130,7 +3123,6 @@
 				C14CC9DFA6BC0AACC8A0F9F4 /* FootprintSearchSheet.swift in Sources */,
 				559622CCE43574FD777C61D2 /* FootprintSetlistView.swift in Sources */,
 				2853A861890DE6DDC7D74CE6 /* FootprintShareActionSheet.swift in Sources */,
-				FC52728180AC91DC9B8D76E0 /* FootprintShareComposerView.swift in Sources */,
 				26BD1B5A23E23540D330EC18 /* FootprintShareExport.swift in Sources */,
 				0F9295192AEDF6F9F0FBF759 /* FootprintSkyMenu.swift in Sources */,
 				5EB2E62B86793F12D15846F2 /* FootprintSkyShape.swift in Sources */,

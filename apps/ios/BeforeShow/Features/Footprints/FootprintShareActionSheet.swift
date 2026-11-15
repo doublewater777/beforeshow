@@ -55,7 +55,7 @@ struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
                 .buttonStyle(.plain)
                     .disabled(isSaving || isExporting)
                 Button { Task { await shareImage() } } label: {
-                    Text(BSLocalization.text("分享图片"))
+                    Text(BSLocalization.text("分享"))
                         .footprintShareAction(primary: true)
                 }
                 .buttonStyle(.plain)

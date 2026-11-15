@@ -144,7 +144,7 @@ struct DispersalCeremonySheet: View {
                 break
             }
         } catch {
-            commitError = BSLocalization.text("散场记录没有保存，请重试")
+            commitError = BSLocalization.text("散场评价没有保存，请重试")
         }
 
         saving = false

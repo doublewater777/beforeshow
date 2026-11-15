@@ -100,131 +100,10 @@ enum FootprintAccessibilityPolicy {
         return BSLocalization.format("打开记忆碎片，%@", kindAndTime)
     }
 
-    static func shareMaterialLabel(
-        title: String,
-        ordinal: Int,
-        recordedAt: Date,
-        isSelected: Bool,
-        timeZone: TimeZone = .current
-    ) -> String {
-        let selection = isSelected ? BSLocalization.text("已选择") : BSLocalization.text("未选择")
-        return BSLocalization.format("%@，第 %lld 项，%@，%@", title, ordinal, BSDateFormat.clock(recordedAt, timeZone: timeZone), selection)
-    }
-
     private static func summary(from text: String?) -> String? {
         guard let text = FootprintTextNormalizer.nonEmptyTrimmed(text) else { return nil }
         let summary = String(text.prefix(24))
         return summary.count < text.count ? "\(summary)…" : summary
-    }
-}
-
-enum FootprintShareMaterialKind: Equatable {
-    case photo
-    case videoCover
-    case ticket
-    case timetable
-}
-
-struct FootprintShareCandidate: Identifiable, Equatable {
-    let id: UUID
-    let kind: FootprintShareMaterialKind
-    let recordedAt: Date
-}
-
-enum FootprintShareSelectionPolicy {
-    static let maximumSelectionCount = 3
-
-    static func defaultSelection(from candidates: [FootprintShareCandidate]) -> [UUID] {
-        let photos = chronological(candidates.filter { $0.kind == .photo })
-        let videos = chronological(candidates.filter { $0.kind == .videoCover })
-        return (photos + videos).prefix(maximumSelectionCount).map(\.id)
-    }
-
-    static func selectionByAdding(_ id: UUID, to selected: Set<UUID>) -> Set<UUID>? {
-        if selected.contains(id) { return selected }
-        guard selected.count < maximumSelectionCount else { return nil }
-        var next = selected
-        next.insert(id)
-        return next
-    }
-
-    static func outputOrder(
-        selected: Set<UUID>,
-        from candidates: [FootprintShareCandidate]
-    ) -> [UUID] {
-        let included = candidates.filter { selected.contains($0.id) }
-        let memories = chronological(included.filter {
-            $0.kind == .photo || $0.kind == .videoCover
-        })
-        let ticket = chronological(included.filter { $0.kind == .ticket })
-        let timetable = chronological(included.filter { $0.kind == .timetable })
-        return (memories + ticket + timetable).map(\.id)
-    }
-
-    private static func chronological(_ candidates: [FootprintShareCandidate]) -> [FootprintShareCandidate] {
-        candidates.sorted {
-            if $0.recordedAt != $1.recordedAt { return $0.recordedAt < $1.recordedAt }
-            return $0.id.uuidString < $1.id.uuidString
-        }
-    }
-}
-
-struct FootprintShareMaterial: Identifiable, Equatable {
-    let candidate: FootprintShareCandidate
-    let title: String
-    let imageURL: URL
-
-    var id: UUID { candidate.id }
-    var kind: FootprintShareMaterialKind { candidate.kind }
-}
-
-enum FootprintShareSourceKind: Equatable {
-    case text
-    case photo
-    case videoCover
-    case ticket
-    case timetable
-}
-
-struct FootprintShareSource: Identifiable, Equatable {
-    let id: UUID
-    let kind: FootprintShareSourceKind
-    let recordedAt: Date
-    let imageURL: URL?
-}
-
-enum FootprintShareMaterialBuilder {
-    static func make(from sources: [FootprintShareSource]) -> [FootprintShareMaterial] {
-        sources.compactMap { source in
-            guard let mapping = mapping(for: source.kind),
-                  let imageURL = source.imageURL else { return nil }
-            return FootprintShareMaterial(
-                candidate: FootprintShareCandidate(
-                    id: source.id,
-                    kind: mapping.kind,
-                    recordedAt: source.recordedAt
-                ),
-                title: mapping.title,
-                imageURL: imageURL
-            )
-        }
-    }
-
-    private static func mapping(
-        for kind: FootprintShareSourceKind
-    ) -> (kind: FootprintShareMaterialKind, title: String)? {
-        switch kind {
-        case .text:
-            return nil
-        case .photo:
-            return (.photo, BSLocalization.text("照片"))
-        case .videoCover:
-            return (.videoCover, BSLocalization.text("视频封面"))
-        case .ticket:
-            return (.ticket, BSLocalization.text("票根"))
-        case .timetable:
-            return (.timetable, BSLocalization.text("时刻表"))
-        }
     }
 }
 
@@ -256,32 +135,5 @@ enum FootprintExportContentPolicy {
             result.append(FootprintYearGroup(year: group.year, shows: shows))
         }
         return result
-    }
-}
-
-enum FootprintDetailShareRoute: Equatable {
-    case composer
-    case dispersalCard
-    case none
-
-    static func resolve(hasShareMaterials: Bool, rating: Int?, note: String?) -> Self {
-        if hasShareMaterials { return .composer }
-        if rating != nil { return .dispersalCard }
-        if FootprintTextNormalizer.nonEmptyTrimmed(note) != nil { return .dispersalCard }
-        return .none
-    }
-}
-
-enum FootprintMemoryShareCopy {
-    static func identities(from identity: FootprintDetailIdentity) -> [String] {
-        var result = [BSLocalization.format("第 %lld 场现场", identity.showOrdinal)]
-        if identity.companions.count == 1, let companion = identity.companions.first {
-            result.append(BSLocalization.format("与%@第 %lld 次见面", companion.name, companion.ordinal))
-        } else if let names = CompanionNameList.joined(identity.companions.map(\.name)) {
-            result.append(BSLocalization.format("与%@同行", names))
-        } else if let cityOrdinal = identity.cityOrdinal {
-            result.append(BSLocalization.format("城市第 %lld 场", cityOrdinal))
-        }
-        return Array(result.prefix(2))
     }
 }

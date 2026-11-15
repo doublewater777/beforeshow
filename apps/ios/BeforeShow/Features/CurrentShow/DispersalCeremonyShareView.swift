@@ -73,7 +73,7 @@ struct DispersalShareStep: View {
                 }
 
                 exportButton(
-                    title: BSLocalization.text("分享图片"),
+                    title: BSLocalization.text("分享"),
                     isLoading: isSharing,
                     isPrimary: true
                 ) {
@@ -83,7 +83,7 @@ struct DispersalShareStep: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .navigationTitle(BSLocalization.text("散场记录"))
+        .navigationTitle(BSLocalization.text("散场评价"))
         .toolbar { toolbarContent }
         .bsToastOverlay(toast, bottomPadding: 24)
         .background {
@@ -137,7 +137,7 @@ struct DispersalShareStep: View {
                     Image(systemName: "chevron.left")
                 }
                 .disabled(isBusy)
-                .accessibilityLabel("回到散场记录")
+                .accessibilityLabel("回到散场评价")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onDone) {

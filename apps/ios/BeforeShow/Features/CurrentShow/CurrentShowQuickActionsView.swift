@@ -19,7 +19,7 @@ enum CurrentShowQuickAction: Hashable {
         case .timetable: return BSLocalization.text("时刻表")
         case .memoryFragments: return BSLocalization.text("记忆碎片")
         case .dispersal(let completed):
-            return BSLocalization.text(completed ? "散场记录" : "记下感受")
+            return BSLocalization.text(completed ? "散场评价" : "记下感受")
         case .endShow: return BSLocalization.text("结束现场")
         }
     }

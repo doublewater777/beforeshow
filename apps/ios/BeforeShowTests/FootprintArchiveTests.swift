@@ -627,136 +627,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(FootprintExportContentPolicy.remainingCount(total: 3, limit: 2), 1)
     }
 
-    func testDetailShareRouteFallsBackToDispersalCardWhenNoMaterials() {
-        XCTAssertEqual(
-            FootprintDetailShareRoute.resolve(hasShareMaterials: true, rating: 5, note: "顶"),
-            .composer
-        )
-        XCTAssertEqual(
-            FootprintDetailShareRoute.resolve(hasShareMaterials: false, rating: 5, note: nil),
-            .dispersalCard
-        )
-        XCTAssertEqual(
-            FootprintDetailShareRoute.resolve(hasShareMaterials: false, rating: nil, note: "灯亮得很慢"),
-            .dispersalCard
-        )
-        XCTAssertEqual(
-            FootprintDetailShareRoute.resolve(hasShareMaterials: false, rating: nil, note: "   "),
-            .none
-        )
-    }
-
-    func testMemoryShareIdentitiesPreferCompanionAndCapAtTwo() {
-        let withCompanion = FootprintDetailIdentity(
-            showOrdinal: 12,
-            cityOrdinal: 3,
-            companions: [FootprintCompanionIdentity(name: "林嘉", ordinal: 2)]
-        )
-        XCTAssertEqual(
-            FootprintMemoryShareCopy.identities(from: withCompanion),
-            ["第 12 场现场", "与林嘉第 2 次见面"]
-        )
-
-        let withGroup = FootprintDetailIdentity(
-            showOrdinal: 12,
-            cityOrdinal: 3,
-            companions: [
-                FootprintCompanionIdentity(name: "林嘉", ordinal: 2),
-                FootprintCompanionIdentity(name: "王宁", ordinal: 1)
-            ]
-        )
-        XCTAssertEqual(
-            FootprintMemoryShareCopy.identities(from: withGroup),
-            ["第 12 场现场", "与林嘉、王宁同行"]
-        )
-
-        let solo = FootprintDetailIdentity(showOrdinal: 4, cityOrdinal: 2, companions: [])
-        XCTAssertEqual(
-            FootprintMemoryShareCopy.identities(from: solo),
-            ["第 4 场现场", "城市第 2 场"]
-        )
-    }
-
-    func testShareDefaultsPreferChronologicalPhotosOverVideosAndKeepsakes() {
-        let video = UUID()
-        let firstPhoto = UUID()
-        let secondPhoto = UUID()
-        let thirdPhoto = UUID()
-        let ticket = UUID()
-        let candidates = [
-            FootprintShareCandidate(id: ticket, kind: .ticket, recordedAt: date(2025, 6, 1, 17)),
-            FootprintShareCandidate(id: video, kind: .videoCover, recordedAt: date(2025, 6, 1, 18)),
-            FootprintShareCandidate(id: secondPhoto, kind: .photo, recordedAt: date(2025, 6, 1, 20)),
-            FootprintShareCandidate(id: thirdPhoto, kind: .photo, recordedAt: date(2025, 6, 1, 21)),
-            FootprintShareCandidate(id: firstPhoto, kind: .photo, recordedAt: date(2025, 6, 1, 19))
-        ]
-
-        XCTAssertEqual(
-            FootprintShareSelectionPolicy.defaultSelection(from: candidates),
-            [firstPhoto, secondPhoto, thirdPhoto]
-        )
-    }
-
-    func testShareDefaultsUseVideosOnlyAfterAvailablePhotos() {
-        let photo = FootprintShareCandidate(id: UUID(), kind: .photo, recordedAt: date(2025, 6, 1, 20))
-        let earlyVideo = FootprintShareCandidate(id: UUID(), kind: .videoCover, recordedAt: date(2025, 6, 1, 18))
-        let lateVideo = FootprintShareCandidate(id: UUID(), kind: .videoCover, recordedAt: date(2025, 6, 1, 21))
-        let ticket = FootprintShareCandidate(id: UUID(), kind: .ticket, recordedAt: date(2025, 6, 1, 17))
-
-        XCTAssertEqual(
-            FootprintShareSelectionPolicy.defaultSelection(
-                from: [ticket, lateVideo, photo, earlyVideo]
-            ),
-            [photo.id, earlyVideo.id, lateVideo.id]
-        )
-    }
-
-    func testShareSelectionRejectsAFourthMaterialAcrossAllKinds() {
-        let selected = Set([UUID(), UUID(), UUID()])
-
-        XCTAssertNil(
-            FootprintShareSelectionPolicy.selectionByAdding(UUID(), to: selected)
-        )
-        XCTAssertEqual(selected.count, 3)
-    }
-
-    func testShareOutputOrdersMemoriesBeforeTicketAndTimetable() {
-        let photo = FootprintShareCandidate(id: UUID(), kind: .photo, recordedAt: date(2026, 1, 2))
-        let video = FootprintShareCandidate(id: UUID(), kind: .videoCover, recordedAt: date(2026, 1, 1))
-        let ticket = FootprintShareCandidate(id: UUID(), kind: .ticket, recordedAt: date(2025, 1, 1))
-        let timetable = FootprintShareCandidate(id: UUID(), kind: .timetable, recordedAt: date(2024, 1, 1))
-
-        XCTAssertEqual(
-            FootprintShareSelectionPolicy.outputOrder(
-                selected: Set([photo.id, video.id, ticket.id, timetable.id]),
-                from: [ticket, photo, timetable, video]
-            ),
-            [video.id, photo.id, ticket.id, timetable.id]
-        )
-    }
-
-    func testShareMaterialBuilderFiltersTextAndMapsEveryShareableKind() {
-        let imageURL = URL(fileURLWithPath: "/tmp/share-source.jpg")
-        let kinds: [FootprintShareSourceKind] = [
-            .text, .photo, .videoCover, .ticket, .timetable
-        ]
-        let sources = kinds.enumerated().map { index, kind in
-            FootprintShareSource(
-                id: UUID(),
-                kind: kind,
-                recordedAt: date(2026, 1, index + 1),
-                imageURL: kind == .text ? nil : imageURL
-            )
-        }
-
-        let materials = FootprintShareMaterialBuilder.make(from: sources)
-
-        XCTAssertEqual(materials.map(\.kind), [.photo, .videoCover, .ticket, .timetable])
-        XCTAssertEqual(materials.map(\.title), ["照片", "视频封面", "票根", "时刻表"])
-        XCTAssertFalse(materials.contains { $0.id == sources[0].id })
-    }
-
-    func testAccessibilityLabelsDistinguishMemoryAndShareItems() {
+    func testMemoryAccessibilityLabelIncludesTimeAndSummary() {
         let memoryLabel = FootprintAccessibilityPolicy.memoryLabel(
             ordinal: 2,
             kind: "照片",
@@ -764,16 +635,7 @@ final class FootprintArchiveTests: XCTestCase {
             text: "舞台灯光亮起来了",
             timeZone: calendar.timeZone
         )
-        let shareLabel = FootprintAccessibilityPolicy.shareMaterialLabel(
-            title: "照片",
-            ordinal: 3,
-            recordedAt: date(2026, 8, 1, 20).addingTimeInterval(18 * 60),
-            isSelected: false,
-            timeZone: calendar.timeZone
-        )
-
         XCTAssertEqual(memoryLabel, "打开记忆碎片，第 2 条，照片，20:18，内容：舞台灯光亮起来了")
-        XCTAssertEqual(shareLabel, "照片，第 3 项，20:18，未选择")
     }
 
     func testArchiveCardExportFillsGeometryReaderAtExportSize() {
