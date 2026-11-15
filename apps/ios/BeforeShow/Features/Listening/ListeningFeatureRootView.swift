@@ -90,6 +90,35 @@ enum ListeningChromeBootstrapper {
         return room
     }
 
+    /// Prepare the shared room for an explicit home-screen listening request.
+    /// Authorization is requested by the caller before this room loads its catalog.
+    static func roomForHomePlayback(
+        show: Show,
+        context: ModelContext,
+        catalogService: any ListeningMusicCatalogServicing,
+        artistSearchService: any ArtistSearchServicing,
+        playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
+    ) -> ListeningRoomCoordinator {
+        let session = ListeningRoomSessionStore.shared
+        if let cached = session.room, cached.show?.id == show.id {
+            return cached
+        }
+        if let previous = session.room {
+            previous.discardLoadedDiscState(publishWidget: false)
+            session.clear(stoppingTransport: false)
+            WidgetListeningStore.publishCurrentShow(showID: show.id, showName: show.name, generatedAt: Date())
+        }
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalogService,
+            artistSearchService: artistSearchService,
+            playbackFactory: playbackFactory
+        )
+        session.adopt(room)
+        room.prepareForDisplay(show: show)
+        return room
+    }
+
     /// Widget play when no seated session is in memory. Unlike `prepare`, this may
     /// load the current show: the user asked to hear its 「今天这张」.
     static func roomForWidgetPlayback(

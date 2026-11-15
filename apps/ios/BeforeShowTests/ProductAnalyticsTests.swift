@@ -30,6 +30,9 @@ final class ProductAnalyticsTests: XCTestCase {
             .showAdded(showID: showID, method: "manual", lifecycle: "future", isFirstShow: true, isFestival: false),
             .appOpenedFrom(source: .notification, destination: "listen", feature: .listen),
             .featureRecommendationTapped(showID: showID, feature: .listen, surface: .notification),
+            .listenTapped(source: .currentHome, outcome: "started", reason: nil),
+            .appleMusicAuthorizationStatus(status: .authorized, source: .currentHome),
+            .listeningCatalogMatchFailed(source: .currentHome, stage: "artist_identity", reason: "no_match", failedCount: 2),
             .proPaywallViewed
         ]
         for event in other {
@@ -53,6 +56,32 @@ final class ProductAnalyticsTests: XCTestCase {
         let listen = AnalyticsEvent.listenPlaybackStarted(source: .fullCatalog)
         XCTAssertEqual(listen.name, "listen_playback_started")
         XCTAssertEqual(listen.properties["source"] as? String, "full")
+
+        let listenTap = AnalyticsEvent.listenTapped(
+            source: .currentHome,
+            outcome: "requires_artist_match",
+            reason: "no_playable_disc_unmatched_artist"
+        )
+        XCTAssertEqual(listenTap.name, "listen_tapped")
+        XCTAssertEqual(listenTap.properties["source"] as? String, "current_home")
+        XCTAssertEqual(listenTap.properties["outcome"] as? String, "requires_artist_match")
+        XCTAssertEqual(listenTap.properties["reason"] as? String, "no_playable_disc_unmatched_artist")
+
+        let authorization = AnalyticsEvent.appleMusicAuthorizationStatus(status: .notDetermined, source: .currentHome)
+        XCTAssertEqual(authorization.name, "apple_music_authorization_status")
+        XCTAssertEqual(authorization.properties["status"] as? String, "not_determined")
+        XCTAssertEqual(authorization.properties["source"] as? String, "current_home")
+
+        let matchFailure = AnalyticsEvent.listeningCatalogMatchFailed(
+            source: .currentHome,
+            stage: "artist_identity",
+            reason: "no_match",
+            failedCount: 2
+        )
+        XCTAssertEqual(matchFailure.name, "listening_catalog_match_failed")
+        XCTAssertEqual(matchFailure.properties["stage"] as? String, "artist_identity")
+        XCTAssertEqual(matchFailure.properties["reason"] as? String, "no_match")
+        XCTAssertEqual(matchFailure.properties["failed_count"] as? Int, 2)
 
         let tapped = AnalyticsEvent.featureRecommendationTapped(showID: showID, feature: .timetable, surface: .notification)
         XCTAssertEqual(tapped.properties["feature"] as? String, "timetable")
