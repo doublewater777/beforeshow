@@ -4,6 +4,22 @@ import SwiftUI
 // MARK: - Current Show Management Actions
 // 快捷入口、主按钮和通知转来的落点，统一在当前现场首页里打开（ADR 0037）。
 
+@MainActor @Observable
+final class CurrentShowListeningPresentation {
+    var isStarting = false
+    var errorMessage: String?
+    var matchingRoom: ListeningRoomCoordinator?
+    var matchingSlotIndex: Int?
+    var matchingArtistName = ""
+    var pendingMatchedArtistID: String?
+
+    func clearMatch() {
+        matchingRoom = nil
+        matchingSlotIndex = nil
+        matchingArtistName = ""
+    }
+}
+
 extension CurrentShowManagementSection {
     /// 删除当前现场后，父视图切到下一场之前，本视图可能先带着上一帧的 show / 列表重算。
     @ViewBuilder var body: some View {
@@ -50,7 +66,7 @@ extension CurrentShowManagementSection {
         }
         switch action {
         case .listen:
-            Task { await ListeningIntentHandler.shared.perform(.play) }
+            Task { await startListeningFromHome() }
         case .playRecord:
             guard let record = unlockedRecord else { return }
             Task { await FootprintNumberSongPlayer.shared.start(record) }
@@ -61,6 +77,101 @@ extension CurrentShowManagementSection {
         case .fillNewDate:
             homeRoute = .editShow
         }
+    }
+
+    @MainActor
+    func startListeningFromHome() async {
+        guard !listeningPresentation.isStarting else { return }
+        listeningPresentation.isStarting = true
+        listeningPresentation.errorMessage = nil
+        defer { listeningPresentation.isStarting = false }
+
+        let result = await ListeningHomePlaybackCoordinator.start(show: show, context: modelContext)
+        ProductAnalytics.capture(.listenTapped(
+            source: .currentHome,
+            outcome: result.analyticsOutcome,
+            reason: result.analyticsReason
+        ))
+
+        switch result {
+        case .started:
+            break
+        case .needsArtistMatch(let room, let slotIndex, let artistName):
+            listeningPresentation.matchingRoom = room
+            listeningPresentation.matchingSlotIndex = slotIndex
+            listeningPresentation.matchingArtistName = artistName
+            presentedSheet = .artistMatch
+        case .authorizationDenied, .authorizationNotResolved:
+            listeningPresentation.errorMessage = ListeningCopy.text("当前未允许访问 Apple Music。")
+        case .authorizationRestricted:
+            listeningPresentation.errorMessage = ListeningCopy.text("Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。")
+        case .catalogFailed, .noPlayableContent, .noCurrentShow:
+            listeningPresentation.errorMessage = ListeningCopy.text("当前没有可播放的歌曲。")
+        case .playbackFailed:
+            listeningPresentation.errorMessage = ListeningCopy.text("暂时无法播放")
+        }
+    }
+
+    @MainActor
+    func resumeListeningAfterArtistMatch(in room: ListeningRoomCoordinator, artistID: String) async {
+        guard !listeningPresentation.isStarting else { return }
+        listeningPresentation.isStarting = true
+        listeningPresentation.errorMessage = nil
+        defer { listeningPresentation.isStarting = false }
+        guard show.isAttached, room.show?.id == show.id else { return }
+
+        room.loadArtistCatalogIfNeeded(artistID)
+        for _ in 0..<100 {
+            guard !Task.isCancelled, show.isAttached, room.show?.id == show.id else { return }
+            if room.artistCatalogStatus[artistID] != .loading { break }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        if room.artistCatalogStatus[artistID] == .loading {
+            ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                source: .currentHome, stage: "catalog_fetch", reason: "timeout", failedCount: 1
+            ))
+            listeningPresentation.errorMessage = ListeningCopy.text("当前没有可播放的歌曲。")
+            return
+        }
+        if room.artistCatalogStatus[artistID] == .failed {
+            ProductAnalytics.capture(.listeningCatalogMatchFailed(
+                source: .currentHome, stage: "catalog_fetch", reason: "request_failed", failedCount: 1
+            ))
+        }
+
+        if let disc = ListeningHomePlaybackCoordinator.playableDisc(in: room) {
+            room.loadPlayableDisc(disc)
+            await room.deck.settle()
+            if room.wantsPlayback, room.deck.phase != .failed {
+                room.syncWidgetListeningState()
+                return
+            }
+        }
+
+        await room.reloadCatalog(force: true)
+        if let disc = ListeningHomePlaybackCoordinator.playableDisc(in: room) {
+            room.loadPlayableDisc(disc)
+            await room.deck.settle()
+            if room.wantsPlayback, room.deck.phase != .failed {
+                room.syncWidgetListeningState()
+                return
+            }
+        }
+
+        ProductAnalytics.capture(.listeningCatalogMatchFailed(
+            source: .currentHome,
+            stage: "manual_artist_match",
+            reason: "no_playable_tracks",
+            failedCount: 1
+        ))
+        if let nextArtist = room.browseArtists.first(where: { !$0.isConnected }) {
+            listeningPresentation.matchingRoom = room
+            listeningPresentation.matchingSlotIndex = nextArtist.slotIndex
+            listeningPresentation.matchingArtistName = nextArtist.name
+            presentedSheet = .artistMatch
+            return
+        }
+        listeningPresentation.errorMessage = ListeningCopy.text("当前没有可播放的歌曲。")
     }
 
     /// 这场散场后解锁的数字唱片；揭晓过才有。
@@ -81,6 +192,14 @@ extension CurrentShowManagementSection {
         default:
             return false
         }
+    }
+
+    func isCurrentShowAudioActive(
+        room: ListeningRoomCoordinator?,
+        action: HomeCountdownLockup.PrimaryAction?
+    ) -> Bool {
+        guard let room, room.wantsPlayback, let action else { return false }
+        return isPlayingCurrentShowContent(action: action, in: room)
     }
 
     /// 通知转来的当前现场落点：首页真正可见时才打开，避免冲掉正在进行的编辑。

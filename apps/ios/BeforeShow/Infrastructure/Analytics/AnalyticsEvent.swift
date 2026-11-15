@@ -13,6 +13,11 @@ enum AnalyticsEvent {
         case notification
     }
 
+    enum ListenEntrySource: String {
+        case currentHome = "current_home"
+        case listenTab = "listen_tab"
+    }
+
     case onboardingStarted
     case onboardingPageViewed(page: String)
     case onboardingAddShowTapped
@@ -29,6 +34,9 @@ enum AnalyticsEvent {
     case showAdded(showID: UUID, method: String, lifecycle: String, isFirstShow: Bool, isFestival: Bool)
     case showEndedConfirmed(showID: UUID)
     case listenPlaybackStarted(source: ListeningPlaybackSource)
+    case listenTapped(source: ListenEntrySource, outcome: String, reason: String?)
+    case appleMusicAuthorizationStatus(status: ListeningMusicAuthorizationStatus, source: ListenEntrySource)
+    case listeningCatalogMatchFailed(source: ListenEntrySource, stage: String, reason: String, failedCount: Int)
     case timetableSaved(showID: UUID, performanceCount: Int, isNew: Bool)
     case memoryFragmentCreated(showID: UUID, mediaCount: Int, phase: MemoryFragmentPhase)
     case dispersalCeremonyCompleted(showID: UUID, rating: Int?, hasNote: Bool)
@@ -63,6 +71,9 @@ enum AnalyticsEvent {
         case .showAdded: "show_added"
         case .showEndedConfirmed: "show_ended_confirmed"
         case .listenPlaybackStarted: "listen_playback_started"
+        case .listenTapped: "listen_tapped"
+        case .appleMusicAuthorizationStatus: "apple_music_authorization_status"
+        case .listeningCatalogMatchFailed: "listening_catalog_match_failed"
         case .timetableSaved: "timetable_saved"
         case .memoryFragmentCreated: "memory_fragment_created"
         case .dispersalCeremonyCompleted: "dispersal_ceremony_completed"
@@ -140,6 +151,26 @@ enum AnalyticsEvent {
             return ["method": method, "blocker": blocker]
         case .listenPlaybackStarted(let source):
             return ["source": source == .fullCatalog ? "full" : "preview"]
+        case .listenTapped(let source, let outcome, let reason):
+            var properties: [String: Any] = ["source": source.rawValue, "outcome": outcome]
+            if let reason { properties["reason"] = reason }
+            return properties
+        case .appleMusicAuthorizationStatus(let status, let source):
+            let statusValue: String
+            switch status {
+            case .notDetermined: statusValue = "not_determined"
+            case .denied: statusValue = "denied"
+            case .restricted: statusValue = "restricted"
+            case .authorized: statusValue = "authorized"
+            }
+            return ["status": statusValue, "source": source.rawValue]
+        case .listeningCatalogMatchFailed(let source, let stage, let reason, let failedCount):
+            return [
+                "source": source.rawValue,
+                "stage": stage,
+                "reason": reason,
+                "failed_count": failedCount
+            ]
         case .timetableSaved(let showID, let performanceCount, let isNew):
             return ["show_id": showID.uuidString, "performance_count": performanceCount, "is_new": isNew]
         case .memoryFragmentCreated(let showID, let mediaCount, let phase):

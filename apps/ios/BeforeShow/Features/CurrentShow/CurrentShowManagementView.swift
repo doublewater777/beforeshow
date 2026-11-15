@@ -29,6 +29,7 @@ struct CurrentShowManagementSection: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State var presentedSheet: CurrentShowPresentedSheet?
+    @State var listeningPresentation = CurrentShowListeningPresentation()
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
@@ -178,6 +179,21 @@ struct CurrentShowManagementSection: View {
                     venueName: show.venueName,
                     city: show.city
                 )
+            case .artistMatch:
+                if let room = listeningPresentation.matchingRoom,
+                   let slotIndex = listeningPresentation.matchingSlotIndex {
+                    ListeningArtistMatchSheet(
+                        room: room,
+                        slotIndex: slotIndex,
+                        query: listeningPresentation.matchingArtistName,
+                        analyticsSource: .currentHome,
+                        onMatchSuccess: { artist in
+                            listeningPresentation.pendingMatchedArtistID = artist.id
+                        }
+                    )
+                } else {
+                    EmptyView()
+                }
             }
         }
         .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {
@@ -380,10 +396,10 @@ struct CurrentShowManagementSection: View {
                             room: ListeningRoomSessionStore.shared.room,
                             action: displayedPrimaryAction
                         ),
+                        isLoading: listeningPresentation.isStarting,
+                        listenErrorMessage: listeningPresentation.errorMessage,
                         onPrimaryAction: performPrimaryAction,
-                        onOpenRoute: embedsRouteInLocation
-                            ? { openRouteChooser() }
-                            : nil,
+                        onOpenRoute: { openRouteChooser() },
                         unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,
                         unlocksAnimateArrival: unlocksAnimateArrival,
                         onOpenRecords: { homeRoute = .recordWall },
@@ -518,16 +534,19 @@ struct CurrentShowManagementSection: View {
         }
     }
 
-    private var embedsRouteInLocation: Bool {
-        true
-    }
-
     func openRouteChooser() {
         installedMapApps = ExternalMapApp.installed
         presentedSheet = .mapChooser
     }
 
     private func presentedSheetDidDismiss() {
+        let pendingArtistID = listeningPresentation.pendingMatchedArtistID
+        let matchRoom = listeningPresentation.matchingRoom
+        listeningPresentation.pendingMatchedArtistID = nil
+        listeningPresentation.clearMatch()
+        if let pendingArtistID, let matchRoom {
+            Task { await resumeListeningAfterArtistMatch(in: matchRoom, artistID: pendingArtistID) }
+        }
         reconcileNotificationsAfterFeatureUse()
         if let date = pendingConfirmedEndDate,
            let intent = pendingEndIntent {
@@ -575,11 +594,4 @@ struct CurrentShowManagementSection: View {
         openURL(url)
     }
 
-    private func isCurrentShowAudioActive(
-        room: ListeningRoomCoordinator?,
-        action: HomeCountdownLockup.PrimaryAction?
-    ) -> Bool {
-        guard let room, room.wantsPlayback, let action else { return false }
-        return isPlayingCurrentShowContent(action: action, in: room)
-    }
 }

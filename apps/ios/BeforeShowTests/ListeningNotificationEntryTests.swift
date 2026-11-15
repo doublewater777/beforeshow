@@ -5,6 +5,62 @@ import XCTest
 
 @MainActor
 final class ListeningNotificationEntryTests: XCTestCase {
+    func testHomePlaybackRequestsUndeterminedMusicAuthorizationAndStartsCachedDisc() async throws {
+        let (container, show) = try ListenTestData.make()
+        let session = ListeningRoomSessionStore.shared
+        session.clear(stoppingTransport: true)
+        defer { session.clear(stoppingTransport: true) }
+
+        let catalog = HomePlaybackCatalog(status: .notDetermined, requestResult: .authorized)
+        let dependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: HomePlaybackArtistSearch(),
+            playbackFactory: { ListeningTestPlayer(source: $0) }
+        )
+        let result = await ListeningHomePlaybackCoordinator.start(
+            show: show,
+            context: container.mainContext,
+            dependencies: dependencies
+        )
+
+        guard case .started = result else {
+            return XCTFail("Expected home listening to start, got \(result)")
+        }
+        XCTAssertEqual(catalog.authorizationRequests, 1)
+        XCTAssertTrue(session.room?.isPlaying == true)
+        XCTAssertEqual(session.room?.show?.id, show.id)
+    }
+
+    func testHomePlaybackRequestsArtistMatchWhenNoPlayableDiscAndArtistIsUnmatched() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let start = Date().addingTimeInterval(10_000)
+        let show = try Show(name: "Unmatched Show", date: start, startTime: start)
+        show.artists = [ArtistSlot(name: "Unknown Artist", avatarURL: nil)]
+        container.mainContext.insert(show)
+        try container.mainContext.save()
+
+        let session = ListeningRoomSessionStore.shared
+        session.clear(stoppingTransport: true)
+        defer { session.clear(stoppingTransport: true) }
+        let catalog = HomePlaybackCatalog(status: .authorized, requestResult: .authorized)
+        let dependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: HomePlaybackArtistSearch(),
+            playbackFactory: { ListeningTestPlayer(source: $0) }
+        )
+        let result = await ListeningHomePlaybackCoordinator.start(
+            show: show,
+            context: container.mainContext,
+            dependencies: dependencies
+        )
+
+        guard case .needsArtistMatch(_, let slotIndex, let artistName) = result else {
+            return XCTFail("Expected an artist match request, got \(result)")
+        }
+        XCTAssertEqual(slotIndex, 0)
+        XCTAssertEqual(artistName, "Unknown Artist")
+        XCTAssertEqual(catalog.authorizationRequests, 0)
+    }
     func testBodyOpensDetailsAndPlayActionStartsPreviewWithoutRequestingMusicAuthorization() async throws {
         for previewIDs in [["a2", "a1"], ["a1"]] {
             let (container, show) = try ListenTestData.make()
@@ -161,6 +217,45 @@ private final class NotificationEntryCatalog: ListeningMusicCatalogServicing, Se
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
         throw ListeningCatalogError.artistNotFound(artistID)
     }
+}
+
+private final class HomePlaybackCatalog: ListeningMusicCatalogServicing, Sendable {
+    private let lock = NSLock()
+    private nonisolated(unsafe) var storedStatus: ListeningMusicAuthorizationStatus
+    private nonisolated(unsafe) var requestCount = 0
+    private let requestResult: ListeningMusicAuthorizationStatus
+
+    init(status: ListeningMusicAuthorizationStatus, requestResult: ListeningMusicAuthorizationStatus) {
+        storedStatus = status
+        self.requestResult = requestResult
+    }
+
+    var authorizationRequests: Int { lock.withLock { requestCount } }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
+        lock.withLock { storedStatus }
+    }
+
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+        lock.withLock {
+            requestCount += 1
+            storedStatus = requestResult
+            return storedStatus
+        }
+    }
+
+    func currentAccess() async -> ListeningMusicAccess {
+        let status = currentAuthorizationStatus()
+        return .init(authorizationStatus: status, canPlayCatalogContent: status == .authorized)
+    }
+
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+}
+
+private struct HomePlaybackArtistSearch: ArtistSearchServicing {
+    func searchArtists(query: String) async throws -> [RecognizedArtist] { [] }
 }
 
 private struct NotificationEntryArtistSearch: ArtistSearchServicing {
