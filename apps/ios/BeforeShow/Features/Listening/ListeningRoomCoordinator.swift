@@ -910,7 +910,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         var snapshot = catalogSnapshots.first { $0.artistID == artistID }
         if snapshot == nil {
             catalogProjection.invalidate()
-            _ = try? catalogProjection.refresh(artistIDs: [artistID])
+            _ = try? catalogProjection.refresh(artistIDs: currentCatalogArtistIDs)
             catalogSnapshots = catalogProjection.snapshots
             snapshot = catalogSnapshots.first { $0.artistID == artistID }
         }
