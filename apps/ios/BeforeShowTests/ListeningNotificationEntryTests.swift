@@ -64,6 +64,32 @@ final class ListeningNotificationEntryTests: XCTestCase {
         try await ListenTestData.settle(room) { room.isPlaying }
     }
 
+    func testHomeEntryStartsAvailableMusicAndStillPromptsForUnmatchedArtist() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = HomeEntryCatalog(initial: .authorized, requested: .authorized, canPlay: true)
+        let player = ListeningTestPlayer(source: .fullCatalog)
+        let handler = ListeningIntentHandler.shared
+        ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        handler.playbackDependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: HomeEntryEmptyArtistSearch(),
+            playbackFactory: { _ in player }
+        )
+        defer {
+            handler.playbackDependencies = nil
+            ListeningRoomSessionStore.shared.clear(stoppingTransport: true)
+        }
+
+        let result = await handler.playFromHome(show: show, context: container.mainContext)
+        XCTAssertEqual(
+            result,
+            .playbackRequestedWithArtistMatch(slotIndex: 1, unmatchedCount: 1, artistCount: 3)
+        )
+        let room = try XCTUnwrap(ListeningRoomSessionStore.shared.room)
+        XCTAssertTrue(room.wantsPlayback)
+        try await ListenTestData.settle(room) { room.isPlaying }
+    }
+
     func testHomeEntryReturnsAuthorizationFailureInsteadOfSilentlyDoingNothing() async throws {
         let (container, show) = try ListenTestData.make()
         let catalog = HomeEntryCatalog(initial: .notDetermined, requested: .denied, canPlay: false)

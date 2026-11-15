@@ -66,6 +66,19 @@ extension CurrentShowManagementSection {
                     outcome: "playback_requested",
                     reason: nil
                 ))
+            case .playbackRequestedWithArtistMatch(let slotIndex, let unmatchedCount, let artistCount):
+                ProductAnalytics.capture(.listenActionTapped(
+                    source: "home_primary_action",
+                    outcome: "playback_requested",
+                    reason: "unmatched_artists"
+                ))
+                ProductAnalytics.capture(.listeningArtistMatchFailed(
+                    source: "home_primary_action",
+                    unmatchedCount: unmatchedCount,
+                    artistCount: artistCount
+                ))
+                ListeningRoomSessionStore.shared.requestArtistMatch(showID: show.id, slotIndex: slotIndex)
+                rootTabSelection?.wrappedValue = .listen
             case .authorizationRequired(let status):
                 ProductAnalytics.capture(.listenActionTapped(
                     source: "home_primary_action",

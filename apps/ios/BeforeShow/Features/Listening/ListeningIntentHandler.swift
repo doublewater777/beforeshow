@@ -3,6 +3,7 @@ import SwiftData
 
 enum ListeningHomePlaybackResult: Equatable {
     case playbackRequested
+    case playbackRequestedWithArtistMatch(slotIndex: Int, unmatchedCount: Int, artistCount: Int)
     case authorizationRequired(status: ListeningMusicAuthorizationStatus)
     case artistMatchRequired(slotIndex: Int, unmatchedCount: Int, artistCount: Int)
     case unavailable(reason: String)
@@ -75,17 +76,24 @@ final class ListeningIntentHandler: ListeningIntentHandling {
             return .unavailable(reason: "show_unavailable")
         }
 
+        let unmatched = room.browseArtists.filter {
+            !$0.isConnected && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
         if let disc = room.todayDisc(), room.discPresentation(for: disc).canLoad {
             room.loadPlayableDisc(disc)
             guard room.loadedDisc?.id == disc.id, room.wantsPlayback else {
                 return .unavailable(reason: "playback_not_started")
             }
+            if let first = unmatched.first {
+                return .playbackRequestedWithArtistMatch(
+                    slotIndex: first.slotIndex,
+                    unmatchedCount: unmatched.count,
+                    artistCount: room.browseArtists.count
+                )
+            }
             return .playbackRequested
         }
 
-        let unmatched = room.browseArtists.filter {
-            !$0.isConnected && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
         if let first = unmatched.first {
             return .artistMatchRequired(
                 slotIndex: first.slotIndex,
