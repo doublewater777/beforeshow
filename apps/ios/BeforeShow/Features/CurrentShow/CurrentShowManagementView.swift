@@ -25,6 +25,7 @@ struct CurrentShowManagementSection: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) var modelContext
+    @Environment(\.rootTabSelection) var rootTabSelection
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -179,21 +180,6 @@ struct CurrentShowManagementSection: View {
                     venueName: show.venueName,
                     city: show.city
                 )
-            case .artistMatch:
-                if let room = listeningPresentation.matchingRoom,
-                   let slotIndex = listeningPresentation.matchingSlotIndex {
-                    ListeningArtistMatchSheet(
-                        room: room,
-                        slotIndex: slotIndex,
-                        query: listeningPresentation.matchingArtistName,
-                        analyticsSource: .currentHome,
-                        onMatchSuccess: { artist in
-                            listeningPresentation.pendingMatchedArtistID = artist.id
-                        }
-                    )
-                } else {
-                    EmptyView()
-                }
             }
         }
         .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {
@@ -398,6 +384,8 @@ struct CurrentShowManagementSection: View {
                         ),
                         isLoading: listeningPresentation.isStarting,
                         listenErrorMessage: listeningPresentation.errorMessage,
+                        offersOpenSettings: listeningPresentation.offersOpenSettings,
+                        onOpenMusicSettings: openMusicSettings,
                         onPrimaryAction: performPrimaryAction,
                         onOpenRoute: { openRouteChooser() },
                         unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,
@@ -540,13 +528,6 @@ struct CurrentShowManagementSection: View {
     }
 
     private func presentedSheetDidDismiss() {
-        let pendingArtistID = listeningPresentation.pendingMatchedArtistID
-        let matchRoom = listeningPresentation.matchingRoom
-        listeningPresentation.pendingMatchedArtistID = nil
-        listeningPresentation.clearMatch()
-        if let pendingArtistID, let matchRoom {
-            Task { await resumeListeningAfterArtistMatch(in: matchRoom, artistID: pendingArtistID) }
-        }
         reconcileNotificationsAfterFeatureUse()
         if let date = pendingConfirmedEndDate,
            let intent = pendingEndIntent {

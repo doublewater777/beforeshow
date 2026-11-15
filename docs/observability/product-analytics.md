@@ -97,9 +97,9 @@ SQL、查询定义与 insight ID 存在 [product-analytics-posthog.json](product
 | `pro_limit_reached` | — | 免费容量用完 |
 | `show_added` | `show_id`, `method`, `lifecycle`, `is_first_show`, `is_festival` | 保存成功 |
 | `show_ended_confirmed` | `show_id` | 用户确认散场时间 |
-| `listen_tapped` | `source`（`current_home`）, `outcome`, `reason` | 首页点击「听几首」后的启动结果或阻断原因 |
+| `listen_tapped` | `source`（`current_home`）, `outcome`, `reason` | 首页点击「听几首」后的启动结果或阻断原因；失败时还会切到「听」页现有恢复 UI |
 | `apple_music_authorization_status` | `status`（`not_determined` / `denied` / `restricted` / `authorized`）, `source` | 首页收听入口读取的授权状态；首次请求前后分别记录 |
-| `listening_catalog_match_failed` | `source`, `stage`, `reason`, `failed_count` | 自动匹配无结果、曲库请求失败或手动匹配搜索失败 |
+| `listening_catalog_match_failed` | `source`, `stage`, `reason`, `failed_count` | 仅在匹配或曲库失败真正阻断播放时记录；自动匹配无结果、曲库请求失败或手动匹配搜索/保存失败。部分艺人未匹配但已有可播唱片时不记录 |
 | `listen_playback_started` | `source`（`full` / `preview`） | 一段播放开始；切歌不重复计 |
 | `timetable_saved` | `show_id`, `performance_count`, `is_new` | 时刻表保存成功 |
 | `memory_fragment_created` | `show_id`, `has_media`, `media_count`, `phase` | 记忆保存成功 |

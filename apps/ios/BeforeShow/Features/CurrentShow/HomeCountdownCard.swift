@@ -9,6 +9,8 @@ struct HomeCountdownLockup: View {
     var isPlaying = false
     var isLoading = false
     var listenErrorMessage: String? = nil
+    var offersOpenSettings = false
+    var onOpenMusicSettings: () -> Void = {}
     var onPrimaryAction: (PrimaryAction) -> Void = { _ in }
     var onOpenRoute: (() -> Void)? = nil
     var unlocks: ShowUnlocks? = nil
@@ -311,10 +313,17 @@ struct HomeCountdownLockup: View {
             .disabled(isListenLoading)
 
             if action == .listen, let listenErrorMessage {
-                Text(listenErrorMessage)
-                    .font(.system(size: 12))
-                    .foregroundStyle(BSColor.Stage.danger)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(listenErrorMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(BSColor.Stage.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if offersOpenSettings {
+                        Button(ListeningCopy.text("打开设置"), action: onOpenMusicSettings)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.accent)
+                    }
+                }
             }
         }
         .padding(.top, 16)

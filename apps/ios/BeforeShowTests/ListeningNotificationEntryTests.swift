@@ -54,14 +54,125 @@ final class ListeningNotificationEntryTests: XCTestCase {
             dependencies: dependencies
         )
 
-        guard case .needsArtistMatch(_, let slotIndex, let artistName) = result else {
+        guard case .needsArtistMatch(_, let slotIndex, let artistName, let unmatchedCount) = result else {
             return XCTFail("Expected an artist match request, got \(result)")
         }
         XCTAssertEqual(slotIndex, 0)
         XCTAssertEqual(artistName, "Unknown Artist")
+        XCTAssertEqual(unmatchedCount, 1)
         XCTAssertEqual(catalog.authorizationRequests, 0)
+        XCTAssertEqual(result.blockingCatalogFailure?.stage, "artist_identity")
+        XCTAssertEqual(result.blockingCatalogFailure?.reason, "no_match")
+        let recovery = ListeningHomeRecovery.plan(for: result)
+        XCTAssertTrue(recovery.revealListenTab)
+        XCTAssertFalse(recovery.offersOpenSettings)
+        XCTAssertNil(recovery.caption)
     }
+    func testHomePlaybackReturnsAuthorizationFailureAndPlansListenTabRecovery() async throws {
+        let (container, show) = try ListenTestData.make()
+        let session = ListeningRoomSessionStore.shared
+        session.clear(stoppingTransport: true)
+        defer { session.clear(stoppingTransport: true) }
+
+        let catalog = HomePlaybackCatalog(status: .notDetermined, requestResult: .denied)
+        let dependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: HomePlaybackArtistSearch(),
+            playbackFactory: { ListeningTestPlayer(source: $0) }
+        )
+        let result = await ListeningHomePlaybackCoordinator.start(
+            show: show,
+            context: container.mainContext,
+            dependencies: dependencies
+        )
+
+        guard case .authorizationDenied = result else {
+            return XCTFail("Expected authorizationDenied, got \(result)")
+        }
+        XCTAssertEqual(catalog.authorizationRequests, 1)
+        XCTAssertFalse(session.room?.wantsPlayback ?? false)
+        XCTAssertNil(result.blockingCatalogFailure)
+        let recovery = ListeningHomeRecovery.plan(for: result)
+        XCTAssertTrue(recovery.revealListenTab)
+        XCTAssertTrue(recovery.offersOpenSettings)
+        XCTAssertEqual(recovery.caption, ListeningCopy.text("当前未允许访问 Apple Music。"))
+    }
+
+    func testHomePlaybackEmptyCatalogPlansListenTabRecoveryWithoutSettings() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let start = Date().addingTimeInterval(10_000)
+        let show = try Show(name: "Empty Catalog Show", date: start, startTime: start)
+        show.artists = []
+        container.mainContext.insert(show)
+        try container.mainContext.save()
+
+        let session = ListeningRoomSessionStore.shared
+        session.clear(stoppingTransport: true)
+        defer { session.clear(stoppingTransport: true) }
+        let catalog = HomePlaybackCatalog(status: .authorized, requestResult: .authorized)
+        let dependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: HomePlaybackArtistSearch(),
+            playbackFactory: { ListeningTestPlayer(source: $0) }
+        )
+        let result = await ListeningHomePlaybackCoordinator.start(
+            show: show,
+            context: container.mainContext,
+            dependencies: dependencies
+        )
+
+        guard case .noPlayableContent = result else {
+            return XCTFail("Expected noPlayableContent, got \(result)")
+        }
+        XCTAssertNil(result.blockingCatalogFailure)
+        let recovery = ListeningHomeRecovery.plan(for: result)
+        XCTAssertTrue(recovery.revealListenTab)
+        XCTAssertFalse(recovery.offersOpenSettings)
+        XCTAssertEqual(recovery.caption, ListeningCopy.text("当前没有可播放的歌曲。"))
+    }
+
+    func testHomePlaybackDoesNotReportCatalogMatchFailureWhenAPartialLineupCanPlay() async throws {
+        let (container, show) = try ListenTestData.make()
+        let session = ListeningRoomSessionStore.shared
+        session.clear(stoppingTransport: true)
+        defer { session.clear(stoppingTransport: true) }
+
+        let catalog = HomePlaybackCatalog(status: .authorized, requestResult: .authorized)
+        let dependencies = ListeningWidgetPlaybackDependencies(
+            catalogService: catalog,
+            artistSearchService: HomePlaybackArtistSearch(),
+            playbackFactory: { ListeningTestPlayer(source: $0) }
+        )
+        let result = await ListeningHomePlaybackCoordinator.start(
+            show: show,
+            context: container.mainContext,
+            dependencies: dependencies
+        )
+
+        guard case .started = result else {
+            return XCTFail("Expected playback to start with a partial match, got \(result)")
+        }
+        XCTAssertNil(result.blockingCatalogFailure)
+        let recovery = ListeningHomeRecovery.plan(for: result)
+        XCTAssertFalse(recovery.revealListenTab)
+        XCTAssertFalse(recovery.offersOpenSettings)
+    }
+
+    func testListeningPresentationBeginStartGuardsAgainstReentry() {
+        let presentation = CurrentShowListeningPresentation()
+        XCTAssertTrue(presentation.beginStart())
+        XCTAssertTrue(presentation.isStarting)
+        XCTAssertNil(presentation.errorMessage)
+        XCTAssertFalse(presentation.offersOpenSettings)
+        XCTAssertFalse(presentation.beginStart())
+        presentation.finishStart()
+        XCTAssertFalse(presentation.isStarting)
+        XCTAssertTrue(presentation.beginStart())
+        presentation.finishStart()
+    }
+
     func testBodyOpensDetailsAndPlayActionStartsPreviewWithoutRequestingMusicAuthorization() async throws {
+
         for previewIDs in [["a2", "a1"], ["a1"]] {
             let (container, show) = try ListenTestData.make()
             show.artists = [show.artists[0]]

@@ -96,6 +96,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
     private(set) var artistCatalogStatus: [String: ListeningArtistCatalogStatus] = [:]
     private(set) var initialLoaded = false
     @ObservationIgnored private var isLoadingShow = false
+    @ObservationIgnored private var catalogIdleWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var active = true
 
     init(context: ModelContext, catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
@@ -332,6 +333,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         catalogGeneration = UUID()
         isLoadingShow = false
         isCatalogEnriching = false
+        notifyCatalogIdleIfNeeded()
         catalogProjection.clear()
         catalogSongs = []; catalogAlbums = []; catalogSnapshots = []; artistPresentations = [:]
         compilationDiscs = []; browseArtists = []; openingTiers = []
@@ -402,6 +404,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         defer {
             if generation == catalogGeneration {
                 isLoadingShow = false
+                notifyCatalogIdleIfNeeded()
                 syncWidgetListeningState(); prewarmLoadedDisc()
                 if case let .artist(artistID) = browser.scope {
                     scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
@@ -475,6 +478,32 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
 
     /// Refresh only the music payload for the already-bound show. Authorization and
     /// retry paths use this instead of restarting artist matching and room setup.
+    /// Wait for an in-flight show/catalog pass, or run `reloadCatalog`, so a
+    /// rematch can resume playback without a timed poll.
+    func refreshCatalogAfterIdentityChange(artistID: String? = nil) async {
+        if let artistID, let task = artistCatalogTasks[artistID] {
+            await task.value
+        }
+        if isLoadingShow || isCatalogEnriching {
+            await waitUntilCatalogIdle()
+        }
+        if !isLoadingShow {
+            await reloadCatalog(force: true)
+        }
+    }
+
+    func waitUntilCatalogIdle() async {
+        if !isLoadingShow, !isCatalogEnriching { return }
+        await withCheckedContinuation { catalogIdleWaiters.append($0) }
+    }
+
+    private func notifyCatalogIdleIfNeeded() {
+        guard !isLoadingShow, !isCatalogEnriching else { return }
+        let waiters = catalogIdleWaiters
+        catalogIdleWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
     func reloadCatalog(force: Bool = false) async {
         guard show != nil, !isLoadingShow else { return }
         let startingScope = browser.scope
@@ -539,6 +568,7 @@ private let listeningPerformanceLog = OSLog(subsystem: "com.doublewaterapps.befo
         defer {
             if generation == catalogGeneration {
                 isCatalogEnriching = false
+                notifyCatalogIdleIfNeeded()
                 flushPendingArtistCatalogs()
             }
         }
