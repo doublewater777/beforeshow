@@ -46,6 +46,7 @@ struct HomeStageScreenWall: View {
     let timetable: Timetable
     let avatars: TimetableArtistAvatarStore
     let mainSize: CGSize
+    let onOpenTimetable: () -> Void
     let onFocus: (UUID) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -54,7 +55,11 @@ struct HomeStageScreenWall: View {
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             side(screens.left)
-            artistLink(screens.main.performance) { mainScreen }
+            Button(action: onOpenTimetable) {
+                mainScreen
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(BSLocalization.text("完整时刻表"))
             side(screens.right)
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: screens)
