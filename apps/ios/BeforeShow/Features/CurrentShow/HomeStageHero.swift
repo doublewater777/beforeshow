@@ -23,7 +23,6 @@ struct HomeStageHero: View {
         BSStageScene(colors: lights.map(\.color), lighting: lighting, powered: powered, height: 336 + topExtension) {
             if let screens, let timetable, let avatars {
                 HomeStageScreenWall(
-                    show: show,
                     screens: screens,
                     timetable: timetable,
                     avatars: avatars,
