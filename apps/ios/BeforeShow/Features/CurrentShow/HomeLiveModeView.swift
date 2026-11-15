@@ -124,15 +124,10 @@ struct HomeLiveModeView: View {
 
     private func artistTitle(_ performance: LivePerformanceSnapshot) -> some View {
         artistLink(reference: artistReference(for: performance)) {
-            HStack(spacing: 6) {
-                Text(performance.artistName)
-                    .font(BSFont.Editorial.serif(28))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .fixedSize(horizontal: false, vertical: true)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(BSColor.Stage.muted)
-            }
+            Text(performance.artistName)
+                .font(BSFont.Editorial.serif(28))
+                .foregroundStyle(BSColor.Stage.foreground)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 10)
     }
