@@ -611,6 +611,24 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         )
     }
 
+    func testCatalogChromeResolvesToNoArtistsWhenLineupIsEmpty() {
+        let authorized = ListeningMusicAccess(authorizationStatus: .authorized, canPlayCatalogContent: true)
+        let projection = ListeningDisplayProjector.make(
+            page: .noConnectedArtists,
+            access: authorized,
+            isAuthorizing: false,
+            allDiscs: [],
+            libraryDiscs: [],
+            loadedDisc: nil,
+            currentTrack: nil,
+            transport: ListeningPlayerTransport(),
+            playbackError: nil,
+            browsingArtist: nil,
+            unmatchedArtist: nil
+        )
+        XCTAssertEqual(projection.catalogChrome, .noArtists)
+    }
+
     private func makeProjection(
         page: ListeningPresentation = .ready,
         access: ListeningMusicAccess,

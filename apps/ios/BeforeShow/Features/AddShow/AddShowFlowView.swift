@@ -64,6 +64,9 @@ struct AddShowFlowView: View {
         if let prefilledDraft {
             _draft = State(initialValue: prefilledDraft)
             _hasImportedDraft = State(initialValue: true)
+            if let sourceURL = prefilledDraft.sourceURL, !sourceURL.isEmpty {
+                _linkText = State(initialValue: sourceURL)
+            }
         } else {
             let initialDraft = sheet == .manual
                 ? AddShowConfiguration.initialManualDraft()
@@ -199,6 +202,9 @@ struct AddShowFlowView: View {
         .sheet(isPresented: $showsPaywall, onDismiss: refreshFreeCapacity) {
             ProPaywallSheetView()
         }
+        .task(id: draft.sourceURL) {
+            await enrichFromSourceURLIfNeeded()
+        }
     }
 
     /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
@@ -271,27 +277,16 @@ struct AddShowFlowView: View {
     }
 
     private var screenshotContent: some View {
-        EditShowFormCard(
-            title: BSLocalization.text("识别进度"),
-            icon: "text.viewfinder",
-            tint: BSColor.Stage.foreground,
-            pillText: "设备端 · 不上传",
-            pillTint: BSColor.Stage.muted
-        ) {
-            AddShowOCRStepsView(activeStep: ocrActiveStep)
-        }
+        AddShowScreenshotProgressCard(activeStep: ocrActiveStep)
     }
 
     private func switchToManual() {
         dismissKeyboard()
         draft.source = .manual
         if draft.startTime == nil {
-            let calendar = draft.timingCalendar()
-            draft.startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: draft.date)
+            draft.startTime = draft.timingCalendar().date(bySettingHour: 20, minute: 0, second: 0, of: draft.date)
         }
-        sheet = .manual
-        importNote = nil
-        linkFailure = nil
+        sheet = .manual; importNote = nil; linkFailure = nil
     }
 
     private var shouldShowDraftFields: Bool {
@@ -417,10 +412,7 @@ struct AddShowFlowView: View {
     }
 
     private func failScreenshotImport(_ note: String) {
-        draft.source = .manual
-        hasImportedDraft = false
-        sheet = .link
-        importNote = note
+        draft.source = .manual; hasImportedDraft = false; sheet = .link; importNote = note
     }
 
     @MainActor
@@ -444,6 +436,7 @@ struct AddShowFlowView: View {
             guard isActiveImportRequest(requestRevision) else { return }
             // 同上:merge 而非整段替换,保护用户已手改的字段。
             draft.mergeRespectingUserEdits(from: parsed, userEdited: userEditedFields)
+            draft.sourceURL = requestedLink
             userEditedFields = []
             hasImportedDraft = true
             linkFailure = nil
@@ -460,6 +453,23 @@ struct AddShowFlowView: View {
             linkFailure = AddShowLinkFailurePresentation.resolve(error)
             reportFailure(stage: "link_parse", error: error)
         }
+    }
+
+    @MainActor
+    private func enrichFromSourceURLIfNeeded() async {
+        guard let sourceURL = draft.sourceURL, !sourceURL.isEmpty,
+              draft.artists.isEmpty,
+              !isParsingLink else { return }
+        isParsingLink = true
+        defer { isParsingLink = false }
+        do {
+            let parsed = try await linkParser.draft(from: sourceURL)
+            guard !Task.isCancelled else { return }
+            draft.mergeRespectingUserEdits(from: parsed, userEdited: userEditedFields)
+            userEditedFields = []
+            importRevision += 1
+            ProductAnalytics.capture(.showLinkParsed)
+        } catch {}
     }
 
     @MainActor
@@ -511,12 +521,7 @@ struct AddShowFlowView: View {
         } catch {
             modelContext.rollback()
             reportFailure(stage: "validation", error: error)
-            switch error as? ShowValidationError {
-            case .invalidEndTime: failSave(BSLocalization.text("结束时间需要晚于开始时间。"))
-            case .missingStartTime: failSave(BSLocalization.text("请确认开场时间。"))
-            case .emptyName: failSave(BSLocalization.text("请填写现场名称。"))
-            default: failSave(BSLocalization.text("请填写必填信息。"))
-            }
+            failSave((error as? ShowValidationError)?.userMessage ?? BSLocalization.text("请填写必填信息。"))
         }
     }
 

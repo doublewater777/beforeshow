@@ -25450,6 +25450,54 @@
         }
       }
     },
+    "尚未添加演出阵容" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No lineup added"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未添加演出陣容"
+          }
+        }
+      }
+    },
+    "添加艺人后即可载入唱片与演出预习" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records and previews will load after adding artists"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加藝人後即可載入唱片與演出預習"
+          }
+        }
+      }
+    },
+    "添加艺人" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add artist"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加藝人"
+          }
+        }
+      }
+    },
     "选择「开场前」" : {
       "localizations" : {
         "en" : {

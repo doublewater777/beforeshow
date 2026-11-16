@@ -32,6 +32,7 @@ struct ShowDraft: Equatable {
     var artists: [ArtistSlot] = []
     private var confirmedArtistNamesByID: [String: Set<String>] = [:]
     var coverImageURL: String
+    var sourceURL: String? = nil
     var source: ShowDraftSource
     /// 识别导入成功写入的字段（仅 screenshotOCR / link 来源有意义，手动与编辑流为空）。
     var recognizedFields: Set<ShowDraftField>
@@ -54,6 +55,7 @@ struct ShowDraft: Equatable {
         venueAddress: String = "",
         artists: [ArtistSlot] = [],
         coverImageURL: String = "",
+        sourceURL: String? = nil,
         source: ShowDraftSource = .manual,
         recognizedFields: Set<ShowDraftField> = []
     ) {
@@ -71,6 +73,7 @@ struct ShowDraft: Equatable {
         self.venueAddress = venueAddress
         self.artists = Show.normalizedArtistSlots(artists)
         self.coverImageURL = coverImageURL
+        self.sourceURL = sourceURL
         self.source = source
         self.recognizedFields = recognizedFields
     }
@@ -91,6 +94,7 @@ struct ShowDraft: Equatable {
             venueAddress: show.venueAddress ?? "",
             artists: show.artists,
             coverImageURL: show.coverImageURL ?? "",
+            sourceURL: show.sourceURL,
             source: .manual
         )
         for slot in artists {
@@ -141,6 +145,7 @@ struct ShowDraft: Equatable {
             venueAddress: prepared.venueAddress,
             artists: prepared.artists,
             coverImageURL: prepared.coverImageURL,
+            sourceURL: prepared.sourceURL,
             companionNames: companionNames,
             creationOrigin: creationOrigin
         )
@@ -251,6 +256,9 @@ extension ShowDraft {
         }
         venueAddress = incoming.venueAddress
         coverImageURL = incoming.coverImageURL
+        if let newSourceURL = incoming.sourceURL, !newSourceURL.isEmpty {
+            sourceURL = newSourceURL
+        }
         if source == .manual { source = incoming.source }
         recognizedFields.formUnion(incoming.recognizedFields)
         recognizedFields.subtract(userEdited)

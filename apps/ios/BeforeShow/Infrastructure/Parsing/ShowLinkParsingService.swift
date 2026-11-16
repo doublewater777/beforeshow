@@ -177,10 +177,10 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             throw ShowLinkParsingError.parseFailed(message)
         }
 
-        return try mapDraft(draft)
+        return try mapDraft(draft, link: link)
     }
 
-    private func mapDraft(_ draft: LinkParsedDraft) throws -> ShowDraft {
+    private func mapDraft(_ draft: LinkParsedDraft, link: String) throws -> ShowDraft {
         let parsedStart = parseISODateTime(draft.startDateTime)
         let eventCalendar = calendar(
             identifier: draft.timeZoneIdentifier,
@@ -204,6 +204,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             venueAddress: draft.venueAddr,
             artists: Self.splitLinkArtist(draft.artist, avatars: draft.artistAvatarURLs ?? []),
             coverImageURL: draft.coverImageURL ?? "",
+            sourceURL: link,
             source: .link
         )
 

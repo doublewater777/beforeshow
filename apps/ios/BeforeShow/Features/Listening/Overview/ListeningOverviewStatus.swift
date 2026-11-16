@@ -3,11 +3,21 @@ import SwiftUI
 struct ListeningOverviewStatus: View {
     @Bindable var room: ListeningRoomCoordinator
     let onMatchArtist: (ListeningBrowseArtist) -> Void
+    var onAddArtist: (() -> Void)? = nil
 
     var body: some View {
         switch room.display.catalogChrome {
         case .preparing:
             ProgressView().frame(maxWidth: .infinity).padding(.top, BSSpacing.xl)
+        case .noArtists:
+            ListeningCatalogStatusView(
+                title: BSLocalization.text("尚未添加演出阵容"),
+                subtitle: ListeningCopy.text("添加艺人后即可载入唱片与演出预习"),
+                icon: "person.crop.circle.badge.plus",
+                actionTitle: BSLocalization.text("添加艺人")
+            ) {
+                onAddArtist?()
+            }
         case .needsMusicAccess(let prompt):
             ListeningCatalogStatusView(
                 title: BSLocalization.text("连接 Apple Music"),

@@ -179,6 +179,7 @@ enum ListeningMusicAccessPrompt: Equatable {
 /// authorization, catalog loading, or artist matching to choose it.
 enum ListeningCatalogChrome: Equatable {
     case preparing
+    case noArtists
     case needsMusicAccess(ListeningMusicAccessPrompt)
     case connectArtist(slotIndex: Int?, name: String)
     case unavailable(isStale: Bool)
@@ -282,20 +283,15 @@ enum ListeningDisplayProjector {
             return .needsMusicAccess(accessPrompt(access))
         }
         if let browsingArtist, !browsingArtist.isConnected {
-            return .connectArtist(
-                slotIndex: browsingArtist.slotIndex,
-                name: browsingArtist.name
-            )
+            return .connectArtist(slotIndex: browsingArtist.slotIndex, name: browsingArtist.name)
         }
         if isCatalogEnriching, libraryDiscs.isEmpty { return .preparing }
         switch page {
         case .loading, .loadingCatalog:
             return .preparing
         case .noConnectedArtists:
-            return .connectArtist(
-                slotIndex: unmatchedArtist?.slotIndex,
-                name: unmatchedArtist?.name ?? ""
-            )
+            guard let unmatched = unmatchedArtist ?? browsingArtist else { return .noArtists }
+            return .connectArtist(slotIndex: unmatched.slotIndex, name: unmatched.name)
         case .cachedWithError:
             return .unavailable(isStale: true)
         case .fatalUnavailable:

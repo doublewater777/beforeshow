@@ -46,6 +46,8 @@ final class Show {
     var venueName: String?
     var venueAddress: String?
     var coverImageURL: String?
+    /// 原票务或导入链接（大麦 / 秀动等），用于分享后接收者接入原平台信息。
+    var sourceURL: String? = nil
     /// 多个艺名按用户填入顺序存放,空 / 纯空白会被 `init` / `apply` 过滤掉。
     /// 每行带自己的头像 URL(`nil` 表示未识别),省去并行数组的对齐逻辑。
     var artists: [ArtistSlot] = []
@@ -202,6 +204,7 @@ final class Show {
         venueAddress: String? = nil,
         artists: [ArtistSlot] = [],
         coverImageURL: String? = nil,
+        sourceURL: String? = nil,
         changeStatus: ShowChangeStatus = .scheduled,
         endedAt: Date? = nil,
         wasAddedAsHistorical: Bool = false,
@@ -249,6 +252,7 @@ final class Show {
         self.venueAddress = venueAddress
         self.artists = Self.normalizedArtistSlots(artists)
         self.coverImageURL = coverImageURL
+        self.sourceURL = sourceURL
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
         self.wasAddedAsHistorical = wasAddedAsHistorical
@@ -356,6 +360,7 @@ final class Show {
         venueAddress = prepared.venueAddress
         artists = newSlots
         coverImageURL = prepared.coverImageURL
+        if let sourceURL = prepared.sourceURL { self.sourceURL = sourceURL }
         discardConfirmedEndBeforeEffectiveStart()
         touch()
     }
@@ -405,7 +410,8 @@ final class Show {
             venueName: trimmedOptional(draft.venueName),
             venueAddress: trimmedOptional(draft.venueAddress),
             artists: Self.normalizedArtistSlots(draft.artists),
-            coverImageURL: trimmedOptional(draft.coverImageURL)
+            coverImageURL: trimmedOptional(draft.coverImageURL),
+            sourceURL: trimmedOptional(draft.sourceURL)
         )
     }
 
@@ -521,4 +527,5 @@ struct PreparedShowDraft: Equatable {
     let venueAddress: String?
     let artists: [ArtistSlot]
     let coverImageURL: String?
+    let sourceURL: String?
 }

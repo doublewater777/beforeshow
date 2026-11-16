@@ -178,7 +178,7 @@ enum ListeningDailyFeaturedDiscPolicy {
         if onlyArtistID != nil, !groups.isEmpty { return true }
         if groups.contains(where: { $0.head != nil }) { return true }
         switch display.catalogChrome {
-        case .connectArtist, .empty: return !groups.isEmpty
+        case .noArtists, .connectArtist, .empty: return !groups.isEmpty
         case .preparing, .needsMusicAccess, .unavailable: return false
         }
     }

@@ -77,6 +77,7 @@ struct ShowLinkDraftParser {
             city: query["city"] ?? "",
             venueName: query["venue"] ?? "",
             artists: Self.splitLinkArtist(query["artist"] ?? ""),
+            sourceURL: urlString,
             source: .link
         )
 

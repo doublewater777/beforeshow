@@ -228,6 +228,7 @@ struct ListeningRoomView: View {
                     onOpenSheet: { overviewSheet = $0 },
                     onMatchArtist: matchArtist,
                     onOpenPick: { pickFeedStart = ListeningPickFeedStart(disc: $0) },
+                    onAddArtist: { overviewSheet = .editShow },
                     pickPreview: $pickCardDisc
                 )
                 .scrollClipDisabled()
@@ -260,6 +261,15 @@ struct ListeningRoomView: View {
                             ArtistProfileView(reference: ArtistReference(browseArtist: artist, show: show), show: show, room: room)
                                 .toolbar { BSChromeToolbarCloseButton { overviewSheet = nil } }
                         }
+                    }
+                case .editShow:
+                    ShowDraftEditorView(
+                        title: BSLocalization.text("编辑现场"),
+                        draft: ShowDraft(show: show),
+                        saveTitle: BSLocalization.text("保存")
+                    ) { draft in
+                        try show.apply(draft)
+                        try? show.modelContext?.save()
                     }
                 }
             }

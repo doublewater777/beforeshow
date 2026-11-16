@@ -105,4 +105,26 @@ final class ShowShareLinkTests: XCTestCase {
         let draft = try XCTUnwrap(ShowShareLink.draft(from: ShowShareLink.url(for: show)))
         XCTAssertEqual(draft.name, String(name.prefix(ShowShareLink.nameLimit)))
     }
+
+    func testSourceURLTravelsInShareLink() throws {
+        let source = "https://m.damai.cn/shows/item.html?itemId=123456"
+        let show = try Show(
+            name: "五月天",
+            date: start,
+            startTime: start,
+            sourceURL: source
+        )
+        let url = ShowShareLink.url(for: show)
+        let draft = try XCTUnwrap(ShowShareLink.draft(from: url))
+        XCTAssertEqual(draft.sourceURL, source)
+    }
+
+    func testInvalidOrOverlongSourceURLStaysOutOfShareLink() throws {
+        let nonWeb = try Show(name: "A", date: start, startTime: start, sourceURL: "javascript:alert(1)")
+        XCTAssertNil(ShowShareLink.draft(from: ShowShareLink.url(for: nonWeb))?.sourceURL)
+
+        let overlong = "https://example.com/" + String(repeating: "x", count: ShowShareLink.sourceURLLimit + 10)
+        let overlongShow = try Show(name: "A", date: start, startTime: start, sourceURL: overlong)
+        XCTAssertNil(ShowShareLink.draft(from: ShowShareLink.url(for: overlongShow))?.sourceURL)
+    }
 }

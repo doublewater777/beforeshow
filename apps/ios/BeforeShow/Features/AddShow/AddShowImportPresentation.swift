@@ -338,3 +338,14 @@ struct AddShowOCRStepsView: View {
         return BSColor.Stage.dim
     }
 }
+
+extension ShowValidationError {
+    var userMessage: String {
+        switch self {
+        case .invalidEndTime: BSLocalization.text("结束时间需要晚于开始时间。")
+        case .missingStartTime: BSLocalization.text("请确认开场时间。")
+        case .emptyName: BSLocalization.text("请填写现场名称。")
+        default: BSLocalization.text("请填写必填信息。")
+        }
+    }
+}

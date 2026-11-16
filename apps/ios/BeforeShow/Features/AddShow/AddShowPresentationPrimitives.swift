@@ -108,3 +108,19 @@ struct EditShowSaveButtonStyle: ButtonStyle {
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
+
+struct AddShowScreenshotProgressCard: View {
+    let activeStep: Int
+
+    var body: some View {
+        EditShowFormCard(
+            title: BSLocalization.text("识别进度"),
+            icon: "text.viewfinder",
+            tint: BSColor.Stage.foreground,
+            pillText: "设备端 · 不上传",
+            pillTint: BSColor.Stage.muted
+        ) {
+            AddShowOCRStepsView(activeStep: activeStep)
+        }
+    }
+}

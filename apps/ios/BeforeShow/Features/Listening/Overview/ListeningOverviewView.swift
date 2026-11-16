@@ -2,10 +2,12 @@ import SwiftUI
 
 enum ListeningOverviewSheet: Identifiable {
     case artist(String)
+    case editShow
 
     var id: String {
         switch self {
         case let .artist(id): "artist-\(id)"
+        case .editShow: "edit-show"
         }
     }
 }
@@ -16,6 +18,7 @@ struct ListeningOverviewView: View {
     let onOpenSheet: (ListeningOverviewSheet) -> Void
     let onMatchArtist: (ListeningBrowseArtist) -> Void
     let onOpenPick: (ListeningDisc?) -> Void
+    var onAddArtist: (() -> Void)? = nil
     /// Stays put across tab and Watch switches; changes when the user stops on another album in the feed.
     @Binding var pickPreview: ListeningDisc?
 
@@ -29,7 +32,7 @@ struct ListeningOverviewView: View {
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 0) {
                             headerSpacer
-                            ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
+                            ListeningLineupPoster(room: room, show: show, onArtist: openArtist, onAddArtist: onAddArtist)
                         }
                         .padding(.bottom, BSSpacing.xl)
                     }
@@ -55,7 +58,7 @@ struct ListeningOverviewView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: BSSpacing.xl) {
                         headerSpacer
-                        ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
+                        ListeningLineupPoster(room: room, show: show, onArtist: openArtist, onAddArtist: onAddArtist)
                         rackContent
                     }
                     .padding(.bottom, BSSpacing.xl)
@@ -78,7 +81,7 @@ struct ListeningOverviewView: View {
             pickSection
             playlistSection
         } else {
-            ListeningOverviewStatus(room: room, onMatchArtist: onMatchArtist)
+            ListeningOverviewStatus(room: room, onMatchArtist: onMatchArtist, onAddArtist: onAddArtist)
                 .padding(.horizontal, BSSpacing.roomy)
         }
     }

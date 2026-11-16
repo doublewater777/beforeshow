@@ -130,4 +130,23 @@ final class ShowDraftImportMergeTests: XCTestCase {
         )
         XCTAssertEqual(second.artists, [ArtistSlot(name: "用户改的艺人", avatarURL: "https://example.test/user.png")])
     }
+
+    func testSourceURLCarriesOverDuringMergeAndShowCreation() throws {
+        let url = "https://m.damai.cn/shows/item.html?itemId=999"
+        var draft = ShowDraft(name: "草莓", date: Date(), source: .manual)
+        let incoming = ShowDraft(name: "草莓音乐节", date: Date(), sourceURL: url, source: .link)
+
+        draft.mergeRespectingUserEdits(from: incoming, userEdited: [])
+        XCTAssertEqual(draft.sourceURL, url)
+
+        draft.startTime = Date()
+        let show = try draft.makeShow()
+        XCTAssertEqual(show.sourceURL, url)
+
+        var editedDraft = ShowDraft(show: show)
+        XCTAssertEqual(editedDraft.sourceURL, url)
+        editedDraft.name = "草莓音乐节 2026"
+        try show.apply(editedDraft)
+        XCTAssertEqual(show.sourceURL, url)
+    }
 }

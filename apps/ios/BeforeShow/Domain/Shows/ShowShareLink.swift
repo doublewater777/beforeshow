@@ -8,6 +8,8 @@ enum ShowShareLink {
     static let scheme = "beforeshow"
     /// A cover address longer than this stays out of the link, so the code printed from it stays easy to scan.
     static let coverLimit = 200
+    /// Same ceiling for original ticketing links travelling with the show.
+    static let sourceURLLimit = 500
     /// Same ceiling `draft(from:)` enforces. Longer names are cut, not rejected, so the code still adds the show.
     static let nameLimit = 200
 
@@ -33,6 +35,8 @@ enum ShowShareLink {
         var l: String?
         /// Cover, only when it is a web address.
         var p: String?
+        /// Original source link (e.g. ticketing platform URL).
+        var u: String?
     }
 
     /// When and where, and the cover; the lineup stays out so even a festival's code stays sparse.
@@ -53,7 +57,8 @@ enum ShowShareLink {
             s: show.timeZoneSecondsFromGMT,
             c: nonEmpty(show.city),
             l: nonEmpty(show.venueName),
-            p: webCover(show.coverImageURL, limit: coverLimit)
+            p: webCover(show.coverImageURL, limit: coverLimit),
+            u: webURL(show.sourceURL, limit: sourceURLLimit)
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = .withoutEscapingSlashes
@@ -105,9 +110,17 @@ enum ShowShareLink {
             city: city,
             venueName: venue,
             coverImageURL: webCover(payload.p, limit: 1_024) ?? "",
+            sourceURL: webURL(payload.u, limit: 1_024),
             source: .link,
             recognizedFields: fields
         )
+    }
+
+    private static func webURL(_ stored: String?, limit: Int) -> String? {
+        guard let stored = nonEmpty(stored), stored.count <= limit,
+              let scheme = URL(string: stored)?.scheme?.lowercased(),
+              scheme == "https" || scheme == "http" else { return nil }
+        return stored
     }
 
     private static func webCover(_ stored: String?, limit: Int) -> String? {
