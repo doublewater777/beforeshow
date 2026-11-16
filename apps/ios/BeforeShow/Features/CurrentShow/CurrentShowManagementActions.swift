@@ -278,8 +278,11 @@ extension CurrentShowManagementSection {
     }
 }
 
-enum CurrentShowHomeRoute: Hashable {
+enum CurrentShowHomeRoute: String, Identifiable, Hashable {
+    case detail
     case editShow
     case recordWall
     case badgeWall
+
+    var id: String { rawValue }
 }

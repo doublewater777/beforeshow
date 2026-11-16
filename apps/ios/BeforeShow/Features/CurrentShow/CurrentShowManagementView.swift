@@ -95,6 +95,8 @@ struct CurrentShowManagementSection: View {
         }
         .navigationDestination(item: $homeRoute) { route in
             switch route {
+            case .detail:
+                ShowDetailView(show: show)
             case .editShow:
                 ShowDetailView(show: show, startsEditing: true)
             case .recordWall:
@@ -112,6 +114,10 @@ struct CurrentShowManagementSection: View {
             if ProcessInfo.processInfo.arguments.contains("--open-timetable") {
                 try? await Task.sleep(for: .milliseconds(1500))
                 presentedSheet = .asset(.timetable)
+            }
+            if ProcessInfo.processInfo.arguments.contains("--open-show-detail") {
+                try? await Task.sleep(for: .milliseconds(1000))
+                homeRoute = .detail
             }
         }
         #endif
@@ -355,10 +361,11 @@ struct CurrentShowManagementSection: View {
                 if screens != nil, liveTimetable != nil {
                     hero
                 } else {
-                    NavigationLink {
-                        ShowDetailView(show: show)
+                    Button {
+                        homeRoute = .detail
                     } label: {
                         hero
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("home.hero.cover")

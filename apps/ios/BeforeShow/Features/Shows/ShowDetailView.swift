@@ -8,10 +8,17 @@ struct ShowDetailView: View {
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query(sort: \Show.date) private var shows: [Show]
-    @Query private var showAssets: [ShowAsset]
-    @Query private var memoryFragments: [MemoryFragment]
+    @Query private var allShowAssets: [ShowAsset]
+    @Query private var allMemoryFragments: [MemoryFragment]
     let show: Show
     var startsEditing = false
+
+    private var showAssets: [ShowAsset] {
+        allShowAssets.filter { $0.showID == show.id }
+    }
+    private var memoryFragments: [MemoryFragment] {
+        allMemoryFragments.filter { $0.showID == show.id }
+    }
 
     @State private var presentedSheet: ShowDetailPresentedSheet?
     @State private var isShowingDeleteConfirmation = false
@@ -35,17 +42,6 @@ struct ShowDetailView: View {
     ) {
         self.show = show
         self.startsEditing = startsEditing
-        let showID = show.id
-        _showAssets = Query(
-            filter: #Predicate<ShowAsset> { asset in
-                asset.showID == showID
-            }
-        )
-        _memoryFragments = Query(
-            filter: #Predicate<MemoryFragment> { fragment in
-                fragment.showID == showID
-            }
-        )
     }
 
     private var snapshot: CurrentShowSnapshot {
