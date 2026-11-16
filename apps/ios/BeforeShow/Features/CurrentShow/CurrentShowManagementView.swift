@@ -377,9 +377,6 @@ struct CurrentShowManagementSection: View {
                             action: displayedPrimaryAction
                         ),
                         isLoading: listeningPresentation.isStarting,
-                        listenErrorMessage: listeningPresentation.errorMessage,
-                        offersOpenSettings: listeningPresentation.offersOpenSettings,
-                        onOpenMusicSettings: openMusicSettings,
                         onPrimaryAction: performPrimaryAction,
                         onOpenRoute: { openRouteChooser() },
                         unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,

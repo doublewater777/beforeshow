@@ -63,12 +63,9 @@ final class ListeningNotificationEntryTests: XCTestCase {
         XCTAssertEqual(catalog.authorizationRequests, 0)
         XCTAssertEqual(result.blockingCatalogFailure?.stage, "artist_identity")
         XCTAssertEqual(result.blockingCatalogFailure?.reason, "no_match")
-        let recovery = ListeningHomeRecovery.plan(for: result)
-        XCTAssertTrue(recovery.revealListenTab)
-        XCTAssertFalse(recovery.offersOpenSettings)
-        XCTAssertNil(recovery.caption)
+        XCTAssertTrue(result.revealsListenTab)
     }
-    func testHomePlaybackReturnsAuthorizationFailureAndPlansListenTabRecovery() async throws {
+    func testHomePlaybackReturnsAuthorizationFailureAndRevealsListenTab() async throws {
         let (container, show) = try ListenTestData.make()
         let session = ListeningRoomSessionStore.shared
         session.clear(stoppingTransport: true)
@@ -92,13 +89,10 @@ final class ListeningNotificationEntryTests: XCTestCase {
         XCTAssertEqual(catalog.authorizationRequests, 1)
         XCTAssertFalse(session.room?.wantsPlayback ?? false)
         XCTAssertNil(result.blockingCatalogFailure)
-        let recovery = ListeningHomeRecovery.plan(for: result)
-        XCTAssertTrue(recovery.revealListenTab)
-        XCTAssertTrue(recovery.offersOpenSettings)
-        XCTAssertEqual(recovery.caption, ListeningCopy.text("当前未允许访问 Apple Music。"))
+        XCTAssertTrue(result.revealsListenTab)
     }
 
-    func testHomePlaybackEmptyCatalogPlansListenTabRecoveryWithoutSettings() async throws {
+    func testHomePlaybackEmptyCatalogRevealsListenTab() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let start = Date().addingTimeInterval(10_000)
         let show = try Show(name: "Empty Catalog Show", date: start, startTime: start)
@@ -125,10 +119,7 @@ final class ListeningNotificationEntryTests: XCTestCase {
             return XCTFail("Expected noPlayableContent, got \(result)")
         }
         XCTAssertNil(result.blockingCatalogFailure)
-        let recovery = ListeningHomeRecovery.plan(for: result)
-        XCTAssertTrue(recovery.revealListenTab)
-        XCTAssertFalse(recovery.offersOpenSettings)
-        XCTAssertEqual(recovery.caption, ListeningCopy.text("当前没有可播放的歌曲。"))
+        XCTAssertTrue(result.revealsListenTab)
     }
 
     func testHomePlaybackDoesNotReportCatalogMatchFailureWhenAPartialLineupCanPlay() async throws {
@@ -153,17 +144,13 @@ final class ListeningNotificationEntryTests: XCTestCase {
             return XCTFail("Expected playback to start with a partial match, got \(result)")
         }
         XCTAssertNil(result.blockingCatalogFailure)
-        let recovery = ListeningHomeRecovery.plan(for: result)
-        XCTAssertFalse(recovery.revealListenTab)
-        XCTAssertFalse(recovery.offersOpenSettings)
+        XCTAssertFalse(result.revealsListenTab)
     }
 
     func testListeningPresentationBeginStartGuardsAgainstReentry() {
         let presentation = CurrentShowListeningPresentation()
         XCTAssertTrue(presentation.beginStart())
         XCTAssertTrue(presentation.isStarting)
-        XCTAssertNil(presentation.errorMessage)
-        XCTAssertFalse(presentation.offersOpenSettings)
         XCTAssertFalse(presentation.beginStart())
         presentation.finishStart()
         XCTAssertFalse(presentation.isStarting)

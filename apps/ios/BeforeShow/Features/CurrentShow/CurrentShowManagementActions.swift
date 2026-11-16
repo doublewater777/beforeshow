@@ -8,8 +8,6 @@ import UIKit
 @MainActor @Observable
 final class CurrentShowListeningPresentation {
     var isStarting = false
-    var errorMessage: String?
-    var offersOpenSettings = false
 
     /// Call from the button action before hopping to a `Task`, so a second tap
     /// cannot enqueue another start.
@@ -17,8 +15,6 @@ final class CurrentShowListeningPresentation {
     func beginStart() -> Bool {
         guard !isStarting else { return false }
         isStarting = true
-        errorMessage = nil
-        offersOpenSettings = false
         return true
     }
 
@@ -102,10 +98,6 @@ extension CurrentShowManagementSection {
     }
 
     func applyHomeListeningRecovery(_ result: ListeningHomePlaybackResult) {
-        let recovery = ListeningHomeRecovery.plan(for: result)
-        listeningPresentation.errorMessage = recovery.caption
-        listeningPresentation.offersOpenSettings = recovery.offersOpenSettings
-
         if case .needsArtistMatch(_, let slotIndex, _, _) = result {
             ListeningRoomSessionStore.shared.requestArtistMatch(
                 showID: show.id,
@@ -114,14 +106,8 @@ extension CurrentShowManagementSection {
             )
         }
 
-        if recovery.revealListenTab {
+        if result.revealsListenTab {
             rootTabSelection?.wrappedValue = .listen
-        }
-    }
-
-    func openMusicSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
         }
     }
 

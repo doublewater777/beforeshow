@@ -8,9 +8,6 @@ struct HomeCountdownLockup: View {
     var primaryAction: PrimaryAction? = nil
     var isPlaying = false
     var isLoading = false
-    var listenErrorMessage: String? = nil
-    var offersOpenSettings = false
-    var onOpenMusicSettings: () -> Void = {}
     var onPrimaryAction: (PrimaryAction) -> Void = { _ in }
     var onOpenRoute: (() -> Void)? = nil
     var unlocks: ShowUnlocks? = nil
@@ -279,53 +276,37 @@ struct HomeCountdownLockup: View {
     private func primaryActionButton(_ action: PrimaryAction) -> some View {
         let showsPause = action.playsMusic && isPlaying
         let isListenLoading = action == .listen && isLoading
-        return VStack(alignment: .leading, spacing: 8) {
-            Button {
-                guard !isListenLoading else { return }
-                onPrimaryAction(action)
-            } label: {
-                HStack(spacing: 6) {
-                    if isListenLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(BSColor.Stage.background)
+        return Button {
+            guard !isListenLoading else { return }
+            onPrimaryAction(action)
+        } label: {
+            HStack(spacing: 6) {
+                if isListenLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(BSColor.Stage.background)
+                        .frame(width: 16)
+                    Text(ListeningCopy.text("正在准备…"))
+                        .contentTransition(.interpolate)
+                } else {
+                    if action.playsMusic {
+                        Image(systemName: showsPause ? "pause.fill" : "play.fill")
+                            .contentTransition(.symbolEffect(.replace))
                             .frame(width: 16)
-                        Text(ListeningCopy.text("正在准备…"))
-                            .contentTransition(.interpolate)
-                    } else {
-                        if action.playsMusic {
-                            Image(systemName: showsPause ? "pause.fill" : "play.fill")
-                                .contentTransition(.symbolEffect(.replace))
-                                .frame(width: 16)
-                        }
-                        Text(showsPause ? BSLocalization.text("暂停") : action.title)
-                            .contentTransition(.interpolate)
                     }
-                }
-                .animation(.snappy(duration: BSMotion.interface), value: showsPause)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.background)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(BSColor.Stage.foreground, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .disabled(isListenLoading)
-
-            if action == .listen, let listenErrorMessage {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(listenErrorMessage)
-                        .font(.system(size: 12))
-                        .foregroundStyle(BSColor.Stage.danger)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if offersOpenSettings {
-                        Button(ListeningCopy.text("打开设置"), action: onOpenMusicSettings)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(BSColor.Stage.accent)
-                    }
+                    Text(showsPause ? BSLocalization.text("暂停") : action.title)
+                        .contentTransition(.interpolate)
                 }
             }
+            .animation(.snappy(duration: BSMotion.interface), value: showsPause)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(BSColor.Stage.background)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(BSColor.Stage.foreground, in: Capsule())
         }
+        .buttonStyle(.plain)
+        .disabled(isListenLoading)
         .padding(.top, 16)
     }
 

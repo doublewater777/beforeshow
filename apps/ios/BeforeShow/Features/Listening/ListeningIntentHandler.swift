@@ -173,46 +173,6 @@ enum ListeningHomePlaybackResult {
     }
 }
 
-struct ListeningHomeRecovery: Equatable {
-    var revealListenTab: Bool
-    var offersOpenSettings: Bool
-    var caption: String?
-
-    static func plan(for result: ListeningHomePlaybackResult) -> ListeningHomeRecovery {
-        switch result {
-        case .started:
-            return ListeningHomeRecovery(revealListenTab: false, offersOpenSettings: false, caption: nil)
-        case .needsArtistMatch:
-            // The Listen tab presents the existing match sheet / cabinet; no extra home caption.
-            return ListeningHomeRecovery(revealListenTab: true, offersOpenSettings: false, caption: nil)
-        case .authorizationDenied, .authorizationNotResolved:
-            return ListeningHomeRecovery(
-                revealListenTab: true,
-                offersOpenSettings: true,
-                caption: ListeningCopy.text("当前未允许访问 Apple Music。")
-            )
-        case .authorizationRestricted:
-            return ListeningHomeRecovery(
-                revealListenTab: true,
-                offersOpenSettings: false,
-                caption: ListeningCopy.text("Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。")
-            )
-        case .catalogFailed, .noPlayableContent, .noCurrentShow:
-            return ListeningHomeRecovery(
-                revealListenTab: true,
-                offersOpenSettings: false,
-                caption: ListeningCopy.text("当前没有可播放的歌曲。")
-            )
-        case .playbackFailed:
-            return ListeningHomeRecovery(
-                revealListenTab: true,
-                offersOpenSettings: false,
-                caption: ListeningCopy.text("暂时无法播放")
-            )
-        }
-    }
-}
-
 @MainActor
 enum ListeningHomePlaybackCoordinator {
     static func start(
@@ -411,9 +371,12 @@ enum ListeningHomePlaybackCoordinator {
     }
 }
 
-private extension ListeningHomePlaybackResult {
+extension ListeningHomePlaybackResult {
     var startedSuccessfully: Bool {
         if case .started = self { return true }
         return false
     }
+
+    /// 没放起来就切到听，由听自己展示原因和处理入口。
+    var revealsListenTab: Bool { !startedSuccessfully }
 }
