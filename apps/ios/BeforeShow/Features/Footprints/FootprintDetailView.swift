@@ -72,6 +72,7 @@ struct FootprintDetailView: View {
 
     /// 打开过这场的足迹详情，「足迹」这个推荐就算用过了（ADR 0037）。
     private func markFootprintRecommendationHandled() {
+        guard show.isAttached else { return }
         do {
             if try FeatureRecommendationLedger.markHandled(showID: show.id, feature: .footprint, in: modelContext) {
                 try modelContext.save()
@@ -102,8 +103,12 @@ struct FootprintDetailView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            content(topInset: proxy.safeAreaInsets.top)
+        if !show.isAttached && !isDeleting {
+            Color.clear
+        } else {
+            GeometryReader { proxy in
+                content(topInset: proxy.safeAreaInsets.top)
+            }
         }
     }
 
@@ -111,8 +116,11 @@ struct FootprintDetailView: View {
     private func content(topInset: CGFloat) -> some View {
         ZStack {
             footprintBackground
-                .task(id: show.id) { markFootprintRecommendationHandled() }
-            if isDeleting {
+                .task(id: show.isAttached ? show.id : nil) {
+                    guard show.isAttached else { return }
+                    markFootprintRecommendationHandled()
+                }
+            if isDeleting || !show.isAttached {
                 ProgressView()
                     .tint(BSColor.Stage.foreground)
             } else {

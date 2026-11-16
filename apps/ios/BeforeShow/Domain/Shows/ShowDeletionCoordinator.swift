@@ -34,7 +34,7 @@ enum ShowDeletionCoordinator {
             let coverImageURL = show.coverImageURL
             let showID = show.id
             let targetPersistentID = show.persistentModelID
-            let remainingShows = shows.filter { $0.persistentModelID != targetPersistentID }
+            let remainingShows = shows.filter { $0.isAttached && $0.persistentModelID != targetPersistentID }
             let hasRemainingSameBusinessID = remainingShows.contains { $0.id == showID }
 
             let selectionStore = CurrentShowSelectionStore(modelContext: modelContext)

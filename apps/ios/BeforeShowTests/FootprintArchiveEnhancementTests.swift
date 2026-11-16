@@ -463,6 +463,68 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertNotEqual(shanghai.rankItem.id, beijing.rankItem.id)
     }
 
+    func testDeletingJustEndedShowFromFootprintDoesNotCrashOnDetachedModel() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = date(2026, 11, 16, 23)
+        let show = try Show(
+            name: "刚结束的演出",
+            date: date(2026, 11, 16),
+            startTime: date(2026, 11, 16, 19),
+            endTime: date(2026, 11, 16, 22, 30),
+            timeZoneIdentifier: calendar.timeZone.identifier,
+            city: "上海",
+            venueName: "Livehouse",
+            artists: [ArtistSlot(name: "乐队")]
+        )
+        show.endedAt = date(2026, 11, 16, 22, 30)
+        let selection = CurrentShowSelection(selectedShowID: show.id, isManual: false)
+        context.insert(show)
+        context.insert(selection)
+        try context.save()
+
+        let timeState = CurrentShowTimeState(show: show, calendar: calendar, now: now)
+        XCTAssertEqual(timeState.kind, CurrentShowTimeKind.postShow)
+
+        let initialArchive = FootprintArchiveBuilder.make(shows: [show], now: now, calendar: calendar)
+        XCTAssertEqual(initialArchive.shows.count, 1)
+
+        let session = CurrentShowSession(postShowRetentionDays: 3, calendar: calendar)
+        XCTAssertEqual(session.selectCurrentShow(from: [show], manualSelection: selection, now: now)?.id, show.id)
+
+        let effects = CurrentShowPostCommitEffects(
+            reconcileNotifications: { _ in true },
+            syncWidget: { _, _ in true }
+        )
+        let result = try await ShowDeletionCoordinator.delete(
+            show,
+            from: [show],
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            effects: effects
+        )
+        XCTAssertEqual(result, ShowDeletionResult.complete(didSync: true))
+        XCTAssertFalse(show.isAttached)
+
+        let staleViewShows = [show]
+        let liveShows = staleViewShows.filter(\.isAttached)
+        XCTAssertTrue(liveShows.isEmpty)
+
+        let archiveAfterDelete = FootprintArchiveBuilder.make(shows: liveShows, now: now, calendar: calendar)
+        XCTAssertEqual(archiveAfterDelete.shows.count, 0)
+
+        let currentShowAfterDelete = session.selectCurrentShow(from: liveShows, manualSelection: selection, now: now)
+        XCTAssertNil(currentShowAfterDelete)
+
+        let upcoming = FootprintStagePolicy.upcoming(liveShows, archived: [], now: now)
+        XCTAssertEqual(upcoming.count, 0)
+
+        let marquee = FootprintStagePolicy.marquee(archived: [], allShows: liveShows, now: now, calendar: calendar)
+        XCTAssertEqual(marquee.totalShows, 0)
+        XCTAssertNil(marquee.nextShowID)
+    }
+
     private func makeShow(_ name: String, year: Int, month: Int, durationHours: Int, artist: String = "艺人", venue: String = "MAO") throws -> Show {
         try Show(
             name: name,
@@ -476,7 +538,7 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         )
     }
 
-    private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0) -> Date {
-        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
     }
 }

@@ -8,7 +8,7 @@ enum ListeningShowLifecycleCoordinator {
         in modelContext: ModelContext,
         now: Date = Date()
     ) throws -> Bool {
-        let shows = try modelContext.fetch(FetchDescriptor<Show>())
+        let shows = (try modelContext.fetch(FetchDescriptor<Show>())).filter(\.isAttached)
         let baselines = try modelContext.fetch(FetchDescriptor<ShowOpeningFamiliarityBaseline>())
         let tiers = try modelContext.fetch(FetchDescriptor<ShowOpeningArtistTier>())
         let preferences = try modelContext.fetch(FetchDescriptor<ShowArtistListeningPreference>())

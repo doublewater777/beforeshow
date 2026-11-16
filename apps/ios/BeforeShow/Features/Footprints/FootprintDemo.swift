@@ -123,13 +123,17 @@ private struct FootprintDemoStack: View {
     @State private var detailTarget: FootprintDetailDestination?
     @State private var isSearching = false
 
+    private var liveShows: [Show] {
+        shows.filter(\.isAttached)
+    }
+
     var body: some View {
-        let archive = FootprintArchiveBuilder.make(shows: shows)
+        let archive = FootprintArchiveBuilder.make(shows: liveShows)
         NavigationStack {
             FootprintDashboardView(
                 archive: archive,
                 covers: [:],
-                allShows: shows,
+                allShows: liveShows,
                 onShowSelected: { detailTarget = FootprintDetailDestination(show: $0) },
                 onAdd: onAdd,
                 onSearch: { isSearching = true }

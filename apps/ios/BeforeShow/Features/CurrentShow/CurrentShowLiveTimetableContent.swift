@@ -9,14 +9,16 @@ struct CurrentShowLiveTimetableContent<Content: View>: View {
 
     var body: some View {
         TimelineView(CurrentShowTimelineSchedule(isActive: isActive)) { context in
-            content(
-                context.date,
-                CurrentShowLiveTimetablePolicy.resolve(
-                    for: show,
-                    now: context.date,
-                    focusedPerformanceID: focusedPerformanceID.flatMap(UUID.init(uuidString:))
+            if show.isAttached {
+                content(
+                    context.date,
+                    CurrentShowLiveTimetablePolicy.resolve(
+                        for: show,
+                        now: context.date,
+                        focusedPerformanceID: focusedPerformanceID.flatMap(UUID.init(uuidString:))
+                    )
                 )
-            )
+            }
         }
     }
 }

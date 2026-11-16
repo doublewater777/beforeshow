@@ -7,6 +7,7 @@ struct FootprintFirstUnlockPreview: View {
     private var record: FootprintNumberSong? { FootprintNumberSongs.song(for: 1) }
 
     private var starNames: String {
+        guard show.isAttached else { return "" }
         let names = show.artists.map(\.name).filter { !$0.isEmpty }
         return names.isEmpty ? show.name : names.prefix(3).joined(separator: " · ")
     }

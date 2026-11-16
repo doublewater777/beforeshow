@@ -13,15 +13,22 @@ struct FootprintsView: View {
     @State private var activeSheet: FootprintSheet?
     private let currentShowSession = CurrentShowSession()
 
+    private var liveShows: [Show] {
+        shows.filter(\.isAttached)
+    }
+
     var body: some View {
-        let archive = FootprintArchiveBuilder.make(shows: shows)
+        let archive = FootprintArchiveBuilder.make(shows: liveShows)
         let covers = FootprintCoverResolver.resolve(
             shows: archive.shows,
             fragments: fragments,
             assets: assets
         )
         let prepared = PreparedFootprint(archive: archive, covers: covers)
-        let currentShow = currentShowSession.selectCurrentShow(from: shows, manualSelection: selections.first)
+        let currentShow = currentShowSession.selectCurrentShow(
+            from: liveShows,
+            manualSelection: CurrentShowSelectionStore.canonical(in: selections)
+        )
         return Group {
             if archive.shows.isEmpty, currentShow == nil {
                 FootprintDemoView(onAdd: { isAddingShow = true })
@@ -81,7 +88,7 @@ struct FootprintsView: View {
         return FootprintDashboardView(
             archive: prepared.archive,
             covers: prepared.covers,
-            allShows: shows,
+            allShows: liveShows,
             onShowSelected: { detailTarget = FootprintDetailDestination(show: $0) },
             onAdd: { isAddingShow = true },
             onSearch: { activeSheet = .search }
@@ -119,7 +126,7 @@ struct FootprintEmptyView: View {
             actionTitle: content.actionTitle ?? BSLocalization.text("添加现场"),
             action: onAdd
         ) {
-            if let currentShow {
+            if let currentShow, currentShow.isAttached {
                 FootprintFirstUnlockPreview(show: currentShow)
             }
         }
