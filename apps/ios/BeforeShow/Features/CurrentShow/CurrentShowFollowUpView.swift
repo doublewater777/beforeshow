@@ -6,6 +6,7 @@ struct CurrentShowFollowUpSummary: View {
     let now: Date
     var onOpenShowLibrary: () -> Void = {}
     var onSetCurrent: (Show) -> Void = { _ in }
+    var onOpenShow: (Show) -> Void = { _ in }
 
     @State private var revealedShowID: UUID?
 
@@ -51,8 +52,8 @@ struct CurrentShowFollowUpSummary: View {
                         onSetCurrent(show)
                     }
                 ) {
-                    NavigationLink {
-                        ShowDetailView(show: show)
+                    Button {
+                        onOpenShow(show)
                     } label: {
                         followUpRow(show)
                     }

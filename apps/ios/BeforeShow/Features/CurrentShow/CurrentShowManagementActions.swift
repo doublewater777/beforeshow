@@ -83,7 +83,7 @@ extension CurrentShowManagementSection {
         case .addShow:
             onAddShow()
         case .fillNewDate:
-            homeRoute = .editShow
+            homeRoute = .editShow(show.id)
         }
     }
 
@@ -276,13 +276,47 @@ extension CurrentShowManagementSection {
     var companionPresentation: CompanionQuickActionPresentation {
         CompanionQuickActionPresentation(companionNames: show.companionNames)
     }
+
 }
 
-enum CurrentShowHomeRoute: String, Identifiable, Hashable {
-    case detail
-    case editShow
+enum CurrentShowHomeRoute: Hashable, Identifiable {
+    case detail(UUID)
+    case editShow(UUID)
     case recordWall
     case badgeWall
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .detail(let showID): "detail-\(showID.uuidString)"
+        case .editShow(let showID): "edit-\(showID.uuidString)"
+        case .recordWall: "recordWall"
+        case .badgeWall: "badgeWall"
+        }
+    }
+}
+
+struct HomeRouteDestination: View {
+    let route: CurrentShowHomeRoute
+    let shows: [Show]
+
+    private func show(id: UUID) -> Show? {
+        shows.first { $0.id == id }
+    }
+
+    var body: some View {
+        switch route {
+        case .detail(let showID):
+            if let show = show(id: showID) {
+                ShowDetailView(show: show)
+            }
+        case .editShow(let showID):
+            if let show = show(id: showID) {
+                ShowDetailView(show: show, startsEditing: true)
+            }
+        case .recordWall:
+            FootprintRecordWallView(archive: FootprintArchiveBuilder.make(shows: shows))
+        case .badgeWall:
+            FootprintBadgeWallView(archive: FootprintArchiveBuilder.make(shows: shows))
+        }
+    }
 }

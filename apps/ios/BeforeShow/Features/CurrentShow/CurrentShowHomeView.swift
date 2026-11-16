@@ -48,6 +48,7 @@ struct CurrentShowHomeView: View {
     @State private var isRequestingNotificationPermission = false
     @State private var homeArrivalLifecycle = CurrentShowHomeArrivalLifecycle()
     @State private var currentWeather: ShowWeatherDTO?
+    @State private var homeRoute: CurrentShowHomeRoute?
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -135,7 +136,8 @@ struct CurrentShowHomeView: View {
                                 generatesCard: generatesCard
                             )
                         },
-                        weather: currentWeather
+                        weather: currentWeather,
+                        homeRoute: $homeRoute
                     )
                 } else {
                     CurrentShowEmptyStateView(
@@ -162,6 +164,9 @@ struct CurrentShowHomeView: View {
             .bsToastOverlay(toast, bottomPadding: 90)
             .toolbar(.hidden, for: .navigationBar)
             .bsRootBottomChrome()
+            .navigationDestination(item: $homeRoute) { route in
+                HomeRouteDestination(route: route, shows: liveShows)
+            }
             #if DEBUG
             .fullScreenCover(isPresented: $isShowingWidgetPreview) {
                 LiveAndWidgetShowcaseView()

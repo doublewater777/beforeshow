@@ -42,7 +42,7 @@ struct CurrentShowManagementSection: View {
     /// arrival never plays underneath a disappearing child-owned presentation.
     @State private var isPresentationVisibilityLatched = false
     @State var notificationRouter = NotificationDeepLinkRouter.shared
-    @State var homeRoute: CurrentShowHomeRoute?
+    @Binding var homeRoute: CurrentShowHomeRoute?
     @State var revealedUnlocks: ShowUnlocks?
     @State var unlocksAnimateArrival = false
 
@@ -93,18 +93,6 @@ struct CurrentShowManagementSection: View {
                 )
             }
         }
-        .navigationDestination(item: $homeRoute) { route in
-            switch route {
-            case .detail:
-                ShowDetailView(show: show)
-            case .editShow:
-                ShowDetailView(show: show, startsEditing: true)
-            case .recordWall:
-                FootprintRecordWallView(archive: FootprintArchiveBuilder.make(shows: attachedCandidateShows))
-            case .badgeWall:
-                FootprintBadgeWallView(archive: FootprintArchiveBuilder.make(shows: attachedCandidateShows))
-            }
-        }
         #if DEBUG
         .task {
             if ProcessInfo.processInfo.arguments.contains("--open-memory-fragments") {
@@ -117,7 +105,7 @@ struct CurrentShowManagementSection: View {
             }
             if ProcessInfo.processInfo.arguments.contains("--open-show-detail") {
                 try? await Task.sleep(for: .milliseconds(1000))
-                homeRoute = .detail
+                homeRoute = .detail(show.id)
             }
         }
         #endif
@@ -362,7 +350,7 @@ struct CurrentShowManagementSection: View {
                     hero
                 } else {
                     Button {
-                        homeRoute = .detail
+                        homeRoute = .detail(show.id)
                     } label: {
                         hero
                             .contentShape(Rectangle())
@@ -422,7 +410,8 @@ struct CurrentShowManagementSection: View {
                     formatter: formatter,
                     now: now,
                     onOpenShowLibrary: onOpenShowLibrary,
-                    onSetCurrent: onSetCurrentShow
+                    onSetCurrent: onSetCurrentShow,
+                    onOpenShow: { homeRoute = .detail($0.id) }
                 )
                 .padding(.horizontal, contentInset)
                 .padding(.top, 25)
