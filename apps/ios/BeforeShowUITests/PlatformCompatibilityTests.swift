@@ -72,6 +72,60 @@ final class PlatformCompatibilityTests: XCTestCase {
         XCTAssertTrue(try visibleTab("root.tab.listen", in: app).isSelected)
     }
 
+    func testShowDetailNavigationFromHomeAndLibrary() throws {
+        continueAfterFailure = false
+        executionTimeAllowance = 120
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-has_completed_feature_onboarding_v1", "YES"
+        ]
+        app.launch()
+
+        // 1. Enter show detail from Home hero cover
+        let cover = app.buttons["home.hero.cover"]
+        XCTAssertTrue(cover.waitForExistence(timeout: 10), "Home cover should exist")
+        cover.tap()
+
+        let navBar = app.navigationBars.firstMatch
+        XCTAssertTrue(navBar.waitForExistence(timeout: 10), "Show detail navigation bar should exist")
+
+        // Wait 2 seconds to prove no infinite layout loop or watchdog crash
+        Thread.sleep(forTimeInterval: 2.0)
+        XCTAssertTrue(app.state == .runningForeground, "App must remain running in foreground")
+
+        let detailScreenshot = XCTAttachment(screenshot: app.screenshot())
+        detailScreenshot.name = "show-detail-from-home"
+        detailScreenshot.lifetime = .keepAlways
+        add(detailScreenshot)
+
+        // Return to Home
+        if navBar.buttons.firstMatch.exists {
+            navBar.buttons.firstMatch.tap()
+        }
+        XCTAssertTrue(cover.waitForExistence(timeout: 10), "Should return to home")
+
+        // 2. Enter show detail from Show Library
+        app.terminate()
+        app.launchArguments = [
+            "--open-show-library",
+            "-has_completed_feature_onboarding_v1", "YES"
+        ]
+        app.launch()
+
+        let libraryRow = app.buttons["library.upcoming.row"].firstMatch
+        XCTAssertTrue(libraryRow.waitForExistence(timeout: 10), "Library row should exist")
+        libraryRow.tap()
+
+        XCTAssertTrue(navBar.waitForExistence(timeout: 10), "Show detail navigation bar should exist from library")
+        Thread.sleep(forTimeInterval: 2.0)
+        XCTAssertTrue(app.state == .runningForeground, "App must remain running in foreground")
+
+        let libraryDetailScreenshot = XCTAttachment(screenshot: app.screenshot())
+        libraryDetailScreenshot.name = "show-detail-from-library"
+        libraryDetailScreenshot.lifetime = .keepAlways
+        add(libraryDetailScreenshot)
+    }
+
     private func visibleTab(_ id: String, in app: XCUIApplication) throws -> XCUIElement {
         let query = app.buttons.matching(identifier: id)
         let visible = XCTNSPredicateExpectation(

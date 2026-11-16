@@ -131,7 +131,7 @@ struct CurrentShowFeatureRootView: View {
                     )
                 default:
                     CurrentShowClosableSheet {
-                        ShowDetailView(show: show, onDetailVisibilityChange: { _ in })
+                        ShowDetailView(show: show)
                     }
                 }
             } else {

@@ -7,7 +7,6 @@ import UIKit
 struct TimetableSheet: View {
     let showID: UUID
     let showName: String
-    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -52,12 +51,10 @@ struct TimetableSheet: View {
 
     init(
         showID: UUID,
-        showName: String,
-        onDetailVisibilityChange: @escaping (Bool) -> Void = { _ in }
+        showName: String
     ) {
         self.showID = showID
         self.showName = showName
-        self.onDetailVisibilityChange = onDetailVisibilityChange
         let artistSearch = AppleMusicArtistSearchService()
         _avatars = State(initialValue: TimetableArtistAvatarStore(search: artistSearch))
         _artistLinker = State(initialValue: TimetableArtistLinker(search: artistSearch))

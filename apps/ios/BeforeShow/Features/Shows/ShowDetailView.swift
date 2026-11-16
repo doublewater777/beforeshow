@@ -12,13 +12,12 @@ struct ShowDetailView: View {
     @Query private var memoryFragments: [MemoryFragment]
     let show: Show
     var startsEditing = false
-    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @State private var presentedSheet: ShowDetailPresentedSheet?
     @State private var isShowingDeleteConfirmation = false
     @State private var isShowingCancelConfirmation = false
-    @State private var confirmedEndDraft = Date()
-    @State private var postponeDraft = Date()
+    @State private var confirmedEndDraft = Date.distantPast
+    @State private var postponeDraft = Date.distantPast
     @State private var isShowingCoverPreview = false
     @Namespace private var coverTransition
     @State private var isDeleting = false
@@ -32,12 +31,10 @@ struct ShowDetailView: View {
 
     init(
         show: Show,
-        startsEditing: Bool = false,
-        onDetailVisibilityChange: @escaping (Bool) -> Void = { _ in }
+        startsEditing: Bool = false
     ) {
         self.show = show
         self.startsEditing = startsEditing
-        self.onDetailVisibilityChange = onDetailVisibilityChange
         let showID = show.id
         _showAssets = Query(
             filter: #Predicate<ShowAsset> { asset in
@@ -190,9 +187,7 @@ struct ShowDetailView: View {
                 ShowAssetSheet(
                     showID: show.id,
                     showName: show.name,
-                    kind: kind,
-                    onDetailVisibilityChange: onDetailVisibilityChange,
-                    keepsParentDetailHidden: true
+                    kind: kind
                 )
             case .memory:
                 MemoryFragmentsSheet(show: show, pendingCreate: memoryCreate)
@@ -252,8 +247,6 @@ struct ShowDetailView: View {
                 presentedSheet = .editor
             }
         }
-        .onAppear { onDetailVisibilityChange(true) }
-        .onDisappear { onDetailVisibilityChange(false) }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(max(1, 60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60))))

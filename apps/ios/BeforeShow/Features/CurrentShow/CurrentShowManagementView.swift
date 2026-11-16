@@ -8,7 +8,6 @@ struct CurrentShowManagementSection: View {
     let formatter: ShowDisplayFormatter
     var isPlaybackActive = true
     let candidateShows: [Show]
-    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var onPresentationVisibilityChange: (Bool) -> Void = { _ in }
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
@@ -97,7 +96,7 @@ struct CurrentShowManagementSection: View {
         .navigationDestination(item: $homeRoute) { route in
             switch route {
             case .editShow:
-                ShowDetailView(show: show, startsEditing: true, onDetailVisibilityChange: onDetailVisibilityChange)
+                ShowDetailView(show: show, startsEditing: true)
             case .recordWall:
                 FootprintRecordWallView(archive: FootprintArchiveBuilder.make(shows: attachedCandidateShows))
             case .badgeWall:
@@ -144,8 +143,7 @@ struct CurrentShowManagementSection: View {
                 ShowAssetSheet(
                     showID: show.id,
                     showName: show.name,
-                    kind: kind,
-                    onDetailVisibilityChange: onDetailVisibilityChange
+                    kind: kind
                 )
             case .memory:
                 MemoryFragmentsSheet(show: show)
@@ -358,11 +356,12 @@ struct CurrentShowManagementSection: View {
                     hero
                 } else {
                     NavigationLink {
-                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                        ShowDetailView(show: show)
                     } label: {
                         hero
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("home.hero.cover")
                 }
             }
             .padding(.top, 18)
@@ -416,8 +415,7 @@ struct CurrentShowManagementSection: View {
                     formatter: formatter,
                     now: now,
                     onOpenShowLibrary: onOpenShowLibrary,
-                    onSetCurrent: onSetCurrentShow,
-                    onDetailVisibilityChange: onDetailVisibilityChange
+                    onSetCurrent: onSetCurrentShow
                 )
                 .padding(.horizontal, contentInset)
                 .padding(.top, 25)

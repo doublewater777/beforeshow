@@ -48,6 +48,7 @@ struct CurrentShowLibraryUpcomingRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 17))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("library.upcoming.row")
         .contextMenu {
             CurrentShowLibraryMenuItems(actions: actions, onAction: onAction)
         }

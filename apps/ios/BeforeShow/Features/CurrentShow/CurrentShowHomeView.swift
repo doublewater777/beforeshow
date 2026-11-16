@@ -44,7 +44,6 @@ struct CurrentShowHomeView: View {
     /// 两份均为 nil = 无仪式 presentation。
     @State private var ceremonyLightsOutShowID: UUID?
     @State private var ceremonySheetShowID: UUID?
-    @State private var isDetailVisible = false
     @State private var isManagementPresentationActive = false
     @State private var isRequestingNotificationPermission = false
     @State private var homeArrivalLifecycle = CurrentShowHomeArrivalLifecycle()
@@ -73,8 +72,7 @@ struct CurrentShowHomeView: View {
         let debugPresentationActive = false
         #endif
 
-        return isDetailVisible
-            || presentedSheet != nil
+        return presentedSheet != nil
             || debugPresentationActive
     }
 
@@ -110,9 +108,6 @@ struct CurrentShowHomeView: View {
                             && !isFeaturePresentationActive
                             && !isHomePresentationActive,
                         candidateShows: liveShows,
-                        onDetailVisibilityChange: { isVisible in
-                            isDetailVisible = isVisible
-                        },
                         onPresentationVisibilityChange: { isVisible in
                             isManagementPresentationActive = isVisible
                         },
@@ -254,11 +249,7 @@ struct CurrentShowHomeView: View {
                     }
                 case .showLibrary:
                     NavigationStack {
-                        CurrentShowLibraryManagementView(
-                            onDetailVisibilityChange: { isVisible in
-                                isDetailVisible = isVisible
-                            }
-                        )
+                        CurrentShowLibraryManagementView()
                     }
                 }
             }

@@ -2,22 +2,6 @@ import Foundation
 import SwiftData
 import SwiftUI
 
-enum DetailVisibilityEvent {
-    case assetSheetPresented
-    case assetSheetDismissed
-}
-
-enum DetailVisibilityHandoff {
-    static func tabBarHidden(after event: DetailVisibilityEvent) -> Bool {
-        switch event {
-        case .assetSheetPresented:
-            return true
-        case .assetSheetDismissed:
-            return false
-        }
-    }
-}
-
 /// Presents one ticket/timetable asset in a drawer sheet.
 ///
 /// The entry view remains inside a navigation stack so its existing upload,
@@ -28,8 +12,6 @@ struct ShowAssetSheet: View {
     let showID: UUID
     let showName: String
     let kind: ShowAssetKind
-    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
-    var keepsParentDetailHidden = false
 
     @Environment(\.dismiss) private var dismiss
     @Query private var assets: [ShowAsset]
@@ -37,15 +19,11 @@ struct ShowAssetSheet: View {
     init(
         showID: UUID,
         showName: String,
-        kind: ShowAssetKind,
-        onDetailVisibilityChange: @escaping (Bool) -> Void = { _ in },
-        keepsParentDetailHidden: Bool = false
+        kind: ShowAssetKind
     ) {
         self.showID = showID
         self.showName = showName
         self.kind = kind
-        self.onDetailVisibilityChange = onDetailVisibilityChange
-        self.keepsParentDetailHidden = keepsParentDetailHidden
         let kindRaw = kind.rawValue
         _assets = Query(
             filter: #Predicate<ShowAsset> { asset in
@@ -59,8 +37,7 @@ struct ShowAssetSheet: View {
             if kind == .timetable {
                 TimetableSheet(
                     showID: showID,
-                    showName: showName,
-                    onDetailVisibilityChange: onDetailVisibilityChange
+                    showName: showName
                 )
             } else if let asset = assets.first {
                 NavigationStack {
@@ -87,20 +64,5 @@ struct ShowAssetSheet: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear {
-            setDetailVisibility(for: .assetSheetPresented)
-        }
-        .onDisappear {
-            if keepsParentDetailHidden {
-                onDetailVisibilityChange(true)
-            } else {
-                setDetailVisibility(for: .assetSheetDismissed)
-            }
-        }
-    }
-
-    private func setDetailVisibility(for event: DetailVisibilityEvent) {
-        let hidden = DetailVisibilityHandoff.tabBarHidden(after: event)
-        onDetailVisibilityChange(hidden)
     }
 }
