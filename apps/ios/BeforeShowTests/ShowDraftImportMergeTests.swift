@@ -149,4 +149,38 @@ final class ShowDraftImportMergeTests: XCTestCase {
         try show.apply(editedDraft)
         XCTAssertEqual(show.sourceURL, url)
     }
+
+    func testEnrichArtistsOnlyPopulatesLineupAndPreservesShowDetails() {
+        let originalDate = Date(timeIntervalSince1970: 1_800_000_000)
+        var draft = ShowDraft(
+            name: "分享的现场名称",
+            date: originalDate,
+            city: "杭州",
+            venueName: "大莲花",
+            coverImageURL: "https://example.com/shared-cover.jpg",
+            sourceURL: "https://detail.damai.cn/sub/123",
+            source: .link
+        )
+        let incoming = ShowDraft(
+            name: "购票网站原始标题",
+            date: originalDate.addingTimeInterval(86400 * 3),
+            city: "其他城市",
+            venueName: "其他场馆",
+            artists: [ArtistSlot(name: "周杰伦", avatarURL: "https://example.com/jay.jpg")],
+            coverImageURL: "https://example.com/ticket-thumbnail.jpg",
+            sourceURL: "https://detail.damai.cn/sub/123",
+            source: .link
+        )
+
+        draft.enrichArtists(from: incoming)
+
+        // Artists enriched
+        XCTAssertEqual(draft.artists, [ArtistSlot(name: "周杰伦", avatarURL: "https://example.com/jay.jpg")])
+        // Existing show details MUST remain completely untouched
+        XCTAssertEqual(draft.name, "分享的现场名称")
+        XCTAssertEqual(draft.date, originalDate)
+        XCTAssertEqual(draft.city, "杭州")
+        XCTAssertEqual(draft.venueName, "大莲花")
+        XCTAssertEqual(draft.coverImageURL, "https://example.com/shared-cover.jpg")
+    }
 }

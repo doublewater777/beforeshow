@@ -15,6 +15,7 @@ struct AddShowFlowView: View {
 
     @State private var sheet: AddShowSheet
     let linkParser: ShowLinkDraftParser
+    private let isPrefilled: Bool
     private let onSaved: ((UUID) -> Void)?
 
     @State private var draft: ShowDraft
@@ -61,12 +62,11 @@ struct AddShowFlowView: View {
         _sheet = State(initialValue: sheet)
         self.linkParser = linkParser
         self.onSaved = onSaved
+        self.isPrefilled = prefilledDraft != nil
         if let prefilledDraft {
             _draft = State(initialValue: prefilledDraft)
             _hasImportedDraft = State(initialValue: true)
-            if let sourceURL = prefilledDraft.sourceURL, !sourceURL.isEmpty {
-                _linkText = State(initialValue: sourceURL)
-            }
+            _linkText = State(initialValue: prefilledDraft.sourceURL ?? "")
         } else {
             let initialDraft = sheet == .manual
                 ? AddShowConfiguration.initialManualDraft()
@@ -89,7 +89,7 @@ struct AddShowFlowView: View {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
                         methodContent
 
-                        if hasImportedDraft {
+                        if hasImportedDraft && !isPrefilled {
                             AddShowImportedBanner(source: sheet)
                         }
 
@@ -147,7 +147,7 @@ struct AddShowFlowView: View {
         }
         .navigationTitle(AddShowConfiguration.navigationTitle)
         .toolbar {
-            if shouldShowDraftFields {
+            if shouldShowDraftFields && !isPrefilled {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(BSLocalization.text("返回"), systemImage: "chevron.left") {
                         dismissKeyboard()
@@ -457,17 +457,14 @@ struct AddShowFlowView: View {
 
     @MainActor
     private func enrichFromSourceURLIfNeeded() async {
-        guard let sourceURL = draft.sourceURL, !sourceURL.isEmpty,
-              draft.artists.isEmpty,
-              !isParsingLink else { return }
-        isParsingLink = true
-        defer { isParsingLink = false }
+        guard let sourceURL = draft.sourceURL, !sourceURL.isEmpty, draft.artists.isEmpty else { return }
         do {
             let parsed = try await linkParser.draft(from: sourceURL)
-            guard !Task.isCancelled else { return }
-            draft.mergeRespectingUserEdits(from: parsed, userEdited: userEditedFields)
-            userEditedFields = []
-            importRevision += 1
+            guard !Task.isCancelled, !userEditedFields.contains(.artist),
+                  draft.artists.isEmpty, !parsed.artists.isEmpty else { return }
+            withAnimation(.snappy) {
+                draft.enrichArtists(from: parsed)
+            }
             ProductAnalytics.capture(.showLinkParsed)
         } catch {}
     }

@@ -214,6 +214,12 @@ struct ShowDraft: Equatable {
 }
 
 extension ShowDraft {
+    mutating func enrichArtists(from incoming: ShowDraft) {
+        guard !incoming.artists.isEmpty else { return }
+        artists = incoming.artists
+        confirmedArtistNamesByID = incoming.confirmedArtistNamesByID
+    }
+
     /// 把识别 / 链接解析的 `incoming` 草稿合并进 `self`,跳过用户已手改的字段。
     /// 首次 import（`userEdited` 为空）等价于旧的 `draft = incoming` 整段替换;
     /// 二次 import 时用户已手改的部分会被保护,避免 OCR / link 偷偷冲掉输入。

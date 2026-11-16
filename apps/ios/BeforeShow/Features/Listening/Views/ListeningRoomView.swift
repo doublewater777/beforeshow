@@ -339,6 +339,22 @@ struct ListeningRoomView: View {
                 openPickFeed()
             }
         }
+        .task(id: show.sourceURL) {
+            await enrichFromSourceURLIfNeeded()
+        }
+    }
+
+    private func enrichFromSourceURLIfNeeded() async {
+        guard show.artists.isEmpty, let sourceURL = show.sourceURL, !sourceURL.isEmpty else { return }
+        do {
+            let parsed = try await ShowLinkDraftParser(service: RemoteShowLinkParsingService(client: .production())).draft(from: sourceURL)
+            guard !Task.isCancelled, show.artists.isEmpty, !parsed.artists.isEmpty else { return }
+            withAnimation(.snappy) {
+                show.artists = parsed.artists
+            }
+            try? show.modelContext?.save()
+            room.refreshShowInputs(show)
+        } catch {}
     }
 
     private func matchArtist(_ artist: ListeningBrowseArtist) {
