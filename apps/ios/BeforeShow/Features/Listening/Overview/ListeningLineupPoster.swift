@@ -4,7 +4,6 @@ struct ListeningLineupPoster: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
     let onArtist: (ListeningBrowseArtist) -> Void
-    var onAddArtist: (() -> Void)? = nil
 
     private var artists: [ListeningBrowseArtist] {
         var seen = Set<String>()
@@ -20,8 +19,7 @@ struct ListeningLineupPoster: View {
                 ListeningPosterName(id: artist.id, name: artist.name, color: nameColor(artist),
                                     accessibilityID: "listening.overview.artist.\(artist.slotIndex)") { onArtist(artist) }
             },
-            expandable: true,
-            onAddArtist: onAddArtist
+            expandable: true
         )
     }
 
@@ -45,7 +43,6 @@ struct ListeningPosterLayout: View {
     var fallbackCoverURL: URL?
     let names: [ListeningPosterName]
     var expandable = false
-    var onAddArtist: (() -> Void)? = nil
     @State private var isExpanded = false
 
     private var coverURL: URL? { ShowCoverReference.url(show.coverImageURL) ?? fallbackCoverURL }
@@ -61,22 +58,6 @@ struct ListeningPosterLayout: View {
             tier(tiers.headliners, font: .system(size: 34, design: .serif), separator: 22)
             tier(tiers.second, font: ListeningOverviewStyle.caps(16), uppercase: true, separator: 14)
             tier(tiers.rest, font: ListeningOverviewStyle.caps(12), uppercase: true, separator: 10, opacity: 0.62)
-            if names.isEmpty, let onAddArtist {
-                Button(action: onAddArtist) {
-                    HStack(spacing: BSSpacing.xs) {
-                        Image(systemName: "plus")
-                        Text(BSLocalization.text("添加艺人"))
-                    }
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(BSColor.Stage.foreground.opacity(0.85))
-                    .padding(.horizontal, BSSpacing.compact)
-                    .frame(height: 32)
-                    .overlay(Capsule().stroke(BSColor.Stage.border, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, BSSpacing.xs)
-                .accessibilityIdentifier("listening.overview.add_artist")
-            }
             if tiers.hasMore, expandable {
                 Button {
                     withAnimation(.snappy) { isExpanded.toggle() }

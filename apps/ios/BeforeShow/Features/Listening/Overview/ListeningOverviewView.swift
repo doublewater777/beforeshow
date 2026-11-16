@@ -32,7 +32,7 @@ struct ListeningOverviewView: View {
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 0) {
                             headerSpacer
-                            ListeningLineupPoster(room: room, show: show, onArtist: openArtist, onAddArtist: onAddArtist)
+                            ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
                         }
                         .padding(.bottom, BSSpacing.xl)
                     }
@@ -58,7 +58,7 @@ struct ListeningOverviewView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: BSSpacing.xl) {
                         headerSpacer
-                        ListeningLineupPoster(room: room, show: show, onArtist: openArtist, onAddArtist: onAddArtist)
+                        ListeningLineupPoster(room: room, show: show, onArtist: openArtist)
                         rackContent
                     }
                     .padding(.bottom, BSSpacing.xl)
