@@ -208,6 +208,7 @@ enum ListeningHomePlaybackCoordinator {
                 let access = await dependencies.catalogService.currentAccess()
                 room.updateAccessFromBootstrap(access)
             }
+            guard !Task.isCancelled else { return .noCurrentShow }
             if let started = await startPlayableDisc(in: room) {
                 room.setActive(true)
                 if room.shouldReloadCatalog(for: show) || room.catalogState == .loading || room.isCatalogEnriching {

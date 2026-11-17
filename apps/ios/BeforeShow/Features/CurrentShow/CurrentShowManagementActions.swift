@@ -7,18 +7,26 @@ import UIKit
 
 @MainActor @Observable
 final class CurrentShowListeningPresentation {
-    var isStarting = false
+    private(set) var isStarting = false
+    private var startTask: Task<Void, Never>?
 
-    /// Call from the button action before hopping to a `Task`, so a second tap
-    /// cannot enqueue another start.
     @discardableResult
-    func beginStart() -> Bool {
+    func start(_ operation: @escaping @MainActor () async -> Void) -> Bool {
         guard !isStarting else { return false }
         isStarting = true
+        startTask = Task { @MainActor [weak self] in
+            defer {
+                self?.isStarting = false
+                self?.startTask = nil
+            }
+            await operation()
+        }
         return true
     }
 
-    func finishStart() {
+    func cancel() {
+        startTask?.cancel()
+        startTask = nil
         isStarting = false
     }
 }
@@ -63,14 +71,25 @@ extension CurrentShowManagementSection {
     func performPrimaryAction(_ action: HomeCountdownLockup.PrimaryAction) {
         if action.playsMusic, let room = ListeningRoomSessionStore.shared.room, room.wantsPlayback {
             if isPlayingCurrentShowContent(action: action, in: room) {
+                listeningPresentation.cancel()
                 room.playPause()
                 return
             }
         }
         switch action {
         case .listen:
-            guard listeningPresentation.beginStart() else { return }
-            Task { await startListeningFromHome() }
+            if listeningPresentation.isStarting {
+                listeningPresentation.cancel()
+                if let room = ListeningRoomSessionStore.shared.room,
+                   room.wantsPlayback,
+                   isPlayingCurrentShowContent(action: action, in: room) {
+                    room.playPause()
+                }
+                return
+            }
+            listeningPresentation.start {
+                await startListeningFromHome()
+            }
         case .playRecord:
             guard let record = unlockedRecord else { return }
             Task { await FootprintNumberSongPlayer.shared.start(record) }
@@ -85,9 +104,15 @@ extension CurrentShowManagementSection {
 
     @MainActor
     func startListeningFromHome() async {
-        defer { listeningPresentation.finishStart() }
-
         let result = await ListeningHomePlaybackCoordinator.start(show: show, context: modelContext)
+        guard !Task.isCancelled else {
+            if let room = ListeningRoomSessionStore.shared.room,
+               room.wantsPlayback,
+               isPlayingCurrentShowContent(action: .listen, in: room) {
+                room.playPause()
+            }
+            return
+        }
         ProductAnalytics.capture(.listenTapped(
             source: .currentHome,
             outcome: result.analyticsOutcome,
@@ -135,7 +160,9 @@ extension CurrentShowManagementSection {
         room: ListeningRoomCoordinator?,
         action: HomeCountdownLockup.PrimaryAction?
     ) -> Bool {
-        guard let room, room.wantsPlayback, let action else { return false }
+        guard let action else { return false }
+        if action == .listen, listeningPresentation.isStarting { return true }
+        guard let room, room.wantsPlayback else { return false }
         return isPlayingCurrentShowContent(action: action, in: room)
     }
 

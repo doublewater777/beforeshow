@@ -147,15 +147,16 @@ final class ListeningNotificationEntryTests: XCTestCase {
         XCTAssertFalse(result.revealsListenTab)
     }
 
-    func testListeningPresentationBeginStartGuardsAgainstReentry() {
+    func testListeningPresentationStartLifecycleAndReentry() async {
         let presentation = CurrentShowListeningPresentation()
-        XCTAssertTrue(presentation.beginStart())
+        let started = presentation.start {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        XCTAssertTrue(started)
         XCTAssertTrue(presentation.isStarting)
-        XCTAssertFalse(presentation.beginStart())
-        presentation.finishStart()
+        XCTAssertFalse(presentation.start {})
+        presentation.cancel()
         XCTAssertFalse(presentation.isStarting)
-        XCTAssertTrue(presentation.beginStart())
-        presentation.finishStart()
     }
 
     func testBodyOpensDetailsAndPlayActionStartsPreviewWithoutRequestingMusicAuthorization() async throws {

@@ -376,7 +376,6 @@ struct CurrentShowManagementSection: View {
                             room: ListeningRoomSessionStore.shared.room,
                             action: displayedPrimaryAction
                         ),
-                        isLoading: listeningPresentation.isStarting,
                         onPrimaryAction: performPrimaryAction,
                         onOpenRoute: { openRouteChooser() },
                         unlocks: revealedUnlocks?.showID == show.id ? revealedUnlocks : nil,

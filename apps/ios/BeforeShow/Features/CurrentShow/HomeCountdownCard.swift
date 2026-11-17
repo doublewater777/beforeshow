@@ -7,7 +7,6 @@ struct HomeCountdownLockup: View {
     let snapshot: HomeHeroSnapshot
     var primaryAction: PrimaryAction? = nil
     var isPlaying = false
-    var isLoading = false
     var onPrimaryAction: (PrimaryAction) -> Void = { _ in }
     var onOpenRoute: (() -> Void)? = nil
     var unlocks: ShowUnlocks? = nil
@@ -275,28 +274,17 @@ struct HomeCountdownLockup: View {
 
     private func primaryActionButton(_ action: PrimaryAction) -> some View {
         let showsPause = action.playsMusic && isPlaying
-        let isListenLoading = action == .listen && isLoading
         return Button {
-            guard !isListenLoading else { return }
             onPrimaryAction(action)
         } label: {
             HStack(spacing: 6) {
-                if isListenLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(BSColor.Stage.background)
+                if action.playsMusic {
+                    Image(systemName: showsPause ? "pause.fill" : "play.fill")
+                        .contentTransition(.symbolEffect(.replace))
                         .frame(width: 16)
-                    Text(ListeningCopy.text("正在准备…"))
-                        .contentTransition(.interpolate)
-                } else {
-                    if action.playsMusic {
-                        Image(systemName: showsPause ? "pause.fill" : "play.fill")
-                            .contentTransition(.symbolEffect(.replace))
-                            .frame(width: 16)
-                    }
-                    Text(showsPause ? BSLocalization.text("暂停") : action.title)
-                        .contentTransition(.interpolate)
                 }
+                Text(showsPause ? BSLocalization.text("暂停") : action.title)
+                    .contentTransition(.interpolate)
             }
             .animation(.snappy(duration: BSMotion.interface), value: showsPause)
             .font(.system(size: 15, weight: .semibold))
@@ -306,7 +294,6 @@ struct HomeCountdownLockup: View {
             .background(BSColor.Stage.foreground, in: Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(isListenLoading)
         .padding(.top, 16)
     }
 
