@@ -34,11 +34,9 @@ typealias ArtistMarketSearchOperation = @Sendable (_ query: String, _ limit: Int
 
 /// Production artist search.
 ///
-/// MusicKit's Apple Music catalog is the primary source so artist identity matches the
-/// same catalog used by the listening experience. The public iTunes Search API remains
-/// as a no-auth fallback for add/edit-show flows and transient MusicKit failures. If its
-/// `musicArtist` index misses a long-tail artist, a song search can still recover the
-/// artist identity from track metadata.
+/// MusicKit owns artist search whenever music access is available. Its empty
+/// results and request failures never trigger an iTunes search. The public iTunes
+/// artist/song search is used only when MusicKit access is unavailable.
 actor AppleMusicArtistSearchService: ArtistSearchServicing {
     private static let logger = Logger(subsystem: "com.doublewaterapps.beforeshow", category: "ArtistSearch")
     let limit: Int
@@ -48,8 +46,6 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
     private let catalogSearch: ArtistSearchOperation
     private let fallbackSearch: ArtistMarketSearchOperation
     private let countryResolver: @Sendable () async -> String
-    /// Explicit market searches use iTunes exclusively: MusicKit always uses the account storefront.
-    private let hasCountryOverride: Bool
     private var cachedAuthorization: MusicAuthorization.Status?
     private var cache: [String: (expiresAt: ContinuousClock.Instant, candidates: [RecognizedArtist], isComplete: Bool)] = [:]
 
@@ -58,8 +54,12 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         self.country = country
         self.session = session
         self.catalogSearch = Self.searchMusicKitCatalog
-        self.countryResolver = { await Self.currentFallbackCountry(preferred: country) }
-        self.hasCountryOverride = Self.validCountry(country) != nil
+        self.countryResolver = {
+            // Native MusicKit uses the account storefront; an explicit market only
+            // applies to the no-permission iTunes path.
+            let preferred = MusicAuthorization.currentStatus == .authorized ? nil : country
+            return await Self.currentFallbackCountry(preferred: preferred)
+        }
         self.fallbackSearch = { query, limit, exactMatchRequired, region in
             try await Self.searchITunesFallback(
                 query: query,
@@ -83,7 +83,6 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         self.session = .shared
         self.catalogSearch = catalogSearch
         self.countryResolver = countryResolver
-        self.hasCountryOverride = false
         self.fallbackSearch = { query, limit, exactMatchRequired, _ in
             try await fallbackSearch(query, limit, exactMatchRequired)
         }
@@ -102,7 +101,6 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         self.session = .shared
         self.catalogSearch = catalogSearch
         self.countryResolver = countryResolver
-        self.hasCountryOverride = false
         self.fallbackSearch = regionalFallbackSearch
     }
 
@@ -173,55 +171,29 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
                                deviceRegion: Locale.autoupdatingCurrent.region?.identifier)
     }
 
-    private func searchUncachedArtists(query trimmed: String, exactMatchRequired: Bool, country: String) async throws -> [RecognizedArtist] {
-        var catalogResults: [RecognizedArtist] = []
-        var catalogFailure: ArtistSearchError?
+    private func searchUncachedArtists(query: String, exactMatchRequired: Bool, country: String) async throws -> [RecognizedArtist] {
         do {
-            if !hasCountryOverride {
-                catalogResults = try await catalogSearch(trimmed, limit, exactMatchRequired)
-                let officialPhotos = catalogResults.filter(\.isOfficialArtistPhoto)
-                if !officialPhotos.isEmpty {
-                    await MainActor.run { officialPhotos.forEach(ArtistAvatarResolver.shared.record) }
-                }
-            }
+            let candidates = try await catalogSearch(query, limit, exactMatchRequired)
             try Task.checkCancellation()
-            if Self.containsMatch(catalogResults, query: trimmed, exactMatchRequired: exactMatchRequired) {
-                return Self.mergedCandidates(
-                    primary: catalogResults,
-                    secondary: [],
-                    query: trimmed,
-                    limit: limit
-                )
+            let officialPhotos = candidates.filter(\.isOfficialArtistPhoto)
+            if !officialPhotos.isEmpty {
+                await MainActor.run { officialPhotos.forEach(ArtistAvatarResolver.shared.record) }
             }
+            return Self.mergedCandidates(primary: candidates, secondary: [], query: query, limit: limit)
         } catch is CancellationError {
             throw CancellationError()
         } catch ArtistCatalogSearchError.accessUnavailable {
+            // No permission: keep matching available without prompting here.
             try Task.checkCancellation()
         } catch {
             try Task.checkCancellation()
-            catalogFailure = error as? ArtistSearchError ?? (error is URLError ? .network : .catalogUnavailable)
+            if (error as? URLError)?.code == .cancelled { throw CancellationError() }
+            throw error as? ArtistSearchError ?? (error is URLError ? .network : .catalogUnavailable)
         }
 
-        do {
-            try Task.checkCancellation()
-            let fallbackResults = try await fallbackSearch(trimmed, limit, exactMatchRequired, country)
-            try Task.checkCancellation()
-            if fallbackResults.isEmpty, let catalogFailure { throw catalogFailure }
-            return Self.mergedCandidates(
-                primary: catalogResults,
-                secondary: fallbackResults,
-                query: trimmed,
-                limit: limit
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            try Task.checkCancellation()
-            if !catalogResults.isEmpty {
-                return Self.mergedCandidates(primary: catalogResults, secondary: [], query: trimmed, limit: limit)
-            }
-            throw error
-        }
+        let candidates = try await fallbackSearch(query, limit, exactMatchRequired, country)
+        try Task.checkCancellation()
+        return Self.mergedCandidates(primary: candidates, secondary: [], query: query, limit: limit)
     }
 
     private static func searchMusicKitCatalog(query: String, limit: Int, exactMatchRequired: Bool) async throws -> [RecognizedArtist] {
