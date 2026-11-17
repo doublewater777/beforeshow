@@ -6,6 +6,19 @@ struct FootprintNumberSong: Equatable, Sendable {
     let title: String
     let artist: String
     let trackID: Int
+
+    func localized(for language: String? = nil) -> FootprintNumberSong {
+        FootprintNumberSongs.song(for: number, language: language) ?? self
+    }
+
+    func localized(for locale: Locale) -> FootprintNumberSong {
+        FootprintNumberSongs.song(for: number, locale: locale) ?? self
+    }
+}
+
+struct FootprintSongLocalization: Equatable, Sendable {
+    var title: String?
+    var artist: String?
 }
 
 struct FootprintRecordShelf: Equatable {
@@ -72,9 +85,39 @@ enum FootprintNumberSongs {
         50: ("50 Ways to Leave Your Lover", "Paul Simon", 380625663)
     ]
 
+    /// Display name overrides per language when Apple Music / catalog metadata needs translation.
+    private static let localizations: [Int: [String: FootprintSongLocalization]] = [
+        1: [
+            "zh-Hans": FootprintSongLocalization(artist: "孙燕姿"),
+            "zh-Hant": FootprintSongLocalization(artist: "孫燕姿"),
+            "en": FootprintSongLocalization(artist: "Stefanie Sun")
+        ]
+    ]
+
+    static func canonicalLanguage(from identifier: String) -> String {
+        let normalized = identifier.replacingOccurrences(of: "_", with: "-").lowercased()
+        if normalized.contains("hant") || normalized.hasPrefix("zh-tw") || normalized.hasPrefix("zh-hk") || normalized.hasPrefix("zh-mo") {
+            return "zh-Hant"
+        }
+        if normalized.contains("hans") || normalized.hasPrefix("zh") {
+            return "zh-Hans"
+        }
+        if normalized.hasPrefix("en") {
+            return "en"
+        }
+        return normalized
+    }
+
+    static func currentLanguage() -> String {
+        if let preferred = Bundle.main.preferredLocalizations.first {
+            return canonicalLanguage(from: preferred)
+        }
+        return canonicalLanguage(from: Locale.current.identifier)
+    }
+
     /// What a collection of `showCount` nights has unlocked, newest first, and the next record still sealed.
-    static func shelf(showCount: Int) -> FootprintRecordShelf {
-        let songs = catalog.keys.sorted().compactMap(song(for:))
+    static func shelf(showCount: Int, language: String? = nil) -> FootprintRecordShelf {
+        let songs = catalog.keys.sorted().compactMap { song(for: $0, language: language) }
         let next = songs.first { $0.number > showCount }
         return FootprintRecordShelf(
             unlocked: Array(songs.filter { $0.number <= showCount }.reversed()),
@@ -84,7 +127,23 @@ enum FootprintNumberSongs {
         )
     }
 
-    static func song(for number: Int) -> FootprintNumberSong? {
-        catalog[number].map { FootprintNumberSong(number: number, title: $0.title, artist: $0.artist, trackID: $0.trackID) }
+    static func shelf(showCount: Int, locale: Locale) -> FootprintRecordShelf {
+        shelf(showCount: showCount, language: locale.identifier)
+    }
+
+    static func song(for number: Int, language: String? = nil) -> FootprintNumberSong? {
+        guard let item = catalog[number] else { return nil }
+        let lang = canonicalLanguage(from: language ?? currentLanguage())
+        let localized = localizations[number]?[lang]
+        return FootprintNumberSong(
+            number: number,
+            title: localized?.title ?? item.title,
+            artist: localized?.artist ?? item.artist,
+            trackID: item.trackID
+        )
+    }
+
+    static func song(for number: Int, locale: Locale) -> FootprintNumberSong? {
+        song(for: number, language: locale.identifier)
     }
 }

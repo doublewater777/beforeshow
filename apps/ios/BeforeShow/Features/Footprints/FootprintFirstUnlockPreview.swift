@@ -4,7 +4,9 @@ import SwiftUI
 struct FootprintFirstUnlockPreview: View {
     let show: Show
 
-    private var record: FootprintNumberSong? { FootprintNumberSongs.song(for: 1) }
+    @Environment(\.locale) private var locale
+
+    private var record: FootprintNumberSong? { FootprintNumberSongs.song(for: 1, locale: locale) }
 
     private var starNames: String {
         guard show.isAttached else { return "" }

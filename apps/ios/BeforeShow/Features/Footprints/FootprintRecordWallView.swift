@@ -9,6 +9,7 @@ struct FootprintRecordWallView: View {
     @State private var controller = FootprintNumberSongPlayer.shared
     @State private var detailTarget: FootprintDetailDestination?
     @Environment(\.openURL) private var openURL
+    @Environment(\.locale) private var locale
 
     private static let disc: CGFloat = 76
 
@@ -17,7 +18,7 @@ struct FootprintRecordWallView: View {
 
     var body: some View {
         let ordered = ordered
-        let shelf = FootprintNumberSongs.shelf(showCount: ordered.count)
+        let shelf = FootprintNumberSongs.shelf(showCount: ordered.count, locale: locale)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header(shelf)
@@ -81,12 +82,11 @@ struct FootprintRecordWallView: View {
                             .foregroundStyle(BSColor.Stage.dim)
                     }
                     if let latest = shelf.unlocked.first {
-                        let preview = controller.previews[latest.number]
-                        Text(preview?.title ?? latest.title)
+                        Text(latest.title)
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(BSColor.Stage.foreground)
                             .lineLimit(2)
-                        Text(preview?.artist ?? latest.artist)
+                        Text(latest.artist)
                             .font(.system(size: 13))
                             .foregroundStyle(BSColor.Stage.muted)
                             .lineLimit(1)
@@ -166,7 +166,7 @@ struct FootprintRecordWallView: View {
     /// Picking a record plays it (one already playing keeps going); picking it again pauses or resumes.
     /// The card closes only with its ×, and the music carries on.
     private func pick(_ number: Int, isUnlocked: Bool) {
-        guard isUnlocked, let song = FootprintNumberSongs.song(for: number) else {
+        guard isUnlocked, let song = FootprintNumberSongs.song(for: number, locale: locale) else {
             selected = selected == number ? nil : number
             return
         }
@@ -185,7 +185,7 @@ struct FootprintRecordWallView: View {
         VStack(alignment: .leading, spacing: 0) {
             Capsule().fill(Color.white.opacity(0.25)).frame(width: 36, height: 5).frame(maxWidth: .infinity).padding(.top, 8)
             HStack(alignment: .top, spacing: 16) {
-                if let show, let song = FootprintNumberSongs.song(for: number) {
+                if let show, let song = FootprintNumberSongs.song(for: number, locale: locale) {
                     unlockedCard(song, show: show)
                 } else {
                     sealedCard(number, remaining: number - showCount)
@@ -222,11 +222,11 @@ struct FootprintRecordWallView: View {
                     .font(.system(size: 11, weight: .semibold).width(.condensed))
                     .tracking(2)
                     .foregroundStyle(BSColor.Stage.accent)
-                Text(preview?.title ?? song.title)
+                Text(song.title)
                     .font(.system(size: 19, weight: .bold))
                     .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(2)
-                Text(preview?.artist ?? song.artist)
+                Text(song.artist)
                     .font(.system(size: 14))
                     .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)

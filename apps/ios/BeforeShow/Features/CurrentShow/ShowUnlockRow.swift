@@ -7,6 +7,7 @@ struct ShowUnlockRow: View {
     let onOpenBadges: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.locale) private var locale
     @State private var arrived: Bool
 
     /// 第一次出现时唱片转进来；之后整个停留期都静止显示。
@@ -37,17 +38,18 @@ struct ShowUnlockRow: View {
     }
 
     private func recordLabel(_ record: FootprintNumberSong) -> some View {
-        HStack(spacing: 12) {
-            FootprintNumberDisc(number: record.number, diameter: 44, isPlaying: FootprintNumberSongPlayer.shared.isPlaying(record.number))
+        let displaySong = record.localized(for: locale)
+        return HStack(spacing: 12) {
+            FootprintNumberDisc(number: displaySong.number, diameter: 44, isPlaying: FootprintNumberSongPlayer.shared.isPlaying(displaySong.number))
                 .rotationEffect(.degrees(arrived || reduceMotion ? 0 : 200))
                 .offset(x: arrived || reduceMotion ? 0 : 60)
                 .opacity(arrived ? 1 : 0)
                 .animation(.spring(response: 0.7, dampingFraction: 0.8), value: arrived)
             VStack(alignment: .leading, spacing: 2) {
-                Text(BSLocalization.format("送你一首和 %lld 有关的歌", record.number))
+                Text(BSLocalization.format("送你一首和 %lld 有关的歌", displaySong.number))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(BSColor.Stage.foreground)
-                Text("\(record.title) · \(record.artist)")
+                Text("\(displaySong.title) · \(displaySong.artist)")
                     .font(.system(size: 12))
                     .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)

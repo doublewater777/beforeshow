@@ -49,10 +49,10 @@ final class FootprintNumberSongPlayer {
         ))
         return ListeningDisc(
             id: discID(song.number),
-            title: preview.title,
+            title: song.title,
             artworkURL: preview.artworkURL,
             tracks: [track],
-            artistNames: [preview.artist],
+            artistNames: [song.artist],
             appleMusicURL: preview.storeURL
         )
     }
@@ -160,8 +160,8 @@ final class FootprintNumberSongPlayer {
                 songID: String(preview.trackID),
                 duration: 30,
                 previewURL: preview.previewURL,
-                title: preview.title,
-                artistName: preview.artist,
+                title: song.title,
+                artistName: song.artist,
                 albumTitle: preview.album,
                 artworkURL: preview.artworkURL
             )], startingAt: nil, at: 0)
@@ -209,45 +209,47 @@ struct FootprintNumberRecord: View {
 
     @State private var controller = FootprintNumberSongPlayer.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.locale) private var locale
 
     private var isPlaying: Bool { controller.isPlaying(song.number) }
+    private var displaySong: FootprintNumberSong { song.localized(for: locale) }
 
     var body: some View {
         HStack(spacing: 14) {
             Button {
-                Task { await controller.toggle(song) }
+                Task { await controller.toggle(displaySong) }
             } label: {
-                FootprintNumberDisc(number: song.number, diameter: diameter, isPlaying: isPlaying, artworkURL: controller.previews[song.number]?.artworkURL)
+                FootprintNumberDisc(number: displaySong.number, diameter: diameter, isPlaying: isPlaying, artworkURL: controller.previews[displaySong.number]?.artworkURL)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isPlaying
-                ? BSLocalization.format("暂停 %@", song.title)
-                : BSLocalization.format("播放 %@", song.title))
+                ? BSLocalization.format("暂停 %@", displaySong.title)
+                : BSLocalization.format("播放 %@", displaySong.title))
             VStack(alignment: .leading, spacing: 3) {
-                Text(song.title)
+                Text(displaySong.title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
-                Text(controller.previews[song.number]?.artist ?? song.artist)
+                Text(displaySong.artist)
                     .font(.system(size: 12))
                     .foregroundStyle(BSColor.Stage.muted)
                     .lineLimit(1)
-                FootprintNumberSongStatus(number: song.number)
+                FootprintNumberSongStatus(number: displaySong.number)
             }
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
         .contextMenu {
-            if let link = controller.previews[song.number]?.storeURL {
+            if let link = controller.previews[displaySong.number]?.storeURL {
                 Button(BSLocalization.text("在 Apple Music 中打开"), systemImage: "arrow.up.right") { openURL(link) }
             }
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: isPlaying) { _, playing in playing }
-        .task(id: song.number) { await controller.load([song]) }
+        .task(id: displaySong.number) { await controller.load([displaySong]) }
         .onChange(of: controller.hasFinished) { _, finished in
-            if finished { controller.stop(song.number) }
+            if finished { controller.stop(displaySong.number) }
         }
-        .onDisappear { controller.stop(song.number) }
+        .onDisappear { controller.stop(displaySong.number) }
     }
 }
 
