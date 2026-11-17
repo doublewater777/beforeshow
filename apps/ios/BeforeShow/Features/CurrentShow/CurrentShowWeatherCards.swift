@@ -13,26 +13,61 @@ struct CurrentShowWeatherSky: View {
     }
 
     private var colors: [Color] {
-        switch tone {
-        case .sunsetGold:
-            [Color(red: 0.29, green: 0.26, blue: 0.58), Color(red: 0.78, green: 0.45, blue: 0.36)]
-        case .rainBlue:
-            isNight
-                ? [Color(red: 0.08, green: 0.15, blue: 0.27), Color(red: 0.12, green: 0.20, blue: 0.33)]
-                : [Color(red: 0.16, green: 0.33, blue: 0.52), Color(red: 0.11, green: 0.22, blue: 0.38)]
-        case .coldNightIndigo:
-            [Color(red: 0.11, green: 0.13, blue: 0.40), Color(red: 0.27, green: 0.19, blue: 0.50)]
-        case .neutral, nil:
-            switch (condition, isNight) {
-            case (.clear, false), (.partlyCloudy, false), (.sunset, false):
-                [Color(red: 0.16, green: 0.42, blue: 0.80), Color(red: 0.36, green: 0.62, blue: 0.90)]
-            case (.clear, true), (.partlyCloudy, true), (.sunset, true):
-                [Color(red: 0.05, green: 0.09, blue: 0.26), Color(red: 0.15, green: 0.22, blue: 0.46)]
-            case (_, false):
-                [Color(red: 0.22, green: 0.35, blue: 0.56), Color(red: 0.30, green: 0.36, blue: 0.58)]
-            case (_, true):
-                [Color(red: 0.12, green: 0.16, blue: 0.29), Color(red: 0.20, green: 0.23, blue: 0.37)]
-            }
+        if tone == .sunsetGold || condition == .sunset {
+            return isNight
+                ? [
+                    Color(red: 0.05, green: 0.07, blue: 0.14),
+                    Color(red: 0.14, green: 0.12, blue: 0.22),
+                    Color(red: 0.26, green: 0.18, blue: 0.25)
+                ]
+                : [
+                    Color(red: 0.13, green: 0.20, blue: 0.33),
+                    Color(red: 0.36, green: 0.29, blue: 0.40),
+                    Color(red: 0.66, green: 0.42, blue: 0.38)
+                ]
+        }
+
+        if condition == .rain || condition == .heavyRain || tone == .rainBlue {
+            return isNight
+                ? [
+                    Color(red: 0.06, green: 0.08, blue: 0.12),
+                    Color(red: 0.09, green: 0.13, blue: 0.18),
+                    Color(red: 0.13, green: 0.18, blue: 0.24)
+                ]
+                : [
+                    Color(red: 0.14, green: 0.19, blue: 0.25),
+                    Color(red: 0.20, green: 0.26, blue: 0.33),
+                    Color(red: 0.28, green: 0.34, blue: 0.42)
+                ]
+        }
+
+        if isNight || condition == .coldNight || tone == .coldNightIndigo {
+            return [
+                Color(red: 0.03, green: 0.05, blue: 0.11),
+                Color(red: 0.07, green: 0.11, blue: 0.20),
+                Color(red: 0.10, green: 0.17, blue: 0.29)
+            ]
+        }
+
+        switch condition {
+        case .clear, .partlyCloudy:
+            return [
+                Color(red: 0.12, green: 0.36, blue: 0.65),
+                Color(red: 0.25, green: 0.51, blue: 0.78),
+                Color(red: 0.42, green: 0.64, blue: 0.86)
+            ]
+        case .cloudy, .windy, .none:
+            return [
+                Color(red: 0.21, green: 0.26, blue: 0.31),
+                Color(red: 0.29, green: 0.34, blue: 0.40),
+                Color(red: 0.38, green: 0.45, blue: 0.52)
+            ]
+        case .sunset, .rain, .heavyRain, .coldNight:
+            return [
+                Color(red: 0.12, green: 0.36, blue: 0.65),
+                Color(red: 0.25, green: 0.51, blue: 0.78),
+                Color(red: 0.42, green: 0.64, blue: 0.86)
+            ]
         }
     }
 }
@@ -45,13 +80,21 @@ struct CurrentShowWeatherCard<Header: View, Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            Rectangle().fill(Color.white.opacity(0.18)).frame(height: 0.5)
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 0.5)
             content
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
+                )
+        }
     }
 }
 
@@ -114,17 +157,34 @@ struct CurrentShowWeatherDayChips: View {
     @Binding var selected: Int
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { selected = offset }
-                } label: {
-                    chip(day, isSelected: offset == selected)
+        if days.count <= 3 {
+            HStack(spacing: 8) {
+                ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
+                    chipButton(offset: offset, day: day)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
             }
+            .sensoryFeedback(.selection, trigger: selected)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
+                        chipButton(offset: offset, day: day)
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+            .sensoryFeedback(.selection, trigger: selected)
         }
-        .sensoryFeedback(.selection, trigger: selected)
+    }
+
+    private func chipButton(offset: Int, day: ShowWeatherDay) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { selected = offset }
+        } label: {
+            chip(day, isSelected: offset == selected)
+        }
+        .buttonStyle(.plain)
     }
 
     private func chip(_ day: ShowWeatherDay, isSelected: Bool) -> some View {
@@ -140,9 +200,17 @@ struct CurrentShowWeatherDayChips: View {
                 .minimumScaleFactor(0.7)
         }
         .foregroundStyle(Color.white.opacity(isSelected ? 1 : 0.75))
+        .padding(.horizontal, days.count > 3 ? 14 : 0)
         .padding(.vertical, 9)
-        .frame(maxWidth: .infinity)
-        .background(Capsule().fill(Color.white.opacity(isSelected ? 0.28 : 0.12)))
+        .background {
+            Capsule()
+                .fill(Color.white.opacity(isSelected ? 0.22 : 0.08))
+                .background(isSelected ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(isSelected ? 0.24 : 0.10), lineWidth: 0.5)
+                )
+        }
     }
 }
 
@@ -157,6 +225,9 @@ struct CurrentShowWeatherHourlyCard: View {
     let timeZone: TimeZone
 
     private let columnWidth: CGFloat = 50
+    private var hasPrecipitationChance: Bool {
+        weather.hourly.contains { ($0.precipitationProbability ?? 0) >= 0.2 }
+    }
 
     var body: some View {
         CurrentShowWeatherCard {
@@ -195,7 +266,11 @@ struct CurrentShowWeatherHourlyCard: View {
                 .padding(.vertical, 6)
                 .background(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.14))
+                        .fill(Color.white.opacity(0.10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
+                        )
                         .frame(width: columnWidth * CGFloat(band.count))
                         .offset(x: columnWidth * CGFloat(band.lowerBound))
                 }
@@ -206,7 +281,7 @@ struct CurrentShowWeatherHourlyCard: View {
     }
 
     private func column(_ hour: ShowWeatherHourlyDTO, isNow: Bool) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 5) {
             Text(hour.milestoneLabel ?? " ")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(BSColor.Accent.warm)
@@ -215,10 +290,24 @@ struct CurrentShowWeatherHourlyCard: View {
                 .font(.system(size: 13, weight: isNow ? .bold : .medium))
                 .lineLimit(1)
                 .fixedSize()
-            Image(systemName: hour.condition.systemSymbolName)
-                .symbolRenderingMode(.multicolor)
-                .font(.system(size: 18))
-                .frame(height: 22)
+            VStack(spacing: 2) {
+                Image(systemName: hour.condition.systemSymbolName)
+                    .symbolRenderingMode(.multicolor)
+                    .font(.system(size: 18))
+                    .frame(height: 22)
+                if hasPrecipitationChance {
+                    if let prob = hour.precipitationProbability, prob >= 0.2 {
+                        Text(verbatim: "\(Int((prob * 100).rounded()))%")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(BSColor.Accent.info)
+                            .fixedSize()
+                    } else {
+                        Text(" ")
+                            .font(.system(size: 10, weight: .bold))
+                            .fixedSize()
+                    }
+                }
+            }
             Text(verbatim: "\(hour.temperatureCelsius)°")
                 .font(.system(size: 17, weight: .semibold))
         }
@@ -273,6 +362,14 @@ struct CurrentShowWeatherMetricsRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
+                )
+        }
     }
 }

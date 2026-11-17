@@ -59,6 +59,21 @@ Path: Apps → 开场前 → General → App Compliance
 - Recognizing title: `AI 识别中`
 - Review banner badge: `AI 识别` + `结果由 AI 生成，请核对后保存`
 
+## Status update 2026-11-17 (later)
+
+- Alibaba self-service application submitted and visible in 我的审核单.
+  - 审核单号: `23858`
+  - 类型: 模型合作协议备案申请
+  - 状态: 审核中
+  - 提交账号 UID: `1985707238540662`
+  - 提交时间: `2026-11-17 12:36:59`
+- Expected Alibaba review: ~6 business days; electronic seal + prior Bailian call history required for approval.
+- After stamped PDF arrives: ASC → App Compliance → AI-Generated or Synthetic Content → upload third-party authorization → Save.
+- ASC AI fields already drafted: LLM `通义千问大模型` / `ZheJiang-TongYiQianWen-20230901`, third-party Yes.
+- Security Assessment already Active = No. ICP `浙ICP备2026041359号-3A` set.
+- ASC web session was expired earlier; re-auth before uploading agreement.
+
+
 ## Still blocked on human account work
 
 1. `asc web auth login` (session expired) then fill App Compliance and upload agreement

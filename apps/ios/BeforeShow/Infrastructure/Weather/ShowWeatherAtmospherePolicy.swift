@@ -275,7 +275,8 @@ struct ShowWeatherAtmospherePolicy: Sendable {
                 time: hour.date,
                 temperatureCelsius: hour.temperatureCelsius,
                 condition: hour.condition,
-                milestoneLabel: self.milestoneLabel(for: hour.date, startTime: showStartTime, endTime: showEndTime, sunsetTime: dayForecast.sunsetTime, calendar: calendar)
+                milestoneLabel: self.milestoneLabel(for: hour.date, startTime: showStartTime, endTime: showEndTime, sunsetTime: dayForecast.sunsetTime, calendar: calendar),
+                precipitationProbability: hour.precipitationChance
             )
         }
 

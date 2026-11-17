@@ -521,4 +521,12 @@ final class ShowWeatherTests: XCTestCase {
         XCTAssertEqual(try policy.weatherCalendar(timing: timing, locationTimeZone: shanghai, fallback: fallback).timeZone.identifier, "Europe/London")
     }
 
+    func testHourlyForecastPreservesPrecipitationProbability() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let end = start.addingTimeInterval(7200)
+        let day = RawDayForecast(date: start, highCelsius: 25, lowCelsius: 20, condition: .clear, conditionDescription: "晴", sunsetTime: nil, precipitationChance: 0.1, uvIndex: 0)
+        let hour = RawHourForecast(date: start, temperatureCelsius: 23, apparentTemperatureCelsius: 23, condition: .rain, uvIndex: 0, windSpeedMps: 1, windDirectionDescription: "", precipitationChance: 0.45)
+        let result = try policy.resolveForecast(for: UUID(), showDate: start, showStartTime: start, showEndTime: end, calendar: .current, dailyForecasts: [day], hourlyForecasts: [hour], now: start)
+        XCTAssertEqual(result.hourly.first?.precipitationProbability, 0.45)
+    }
 }

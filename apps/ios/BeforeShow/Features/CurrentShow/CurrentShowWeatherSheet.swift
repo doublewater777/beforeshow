@@ -196,7 +196,7 @@ struct CurrentShowWeatherSheet: View {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     packingItemRow(item)
                     if index < items.count - 1 {
-                        Rectangle().fill(Color.white.opacity(0.12)).frame(height: 0.5).padding(.leading, 40)
+                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 0.5).padding(.leading, 40)
                     }
                 }
             }

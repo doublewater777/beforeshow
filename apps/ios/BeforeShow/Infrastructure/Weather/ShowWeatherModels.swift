@@ -51,17 +51,20 @@ public struct ShowWeatherHourlyDTO: Codable, Sendable, Identifiable, Equatable {
     public let temperatureCelsius: Int
     public let condition: ShowWeatherCondition
     public let milestoneLabel: String?
+    public let precipitationProbability: Double?
 
     public init(
         time: Date,
         temperatureCelsius: Int,
         condition: ShowWeatherCondition,
-        milestoneLabel: String? = nil
+        milestoneLabel: String? = nil,
+        precipitationProbability: Double? = nil
     ) {
         self.time = time
         self.temperatureCelsius = temperatureCelsius
         self.condition = condition
         self.milestoneLabel = milestoneLabel
+        self.precipitationProbability = precipitationProbability
     }
 }
 
