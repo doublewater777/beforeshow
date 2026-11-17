@@ -16,28 +16,28 @@ struct CurrentShowWeatherSky: View {
         if tone == .sunsetGold || condition == .sunset {
             return isNight
                 ? [
-                    Color(red: 0.05, green: 0.07, blue: 0.14),
-                    Color(red: 0.14, green: 0.12, blue: 0.22),
-                    Color(red: 0.26, green: 0.18, blue: 0.25)
+                    Color(red: 0.04, green: 0.05, blue: 0.11),
+                    Color(red: 0.10, green: 0.09, blue: 0.16),
+                    Color(red: 0.18, green: 0.12, blue: 0.18)
                 ]
                 : [
-                    Color(red: 0.13, green: 0.20, blue: 0.33),
-                    Color(red: 0.36, green: 0.29, blue: 0.40),
-                    Color(red: 0.66, green: 0.42, blue: 0.38)
+                    Color(red: 0.06, green: 0.08, blue: 0.16),
+                    Color(red: 0.14, green: 0.11, blue: 0.20),
+                    Color(red: 0.26, green: 0.16, blue: 0.18)
                 ]
         }
 
         if condition == .rain || condition == .heavyRain || tone == .rainBlue {
             return isNight
                 ? [
-                    Color(red: 0.06, green: 0.08, blue: 0.12),
-                    Color(red: 0.09, green: 0.13, blue: 0.18),
-                    Color(red: 0.13, green: 0.18, blue: 0.24)
+                    Color(red: 0.04, green: 0.06, blue: 0.10),
+                    Color(red: 0.07, green: 0.10, blue: 0.15),
+                    Color(red: 0.11, green: 0.15, blue: 0.21)
                 ]
                 : [
-                    Color(red: 0.14, green: 0.19, blue: 0.25),
-                    Color(red: 0.20, green: 0.26, blue: 0.33),
-                    Color(red: 0.28, green: 0.34, blue: 0.42)
+                    Color(red: 0.04, green: 0.07, blue: 0.11),
+                    Color(red: 0.08, green: 0.13, blue: 0.19),
+                    Color(red: 0.12, green: 0.19, blue: 0.27)
                 ]
         }
 
@@ -52,21 +52,21 @@ struct CurrentShowWeatherSky: View {
         switch condition {
         case .clear, .partlyCloudy:
             return [
-                Color(red: 0.12, green: 0.36, blue: 0.65),
-                Color(red: 0.25, green: 0.51, blue: 0.78),
-                Color(red: 0.42, green: 0.64, blue: 0.86)
+                Color(red: 0.05, green: 0.10, blue: 0.19),
+                Color(red: 0.08, green: 0.17, blue: 0.31),
+                Color(red: 0.13, green: 0.26, blue: 0.44)
             ]
         case .cloudy, .windy, .none:
             return [
-                Color(red: 0.21, green: 0.26, blue: 0.31),
-                Color(red: 0.29, green: 0.34, blue: 0.40),
-                Color(red: 0.38, green: 0.45, blue: 0.52)
+                Color(red: 0.05, green: 0.07, blue: 0.10),
+                Color(red: 0.09, green: 0.12, blue: 0.16),
+                Color(red: 0.15, green: 0.19, blue: 0.25)
             ]
         case .sunset, .rain, .heavyRain, .coldNight:
             return [
-                Color(red: 0.12, green: 0.36, blue: 0.65),
-                Color(red: 0.25, green: 0.51, blue: 0.78),
-                Color(red: 0.42, green: 0.64, blue: 0.86)
+                Color(red: 0.05, green: 0.10, blue: 0.19),
+                Color(red: 0.08, green: 0.17, blue: 0.31),
+                Color(red: 0.13, green: 0.26, blue: 0.44)
             ]
         }
     }
