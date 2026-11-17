@@ -89,10 +89,9 @@ struct TimetableSheet: View {
     private var navigationTitle: String {
         if isAIImporting { return BSLocalization.text("导入时刻表") }
         if coordinator.isRecognizing { return BSLocalization.text("正在智能识别…") }
-        if let session = coordinator.importSession {
-            return session.timetable.days.count > 1 ? "" : BSLocalization.text("核对时刻表")
-        }
-        return showsTimetable && (currentShow?.timetable?.days.count ?? 0) > 1 ? "" : BSLocalization.text("时刻表")
+        if let session = coordinator.importSession { return session.timetable.days.count > 1 ? "" : BSLocalization.text("核对时刻表") }
+        guard showsTimetable else { return "" }
+        return (currentShow?.timetable?.days.count ?? 0) > 1 ? "" : BSLocalization.text("时刻表")
     }
 
     var body: some View {
@@ -281,9 +280,9 @@ struct TimetableSheet: View {
             }
         }
         .presentationDetents([.large]).presentationDragIndicator(.hidden)
-        .timetablePullToClose(isEnabled: showsTimetable && !isProcessingPhotos && !coordinator.isSaving) { dismiss() }
+        .timetablePullToClose(isEnabled: !isProcessingPhotos && !coordinator.isSaving) { dismiss() }
         .presentationContentInteraction(.scrolls)
-        .interactiveDismissDisabled(isProcessingPhotos || coordinator.isSaving || showsTimetable)
+        .interactiveDismissDisabled(isProcessingPhotos || coordinator.isSaving)
         .fullScreenCover(isPresented: $isFullScreenImagePresented) {
             TimetableOriginalImageViewer(
                 images: originalImages,

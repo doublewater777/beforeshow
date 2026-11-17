@@ -26,7 +26,7 @@ OVERSIZE_LINE_PINS = {
     "BeforeShow/Features/Listening/ListeningDisplayProjection.swift": 697,
     "BeforeShow/Features/Timetable/TimetablePerformanceInspectorSheet.swift": 778,
     "BeforeShow/Supporting/Debug/LiveAndWidgetShowcaseView.swift": 725,
-    "BeforeShow/Features/Timetable/TimetableSheet.swift": 696,
+    "BeforeShow/Features/Timetable/TimetableSheet.swift": 695,
     "BeforeShow/Features/Timetable/TimetableShareSheet.swift": 674,
     "Shared/CurrentShowTimeState.swift": 636,
     "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 612,
