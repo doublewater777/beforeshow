@@ -151,65 +151,118 @@ struct CurrentShowWeatherHero: View {
 
 // MARK: - Days
 
-/// One chip per day of a multi-day show; the sheet follows the selected one.
+/// One segmented tab per day of a multi-day show; the sheet follows the selected one.
 struct CurrentShowWeatherDayChips: View {
     let days: [ShowWeatherDay]
     @Binding var selected: Int
+    @Namespace private var tabNamespace
 
     var body: some View {
         if days.count <= 3 {
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
-                    chipButton(offset: offset, day: day)
+                    tabButton(offset: offset, day: day, isMultiRow: false)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .sensoryFeedback(.selection, trigger: selected)
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
-                        chipButton(offset: offset, day: day)
-                    }
-                }
-                .padding(.horizontal, 1)
+            .padding(3)
+            .background {
+                Capsule()
+                    .fill(Color.white.opacity(0.06))
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                    )
             }
             .sensoryFeedback(.selection, trigger: selected)
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(days.enumerated()), id: \.element.id) { offset, day in
+                            tabButton(offset: offset, day: day, isMultiRow: true)
+                                .id(day.id)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
+                }
+                .onChange(of: selected) { _, newIndex in
+                    if days.indices.contains(newIndex) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            proxy.scrollTo(days[newIndex].id, anchor: .center)
+                        }
+                    }
+                }
+                .sensoryFeedback(.selection, trigger: selected)
+            }
         }
     }
 
-    private func chipButton(offset: Int, day: ShowWeatherDay) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { selected = offset }
+    private func tabButton(offset: Int, day: ShowWeatherDay, isMultiRow: Bool) -> some View {
+        let isSelected = offset == selected
+        return Button {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                selected = offset
+            }
         } label: {
-            chip(day, isSelected: offset == selected)
+            HStack(spacing: 5) {
+                Text(dayTitle(day))
+                    .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                    .lineLimit(1)
+                if let weather = day.weather {
+                    Image(systemName: weather.condition.systemSymbolName)
+                        .symbolRenderingMode(.multicolor)
+                        .font(.system(size: 13))
+                    Text(verbatim: "\(weather.highCelsius)°/\(weather.lowCelsius)°")
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                } else {
+                    Text("—")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                }
+            }
+            .foregroundStyle(Color.white.opacity(isSelected ? 1.0 : 0.65))
+            .padding(.horizontal, isMultiRow ? 14 : 4)
+            .padding(.vertical, 8)
+            .frame(maxWidth: isMultiRow ? nil : .infinity)
+            .background {
+                if isSelected {
+                    Capsule()
+                        .fill(Color.white.opacity(0.18))
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.24), lineWidth: 0.5)
+                        )
+                        .matchedGeometryEffect(id: isMultiRow ? "ActiveDayPillScroll" : "ActiveDayPill", in: tabNamespace)
+                } else if isMultiRow {
+                    Capsule()
+                        .fill(Color.white.opacity(0.06))
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                        )
+                }
+            }
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
 
-    private func chip(_ day: ShowWeatherDay, isSelected: Bool) -> some View {
-        HStack(spacing: 6) {
-            Text(verbatim: "Day \(day.index)")
-                .font(.system(size: 13, weight: .bold))
-            Image(systemName: day.weather?.condition.systemSymbolName ?? "ellipsis")
-                .symbolRenderingMode(.multicolor)
-                .font(.system(size: 14))
-            Text(day.weather.map { "\($0.highCelsius)°/\($0.lowCelsius)°" } ?? "—")
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .foregroundStyle(Color.white.opacity(isSelected ? 1 : 0.75))
-        .padding(.horizontal, days.count > 3 ? 14 : 0)
-        .padding(.vertical, 9)
-        .background {
-            Capsule()
-                .fill(Color.white.opacity(isSelected ? 0.22 : 0.08))
-                .background(isSelected ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(isSelected ? 0.24 : 0.10), lineWidth: 0.5)
-                )
+    private func dayTitle(_ day: ShowWeatherDay) -> String {
+        if days.count == 2 || days.count > 3 {
+            let formatter = DateFormatter()
+            formatter.timeZone = day.timeZone
+            formatter.locale = Locale.autoupdatingCurrent
+            formatter.setLocalizedDateFormatFromTemplate("E")
+            let weekday = formatter.string(from: day.date)
+            return "Day \(day.index) · \(weekday)"
+        } else {
+            return "Day \(day.index)"
         }
     }
 }

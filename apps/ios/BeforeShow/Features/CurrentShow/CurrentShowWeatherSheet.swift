@@ -54,33 +54,37 @@ struct CurrentShowWeatherSheet: View {
                     if isMultiDay {
                         CurrentShowWeatherDayChips(days: days, selected: $selectedDay)
                     }
-                    if let weather = shownWeather {
-                        CurrentShowWeatherHero(place: venueOrCityText, weather: weather, anchor: anchorText(weather))
-                        CurrentShowWeatherHourlyCard(
-                            weather: weather,
-                            summary: headline(weather),
-                            showStart: showWindow.start,
-                            showEnd: showWindow.end,
-                            timeZone: eventTimeZone
-                        )
-                        CurrentShowWeatherMetricsRow(metrics: metrics(weather))
-                        checklist
-                        attributionFooter
-                    } else if isMultiDay {
-                        Text(BSLocalization.text("这一天的预报还没出，通常提前 10 天发布"))
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.8))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 48)
-                        if !packingItems.isEmpty { checklist }
-                        attributionFooter
-                    } else if isLoading {
-                        loadingPlaceholder
-                    } else if let errorMessage {
-                        errorPlaceholder(errorMessage)
-                    } else {
-                        loadingPlaceholder
+                    Group {
+                        if let weather = shownWeather {
+                            CurrentShowWeatherHero(place: venueOrCityText, weather: weather, anchor: anchorText(weather))
+                            CurrentShowWeatherHourlyCard(
+                                weather: weather,
+                                summary: headline(weather),
+                                showStart: showWindow.start,
+                                showEnd: showWindow.end,
+                                timeZone: eventTimeZone
+                            )
+                            CurrentShowWeatherMetricsRow(metrics: metrics(weather))
+                            checklist
+                            attributionFooter
+                        } else if isMultiDay {
+                            Text(BSLocalization.text("这一天的预报还没出，通常提前 10 天发布"))
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.white.opacity(0.8))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 48)
+                            if !packingItems.isEmpty { checklist }
+                            attributionFooter
+                        } else if isLoading {
+                            loadingPlaceholder
+                        } else if let errorMessage {
+                            errorPlaceholder(errorMessage)
+                        } else {
+                            loadingPlaceholder
+                        }
                     }
+                    .id(selectedDay)
+                    .transition(.opacity)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)

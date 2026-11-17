@@ -79,3 +79,45 @@ Path: Apps → 开场前 → General → App Compliance
 1. `asc web auth login` (session expired) then fill App Compliance and upload agreement
 2. Obtain stamped Alibaba authorization
 3. Confirm with local CAC whether app-layer 大模型登记 is required for this feature
+
+## Status update after user said 协议下来了
+
+Checked Alibaba audit `23858` detail:
+- Status: 审核结束 / 审核通过 at `2026-11-17 14:58:17`
+- Opinion: 备案申请已通过审批，**当前正在合同盖章流程中**，预计约 **10 个工作日**，将通过邮件通知。
+- No stamped PDF available for download yet on the audit detail page.
+- Local Downloads/Desktop/Mail/WeChat recent files: no matching 合作协议 PDF found.
+- ASC upload still blocked until stamped agreement arrives at `panyang20020203@gmail.com`.
+
+## Agreement received 2026-11-17
+
+File: `/Users/water/Downloads/通义千问大模型API接口合作证明.pdf`
+Copy: `docs/agents/issue-notes/assets/tongyi-api-cooperation-proof-2026-11-17.pdf`
+
+Verified contents:
+- 甲方：潘洋
+- App：开场前 / `com.doublewaterapps.beforeshow`
+- 阿里云 UID：`1985707238540662` / 潘洋2002
+- 算法：达摩院交互式多能型合成算法
+- 备案号：网信算备330110507206401230035号
+- 乙方盖章：阿里巴巴达摩院（杭州）科技有限公司
+- 日期：2026-11-17；有效期 1 年
+
+Next: ASC login + upload as third-party authorization under AI-Generated or Synthetic Content, then Save.
+
+## ASC upload complete 2026-11-17
+
+Uploaded `通义千问大模型API接口合作证明.pdf` to App Compliance → 人工智能生成或合成内容.
+
+Submitted fields:
+- AIGC in China mainland: Yes
+- Filing type: Algo
+- Algo name: `达摩院交互式多能型合成算法`
+- Algo number: `网信算备330110507206401230035号`
+- Third-party tech: Yes + cooperation proof PDF
+
+Result status in ASC: **待验证** (Pending Verification), last updated 2026-11-17.
+Security Assessment remains **有效**. ICP `浙ICP备2026041359号-3A` unchanged.
+
+Expected: becomes Active after next version review / Apple verification.
+
