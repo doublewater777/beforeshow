@@ -283,17 +283,13 @@ struct ListeningPickShelfView: View {
         ), let target = discs.firstIndex(where: { $0.id == chosen.id }) else { return }
         isPicking = true
         landing = target
-        // Shows at most a couple of dozen albums going by; the rest is skipped mid-run, while the row is still fast
-        // and the landing covers have had time to load.
         let from = position
         let distance = loops ? ListeningPickLoop.turn(from: from, to: target, count: discs.count) : Double(target) - from
-        let run = min(abs(distance), 24) * (distance < 0 ? -1 : 1)
-        let skip = distance - run
-        let duration = 1.1 + abs(run) * 0.02
+        let duration = 1.1 + min(abs(distance), 30) * 0.02
         ticker.start { elapsed in
             let t = min(1, elapsed / duration)
             let eased = 1 - pow(1 - t, 3)
-            position = from + (eased > 0.7 ? skip : 0) + run * eased
+            position = from + distance * eased
             if t < 1 { return true }
             isPicking = false
             landing = nil
