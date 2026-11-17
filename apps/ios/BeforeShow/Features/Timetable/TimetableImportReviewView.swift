@@ -105,13 +105,21 @@ struct TimetableImportReviewView: View {
                 .foregroundStyle(TimetableStyle.mine)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(BSLocalization.text("排期预览中"))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(TimetableStyle.foreground)
+                HStack(spacing: 6) {
+                    Text(BSLocalization.text("排期预览中"))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(TimetableStyle.foreground)
+                    Text(BSLocalization.text("AI 识别"))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(TimetableStyle.background)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(TimetableStyle.foreground.opacity(0.9)))
+                }
 
                 Text(session.carriedOverInterestedCount > 0
                     ? BSLocalization.format("已为你保留 %d 场想看演出，请核对后保存", session.carriedOverInterestedCount)
-                    : BSLocalization.text("核对舞台与时间无误后，轻点右上角确认保存"))
+                    : BSLocalization.text("结果由 AI 生成，请核对后保存"))
                     .font(.system(size: 11))
                     .foregroundStyle(TimetableStyle.dim)
             }

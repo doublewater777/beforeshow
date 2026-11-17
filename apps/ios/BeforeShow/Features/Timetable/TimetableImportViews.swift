@@ -153,7 +153,7 @@ struct TimetableEmptyStateView: View {
                     .buttonStyle(TimetablePressStyle())
                 }
 
-                TimetableOnDeviceNote()
+                TimetableAIDisclosureNote()
                     .padding(.top, 4)
             }
             .padding(.horizontal, 20)
@@ -265,7 +265,7 @@ struct TimetableRecognizingView: View {
             }
             .padding(.top, 40)
 
-            Text(BSLocalization.text("识别中"))
+            Text(BSLocalization.text("AI 识别中"))
                 .font(.system(size: 22, weight: .heavy))
                 .foregroundStyle(TimetableStyle.foreground)
                 .padding(.top, 40)
@@ -277,7 +277,7 @@ struct TimetableRecognizingView: View {
                 .animation(.easeInOut(duration: 0.35), value: statusStep)
 
             Spacer()
-            TimetableOnDeviceNote()
+            TimetableAIDisclosureNote()
                 .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity)

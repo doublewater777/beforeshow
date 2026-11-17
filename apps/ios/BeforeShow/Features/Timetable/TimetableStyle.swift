@@ -277,3 +277,13 @@ struct TimetableOnDeviceNote: View {
     }
 }
 
+/// Explicit AI-generation label for smart recognition (Bailian / generative model path).
+struct TimetableAIDisclosureNote: View {
+    var body: some View {
+        Label(BSLocalization.text("智能识别使用 AI，图片仅用于排期整理"), systemImage: "sparkles")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(TimetableStyle.dim)
+            .labelStyle(.titleAndIcon)
+    }
+}
+
