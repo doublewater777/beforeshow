@@ -7,6 +7,11 @@ struct ArtistSearchPicker: View {
     let onRecovery: () -> Void
     let onPick: (RecognizedArtist) -> Void
 
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isRequestingAccess = false
+    private let musicAccess = MusicKitListeningCatalogService()
+
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.xs) {
             HStack(spacing: BSSpacing.xs) {
@@ -25,7 +30,11 @@ struct ArtistSearchPicker: View {
             }
             .padding(.horizontal, BSSpacing.xs)
 
-            if let failure {
+            if let status = failure?.authorizationStatus {
+                authorizationAction(for: status)
+                    .font(BSFont.caption)
+                    .padding(BSSpacing.xs)
+            } else if let failure {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
                         Text(BSLocalization.text(key: failure.title))
@@ -70,6 +79,44 @@ struct ArtistSearchPicker: View {
             }
         }
         .padding(.top, BSSpacing.xs)
+        .task(id: isRequestingAccess) {
+            guard isRequestingAccess else { return }
+            _ = await musicAccess.requestAuthorization()
+            guard !Task.isCancelled else { return }
+            isRequestingAccess = false
+            onRecovery()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, failure?.authorizationStatus != nil, !isRequestingAccess,
+               musicAccess.currentAuthorizationStatus() == .authorized {
+                onRecovery()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func authorizationAction(for status: ListeningMusicAuthorizationStatus) -> some View {
+        switch status {
+        case .notDetermined:
+            Button(BSLocalization.text("连接 Apple Music")) { isRequestingAccess = true }
+                .disabled(isRequestingAccess)
+                .foregroundStyle(BSColor.Stage.accent)
+        case .denied:
+            HStack {
+                Text(BSLocalization.text("请在系统设置中允许访问 Apple Music"))
+                    .foregroundStyle(BSColor.textTertiary)
+                Spacer()
+                Button(BSLocalization.text("打开设置")) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+                .foregroundStyle(BSColor.Stage.accent)
+            }
+        case .restricted:
+            Text(String(localized: "Apple Music 访问受到系统限制，无法在此更改。", table: "Listening"))
+                .foregroundStyle(BSColor.textTertiary)
+        case .authorized:
+            EmptyView()
+        }
     }
 }
 

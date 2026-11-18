@@ -124,7 +124,7 @@ struct ArtistInputRow: View {
                 if debounce { try await Task.sleep(for: .milliseconds(300)) }
                 try Task.checkCancellation()
                 debouncing = false
-                let results = try await service.searchArtists(query: trimmed)
+                let results = try await service.searchInteractiveArtists(query: trimmed)
                 if Task.isCancelled { return }
                 recognizedOptions = results
                 isSearching = false

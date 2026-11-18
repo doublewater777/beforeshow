@@ -501,7 +501,7 @@ struct TimetablePerformanceInspectorSheet: View {
         isSearchingLoading = true
         do {
             try await Task.sleep(for: .milliseconds(350))
-            let results = try await linker.candidates(for: query, includingRemote: true)
+            let results = try await linker.candidates(for: query)
             try Task.checkCancellation()
             guard draftArtistName == name, draftAppleMusicArtistID == nil else { return }
             artistCandidates = results

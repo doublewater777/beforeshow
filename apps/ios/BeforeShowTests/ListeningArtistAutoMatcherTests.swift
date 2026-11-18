@@ -1,5 +1,7 @@
 import XCTest
 import SwiftData
+import MusicKit
+import os
 @testable import BeforeShow
 
 @MainActor final class ListeningArtistAutoMatcherTests: XCTestCase {
@@ -323,6 +325,45 @@ import SwiftData
         }
     }
 
+    func testInteractiveSearchWaitsForAuthorizationAndThenUsesMusicKitForTheSameQuery() async throws {
+        let authorization = OSAllocatedUnfairLock(initialState: ListeningMusicAuthorizationStatus.notDetermined)
+        let catalog = candidate("catalog-artist", "Artist")
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { query, _, _ in
+                XCTAssertEqual(query, "Artist")
+                return [catalog]
+            },
+            fallbackSearch: { _, _, _ in throw ArtistSearchPolicyTestError.unexpectedFallback },
+            authorizationStatus: { authorization.withLock { $0 } }
+        )
+        for status in [ListeningMusicAuthorizationStatus.notDetermined, .denied, .restricted] {
+            authorization.withLock { $0 = status }
+            do {
+                _ = try await service.searchInteractiveArtists(query: "Artist")
+                XCTFail("Expected an authorization error")
+            } catch let error as ArtistSearchError {
+                XCTAssertEqual(error, .authorizationRequired(status))
+            }
+        }
+        authorization.withLock { $0 = .authorized }
+        let results = try await service.searchInteractiveArtists(query: "Artist")
+        XCTAssertEqual(results.map(\.id), ["catalog-artist"])
+    }
+
+    func testPublicArtistSearchResolvesPortraitMetadataWhenITunesOmitsArtwork() async throws {
+        try XCTSkipIf(MusicAuthorization.currentStatus == .authorized)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [PublicArtistSearchProtocol.self]
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        let search = AppleMusicArtistSearchService(country: "US", session: session)
+        let matches = try await ArtistIdentityMatcher(search: search).matches(for: [
+            ArtistSlot(name: "Artist", avatarURL: nil)
+        ])
+        XCTAssertEqual(matches[0]?.id, "9000000000123")
+        XCTAssertEqual(matches[0]?.avatarURL?.absoluteString, PublicArtistSearchProtocol.portrait)
+    }
+
 
     func testSuccessfulEmptySourcesCanConfirmNoResults() async throws {
         let service = AppleMusicArtistSearchService(catalogSearch: { _, _, _ in [] }, fallbackSearch: { _, _, _ in [] })
@@ -561,4 +602,48 @@ private actor ArtistSearchRequestGate {
         await withCheckedContinuation { waiter = $0 }
     }
     func release() { waiter?.resume(); waiter = nil }
+}
+
+private final class PublicArtistSearchProtocol: URLProtocol, @unchecked Sendable {
+    static let portrait = "https://is1-ssl.mzstatic.com/image/thumb/Features211/v4/portrait.png/486x486bb.png"
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url else { return }
+        let body: String
+        switch (url.host, url.path) {
+        case ("itunes.apple.com", "/search"):
+            body = """
+                {"resultCount":2,"results":[
+                  {"artistId":456,"artistName":"Artist","artistLinkUrl":"https://music.apple.com/us/artist/456?uo=4"},
+                  {"artistId":9000000000123,"artistName":"Artist","artistLinkUrl":"https://music.apple.com/us/artist/9000000000123?uo=4"}
+                ]}
+                """
+        case ("music.apple.com", "/us/artist/456"):
+            body = """
+                <head><script type="application/ld+json">
+                  {"@type":"MusicAlbum","url":"https://music.apple.com/us/album/456",
+                   "image":"https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/cover.jpg/486x486bb.png"}
+                </script></head>
+                """
+        case ("music.apple.com", "/us/artist/9000000000123"):
+            body = """
+                <head><script type="application/ld+json">
+                  {"@type":"MusicGroup","url":"https://music.apple.com/us/artist/9000000000123","image":"\(Self.portrait)"}
+                </script></head>
+                """
+        default:
+            client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
+            return
+        }
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

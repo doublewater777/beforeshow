@@ -6,7 +6,6 @@ import SwiftData
 @Observable
 final class TimetableArtistLinker {
     @ObservationIgnored private let search: any ArtistSearchServicing
-    @ObservationIgnored private var searchResults: [String: [RecognizedArtist]] = [:]
     private var knownArtists: [RecognizedArtist] = []
 
     init(search: any ArtistSearchServicing = AppleMusicArtistSearchService()) {
@@ -36,22 +35,10 @@ final class TimetableArtistLinker {
         }
     }
 
-    func candidates(for query: String, includingRemote: Bool = false) async throws -> [RecognizedArtist] {
+    func candidates(for query: String) async throws -> [RecognizedArtist] {
         let known = ArtistNameMatching.searchCandidates(savedCandidates(for: query))
-        if !includingRemote && !known.isEmpty { return known }
-        let key = ArtistNameMatching.searchKey(query)
-        let found: [RecognizedArtist]
-        if let cached = searchResults[key] {
-            found = cached
-        } else {
-            found = try await search.searchArtists(query: query)
-            try Task.checkCancellation()
-            searchResults[key] = found
-        }
-        var merged = known
-        var identities = Set(known.map(\.id))
-        for artist in found where identities.insert(artist.id).inserted { merged.append(artist) }
-        return ArtistNameMatching.searchCandidates(merged)
+        let found = try await search.searchInteractiveArtists(query: query)
+        return ArtistNameMatching.searchCandidates(known + found)
     }
 
     func rememberConnectedArtist(_ artist: RecognizedArtist) {
@@ -84,13 +71,20 @@ final class TimetableArtistLinker {
 
         guard !slots.isEmpty else { return }
         let matcher = ArtistIdentityMatcher(search: search)
-        guard let matches = try? await matcher.matches(for: slots), !matches.isEmpty else { return }
+        guard let matches = try? await matcher.matches(for: slots), !Task.isCancelled else { return }
 
+        var matched = false
         for (index, artist) in matches {
-            perfs[index].connectArtist(artist)
+            let performance = perfs[index]
+            guard !performance.isDeleted,
+                  performance.stage?.day?.timetable === timetable,
+                  performance.artistName == slots[index].name,
+                  performance.appleMusicArtistID == nil else { continue }
+            performance.connectArtist(artist)
             rememberConnectedArtist(artist)
+            matched = true
         }
-        try? context.save()
+        if matched { try? context.save() }
     }
 
     /// Only reuse an unambiguous saved identity when importing a new timetable.

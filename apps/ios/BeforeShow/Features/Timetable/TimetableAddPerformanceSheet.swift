@@ -305,7 +305,7 @@ struct TimetableAddPerformanceSheet: View {
         isSearchingLoading = true
         do {
             try await Task.sleep(for: .milliseconds(350))
-            let results = try await linker.candidates(for: query, includingRemote: true)
+            let results = try await linker.candidates(for: query)
             try Task.checkCancellation()
             guard artistName == name, connectedArtist == nil else { return }
             artistCandidates = results

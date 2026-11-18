@@ -35,14 +35,9 @@ final class TimetableArtistLinkerTests: XCTestCase {
         XCTAssertNil(rows[2].appleMusicArtistID)
         XCTAssertNil(rows[3].appleMusicArtistID)
         XCTAssertNil(rows[4].appleMusicArtistID)
-        let cached = try await linker.candidates(for: "Cached Artist")
-        let ambiguous = try await linker.candidates(for: "Same Name")
-        XCTAssertEqual(cached.map(\.id), ["321"])
-        XCTAssertEqual(Set(ambiguous.map(\.id)), ["456", "789"])
         let requests = await search.queries
         XCTAssertTrue(requests.isEmpty)
 
-        _ = try await linker.candidates(for: "Remote Artist")
         let reused = try await linker.candidates(for: "Remote Artist")
         XCTAssertEqual(reused.map(\.id), ["999"])
         let remoteRequests = await search.queries
@@ -80,12 +75,8 @@ final class TimetableArtistLinkerTests: XCTestCase {
         let search = AlternativeSearch()
         let linker = TimetableArtistLinker(search: search)
         linker.rememberConnectedArtist(RecognizedArtist(id: "123", canonicalName: "Same Name", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil))
-        let saved = try await linker.candidates(for: "Same Name")
-        XCTAssertEqual(saved.map(\.id), ["123"])
-        let expanded = try await linker.candidates(for: "Same Name", includingRemote: true)
+        let expanded = try await linker.candidates(for: "Same Name")
         XCTAssertEqual(expanded.map(\.id), ["123", "999"])
-        let again = try await linker.candidates(for: "Same Name", includingRemote: true)
-        XCTAssertEqual(again.map(\.id), ["123", "999"])
         let requests = await search.queries
         XCTAssertEqual(requests, ["Same Name"])
     }
@@ -100,6 +91,33 @@ final class TimetableArtistLinkerTests: XCTestCase {
         XCTAssertNil(ArtistNameMatching.matchForTypedName("落日飞车 S", among: [bilingual]))
     }
 
+    func testPendingAutomaticMatchPreservesRenamedAndManuallyLinkedPerformances() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let timetable = try TimetableDraft(timeZoneIdentifier: "Asia/Taipei", days: [
+            TimetableDraftDay(date: date, stages: [
+                TimetableDraftStage(name: "First", sortOrder: 0, performances: [performance("Original")]),
+                TimetableDraftStage(name: "Second", sortOrder: 1, performances: [performance("Original")]),
+                TimetableDraftStage(name: "Third", sortOrder: 2, performances: [performance("Original")])
+            ])
+        ]).buildTimetable()
+        context.insert(timetable)
+        try context.save()
+        let rows = timetable.orderedDays[0].orderedStages.map { $0.performances[0] }
+        let manual = RecognizedArtist(id: "manual", canonicalName: "Original", avatarURL: nil, appleMusicURL: nil)
+        let search = PausedSearch()
+        let linker = TimetableArtistLinker(search: search)
+        let matching = Task { await linker.autoMatchPersistedPerformances(in: timetable, context: context) }
+        await search.waitUntilStarted()
+        rows[0].artistName = "Renamed"
+        rows[1].connectArtist(manual)
+        await search.finish()
+        await matching.value
+
+        XCTAssertEqual(rows.map(\.artistName), ["Renamed", "Original", "Catalog Name"])
+        XCTAssertEqual(rows.map(\.appleMusicArtistID), [nil, "manual", "automatic"])
+    }
+
     private var date: Date { Date(timeIntervalSince1970: 1790956800) }
 
     private func performance(_ name: String) -> TimetableDraftPerformance {
@@ -112,6 +130,30 @@ final class TimetableArtistLinkerTests: XCTestCase {
         func searchArtists(query: String) async throws -> [RecognizedArtist] {
             queries.append(query)
             return [RecognizedArtist(id: "999", canonicalName: query, avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
+        }
+    }
+
+    private actor PausedSearch: ArtistSearchServicing {
+        private var pending: CheckedContinuation<Void, Never>?
+        private var started: CheckedContinuation<Void, Never>?
+
+        func searchArtists(query: String) async throws -> [RecognizedArtist] {
+            await withCheckedContinuation {
+                pending = $0
+                started?.resume()
+            }
+            return [RecognizedArtist(id: "automatic", canonicalName: "Catalog Name",
+                                     avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
+        }
+
+        func waitUntilStarted() async {
+            guard pending == nil else { return }
+            await withCheckedContinuation { started = $0 }
+        }
+
+        func finish() {
+            pending?.resume()
+            pending = nil
         }
     }
 

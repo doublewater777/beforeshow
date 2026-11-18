@@ -4,9 +4,15 @@ struct ArtistSearchFailureMessage {
     let title: String
     let detail: String
     let icon: String
+    let authorizationStatus: ListeningMusicAuthorizationStatus?
     var actionTitle: String { BSLocalization.text("重试") }
 
     init(error: any Error) {
+        if case .authorizationRequired(let status) = error as? ArtistSearchError {
+            authorizationStatus = status
+        } else {
+            authorizationStatus = nil
+        }
         switch error as? ArtistSearchError {
         case .catalogUnavailable:
             title = "Apple Music 搜索暂不可用"

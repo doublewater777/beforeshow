@@ -8,6 +8,7 @@ enum ArtistCatalogSearchError: Error {
 }
 
 enum ArtistSearchError: Error, Equatable, Sendable {
+    case authorizationRequired(ListeningMusicAuthorizationStatus)
     case network
     case catalogUnavailable
     case rateLimited
@@ -21,9 +22,14 @@ enum ArtistSearchError: Error, Equatable, Sendable {
 protocol ArtistSearchServicing: Sendable {
     func searchArtists(query: String) async throws -> [RecognizedArtist]
     func searchArtists(query: String, exactMatchRequired: Bool) async throws -> [RecognizedArtist]
+    func searchInteractiveArtists(query: String) async throws -> [RecognizedArtist]
 }
 
 extension ArtistSearchServicing {
+    func searchInteractiveArtists(query: String) async throws -> [RecognizedArtist] {
+        try await searchArtists(query: query)
+    }
+
     func searchArtists(query: String, exactMatchRequired: Bool) async throws -> [RecognizedArtist] {
         try await searchArtists(query: query)
     }
@@ -46,13 +52,15 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
     private let catalogSearch: ArtistSearchOperation
     private let fallbackSearch: ArtistMarketSearchOperation
     private let countryResolver: @Sendable () async -> String
-    private var cachedAuthorization: MusicAuthorization.Status?
+    private let authorizationStatus: @Sendable () -> ListeningMusicAuthorizationStatus
+    private var cachedAuthorization: ListeningMusicAuthorizationStatus?
     private var cache: [String: (expiresAt: ContinuousClock.Instant, candidates: [RecognizedArtist], isComplete: Bool)] = [:]
 
     init(limit: Int = 8, country: String? = nil, session: URLSession = .shared) {
         self.limit = limit
         self.country = country
         self.session = session
+        self.authorizationStatus = { MusicKitListeningCatalogService().currentAuthorizationStatus() }
         self.catalogSearch = Self.searchMusicKitCatalog
         self.countryResolver = {
             // Native MusicKit uses the account storefront; an explicit market only
@@ -75,13 +83,17 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         limit: Int = 8,
         catalogSearch: @escaping ArtistSearchOperation,
         fallbackSearch: @escaping ArtistSearchOperation,
-        countryResolver: @escaping @Sendable () async -> String = { "US" }
+        countryResolver: @escaping @Sendable () async -> String = { "US" },
+        authorizationStatus: @escaping @Sendable () -> ListeningMusicAuthorizationStatus = {
+            MusicKitListeningCatalogService().currentAuthorizationStatus()
+        }
     ) {
         self.limit = limit
         self.country = nil
         self.session = .shared
         self.catalogSearch = catalogSearch
         self.countryResolver = countryResolver
+        self.authorizationStatus = authorizationStatus
         self.fallbackSearch = { query, limit, exactMatchRequired, _ in
             try await fallbackSearch(query, limit, exactMatchRequired)
         }
@@ -100,6 +112,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         self.session = .shared
         self.catalogSearch = catalogSearch
         self.countryResolver = countryResolver
+        self.authorizationStatus = { MusicKitListeningCatalogService().currentAuthorizationStatus() }
         self.fallbackSearch = regionalFallbackSearch
     }
 
@@ -108,10 +121,21 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
     }
 
     func searchArtists(query: String, exactMatchRequired: Bool) async throws -> [RecognizedArtist] {
+        try await searchArtists(query: query, exactMatchRequired: exactMatchRequired, allowsPublicFallback: true)
+    }
+
+    func searchInteractiveArtists(query: String) async throws -> [RecognizedArtist] {
+        try await searchArtists(query: query, exactMatchRequired: false, allowsPublicFallback: false)
+    }
+
+    private func searchArtists(query: String, exactMatchRequired: Bool, allowsPublicFallback: Bool) async throws -> [RecognizedArtist] {
         try Task.checkCancellation()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        let authorization = MusicAuthorization.currentStatus
+        let authorization = authorizationStatus()
+        if !allowsPublicFallback, authorization != .authorized {
+            throw ArtistSearchError.authorizationRequired(authorization)
+        }
         if cachedAuthorization != authorization {
             cache.removeAll()
             cachedAuthorization = authorization
@@ -123,15 +147,29 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         // can change while the device region and Music authorization remain unchanged.
         let resolvedCountry = await countryResolver()
         try Task.checkCancellation()
-        let key = queryKey + "|" + resolvedCountry
+        let resolvedAuthorization = authorizationStatus()
+        if !allowsPublicFallback, resolvedAuthorization != .authorized {
+            throw ArtistSearchError.authorizationRequired(resolvedAuthorization)
+        }
+        let key = queryKey + "|" + resolvedCountry + "|" + authorization.rawValue
+            + (allowsPublicFallback ? "|fallback" : "|catalog")
         if let cached = cache[key], cached.expiresAt > .now, !exactMatchRequired || cached.isComplete {
             return cached.candidates
         }
         let results = try await searchUncachedArtists(
-            query: trimmed, exactMatchRequired: exactMatchRequired, country: resolvedCountry
+            query: trimmed, exactMatchRequired: exactMatchRequired, country: resolvedCountry,
+            allowsPublicFallback: allowsPublicFallback
         )
         try Task.checkCancellation()
-        if !results.isEmpty, MusicAuthorization.currentStatus == authorization {
+        let completedAuthorization = authorizationStatus()
+        if !allowsPublicFallback, completedAuthorization != .authorized {
+            throw ArtistSearchError.authorizationRequired(completedAuthorization)
+        }
+        let officialPhotos = results.filter(\.isOfficialArtistPhoto)
+        if !officialPhotos.isEmpty {
+            await MainActor.run { officialPhotos.forEach(ArtistAvatarResolver.shared.record) }
+        }
+        if !results.isEmpty, authorizationStatus() == authorization {
             let now = ContinuousClock.now
             cache = cache.filter { $0.value.expiresAt > now }
             if cache.count >= 32, let oldest = cache.min(by: { $0.value.expiresAt < $1.value.expiresAt })?.key {
@@ -167,20 +205,23 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
                                deviceRegion: Locale.autoupdatingCurrent.region?.identifier)
     }
 
-    private func searchUncachedArtists(query: String, exactMatchRequired: Bool, country: String) async throws -> [RecognizedArtist] {
+    private func searchUncachedArtists(
+        query: String, exactMatchRequired: Bool, country: String, allowsPublicFallback: Bool
+    ) async throws -> [RecognizedArtist] {
         do {
             let candidates = ArtistNameMatching.searchCandidates(try await catalogSearch(query, limit, exactMatchRequired))
             try Task.checkCancellation()
-            let officialPhotos = candidates.filter(\.isOfficialArtistPhoto)
-            if !officialPhotos.isEmpty {
-                await MainActor.run { officialPhotos.forEach(ArtistAvatarResolver.shared.record) }
-            }
             return Array(candidates.prefix(limit))
         } catch is CancellationError {
             throw CancellationError()
         } catch ArtistCatalogSearchError.accessUnavailable {
             // No permission: keep matching available without prompting here.
             try Task.checkCancellation()
+            let status = authorizationStatus()
+            if !allowsPublicFallback {
+                if status == .authorized { throw ArtistSearchError.catalogUnavailable }
+                throw ArtistSearchError.authorizationRequired(status)
+            }
         } catch {
             try Task.checkCancellation()
             if (error as? URLError)?.code == .cancelled { throw CancellationError() }
@@ -215,12 +256,10 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
             artistRelationships.properties = [.artists]
             let resolvedSongs = try await artistRelationships.response().items
             try Task.checkCancellation()
-            for song in resolvedSongs {
-                try Task.checkCancellation()
-                let artists = song.artists ?? []
-                candidates += artists.filter { ArtistNameMatching.contains($0.name, query: query) }
-                    .map(toRecognized)
-            }
+            // A resource request by ID need not return songs in search order.
+            let songsByID = Dictionary(grouping: resolvedSongs, by: \.id)
+            let relatedArtists = songs.flatMap { songsByID[$0.id]?.first?.artists?.map(toRecognized) ?? [] }
+            candidates.append(contentsOf: relatedArtists)
             return Array(ArtistNameMatching.searchCandidates(candidates).prefix(limit))
         } catch is CancellationError {
             throw CancellationError()
@@ -263,7 +302,14 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         ]
         guard let url = components.url else { throw ArtistSearchError.invalidResponse(statusCode: nil) }
         let decoded: ITunesSearchResponse = try await decodeITunesResponse(from: url, session: session)
-        return decoded.results.map(toRecognized)
+        return await withTaskGroup(of: (Int, RecognizedArtist).self) { group in
+            for (index, result) in decoded.results.enumerated() {
+                group.addTask { (index, await resolveITunesArtist(result, session: session)) }
+            }
+            var candidates = Array<RecognizedArtist?>(repeating: nil, count: decoded.results.count)
+            for await (index, artist) in group { candidates[index] = artist }
+            return candidates.compactMap { $0 }
+        }
     }
 
     private static func decodeITunesResponse<Response: Decodable>(
@@ -301,13 +347,64 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
         }
     }
 
-    private static func toRecognized(_ result: ITunesArtist) -> RecognizedArtist {
-        RecognizedArtist(
-            id: String(result.artistId),
+    private static func resolveITunesArtist(_ result: ITunesArtist, session: URLSession) async -> RecognizedArtist {
+        let id = String(result.artistId)
+        let link = result.artistLinkUrl.flatMap(URL.init(string:))
+        let directPhoto = upgradedArtworkURL(result.artworkUrl100, size: 240)
+        // A public iTunes artist response usually supplies an identity and link only.
+        let publicPhoto: URL?
+        if directPhoto == nil, let link {
+            publicPhoto = await publicArtistPortrait(at: link, artistID: id, session: session)
+        } else {
+            publicPhoto = nil
+        }
+        return RecognizedArtist(
+            id: id,
             canonicalName: result.artistName,
-            avatarURL: upgradedArtworkURL(result.artworkUrl100, size: 240),
-            appleMusicURL: result.artistLinkUrl.flatMap(URL.init(string:))
+            avatarURL: directPhoto ?? publicPhoto,
+            appleMusicURL: link,
+            isOfficialArtistPhoto: publicPhoto != nil
         )
+    }
+
+    private static func publicArtistPortrait(at link: URL, artistID: String, session: URLSession) async -> URL? {
+        guard AppleMusicArtistIdentity.artistID(from: link.absoluteString) == artistID,
+              let (data, response) = try? await session.data(for: URLRequest(url: link, timeoutInterval: 5)),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              AppleMusicArtistIdentity.artistID(from: http.url?.absoluteString) == artistID,
+              let html = String(data: data, encoding: .utf8) else { return nil }
+
+        let range = NSRange(html.startIndex..., in: html)
+        for match in publicArtistMetadata.matches(in: html, range: range) {
+            guard let metadataRange = Range(match.range(at: 1), in: html),
+                  let metadata = try? JSONDecoder().decode(
+                      PublicArtistMetadata.self, from: Data(html[metadataRange].utf8)
+                  ),
+                  metadata.type == "MusicGroup",
+                  AppleMusicArtistIdentity.artistID(from: metadata.url) == artistID,
+                  let image = URL(string: metadata.image),
+                  image.scheme == "https",
+                  let host = image.host, host.hasSuffix(".mzstatic.com"),
+                  image.path.hasPrefix("/image/thumb/") else { continue }
+            return image
+        }
+        return nil
+    }
+
+    private static let publicArtistMetadata = try! NSRegularExpression(
+        pattern: #"<script\b[^>]*\stype\s*=\s*["']application/ld\+json["'][^>]*>(.*?)</script\s*>"#,
+        options: [.caseInsensitive, .dotMatchesLineSeparators]
+    )
+
+    private struct PublicArtistMetadata: Decodable {
+        let type: String
+        let url: String
+        let image: String
+
+        enum CodingKeys: String, CodingKey {
+            case type = "@type"
+            case url, image
+        }
     }
 
     private static func containsExactMatch(_ candidates: [RecognizedArtist], query: String) -> Bool {
@@ -330,7 +427,7 @@ actor AppleMusicArtistSearchService: ArtistSearchServicing {
     }
 
     private static func upgradedArtworkURL(_ rawValue: String?, size: Int) -> URL? {
-        guard let rawValue else { return nil }
+        guard let rawValue, !rawValue.isEmpty else { return nil }
         let upgradedValue = rawValue.replacingOccurrences(
             of: "100x100",
             with: "\(size)x\(size)"
@@ -344,7 +441,7 @@ private struct ITunesSearchResponse: Decodable {
     let results: [ITunesArtist]
 }
 
-private struct ITunesArtist: Decodable {
+private struct ITunesArtist: Decodable, Sendable {
     let artistId: Int
     let artistName: String
     let artistLinkUrl: String?
