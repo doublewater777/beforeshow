@@ -351,7 +351,7 @@ struct ShowDraftFormFields: View {
                 continue
             }
 
-            // Identity enrichment must not rewrite the imported/user-visible name.
+            // The original credit was checked above; adopt the catalog identity and name.
             draft.attachArtistIdentity(match, at: index)
             if draft.artists[index].avatarURL == nil {
                 draft.artists[index].avatarURL = match.avatarURL?.absoluteString

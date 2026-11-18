@@ -30,7 +30,7 @@ import SwiftData
 
     func testExternalRenameDuringInitialMatchingIsMatchedAfterTheCurrentLoad() async throws {
         let (container, show) = try ListenTestData.make()
-        let replacement = RecognizedArtist(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+        let replacement = RecognizedArtist(id: "replacement", canonicalName: "Replacement", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
         let search = GatedArtistSearch(replacement: replacement)
         let room = ListeningRoomCoordinator(context: container.mainContext,
             catalogService: ListeningFixtureCatalog(scenario: .singleFull), artistSearchService: search,
@@ -50,7 +50,7 @@ import SwiftData
 
     func testDelayedObservationOfRenameDuringCatalogRefreshStillMatchesReplacement() async throws {
         let (container, show) = try ListenTestData.make()
-        let replacement = RecognizedArtist(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+        let replacement = RecognizedArtist(id: "replacement", canonicalName: "Replacement", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
         let search = GatedArtistSearch(replacement: replacement)
         search.release()
         let catalog = CatalogStageRaceCatalog()
@@ -531,7 +531,7 @@ import SwiftData
         Task {
             await room.rematch(
                 slotIndex: 1,
-                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
             )
             rematchFinished.fulfill()
         }
@@ -582,7 +582,7 @@ import SwiftData
         Task {
             await room.rematch(
                 slotIndex: 1,
-                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
             )
             rematchFinished.fulfill()
         }
@@ -628,7 +628,7 @@ import SwiftData
         Task {
             await room.rematch(
                 slotIndex: 1,
-                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
             )
             rematchFinished.fulfill()
         }

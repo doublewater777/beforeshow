@@ -154,10 +154,15 @@ struct ListeningFixtureArtistSearch: ArtistSearchServicing {
     var fails = false
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         if fails { throw URLError(.notConnectedToInternet) }
-        // "Coast" finds 海岸 only by manual search: the names differ, so automatic matching leaves it unlinked.
+        // "Coast" remains ambiguous so the fixture still exercises manual artist selection.
         let names = ["夜航", "海岸"]
         guard let index = names.firstIndex(of: query) ?? (query == "Coast" ? 1 : nil) else { return [] }
-        return [RecognizedArtist(id: "fixture-artist-\(index)", canonicalName: names[index], avatarURL: nil, appleMusicURL: nil)]
+        let portrait = URL(string: "https://example.invalid/fixture-artist-\(index).jpg")
+        let preferred = RecognizedArtist(id: "fixture-artist-\(index)", canonicalName: names[index], avatarURL: portrait, appleMusicURL: nil)
+        if query == "Coast" {
+            return [preferred, RecognizedArtist(id: "fixture-namesake", canonicalName: names[index], avatarURL: portrait, appleMusicURL: nil)]
+        }
+        return [preferred]
     }
 }
 

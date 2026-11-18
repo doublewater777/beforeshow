@@ -114,8 +114,9 @@ struct ShowDraft: Equatable {
     }
 
     mutating func attachArtistIdentity(_ artist: RecognizedArtist, at index: Int) {
-        guard artists.indices.contains(index),
-              ArtistNameMatching.isConfidentMatch(artists[index].name, candidateName: artist.canonicalName) else { return }
+        // The picker or automatic matcher has already selected this identity.
+        // Async callers check the original slot before applying the result.
+        guard artists.indices.contains(index) else { return }
         if AppleMusicArtistIdentity.artistID(for: artists[index]) != artist.id {
             artists[index].albumArtworkURL = nil
         }

@@ -826,7 +826,7 @@ private final class ListeningChromeArtistSearchSpy: @unchecked Sendable, ArtistS
 
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         locked { searches += 1 }
-        return [RecognizedArtist(id: "lazy-artist", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+        return [RecognizedArtist(id: "lazy-artist", canonicalName: query, avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
     }
 
     private func locked<T>(_ body: () -> T) -> T {

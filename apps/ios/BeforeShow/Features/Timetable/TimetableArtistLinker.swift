@@ -37,9 +37,9 @@ final class TimetableArtistLinker {
     }
 
     func candidates(for query: String, includingRemote: Bool = false) async throws -> [RecognizedArtist] {
-        let known = savedCandidates(for: query)
+        let known = ArtistNameMatching.searchCandidates(savedCandidates(for: query))
         if !includingRemote && !known.isEmpty { return known }
-        let key = ArtistNameMatching.normalized(query)
+        let key = ArtistNameMatching.searchKey(query)
         let found: [RecognizedArtist]
         if let cached = searchResults[key] {
             found = cached
@@ -51,15 +51,7 @@ final class TimetableArtistLinker {
         var merged = known
         var identities = Set(known.map(\.id))
         for artist in found where identities.insert(artist.id).inserted { merged.append(artist) }
-        return merged
-    }
-
-    /// The picker and lineup import must share the same complete variant-search
-    /// policy. Saved identities are included when checking for conflicting IDs.
-    func resolveCandidates(for name: String) async throws -> ArtistIdentityResolution {
-        try await ArtistIdentityMatcher(search: search).resolve(
-            for: name, including: savedCandidates(for: name)
-        )
+        return ArtistNameMatching.searchCandidates(merged)
     }
 
     func rememberConnectedArtist(_ artist: RecognizedArtist) {
@@ -122,7 +114,7 @@ final class TimetableArtistLinker {
         var matches: [RecognizedArtist] = []
         // Resolve every script/bilingual form. Returning the first exact saved
         // name could hide another known Artist ID under an alternate credit.
-        for query in ArtistNameMatching.searchQueries(for: name) {
+        for query in ArtistNameMatching.nameVariants(for: name) {
             let normalized = ArtistNameMatching.normalized(query)
             for artist in knownArtists where ArtistNameMatching.normalized(artist.canonicalName) == normalized {
                 if let index = matches.firstIndex(where: { $0.id == artist.id }) {

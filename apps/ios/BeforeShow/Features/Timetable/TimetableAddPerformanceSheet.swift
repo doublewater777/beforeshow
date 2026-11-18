@@ -301,7 +301,7 @@ struct TimetableAddPerformanceSheet: View {
         guard needsArtistSearch else { return }
         let name = artistName
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        artistCandidates = linker.savedCandidates(for: query)
+        artistCandidates = ArtistNameMatching.searchCandidates(linker.savedCandidates(for: query))
         isSearchingLoading = true
         do {
             try await Task.sleep(for: .milliseconds(350))
@@ -310,7 +310,7 @@ struct TimetableAddPerformanceSheet: View {
             guard artistName == name, connectedArtist == nil else { return }
             artistCandidates = results
             isSearchingLoading = false
-            if let match = ArtistNameMatching.uniqueExactMatch(for: query, among: results) {
+            if let match = ArtistNameMatching.matchForTypedName(query, among: results) {
                 connectArtist(match)
             }
         } catch {

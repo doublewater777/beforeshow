@@ -17,6 +17,48 @@ import SwiftData
         XCTAssertEqual(queries, ["the band"])
     }
 
+    func testCatalogRankingWinsOverAnExactNameAndDraftAcceptsTheIdentity() async throws {
+        let search = AutoMatchSearchStub(candidates: [
+            candidate("band", "回春丹"), candidate("namesake", "回春丹乐队")
+        ])
+        let slots = [ArtistSlot(name: "回春丹乐队", avatarURL: nil)]
+        let matches = await ShowDraftArtistAutoMatcher(search: search).matches(for: slots)
+        let match = try XCTUnwrap(matches[0])
+        XCTAssertEqual(match.id, "band", "The catalog's preferred artist must not be displaced by an exact-name namesake")
+        var draft = ShowDraft(artists: slots)
+        draft.attachArtistIdentity(match, at: 0)
+        XCTAssertEqual(draft.artists[0].appleMusicArtistID, "band")
+        XCTAssertEqual(draft.artists[0].name, "回春丹")
+        let queries = await search.queries
+        XCTAssertEqual(queries, ["回春丹乐队"], "Automatic matching searches only the original credit")
+    }
+
+    func testArtistSearchPreservesCatalogRankingForAliasesAndSuffixes() async throws {
+        let catalogResults = [candidate("band", "回春丹"), candidate("namesake", "回春丹乐队")]
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _, _ in catalogResults },
+            fallbackSearch: { _, _, _ in throw ArtistSearchPolicyTestError.unexpectedFallback }
+        )
+        let results = try await service.searchArtists(query: "回春丹乐队")
+        XCTAssertEqual(results.map(\.id), ["band", "namesake"])
+    }
+
+    func testSearchRemovesArtistsWithoutAvatarsForBothCatalogAndPublicSearch() async throws {
+        let missing = RecognizedArtist(id: "no-photo", canonicalName: "回春丹乐队", avatarURL: nil, appleMusicURL: nil)
+        let photographed = RecognizedArtist(id: "band", canonicalName: "回春丹", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
+        for catalogAvailable in [true, false] {
+            let service = AppleMusicArtistSearchService(
+                catalogSearch: { _, _, _ in
+                    if !catalogAvailable { throw ArtistCatalogSearchError.accessUnavailable }
+                    return [missing, photographed]
+                },
+                fallbackSearch: { _, _, _ in [missing, photographed] }
+            )
+            let results = try await service.searchArtists(query: "回春丹乐队")
+            XCTAssertEqual(results.map(\.id), ["band"])
+        }
+    }
+
     func testTraditionalAndSimplifiedNamesCanAutoMatch() async throws {
         XCTAssertEqual(ArtistNameMatching.normalized("周杰倫"), ArtistNameMatching.normalized("周杰伦"))
         let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [candidate("jay", "周杰伦")]))
@@ -59,126 +101,15 @@ import SwiftData
         XCTAssertFalse(try ArtistAppleMusicName.sync(in: context), "a second pass has nothing to rename")
     }
 
-    func testPunctuationAutoMatchesButTyposRemainSuggestions() {
-        XCTAssertEqual(ArtistNameMatching.uniqueConfidentMatch(
-            for: "Panic at the Disco", among: [candidate("panic", "Panic! at the Disco")]
-        )?.id, "panic")
-        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
-            for: "Taylor Swfit", among: [candidate("taylor", "Taylor Swift")]
-        ))
-        var draft = ShowDraft(artists: [ArtistSlot(name: "Taylor Swfit", avatarURL: nil)])
-        draft.attachArtistIdentity(candidate("taylor", "Taylor Swift"), at: 0)
-        XCTAssertNil(draft.artists[0].appleMusicArtistID)
-        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
-            for: "姜思达", among: [candidate("studio", "姜思达工作室")]
-        ))
-        XCTAssertNil(ArtistNameMatching.uniqueConfidentMatch(
-            for: "A B", among: [candidate("ab", "AB")]
-        ))
-    }
-
-    func testAmbiguousBilingualMatchesStillRequireConfirmation() async throws {
-        let results = try await ArtistIdentityMatcher(search: AutoMatchSearchStub(candidates: [
-            candidate("one", "落日飞车"), candidate("two", "Sunset Rollercoaster")
-        ])).matches(for: [ArtistSlot(name: "落日飞车 Sunset Rollercoaster", avatarURL: nil)])
-        XCTAssertTrue(results.isEmpty)
-    }
-
-    func testTraditionalSearchRetriesSimplifiedNameWhenFirstResultIsOnlySimilar() async throws {
-        let service = AppleMusicArtistSearchService(
-            catalogSearch: { query, _, _ in
-                if query == "周杰倫" {
-                    return [RecognizedArtist(id: "studio", canonicalName: "周杰伦工作室",
-                                             avatarURL: nil, appleMusicURL: nil)]
-                }
-                return [RecognizedArtist(id: "artist", canonicalName: "周杰伦",
-                                         avatarURL: nil, appleMusicURL: nil)]
-            },
-            fallbackSearch: { _, _, _ in [] }
-        )
-        let results = try await ArtistIdentityMatcher(search: service).matches(
-            for: [ArtistSlot(name: "周杰倫", avatarURL: nil)]
-        )
-        XCTAssertEqual(results[0]?.id, "artist")
-    }
-
-    func testConflictingIDsAcrossNameVariantsPreventAutoLink() async throws {
-        let original = "落日飞车 Sunset Rollercoaster"
-        let search = ArtistVariantSearchStub(results: [
-            original: [candidate("exact", original)],
-            "落日飞车": [candidate("exact", "落日飞车")],
-            "Sunset Rollercoaster": [candidate("other", "Sunset Rollercoaster")]
-        ])
-        let matches = try await ArtistIdentityMatcher(search: search).matches(
-            for: [ArtistSlot(name: original, avatarURL: nil)]
-        )
-        XCTAssertNil(matches[0], "A full-name exact hit must not hide a conflicting English alias")
-        let queriedEnglish = await search.queried("Sunset Rollercoaster")
-        XCTAssertTrue(queriedEnglish)
-    }
-
-    func testAmbiguousEnglishAliasDoesNotBlockDistinctChineseIdentity() async throws {
-        let original = "椅子乐团 The Chairs"
-        let chairs = candidate("chairs", "椅子樂團")
-        let search = ArtistVariantSearchStub(results: [
-            original: [chairs],
-            "椅子乐团": [chairs, candidate("other", "The Chairs")],
-            "The Chairs": [chairs, candidate("other", "The Chairs"), candidate("another", "The Chairs")]
-        ])
-        let matches = try await ArtistIdentityMatcher(search: search).matches(
-            for: [ArtistSlot(name: original, avatarURL: nil)]
-        )
-        XCTAssertEqual(matches[0]?.id, "chairs")
-    }
-
-    func testAmbiguousAliasStillBlocksWhenItsSearchDoesNotReturnTheIdentity() async throws {
-        let original = "椅子乐团 The Chairs"
-        let search = ArtistVariantSearchStub(results: [
-            "椅子乐团": [candidate("chairs", "椅子樂團")],
-            "The Chairs": [candidate("other", "The Chairs"), candidate("another", "The Chairs")]
-        ])
-        let matches = try await ArtistIdentityMatcher(search: search).matches(
-            for: [ArtistSlot(name: original, avatarURL: nil)]
-        )
-        XCTAssertNil(matches[0])
-    }
-
-    func testConflictingSimplifiedAndTraditionalIDsPreventAutoLink() async throws {
-        let search = ArtistVariantSearchStub(results: [
-            "周杰倫": [candidate("one", "周杰倫")],
-            "周杰伦": [candidate("two", "周杰伦")]
-        ])
-        let matches = try await ArtistIdentityMatcher(search: search).matches(
-            for: [ArtistSlot(name: "周杰倫", avatarURL: nil)]
-        )
-        XCTAssertNil(matches[0])
-    }
-
-    func testBilingualSearchSplitsParentheticalNamesWithoutSplittingPlainLatin() {
-        let parenthetical = ArtistNameMatching.searchQueries(for: "落日飞车（Sunset Rollercoaster）")
-        XCTAssertTrue(parenthetical.contains("落日飞车"))
-        XCTAssertTrue(parenthetical.contains("Sunset Rollercoaster"))
-        XCTAssertEqual(ArtistNameMatching.searchQueries(for: "Sunset Rollercoaster"), ["Sunset Rollercoaster"])
-    }
-
-    func testFailedNameVariantPreventsPartialAutoLink() async throws {
-        let original = "落日飞车 Sunset Rollercoaster"
-        let search = ArtistVariantSearchStub(
-            results: [original: [candidate("exact", original)],
-                      "落日飞车": [candidate("exact", "落日飞车")]],
-            failingQueries: ["Sunset Rollercoaster"]
-        )
-        let matches = try await ArtistIdentityMatcher(search: search).matches(
-            for: [ArtistSlot(name: original, avatarURL: nil)]
-        )
-        XCTAssertNil(matches[0], "An unavailable alias search cannot prove identity uniqueness")
-    }
-
-    func testTypoOnlySearchDoesNotAutoLink() async throws {
-        let result = try await ArtistIdentityMatcher(
-            search: AutoMatchSearchStub(candidates: [candidate("similar", "Taylor Swift")])
-        ).matches(for: [ArtistSlot(name: "Taylor Swfit", avatarURL: nil)])
-        XCTAssertNil(result[0])
+    func testOriginalCreditUsesThePreferredCatalogResultWithoutVariantQueries() async throws {
+        for (credit, name) in [("jay zhou", "周杰倫"), ("Taylor Swfit", "Taylor Swift"),
+                               ("落日飞车 Sunset Rollercoaster", "Sunset Rollercoaster")] {
+            let search = AutoMatchSearchStub(candidates: [candidate("preferred", name)])
+            let matches = try await ArtistIdentityMatcher(search: search).matches(for: [ArtistSlot(name: credit, avatarURL: nil)])
+            XCTAssertEqual(matches[0]?.id, "preferred")
+            let queries = await search.queries
+            XCTAssertEqual(queries, [credit])
+        }
     }
 
     func testFallbackCacheUsesResolvedRegionAndRefreshesWhenStorefrontChanges() async throws {
@@ -242,48 +173,38 @@ import SwiftData
         XCTAssertTrue(queries.isEmpty)
     }
 
-    func testAmbiguousAndUnrelatedSearchResultsDoNotAttachWrongArtist() async throws {
-        let slots = [ArtistSlot(name: "Artist", avatarURL: nil)]
-        let ambiguous = AutoMatchSearchStub(candidates: [candidate("one", "Artist"), candidate("two", "Artist")])
-        let unrelated = AutoMatchSearchStub(candidates: [candidate("other", "Different Artist")])
-        let first = try await ArtistIdentityMatcher(search: ambiguous).matches(for: slots)
-        let second = try await ArtistIdentityMatcher(search: unrelated).matches(for: slots)
-        XCTAssertTrue(first.isEmpty)
-        XCTAssertTrue(second.isEmpty)
-    }
-
-    func testInternalWhitespaceDifferenceDoesNotAutoMatch() async throws {
-        let search = AutoMatchSearchStub(candidates: [candidate("wrong", "AB")])
-        let result = try await ArtistIdentityMatcher(search: search).matches(for: [ArtistSlot(name: "A B", avatarURL: nil)])
-        XCTAssertTrue(result.isEmpty)
-    }
-
-    func testArtistSearchReturnsRelevantCatalogCandidatesWithoutWaitingForFallback() async throws {
-        for query in ["姜思达", "姜"] {
-            let fallback = AutoMatchSearchStub(candidates: [])
-            let service = AppleMusicArtistSearchService(
-                catalogSearch: { _, _, _ in
-                    [RecognizedArtist(id: "1766242527", canonicalName: "姜思达", avatarURL: nil,
-                                      appleMusicURL: URL(string: "https://music.apple.com/cn/artist/1766242527")),
-                     RecognizedArtist(id: "unrelated", canonicalName: "Sia", avatarURL: nil, appleMusicURL: nil)]
-                },
-                fallbackSearch: { query, _, _ in try await fallback.searchArtists(query: query) }
-            )
-            let results = try await service.searchArtists(query: query)
-            XCTAssertEqual(results.map(\.id), ["1766242527"])
-            let queries = await fallback.queries
-            XCTAssertTrue(queries.isEmpty)
+    func testDistinctOriginalScriptsKeepTheirOwnCatalogSearchResults() async throws {
+        struct Search: ArtistSearchServicing {
+            let results: [String: [RecognizedArtist]]
+            func searchArtists(query: String) async throws -> [RecognizedArtist] { results[query] ?? [] }
         }
+        let search = Search(results: [
+            "周杰倫": [candidate("traditional-result", "周杰倫")],
+            "周杰伦": [candidate("simplified-result", "周杰伦")]
+        ])
+        let matches = try await ArtistIdentityMatcher(search: search).matches(for: [
+            ArtistSlot(name: "周杰倫", avatarURL: nil), ArtistSlot(name: "周杰伦", avatarURL: nil)
+        ])
+        XCTAssertEqual(matches[0]?.id, "traditional-result")
+        XCTAssertEqual(matches[1]?.id, "simplified-result")
+    }
 
-        let fallbackService = AppleMusicArtistSearchService(
+    func testSameNameDifferentIDsStillRequireManualSelection() async throws {
+        let search = AutoMatchSearchStub(candidates: [candidate("one", "回春丹"), candidate("two", "回春丹")])
+        let matches = try await ArtistIdentityMatcher(search: search).matches(for: [ArtistSlot(name: "回春丹乐队", avatarURL: nil)])
+        XCTAssertTrue(matches.isEmpty)
+    }
+
+    func testPublicSearchStillFiltersUnrelatedCandidates() async throws {
+        let service = AppleMusicArtistSearchService(
             catalogSearch: { _, _, _ in throw ArtistCatalogSearchError.accessUnavailable },
             fallbackSearch: { _, _, _ in
-                [RecognizedArtist(id: "2715720", canonicalName: "Kanye West", avatarURL: nil, appleMusicURL: nil),
-                 RecognizedArtist(id: "unrelated", canonicalName: "Sia", avatarURL: nil, appleMusicURL: nil)]
+                [RecognizedArtist(id: "2715720", canonicalName: "Kanye West", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil),
+                 RecognizedArtist(id: "unrelated", canonicalName: "Sia", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
             }
         )
-        let fallbackResults = try await fallbackService.searchArtists(query: "kanye")
-        XCTAssertEqual(fallbackResults.map(\.id), ["2715720"])
+        let results = try await service.searchArtists(query: "kanye")
+        XCTAssertEqual(results.map(\.id), ["2715720"])
     }
 
     func testRepeatedSearchReusesSuccessfulResultsAcrossNameFormatting() async throws {
@@ -413,7 +334,7 @@ import SwiftData
         let search = AppleMusicArtistSearchService(
             catalogSearch: { query, _, _ in
                 guard query != "Unavailable" else { throw ArtistSearchPolicyTestError.catalogUnavailable }
-                return [RecognizedArtist(id: "1483458284", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+                return [RecognizedArtist(id: "1483458284", canonicalName: query, avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
             },
             fallbackSearch: { _, _, _ in throw ArtistSearchError.network }
         )
@@ -579,7 +500,7 @@ import SwiftData
     }
 
     private func candidate(_ id: String, _ name: String) -> RecognizedArtist {
-        RecognizedArtist(id: id, canonicalName: name, avatarURL: nil, appleMusicURL: nil)
+        RecognizedArtist(id: id, canonicalName: name, avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
     }
 }
 
@@ -600,25 +521,6 @@ private actor AutoMatchSearchStub: ArtistSearchServicing {
     }
 }
 
-private actor ArtistVariantSearchStub: ArtistSearchServicing {
-    private let results: [String: [RecognizedArtist]]
-    private let failingQueries: Set<String>
-    private var queries: [String] = []
-
-    init(results: [String: [RecognizedArtist]], failingQueries: Set<String> = []) {
-        self.results = results
-        self.failingQueries = failingQueries
-    }
-
-    func searchArtists(query: String) async throws -> [RecognizedArtist] {
-        queries.append(query)
-        if failingQueries.contains(query) { throw ArtistSearchError.network }
-        return results[query] ?? []
-    }
-
-    func queried(_ value: String) -> Bool { queries.contains(value) }
-}
-
 private actor ArtistMarketTestState {
     private var country: String
     private var countries: [String] = []
@@ -633,7 +535,7 @@ private actor ArtistMarketTestState {
     func fallbackArtist(query: String, requestedCountry: String) -> RecognizedArtist {
         countries.append(requestedCountry)
         return RecognizedArtist(id: requestedCountry, canonicalName: query,
-                                avatarURL: nil, appleMusicURL: nil)
+                                avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
     }
 }
 

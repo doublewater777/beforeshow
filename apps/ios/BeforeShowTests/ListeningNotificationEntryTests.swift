@@ -359,7 +359,7 @@ private struct HomePlaybackArtistSearch: ArtistSearchServicing {
 
 private struct NotificationEntryArtistSearch: ArtistSearchServicing {
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
-        [RecognizedArtist(id: "b", canonicalName: "B", avatarURL: nil, appleMusicURL: nil)]
+        [RecognizedArtist(id: "b", canonicalName: "B", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
     }
 }
 

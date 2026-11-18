@@ -10,14 +10,14 @@ final class TimetableArtistLinkerTests: XCTestCase {
         let show = try Show(name: "Previous", date: date, startTime: date.addingTimeInterval(3600))
         show.artists = [
             ArtistSlot(name: "落日飞车", avatarURL: nil, appleMusicURL: "https://music.apple.com/artist/123"),
-            ArtistSlot(name: "Same Name", avatarURL: nil, appleMusicArtistID: "456"),
-            ArtistSlot(name: "Same Name", avatarURL: nil, appleMusicArtistID: "789"),
+            ArtistSlot(name: "Same Name", avatarURL: "https://example.com/portrait.jpg", appleMusicArtistID: "456"),
+            ArtistSlot(name: "Same Name", avatarURL: "https://example.com/portrait.jpg", appleMusicArtistID: "789"),
             ArtistSlot(name: "冲突", avatarURL: nil, appleMusicArtistID: "111"),
             ArtistSlot(name: "Conflict", avatarURL: nil, appleMusicArtistID: "222")
         ]
         context.insert(show)
         context.insert(try TimetablePerformance(artistName: "Cached Artist", startsAt: date,
-                                               endsAt: date.addingTimeInterval(3600), appleMusicArtistID: "321"))
+                                               endsAt: date.addingTimeInterval(3600), appleMusicArtistID: "321", artistAvatarURL: "https://example.com/portrait.jpg"))
         try context.save()
         let search = RecordingSearch()
         let linker = TimetableArtistLinker(search: search)
@@ -79,7 +79,7 @@ final class TimetableArtistLinkerTests: XCTestCase {
     func testExpandedSearchOffersAlternativesToSavedIdentityAndDeduplicatesResults() async throws {
         let search = AlternativeSearch()
         let linker = TimetableArtistLinker(search: search)
-        linker.rememberConnectedArtist(RecognizedArtist(id: "123", canonicalName: "Same Name", avatarURL: nil, appleMusicURL: nil))
+        linker.rememberConnectedArtist(RecognizedArtist(id: "123", canonicalName: "Same Name", avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil))
         let saved = try await linker.candidates(for: "Same Name")
         XCTAssertEqual(saved.map(\.id), ["123"])
         let expanded = try await linker.candidates(for: "Same Name", includingRemote: true)
@@ -88,6 +88,16 @@ final class TimetableArtistLinkerTests: XCTestCase {
         XCTAssertEqual(again.map(\.id), ["123", "999"])
         let requests = await search.queries
         XCTAssertEqual(requests, ["Same Name"])
+    }
+
+    func testTypingDoesNotPromoteALowerRankedExactNameOrReplaceAPartialCredit() {
+        let preferred = RecognizedArtist(id: "band", canonicalName: "回春丹", avatarURL: URL(string: "https://example.com/band.jpg"), appleMusicURL: nil)
+        let namesake = RecognizedArtist(id: "namesake", canonicalName: "回春丹乐队", avatarURL: URL(string: "https://example.com/other.jpg"), appleMusicURL: nil)
+        XCTAssertNil(ArtistNameMatching.matchForTypedName("回春丹乐队", among: [preferred, namesake]))
+        XCTAssertNil(ArtistNameMatching.matchForTypedName("回春", among: [preferred, namesake]))
+        XCTAssertEqual(ArtistNameMatching.matchForTypedName("回春丹", among: [preferred, namesake])?.id, "band")
+        let bilingual = RecognizedArtist(id: "sunset", canonicalName: "落日飞车 Sunset Rollercoaster", avatarURL: preferred.avatarURL, appleMusicURL: nil)
+        XCTAssertNil(ArtistNameMatching.matchForTypedName("落日飞车 S", among: [bilingual]))
     }
 
     private var date: Date { Date(timeIntervalSince1970: 1790956800) }
@@ -101,7 +111,7 @@ final class TimetableArtistLinkerTests: XCTestCase {
 
         func searchArtists(query: String) async throws -> [RecognizedArtist] {
             queries.append(query)
-            return [RecognizedArtist(id: "999", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+            return [RecognizedArtist(id: "999", canonicalName: query, avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
         }
     }
 
@@ -111,7 +121,7 @@ final class TimetableArtistLinkerTests: XCTestCase {
         func searchArtists(query: String) async throws -> [RecognizedArtist] {
             queries.append(query)
             return ["123", "999", "999"].map {
-                RecognizedArtist(id: $0, canonicalName: query, avatarURL: nil, appleMusicURL: nil)
+                RecognizedArtist(id: $0, canonicalName: query, avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)
             }
         }
     }

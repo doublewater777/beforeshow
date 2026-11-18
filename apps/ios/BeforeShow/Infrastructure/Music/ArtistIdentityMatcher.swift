@@ -1,56 +1,9 @@
 import Foundation
 
-struct ArtistIdentityResolution: Sendable {
-    let candidates: [RecognizedArtist]
-    let automaticMatch: RecognizedArtist?
-}
-
+/// Searches each unresolved credit once and adopts the provider's preferred
+/// photographed artist. Existing identities are never overwritten.
 struct ArtistIdentityMatcher: Sendable {
     let search: any ArtistSearchServicing
-
-    /// A single policy for every automatic-link entry point. Candidates can still be
-    /// displayed for manual selection when an alternate spelling fails or IDs conflict.
-    func resolve(for name: String, including knownCandidates: [RecognizedArtist] = []) async throws -> ArtistIdentityResolution {
-        let queries = ArtistNameMatching.searchQueries(for: name)
-        var all = knownCandidates
-        var resultsByQuery: [String: Set<String>] = [:]
-        var firstFailure: Error?
-        var incomplete = false
-        var completed = 0
-
-        for query in queries {
-            try Task.checkCancellation()
-            do {
-                let found = try await search.searchArtists(query: query, exactMatchRequired: true)
-                try Task.checkCancellation()
-                all.append(contentsOf: found)
-                resultsByQuery[ArtistNameMatching.normalized(query), default: []].formUnion(found.map(\.id))
-                completed += 1
-            } catch {
-                try Task.checkCancellation()
-                if error is CancellationError { throw error }
-                incomplete = true
-                if firstFailure == nil { firstFailure = error }
-            }
-        }
-
-        // If every remote variant failed, surface the error so manual search
-        // can offer recovery rather than presenting a misleading empty result.
-        if !queries.isEmpty && completed == 0, let firstFailure {
-            throw firstFailure
-        }
-
-        var candidates: [RecognizedArtist] = []
-        var seen = Set<String>()
-        for artist in all where seen.insert(artist.id).inserted {
-            candidates.append(artist)
-        }
-        return ArtistIdentityResolution(
-            candidates: candidates,
-            automaticMatch: incomplete ? nil :
-                ArtistNameMatching.uniqueConfidentMatch(for: name, among: all, resultsByQuery: resultsByQuery)
-        )
-    }
 
     /// Resolve identities; callers adopt `canonicalName` as the Apple Music display name.
     func matches(for slots: [ArtistSlot]) async throws -> [Int: RecognizedArtist] {
@@ -67,7 +20,7 @@ struct ArtistIdentityMatcher: Sendable {
             }
             let query = slot.name.trimmingCharacters(in: .whitespacesAndNewlines)
             if !query.isEmpty {
-                let key = ArtistNameMatching.normalized(query)
+                let key = ArtistNameMatching.searchKey(query)
                 if let existing = pendingByName[key] {
                     pending[existing].indices.append(index)
                 } else {
@@ -82,8 +35,9 @@ struct ArtistIdentityMatcher: Sendable {
                 group.addTask {
                     try Task.checkCancellation()
                     do {
-                        let resolution = try await resolve(for: item.query)
-                        return (item.indices, resolution.automaticMatch)
+                        let candidates = try await search.searchArtists(query: item.query)
+                        try Task.checkCancellation()
+                        return (item.indices, ArtistNameMatching.automaticMatch(among: candidates))
                     } catch {
                         try Task.checkCancellation()
                         if error is CancellationError { throw error }

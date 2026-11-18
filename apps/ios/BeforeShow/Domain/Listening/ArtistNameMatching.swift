@@ -4,12 +4,17 @@ enum ArtistNameMatching {
     private static let simplified = StringTransform("Traditional-Simplified")
     private static let traditional = StringTransform("Simplified-Traditional")
 
-    static func normalized(_ name: String) -> String {
-        let converted = name.applyingTransform(simplified, reverse: false) ?? name
-        return converted.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                                 locale: Locale(identifier: "en_US_POSIX"))
+    /// A remote-query cache key must preserve the original script.
+    static func searchKey(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                     locale: Locale(identifier: "en_US_POSIX"))
             .split { $0.isWhitespace || $0.isNewline }
             .joined(separator: " ")
+    }
+
+    static func normalized(_ name: String) -> String {
+        let converted = name.applyingTransform(simplified, reverse: false) ?? name
+        return searchKey(converted)
     }
 
     static func contains(_ text: String, query: String) -> Bool {
@@ -17,8 +22,8 @@ enum ArtistNameMatching {
         return query.isEmpty || normalized(text).localizedStandardContains(query)
     }
 
-    /// Expand the same credit into alternate scripts and bilingual names for search.
-    static func searchQueries(for name: String) -> [String] {
+    /// Local spellings for comparing saved identities; these do not create remote searches.
+    static func nameVariants(for name: String) -> [String] {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         var queries: [String] = []
@@ -61,33 +66,25 @@ enum ArtistNameMatching {
         return uniqueID(candidates.filter { normalized($0.canonicalName) == key })
     }
 
-    /// `resultsByQuery` maps each normalized name variant to the IDs its own search returned.
-    static func uniqueConfidentMatch(
-        for query: String,
-        among candidates: [RecognizedArtist],
-        resultsByQuery: [String: Set<String>] = [:]
-    ) -> RecognizedArtist? {
-        let key = normalized(query)
-        guard !key.isEmpty else { return nil }
-        // The complete candidate set may contain equally trustworthy identities
-        // from other scripts or bilingual aliases. Never let an exact-name ID hide
-        // a conflicting alias ID; fuzzy similarity is only for manual suggestions.
-        let trusted = candidates.filter {
-            normalized($0.canonicalName) == key || isAliasEquivalent(query, $0.canonicalName)
-        }
-        if let match = uniqueID(trusted) { return match }
+    /// Keep the search provider's order, admitting only candidates with a portrait.
+    static func searchCandidates(_ candidates: [RecognizedArtist]) -> [RecognizedArtist] {
+        var seen = Set<String>()
+        return candidates.filter { $0.avatarURL != nil && seen.insert($0.id).inserted }
+    }
 
-        // A bilingual component shared by several catalog artists ("The Chairs") is
-        // not identity evidence. Drop those namesakes only when that component's own
-        // search also returned the remaining identity.
-        let ambiguous = Set(searchQueries(for: query).map(normalized).filter { variant in
-            variant != key && Set(trusted.filter { hasSameName($0.canonicalName, variant) }.map(\.id)).count > 1
-        })
-        guard !ambiguous.isEmpty,
-              let match = uniqueID(trusted.filter { candidate in
-                  !ambiguous.contains { hasSameName(candidate.canonicalName, $0) }
-              }),
-              ambiguous.allSatisfy({ resultsByQuery[$0]?.contains(match.id) == true }) else { return nil }
+    /// Search ranking owns spelling, aliases and suffixes. Only a same-name ID
+    /// collision around the preferred result requires a manual choice.
+    static func automaticMatch(among candidates: [RecognizedArtist]) -> RecognizedArtist? {
+        let eligible = searchCandidates(candidates)
+        guard let first = eligible.first else { return nil }
+        return uniqueID(eligible.filter { hasSameName($0.canonicalName, first.canonicalName) })
+    }
+
+    /// While the user is typing, never replace their text with a different credit
+    /// or promote a lower-ranked exact-name artist over the preferred result.
+    static func matchForTypedName(_ query: String, among candidates: [RecognizedArtist]) -> RecognizedArtist? {
+        guard let match = automaticMatch(among: candidates),
+              normalized(query) == normalized(match.canonicalName) else { return nil }
         return match
     }
 
@@ -98,8 +95,8 @@ enum ArtistNameMatching {
     }
 
     private static func isAliasEquivalent(_ lhs: String, _ rhs: String) -> Bool {
-        let left = searchQueries(for: lhs).map(normalized)
-        let right = Set(searchQueries(for: rhs).map(normalized))
+        let left = nameVariants(for: lhs).map(normalized)
+        let right = Set(nameVariants(for: rhs).map(normalized))
         if left.contains(where: { right.contains($0) }) { return true }
 
         return hasSameName(lhs, rhs)

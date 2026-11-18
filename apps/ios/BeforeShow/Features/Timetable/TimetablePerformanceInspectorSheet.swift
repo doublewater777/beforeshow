@@ -497,7 +497,7 @@ struct TimetablePerformanceInspectorSheet: View {
         guard needsArtistSearch else { return }
         let name = draftArtistName
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        artistCandidates = linker.savedCandidates(for: query)
+        artistCandidates = ArtistNameMatching.searchCandidates(linker.savedCandidates(for: query))
         isSearchingLoading = true
         do {
             try await Task.sleep(for: .milliseconds(350))
@@ -506,7 +506,7 @@ struct TimetablePerformanceInspectorSheet: View {
             guard draftArtistName == name, draftAppleMusicArtistID == nil else { return }
             artistCandidates = results
             isSearchingLoading = false
-            if !isRelinking, let match = ArtistNameMatching.uniqueExactMatch(for: query, among: results) {
+            if !isRelinking, let match = ArtistNameMatching.matchForTypedName(query, among: results) {
                 draftArtistName = match.canonicalName
                 draftAppleMusicArtistID = match.id
                 draftArtistAvatarURL = match.avatarURL?.absoluteString

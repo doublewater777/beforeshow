@@ -202,6 +202,6 @@ private final class ColdStartSearch: ArtistSearchServicing, Sendable {
         requests.begin(query)
         defer { requests.end() }
         if query == "Artist 0" { await gate.wait() }
-        return [.init(id: query, canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+        return [.init(id: query, canonicalName: query, avatarURL: URL(string: "https://example.com/portrait.jpg"), appleMusicURL: nil)]
     }
 }

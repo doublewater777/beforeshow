@@ -214,7 +214,7 @@ final class ListeningPresentationTests: XCTestCase {
         let search = CountingArtistSearchService(result: RecognizedArtist(
             id: "unmatched-artist-id",
             canonicalName: "Unmatched Artist",
-            avatarURL: nil,
+            avatarURL: URL(string: "https://example.com/portrait.jpg"),
             appleMusicURL: nil
         ))
         let room = ListeningRoomCoordinator(
@@ -665,7 +665,7 @@ final class ListeningPresentationTests: XCTestCase {
         XCTFail("Timed out waiting for \(count) Music access requests")
     }
 
-    func testImportedArtistAutoMatchRequiresOneExactIdentity() {
+    func testExactNameSelectionNormalizesAccentsAndRejectsSameNameIDs() {
         let exact = RecognizedArtist(id: "1", canonicalName: "Beyoncé", avatarURL: nil, appleMusicURL: nil)
         let fuzzy = RecognizedArtist(id: "2", canonicalName: "Beyoncé Live", avatarURL: nil, appleMusicURL: nil)
         XCTAssertEqual(
